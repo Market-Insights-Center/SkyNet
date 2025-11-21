@@ -1,0 +1,92 @@
+﻿python : INFO:     
+Started server process 
+[16288]
+At line:1 char:1
++ python backend/main.py 
+> backend_log.txt 2>&1
++ ~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo       
+       : NotS    
+pecified: (INFO    :     
+Started s    erver 
+process [    
+16288]:String)     [], 
+RemoteExcep    tion
+    + FullyQualifie    
+dErrorId : Nati    
+veCommandError
+ 
+INFO:     Waiting for 
+application startup.
+INFO:     Application 
+startup complete.
+INFO:     Uvicorn 
+running on 
+http://0.0.0.0:8000 
+(Press CTRL+C to quit)
+C:\Users\victo\Downloads\
+MIC CODE FILES\portfolio-
+lab\backend\main.py:111: 
+PydanticDeprecatedSince20
+: The `dict` method is 
+deprecated; use 
+`model_dump` instead. 
+Deprecated in Pydantic 
+V2.0 to be removed in 
+V3.0. See Pydantic V2 
+Migration Guide at https:
+//errors.pydantic.dev/2.1
+0/migration/
+  "sub_portfolios": 
+[sp.dict() for sp in 
+request.sub_portfolios],
+Traceback (most recent 
+call last):
+  File "C:\Users\victo\Do
+wnloads\MIC CODE FILES\po
+rtfolio-lab\backend\main.
+py", line 118, in 
+run_invest
+    result = await invest
+_command.handle_invest_co
+mmand(
+             ^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^
+  File "C:\Users\victo\Do
+wnloads\MIC CODE FILES\po
+rtfolio-lab\backend\integ
+ration\invest_command.py"
+, line 678, in 
+handle_invest_command
+    tailored_list_str, 
+combined_data, 
+final_cash, 
+tailored_structured_data 
+= await 
+process_custom_portfolio(
+                         
+                         
+                         
+  ^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^
+  File "C:\Users\victo\Do
+wnloads\MIC CODE FILES\po
+rtfolio-lab\backend\integ
+ration\invest_command.py"
+, line 284, in 
+process_custom_portfolio
+    for ticker, 
+(live_price, ema_invest) 
+in zip(items_in_sub, 
+results):
+                
+^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: cannot unpack 
+non-iterable NoneType 
+object
+Received /invest request: ema_sensitivity=2 amplification=1.0 sub_portfolios=[SubPortfolio(tickers=['AAPL', 'MSFT'], weight=100.0)] tailor_to_value=False total_value=10000.0 use_fractional_shares=False
+DEBUG: handle_invest_command called with ai_params: {'ema_sensitivity': 2, 'amplification': 1.0, 'sub_portfolios': [{'tickers': ['AAPL', 'MSFT'], 'weight': 100.0}], 'tailor_to_value': False, 'total_value': 10000.0, 'use_fractional_shares': False}
+DEBUG: Calling process_custom_portfolio with config: {'risk_type': 'stock', 'risk_tolerance': '10', 'remove_amplification_cap': 'true', 'ema_sensitivity': '2', 'amplification': '1.0', 'num_portfolios': '1', 'tickers_1': "['AAPL', 'MSFT']", 'weight_1': '100.00', 'frac_shares': 'false'}
+INFO:     127.0.0.1:56624 - "POST /api/invest HTTP/1.1" 500 Internal Server Error

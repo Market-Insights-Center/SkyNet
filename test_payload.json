@@ -1,0 +1,10 @@
+{
+    "sub_portfolios": [
+        {
+            "tickers": "AAPL",
+            "weight": 100
+        }
+    ],
+    "ema_sensitivity": 2,
+    "amplification": 1
+}
