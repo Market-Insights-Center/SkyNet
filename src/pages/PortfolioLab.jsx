@@ -38,15 +38,19 @@ const Hero = () => {
 
 const CommandCard = ({ title, desc, icon: Icon, path, delay }) => {
     return (
-        <Link to={path} className="block group">
+        <Link to={path} className="block group h-full">
             <motion.div
                 initial={{ opacity: 0, y: 50 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
                 transition={{ duration: 0.6, delay: delay }}
                 whileHover={{ scale: 1.02 }}
-                className="relative h-full p-6 bg-white/5 border border-white/10 rounded-xl overflow-hidden transition-all duration-300 hover:border-gold/50 hover:shadow-[0_0_30px_-10px_rgba(212,175,55,0.3)]"
+                className="relative h-full p-6 bg-white/5 border border-white/10 rounded-xl overflow-hidden transition-all duration-300 group-hover:border-gold/50 group-hover:shadow-[0_0_30px_-10px_rgba(212,175,55,0.3)]"
             >
+                {/* Gold Hue Background on Hover */}
+                <div className="absolute inset-0 bg-gold/0 group-hover:bg-gold/10 transition-colors duration-500" />
+                
+                {/* Existing Gradient */}
                 <div className="absolute inset-0 bg-gradient-to-br from-royal-purple/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
 
                 <div className="relative z-10 flex flex-col h-full">
@@ -97,7 +101,7 @@ const PortfolioLab = () => {
         <div className="pb-20">
             <Hero />
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 -mt-10 relative z-20">
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 auto-rows-fr">
                     {cards.map((card, index) => (
                         <CommandCard key={index} {...card} />
                     ))}

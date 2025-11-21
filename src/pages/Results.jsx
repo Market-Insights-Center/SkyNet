@@ -2,10 +2,70 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import { ArrowLeft, Download, Share2 } from 'lucide-react';
 
+// Simple Donut Chart Component
+const DonutChart = ({ data }) => {
+    const total = data.reduce((sum, item) => sum + (parseFloat(item.value) || 0), 0);
+    let currentAngle = 0;
+    
+    // Define colors
+    const colors = ['#D4AF37', '#6A0DAD', '#4B5563', '#9CA3AF', '#1F2937'];
+
+    if (total === 0) return (
+        <div className="w-48 h-48 rounded-full border-8 border-white/5 flex items-center justify-center">
+            <span className="text-gray-500 text-sm">No Data</span>
+        </div>
+    );
+
+    return (
+        <div className="relative w-48 h-48">
+            <svg viewBox="0 0 100 100" className="w-full h-full transform -rotate-90">
+                {data.map((item, index) => {
+                    const value = parseFloat(item.value) || 0;
+                    if (value <= 0) return null;
+                    
+                    const percentage = value / total;
+                    const angle = percentage * 360;
+                    
+                    // Calculate SVG arc path
+                    const radius = 40; // r
+                    const circumference = 2 * Math.PI * radius;
+                    const strokeDasharray = `${(percentage * circumference)} ${circumference}`;
+                    const strokeDashoffset = -(currentAngle / 360) * circumference;
+                    
+                    currentAngle += angle;
+                    
+                    return (
+                        <circle
+                            key={index}
+                            cx="50"
+                            cy="50"
+                            r={radius}
+                            fill="transparent"
+                            stroke={colors[index % colors.length]}
+                            strokeWidth="12"
+                            strokeDasharray={strokeDasharray}
+                            strokeDashoffset={strokeDashoffset}
+                            className="transition-all duration-500"
+                        />
+                    );
+                })}
+            </svg>
+            <div className="absolute inset-0 flex flex-col items-center justify-center">
+                <span className="text-xl font-bold text-white">Allocation</span>
+            </div>
+        </div>
+    );
+};
+
 const Results = ({ toolType, onBack }) => {
-    // Use data from API if available, otherwise fallback to empty/mock
     const data = window.analysisResults || { summary: [], table: [] };
     const { summary: summaryStats, table: tableData } = data;
+
+    // Prepare data for chart (using 'value' which is actual money allocation)
+    const chartData = tableData.map(item => ({
+        label: item.ticker,
+        value: item.value // Use the raw value from backend for accuracy
+    })).filter(item => item.value > 0);
 
     return (
         <motion.div
@@ -47,7 +107,7 @@ const Results = ({ toolType, onBack }) => {
                     >
                         <p className="text-gray-400 text-sm mb-1">{stat.label}</p>
                         <h3 className="text-2xl font-bold text-gold">{stat.value}</h3>
-                        <span className={`text-xs ${stat.isPositive ? 'text-green-400' : 'text-gray-500'}`}>
+                        <span className="text-xs text-gray-500">
                             {stat.change}
                         </span>
                     </motion.div>
@@ -55,14 +115,19 @@ const Results = ({ toolType, onBack }) => {
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                {/* Chart Section (Placeholder) */}
+                {/* Chart Section */}
                 <div className="lg:col-span-1 bg-black/40 border border-white/10 rounded-xl p-6 flex flex-col items-center justify-center min-h-[300px]">
-                    <div className="w-48 h-48 rounded-full border-8 border-white/5 border-t-royal-purple border-r-gold relative flex items-center justify-center">
-                        <span className="text-xl font-bold text-white">Allocation</span>
-                    </div>
+                    <DonutChart data={chartData} />
                     <div className="mt-6 flex flex-wrap gap-4 justify-center">
-                        <div className="flex items-center gap-2"><div className="w-3 h-3 bg-gold rounded-full"></div><span className="text-sm text-gray-300">Tech</span></div>
-                        <div className="flex items-center gap-2"><div className="w-3 h-3 bg-royal-purple rounded-full"></div><span className="text-sm text-gray-300">Growth</span></div>
+                        {chartData.map((item, index) => (
+                            <div key={index} className="flex items-center gap-2">
+                                <div 
+                                    className="w-3 h-3 rounded-full" 
+                                    style={{ backgroundColor: ['#D4AF37', '#6A0DAD', '#4B5563', '#9CA3AF', '#1F2937'][index % 5] }}
+                                ></div>
+                                <span className="text-sm text-gray-300">{item.label}</span>
+                            </div>
+                        ))}
                     </div>
                 </div>
 
@@ -75,8 +140,8 @@ const Results = ({ toolType, onBack }) => {
                                     <th className="p-4 text-sm font-bold text-white">Ticker</th>
                                     <th className="p-4 text-sm font-bold text-white">Shares</th>
                                     <th className="p-4 text-sm font-bold text-white">Price</th>
-                                    <th className="p-4 text-sm font-bold text-white">Allocation</th>
-                                    <th className="p-4 text-sm font-bold text-white text-right">P&L</th>
+                                    <th className="p-4 text-sm font-bold text-white">Allocation %</th>
+                                    <th className="p-4 text-sm font-bold text-white text-right">Value ($)</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -86,8 +151,8 @@ const Results = ({ toolType, onBack }) => {
                                         <td className="p-4 text-gray-300">{row.shares}</td>
                                         <td className="p-4 text-gray-300">${row.price.toFixed(2)}</td>
                                         <td className="p-4 text-gray-300">{row.alloc}</td>
-                                        <td className={`p-4 font-bold text-right ${row.pnl >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                                            {row.pnl >= 0 ? '+' : ''}{row.pnl.toFixed(2)}
+                                        <td className="p-4 font-bold text-white text-right">
+                                            ${row.value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                         </td>
                                     </tr>
                                 ))}

@@ -83,17 +83,17 @@ def normalize_table_data(data_list: List[Dict[str, Any]]) -> List[Dict[str, Any]
         try: alloc_val = float(alloc_val)
         except: alloc_val = 0.0
         
-        # PnL calculation (if data available)
-        # For tracking, we might have 'current_value' and 'initial_value' or similar
-        # For now, default to 0 if not present
-        pnl = item.get("pnl", 0.0)
+        # Added for "Value" column (Actual Money Allocation)
+        money_alloc = item.get("actual_money_allocation") or item.get("ActualMoneyAllocation") or 0.0
+        try: money_alloc = float(money_alloc)
+        except: money_alloc = 0.0
 
         normalized.append({
             "ticker": ticker,
             "shares": shares_disp,
             "price": price,
             "alloc": f"{alloc_val:.2f}%",
-            "pnl": pnl
+            "value": money_alloc # Pass raw number for formatting in frontend
         })
     return normalized
 
@@ -108,13 +108,14 @@ async def run_invest(request: InvestRequest):
     ai_params = {
         "ema_sensitivity": request.ema_sensitivity,
         "amplification": request.amplification,
-        "sub_portfolios": [sp.dict() for sp in request.sub_portfolios],
+        "sub_portfolios": [sp.model_dump() for sp in request.sub_portfolios],
         "tailor_to_value": request.tailor_to_value,
         "total_value": request.total_value,
         "use_fractional_shares": request.use_fractional_shares
     }
     
     try:
+        # Call the integration command
         result = await invest_command.handle_invest_command(
             args=[], 
             ai_params=ai_params, 
@@ -125,15 +126,29 @@ async def run_invest(request: InvestRequest):
         if isinstance(result, str) and result.startswith("Error"):
              raise HTTPException(status_code=400, detail=result)
 
+        # Unpack the result from invest_command
         tailored_list_str, combined_data, final_cash, tailored_structured_data = result
         
+        # Determine which dataset to display based on whether tailoring was requested
         raw_data = tailored_structured_data if request.tailor_to_value else combined_data
         table_data = normalize_table_data(raw_data)
 
+        # Calculate total allocated value (excluding cash)
+        total_allocated = sum(item['value'] for item in table_data)
+        
+        # Prepare summary cards
         response_data = {
             "summary": [
-                {"label": "Total Value", "value": f"${request.total_value:,.2f}" if request.total_value else "N/A", "change": "Input"},
-                {"label": "Cash Reserve", "value": f"${final_cash:,.2f}", "change": "Allocated"},
+                {
+                    "label": "Total Value", 
+                    "value": f"${request.total_value:,.2f}" if request.total_value else "N/A", 
+                    "change": "Input"
+                },
+                {
+                    "label": "Cash Reserve", 
+                    "value": f"${final_cash:,.2f}", 
+                    "change": f"{((final_cash / request.total_value) * 100):.1f}%" if request.total_value else "0%"
+                },
             ],
             "table": table_data,
             "raw_result": {
@@ -198,7 +213,7 @@ async def run_custom(request: CustomRequest):
         "portfolio_code": request.portfolio_code,
         "ema_sensitivity": request.ema_sensitivity,
         "amplification": request.amplification,
-        "sub_portfolios": [sp.dict() for sp in request.sub_portfolios],
+        "sub_portfolios": [sp.model_dump() for sp in request.sub_portfolios],
         "tailor_to_value": request.tailor_to_value,
         "total_value": request.total_value,
         "use_fractional_shares": request.use_fractional_shares,
@@ -214,11 +229,6 @@ async def run_custom(request: CustomRequest):
         
         if isinstance(result, str) and result.startswith("Error"):
              raise HTTPException(status_code=400, detail=result)
-        
-        # Custom command likely returns similar structure to invest if using process_custom_portfolio
-        # But handle_custom_command might return something else.
-        # Assuming it returns a dict or tuple similar to invest for now, but need to be careful.
-        # If it returns a dict with 'holdings', we use that.
         
         if isinstance(result, dict) and "holdings" in result:
              table_data = normalize_table_data(result["holdings"])

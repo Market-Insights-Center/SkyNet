@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Info } from 'lucide-react';
+import { Info, Plus, Trash2, Check } from 'lucide-react';
 
 const InputGroup = ({ label, children, tooltip }) => (
     <div className="mb-6">
@@ -11,10 +11,11 @@ const InputGroup = ({ label, children, tooltip }) => (
     </div>
 );
 
-const TextInput = ({ placeholder, defaultValue, onChange }) => (
+const TextInput = ({ placeholder, defaultValue, value, onChange }) => (
     <input
         type="text"
         defaultValue={defaultValue}
+        value={value}
         placeholder={placeholder}
         onChange={(e) => onChange && onChange(e.target.value)}
         className="w-full bg-black border border-gray-800 rounded-lg px-4 py-3 text-white focus:border-royal-purple focus:ring-1 focus:ring-royal-purple outline-none transition-all duration-300 placeholder-gray-600"
@@ -61,28 +62,110 @@ const SliderInput = ({ min, max, defaultValue, unit = '', step = 1, onChange }) 
 const ToggleSwitch = ({ label, onChange }) => {
     const [active, setActive] = useState(false);
     return (
-        <div className="flex items-center justify-between p-4 bg-black/50 rounded-lg border border-gray-800">
+        <div className="flex items-center justify-between p-4 bg-black/50 rounded-lg border border-gray-800 cursor-pointer" onClick={() => {
+            const newState = !active;
+            setActive(newState);
+            if (onChange) onChange(newState);
+        }}>
             <span className="text-sm text-gray-300">{label}</span>
-            <button
-                onClick={() => {
-                    const newState = !active;
-                    setActive(newState);
-                    if (onChange) onChange(newState);
-                }}
-                className={`w-12 h-6 rounded-full relative transition-colors duration-300 ${active ? 'bg-gold' : 'bg-gray-700'}`}
-            >
+            <div className={`w-12 h-6 rounded-full relative transition-colors duration-300 ${active ? 'bg-gold' : 'bg-gray-700'}`}>
                 <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all duration-300 ${active ? 'left-7' : 'left-1'}`} />
+            </div>
+        </div>
+    );
+};
+
+const CheckboxInput = ({ label, onChange }) => {
+    const [checked, setChecked] = useState(false);
+    
+    const handleCheck = () => {
+        const newState = !checked;
+        setChecked(newState);
+        if (onChange) onChange(newState);
+    };
+
+    return (
+        <div 
+            className="flex items-center gap-3 p-3 bg-white/5 border border-gray-800 rounded-lg cursor-pointer hover:bg-white/10 transition-colors"
+            onClick={handleCheck}
+        >
+            <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${checked ? 'bg-gold border-gold' : 'border-gray-600 bg-transparent'}`}>
+                {checked && <Check size={14} className="text-black" strokeWidth={3} />}
+            </div>
+            <span className="text-sm text-gray-300 select-none">{label}</span>
+        </div>
+    );
+};
+
+const SubPortfolioInput = ({ subPortfolios, onChange }) => {
+    const addPortfolio = () => {
+        const newPortfolios = [...subPortfolios, { tickers: '', weight: 0 }];
+        onChange(newPortfolios);
+    };
+
+    const removePortfolio = (index) => {
+        const newPortfolios = subPortfolios.filter((_, i) => i !== index);
+        onChange(newPortfolios);
+    };
+
+    const updatePortfolio = (index, field, value) => {
+        const newPortfolios = [...subPortfolios];
+        newPortfolios[index] = { ...newPortfolios[index], [field]: value };
+        onChange(newPortfolios);
+    };
+
+    return (
+        <div className="space-y-4 overflow-y-auto max-h-[300px] pr-2 custom-scrollbar">
+            {subPortfolios.map((portfolio, index) => (
+                <div key={index} className="p-4 border border-gray-800 rounded-lg bg-white/5 relative">
+                    <div className="flex justify-between items-center mb-2">
+                        <span className="text-xs font-bold text-gold uppercase">Sub-Portfolio {index + 1}</span>
+                        {subPortfolios.length > 1 && (
+                            <button onClick={() => removePortfolio(index)} className="text-gray-500 hover:text-red-500">
+                                <Trash2 size={14} />
+                            </button>
+                        )}
+                    </div>
+                    <div className="space-y-3">
+                        <div>
+                            <label className="text-xs text-gray-400 mb-1 block">Tickers (Comma separated)</label>
+                            <TextInput
+                                value={portfolio.tickers}
+                                placeholder="AAPL, MSFT"
+                                onChange={(val) => updatePortfolio(index, 'tickers', val)}
+                            />
+                        </div>
+                        <div>
+                            <label className="text-xs text-gray-400 mb-1 block">Weight (%)</label>
+                            <TextInput
+                                value={portfolio.weight}
+                                placeholder="50"
+                                onChange={(val) => updatePortfolio(index, 'weight', val)}
+                            />
+                        </div>
+                    </div>
+                </div>
+            ))}
+            <button
+                onClick={addPortfolio}
+                className="w-full py-2 border border-gray-700 border-dashed rounded-lg text-gray-400 hover:text-white hover:border-gray-500 hover:bg-white/5 transition-all flex items-center justify-center gap-2 text-sm"
+            >
+                <Plus size={16} /> Add Another Sub-Portfolio
             </button>
         </div>
     );
 };
 
 const WizardInputs = ({ toolType, onChange }) => {
-    // Helper to handle changes for a specific field
+    const [subPortfolios, setSubPortfolios] = useState([{ tickers: '', weight: 100 }]);
+
+    const handleSubPortfolioChange = (newPortfolios) => {
+        setSubPortfolios(newPortfolios);
+        onChange('sub_portfolios', newPortfolios);
+    };
+
     const handleChange = (field, value) => {
-        if (onChange) {
-            onChange(field, value);
-        }
+        onChange(field, value);
     };
 
     switch (toolType) {
@@ -103,13 +186,13 @@ const WizardInputs = ({ toolType, onChange }) => {
                     </InputGroup>
                     <InputGroup label="Amplification Factor">
                         <SliderInput
-                            min={1} max={3} defaultValue={1.5} unit="x" step={0.5}
+                            min={0.25} max={3} defaultValue={1.5} unit="x" step={0.25}
                             onChange={(val) => handleChange('amplification', val)}
                         />
                     </InputGroup>
-                    <InputGroup label="Sub-portfolios">
-                        <SelectInput
-                            options={['Conservative', 'Balanced', 'Aggressive', 'Custom Mix']}
+                    <InputGroup label="Sub-portfolios (Tickers)">
+                        <TextInput
+                            placeholder="AAPL, MSFT (Sub 1)"
                             onChange={(val) => handleChange('sub_portfolios', val)}
                         />
                     </InputGroup>
@@ -123,10 +206,18 @@ const WizardInputs = ({ toolType, onChange }) => {
         case 'invest':
             return (
                 <>
-                    <InputGroup label="Tickers (Comma Separated)">
+                    <InputGroup label="Portfolio Construction" tooltip="Define your sub-portfolios and their weights.">
+                        <SubPortfolioInput 
+                            subPortfolios={subPortfolios} 
+                            onChange={handleSubPortfolioChange} 
+                        />
+                    </InputGroup>
+                    
+                    <InputGroup label="Investment Capital ($)" tooltip="Total amount you wish to allocate.">
                         <TextInput
-                            placeholder="AAPL, MSFT, GOOGL"
-                            onChange={(val) => handleChange('tickers', val.split(',').map(t => t.trim()))}
+                            placeholder="10000"
+                            defaultValue="10000"
+                            onChange={(val) => handleChange('capital', parseFloat(val) || 0)}
                         />
                     </InputGroup>
                     <InputGroup label="EMA Sensitivity">
@@ -137,10 +228,17 @@ const WizardInputs = ({ toolType, onChange }) => {
                     </InputGroup>
                     <InputGroup label="Amplification">
                         <SliderInput
-                            min={1} max={5} defaultValue={1} unit="x" step={0.5}
+                            min={0.25} max={5} defaultValue={1} unit="x" step={0.25}
                             onChange={(val) => handleChange('amplification', val)}
                         />
                     </InputGroup>
+                    
+                    <div className="mt-4">
+                        <CheckboxInput 
+                            label="Use Fractional Shares"
+                            onChange={(val) => handleChange('use_fractional_shares', val)}
+                        />
+                    </div>
                 </>
             );
 

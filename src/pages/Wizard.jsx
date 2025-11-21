@@ -2,9 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { ChevronRight, Play } from 'lucide-react';
-import WizardInputs from '../components/WizardInputs';
-import WizardPreview from '../components/WizardPreview';
-import Results from './Results';
+import WizardInputs from '../components/WizardInputs.jsx';
+import WizardPreview from '../components/WizardPreview.jsx';
+import Results from './Results.jsx';
 
 const Wizard = () => {
     const location = useLocation();
@@ -36,30 +36,39 @@ const Wizard = () => {
     };
 
     const getRequestBody = (type) => {
-        // Use inputs from state, falling back to defaults if necessary
+        // Helper to safely parse tickers string into list if needed
+        const parseTickerString = (str) => {
+            if (!str) return [];
+            return str.split(',').map(t => t.trim()).filter(t => t.length > 0);
+        };
+
         switch (type) {
             case 'invest':
-                // Map sensitivity string to int
                 const sensMap = { "Low (Long-term)": 1, "Medium (Swing)": 2, "High (Day Trade)": 3, "Medium": 2 };
                 const emaSens = sensMap[inputs.ema_sensitivity] || 2;
+                const investCapital = parseFloat(inputs.capital) || 10000;
 
-                // Handle tickers input: split string into list, default if empty
-                const rawTickers = inputs.tickers || "AAPL, MSFT, NVDA";
-                const tickerList = rawTickers.split(',').map(t => t.trim()).filter(t => t.length > 0);
+                // Construct sub_portfolios from the array we received from WizardInputs
+                let subPortfolios = [];
+                if (Array.isArray(inputs.sub_portfolios)) {
+                    subPortfolios = inputs.sub_portfolios.map(sp => ({
+                        tickers: parseTickerString(sp.tickers),
+                        weight: parseFloat(sp.weight) || 0
+                    }));
+                } else {
+                    // Fallback default if nothing entered yet
+                    subPortfolios = [{ tickers: ["AAPL", "MSFT", "NVDA"], weight: 100.0 }];
+                }
 
                 return {
                     ema_sensitivity: emaSens,
                     amplification: parseFloat(inputs.amplification) || 1.0,
-                    sub_portfolios: [
-                        {
-                            tickers: tickerList.length > 0 ? tickerList : ["AAPL", "MSFT", "NVDA"],
-                            weight: 100.0
-                        }
-                    ],
-                    tailor_to_value: false, // Default for quick invest
-                    total_value: 10000, // Default
-                    use_fractional_shares: false
+                    sub_portfolios: subPortfolios,
+                    tailor_to_value: true,
+                    total_value: investCapital,
+                    use_fractional_shares: inputs.use_fractional_shares || false // Pass the checkbox value
                 };
+
             case 'cultivate':
                 return {
                     cultivate_code: inputs.strategy_code || "Strategy A (Growth)",
@@ -77,13 +86,13 @@ const Wizard = () => {
                     amplification: parseFloat(inputs.amplification) || 1.5,
                     sub_portfolios: [
                         {
-                            tickers: (inputs.sub_portfolios || "AAPL, MSFT").split(',').map(t => t.trim()),
+                            tickers: parseTickerString(inputs.sub_portfolios || "AAPL, MSFT"),
                             weight: 100.0
                         }
                     ],
                     tailor_to_value: false,
                     total_value: 10000,
-                    use_fractional_shares: inputs.auto_rebalance || false, // Mapping auto_rebalance to frac shares for now as proxy
+                    use_fractional_shares: inputs.auto_rebalance || false, 
                     action: "run_analysis"
                 };
             case 'tracking':
@@ -103,22 +112,25 @@ const Wizard = () => {
             const endpoint = `http://localhost:8000/api/${toolType}`;
             const body = getRequestBody(toolType);
 
+            console.log("Sending Request:", body); 
+
             const response = await fetch(endpoint, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(body),
             });
 
-            if (!response.ok) throw new Error('Analysis failed');
+            if (!response.ok) {
+                const errText = await response.text();
+                throw new Error(`Server Error: ${response.status} - ${errText}`);
+            }
 
             const data = await response.json();
-            // Pass data to results page via state or context (simplified here by just showing results)
-            // In a real app, we'd pass `data` to the Results component
-            window.analysisResults = data; // Temporary hack for demo simplicity
+            window.analysisResults = data; 
             setShowResults(true);
         } catch (error) {
             console.error(error);
-            alert('Failed to run analysis. Ensure backend is running.');
+            alert(`Failed to run analysis: ${error.message}`);
         } finally {
             setIsAnalyzing(false);
         }
