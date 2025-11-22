@@ -6,4 +6,5 @@ quantumsplit,2,1.0,9,yes,10,stock,true,"MU, NVDA, AMD, ASML, NOW, TSM, GOOG, PLT
 quantumfix,2,1.0,9,yes,10,stock,true,"NVDA, ASML, NOW, TSM, GOOG, MRVL, META, AVGO, SAP, ORCL, AAPL",8.1955,"VRT, DELL, MSFT, CRWV, HPE",12.0262,"GEV, CCJ, CEG, VST, SMR, ETN",5.6327,"CPER, LIT, MP",4.4626,"GE, BYDDY, CRWD, HWM, PH, CDNS, SE, SNOW",6.1027,"QTUM, IBM",1.8496,"COIN, MSTR",1.5026,"SPY, QQQ, OEF, DIA",30.0605,"GLD, SLV",30.0605
 overvaluedpicks,2,2.0,1,yes,10,stock,true,"USAR, RGTI, REMX, NNE, IONQ, RDDT, MU, HOOD, GLW, APP, INTC, OKLO, PLTR, AMD",100.00
 quantumpro,2,1.0,2,yes,10,stock,true,"quantumfix",81.00,"overvaluedpicks",19.00
-testingauto,2,1.0,1,yes,10,stock,true,"RGTI, USAR, OKLO, REMX, IONQ, MU, NNE, SMR, HOOD",100.00
+testingauto,2,1.0,1,yes,10,stock,true,"RGTI, USAR, OKLO, REMX, IONQ, MU, NNE, SMR, HOOD",100.00whatev,2,1.5,2,true,10,stock,true,"MU,REMX",75.0,"BRK.B,GOOG",25.0
+testing,2,1.5,2,true,10,stock,true,"REMX,MU",75.0,"BRK.B,GOOG",25.0

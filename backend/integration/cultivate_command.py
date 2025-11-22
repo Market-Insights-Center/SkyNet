@@ -1,28 +1,38 @@
-# cultivate_command.py
-
-import pandas as pd
-import numpy as np
-import os
+# --- Imports for cultivate_command ---
 import asyncio
+import csv
+import math
+import os
+import traceback
+from datetime import datetime, timedelta
+from io import StringIO
+from typing import Any, Dict, List, Optional
+
+import numpy as np
+import pandas as pd
+import requests
 import yfinance as yf
 from tabulate import tabulate
-import uuid
-from typing import List, Dict, Any, Optional
+from tradingview_screener import Column, Query
+
+# --- Local Imports ---
+try:
+    from .invest_command import calculate_ema_invest, safe_score, get_allocation_score
+except ImportError:
+    from invest_command import calculate_ema_invest, safe_score, get_allocation_score
 
 # --- Constants ---
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CULTIVATE_INITIAL_METRICS_FILE = os.path.join(BASE_DIR, 'cultivate_initial_metrics.csv')
-HEDGING_TICKERS = ['GLD', 'SLV', 'USO', 'UNG', 'DBA'] # Example constants, might need to check original file
-MARKET_HEDGING_TICKERS = ['SH', 'PSQ', 'RWM']
-RESOURCE_HEDGING_TICKERS = ['GLD', 'SLV', 'USO', 'UNG', 'DBA']
+CULTIVATE_COMBINED_DATA_FILE_PREFIX = os.path.join(BASE_DIR, 'cultivate_combined_')
 
-# --- Local Imports ---
-try:
-    from .invest_command import calculate_ema_invest, safe_score
-except ImportError:
-    from invest_command import calculate_ema_invest, safe_score
+MARKET_HEDGING_TICKERS = ['SPY', 'DIA', 'QQQ']
+RESOURCE_HEDGING_TICKERS = ['GLD', 'SLV']
+HEDGING_TICKERS = MARKET_HEDGING_TICKERS + RESOURCE_HEDGING_TICKERS
 
-def safe_score(value) -> float:
+# --- Helper Functions ---
+
+def safe_score(value: Any) -> float:
     try:
         if pd.isna(value) or value is None: return 0.0
         if isinstance(value, str): value = value.replace('%', '').replace('$', '').strip()
@@ -63,6 +73,7 @@ async def get_yf_data_singularity(tickers: List[str], period: str = "10y", inter
     return df_out.dropna(axis=0, how='all').dropna(axis=1, how='all')
 
 def get_sp500_symbols_singularity(is_called_by_ai: bool = False) -> List[str]:
+    symbols = []
     try:
         url = 'https://en.wikipedia.org/wiki/List_of_S%26P_500_companies'
         headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'}
@@ -70,15 +81,25 @@ def get_sp500_symbols_singularity(is_called_by_ai: bool = False) -> List[str]:
         response.raise_for_status()
         df = pd.read_html(StringIO(response.text))[0]
         if 'Symbol' not in df.columns:
-            if not is_called_by_ai:
-                print("     ... Error: Could not find 'Symbol' column in the Wikipedia table.")
-            return []
+            raise ValueError("No Symbol column")
+        
         symbols = [str(s).replace('.', '-') for s in df['Symbol'].tolist() if isinstance(s, str)]
-        return sorted(list(set(s for s in symbols if s)))
+        symbols = sorted(list(set(s for s in symbols if s)))
     except Exception as e:
         if not is_called_by_ai:
-            print(f"     ... Error: Failed to fetch S&P 500 list. Reason: {type(e).__name__}")
-        return []
+            print(f"     ... Warning: Failed to fetch S&P 500 list ({e}). Using fallback list.")
+    
+    if not symbols:
+        # Fallback to top 50+ S&P 500 companies to ensure the command never fails
+        symbols = [
+            'AAPL', 'MSFT', 'NVDA', 'AMZN', 'GOOGL', 'META', 'GOOG', 'BRK-B', 'LLY', 'AVGO',
+            'JPM', 'TSLA', 'UNH', 'XOM', 'V', 'PG', 'MA', 'COST', 'JNJ', 'HD',
+            'MRK', 'ABBV', 'CVX', 'BAC', 'CRM', 'NFLX', 'AMD', 'KO', 'PEP', 'WMT',
+            'TMO', 'LIN', 'ACN', 'ADBE', 'MCD', 'DIS', 'CSCO', 'ABT', 'WFC', 'INTC',
+            'INTU', 'CMCSA', 'IBM', 'VZ', 'ORCL', 'QCOM', 'TXN', 'HON', 'AMGN', 'UNP'
+        ]
+    
+    return symbols
     
 def screen_stocks_singularity(is_called_by_ai: bool = False) -> List[str]:
     try:
@@ -259,7 +280,9 @@ async def run_cultivate_analysis_singularity(
     epsilon_val = safe_score(portfolio_value)
     if epsilon_val <= 0:
         return [], [], 0.0, cultivate_code_str, epsilon_val, frac_shares, "Error: Invalid portfolio value"
+    
     allocation_score_cult, _, _ = get_allocation_score(is_called_by_ai=suppress_sub_prints)
+    
     if allocation_score_cult is None:
         return [], [], 0.0, cultivate_code_str, epsilon_val, frac_shares, "Error: Failed to get Allocation Score"
     formula_results_cult = calculate_cultivate_formulas_singularity(allocation_score_cult, is_called_by_ai=suppress_sub_prints)
@@ -337,7 +360,6 @@ async def handle_cultivate_command(args: List[str], ai_params: Optional[Dict] = 
     """
     Handles the /cultivate command for CLI and AI.
     """
-    # --- FIX: Restructure to ensure all failure paths return a string for the AI ---
     try:
         cult_code, portfolio_val, frac_s_bool, action_type, date_to_save_val = None, None, None, "run_analysis", None
 

@@ -1,0 +1,9 @@
+# portfolio_code: testing
+# timestamp_utc: 2025-11-22T19:52:37.885074+00:00
+# ---BEGIN_DATA---
+Ticker,Shares,LivePriceAtEval,ActualMoneyAllocation,ActualPercentAllocation,RawInvestScore,SubPortfolio,SubPortfolioPath
+REMX,42.46,,,,N/A,N/A,
+MU,22.05,,,,N/A,N/A,
+BRK.B,1.68,,,,N/A,N/A,
+GOOG,5.52,,,,N/A,N/A,
+Cash,-,1.0,-1.4051341247559321,-0.01,N/A,N/A,Cash

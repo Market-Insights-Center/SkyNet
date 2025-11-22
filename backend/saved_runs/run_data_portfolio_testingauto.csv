@@ -1,0 +1,5 @@
+# portfolio_code: testingauto
+# timestamp_utc: 2025-11-22T18:14:24.778099+00:00
+# ---BEGIN_DATA---
+Ticker,Shares,LivePriceAtEval,ActualMoneyAllocation,ActualPercentAllocation,RawInvestScore,SubPortfolio,SubPortfolioPath
+Cash,-,1.0,20000.0,100.00,N/A,N/A,Cash
