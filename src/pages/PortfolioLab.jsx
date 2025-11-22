@@ -1,22 +1,27 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
-import { Layers, Zap, Sprout, Activity } from 'lucide-react';
+import { Layers, Zap, Sprout, Activity, ArrowRight } from 'lucide-react';
+import WaveBackground from '../components/WaveBackground';
 
 const Hero = () => {
     return (
-        <section className="relative h-[40vh] flex items-center justify-center overflow-hidden">
-            {/* Placeholder for Video Background */}
-            <div className="absolute inset-0 bg-gradient-to-b from-black via-deep-black/50 to-deep-black z-0">
-                <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-royal-purple/30 via-transparent to-transparent opacity-50" />
+        <section className="relative h-[50vh] flex items-center justify-center overflow-hidden bg-[#2D1B4E]">
+            {/* Complex Fluid Background Animation */}
+            <div className="absolute inset-0 w-full h-full overflow-hidden z-0 pointer-events-none">
+                <WaveBackground />
             </div>
 
+            {/* Overlay for readability - Reduced opacity */}
+            <div className="absolute inset-0 bg-black/10 z-0 backdrop-blur-[0px]" />
+
+            {/* Content */}
             <div className="relative z-10 text-center px-4">
                 <motion.h1
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.8, ease: "easeOut" }}
-                    className="text-5xl md:text-7xl font-bold text-gold mb-4 tracking-tight"
+                    className="text-5xl md:text-7xl font-bold text-white mb-4 tracking-tight drop-shadow-2xl"
                 >
                     Portfolio Laboratory
                 </motion.h1>
@@ -24,41 +29,44 @@ const Hero = () => {
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.8, delay: 0.2, ease: "easeOut" }}
-                    className="text-xl md:text-2xl text-white/80 font-light tracking-wide"
+                    className="text-xl md:text-2xl text-gray-100 font-light tracking-wide drop-shadow-lg"
                 >
                     Design. Test. Execute.
                 </motion.p>
             </div>
 
-            {/* Fade transition to next section */}
-            <div className="absolute bottom-0 left-0 right-0 h-24 bg-gradient-to-t from-deep-black to-transparent" />
+            {/* Fade gradient to next section */}
+            <div className="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-deep-black to-transparent z-10" />
         </section>
     );
 };
 
 const CommandCard = ({ title, desc, icon: Icon, path, delay }) => {
     return (
-        <Link to={path} className="block group h-full">
+        <Link to={path} className="block group h-full relative z-20">
             <motion.div
                 initial={{ opacity: 0, y: 50 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
                 transition={{ duration: 0.6, delay: delay }}
-                whileHover={{ scale: 1.02 }}
-                className="relative h-full p-6 bg-white/5 border border-white/10 rounded-xl overflow-hidden transition-all duration-300 group-hover:border-gold/50 group-hover:shadow-[0_0_30px_-10px_rgba(212,175,55,0.3)]"
+                whileHover={{ scale: 1.02, translateY: -5 }}
+                // UPDATED: Removed bg-white/5 to eliminate the "shaded box" effect
+                className="relative h-full p-6 bg-transparent border border-white/10 rounded-xl overflow-hidden transition-all duration-300 group-hover:border-gold group-hover:shadow-[0_0_20px_rgba(212,175,55,0.6)]"
             >
-                {/* Gold Hue Background on Hover */}
-                <div className="absolute inset-0 bg-gold/0 group-hover:bg-gold/10 transition-colors duration-500" />
-                
-                {/* Existing Gradient */}
-                <div className="absolute inset-0 bg-gradient-to-br from-royal-purple/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+                {/* Slight internal gold glow layer */}
+                <div className="absolute inset-0 bg-gold/0 group-hover:bg-gold/5 transition-colors duration-300 z-0" />
 
                 <div className="relative z-10 flex flex-col h-full">
-                    <div className="mb-4 p-3 bg-white/5 rounded-lg w-fit text-gold group-hover:text-white group-hover:bg-gold transition-colors duration-300">
+                    <div className="mb-4 p-3 bg-transparent border border-white/10 rounded-lg w-fit text-gold transition-all duration-300 group-hover:text-white group-hover:bg-gold group-hover:shadow-[0_0_15px_rgba(212,175,55,0.5)]">
                         <Icon size={32} />
                     </div>
                     <h3 className="text-2xl font-bold text-white mb-2 group-hover:text-gold transition-colors duration-300">{title}</h3>
                     <p className="text-gray-400 group-hover:text-gray-200 transition-colors duration-300 flex-grow">{desc}</p>
+
+                    {/* Activate Protocol Arrow that appears on hover */}
+                    <div className="mt-4 flex items-center text-gold text-sm font-medium opacity-0 group-hover:opacity-100 transition-all duration-300 transform translate-x-[-10px] group-hover:translate-x-0">
+                        Activate Protocol <ArrowRight size={16} className="ml-2" />
+                    </div>
                 </div>
             </motion.div>
         </Link>

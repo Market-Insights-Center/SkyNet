@@ -53,8 +53,8 @@ const Layout = ({ children }) => {
                 </div>
             </nav>
 
-            {/* Main Content */}
-            <main className="pt-16 min-h-screen relative overflow-hidden">
+            {/* Main Content - CHANGED: overflow-hidden to overflow-x-hidden to allow vertical scrolling */}
+            <main className="pt-16 min-h-screen relative overflow-x-hidden">
                 {/* Background Elements */}
                 <div className="absolute inset-0 z-0 pointer-events-none">
                     <div className="absolute top-0 left-1/4 w-96 h-96 bg-royal-purple/20 rounded-full blur-[128px]" />
