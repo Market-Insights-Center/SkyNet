@@ -69,7 +69,7 @@ def get_allocation_score(is_called_by_ai: bool = False) -> Tuple[float, float, f
         if not is_called_by_ai: print(f"Error in get_allocation_score: {e}. Using defaults.")
         return avg_s, gen_s, mkt_inv_s
 
-async def _load_all_portfolio_configs(is_called_by_ai: bool = False) -> Dict[str, Dict[str, Any]]:
+async def _load_all_portfolio_configs(is_called_by_ai: bool = False, user_id: str = None) -> Dict[str, Dict[str, Any]]:
     configs = {}
     if not os.path.exists(PORTFOLIO_DB_FILE):
         return configs
@@ -78,7 +78,9 @@ async def _load_all_portfolio_configs(is_called_by_ai: bool = False) -> Dict[str
             reader = csv.DictReader(infile)
             for row in reader:
                 code = row.get('portfolio_code')
-                if code:
+                # Only load if user_id matches, or if the row has no user_id (legacy/public)
+                row_user = row.get('user_id')
+                if code and (row_user == user_id or not row_user):
                     configs[code.lower().strip()] = {k.strip(): v for k, v in row.items()}
         return configs
     except Exception as e:
@@ -136,8 +138,11 @@ async def process_custom_portfolio(
     is_top_level_call = all_portfolio_configs_passed is None
     suppress_prints = (is_custom_command_simplified_output or is_called_by_ai) and is_top_level_call
 
+    # Extract user_id if present in config to filter sub-portfolios loading
+    user_id = portfolio_data_config.get('user_id')
+
     if is_top_level_call:
-        all_portfolio_configs = await _load_all_portfolio_configs(is_called_by_ai=suppress_prints)
+        all_portfolio_configs = await _load_all_portfolio_configs(is_called_by_ai=suppress_prints, user_id=user_id)
     else:
         all_portfolio_configs = all_portfolio_configs_passed or {}
 
@@ -162,7 +167,6 @@ async def process_custom_portfolio(
         tickers_str = cleaned_config.get(f'tickers_{portfolio_index}', '')
         items_in_sub = [item.strip().upper() for item in tickers_str.split(',') if item.strip()]
         
-        current_portfolio_list_calc = []
         tasks = [calculate_ema_invest(ticker, ema_sensitivity, is_called_by_ai=True) for ticker in items_in_sub]
         results = await asyncio.gather(*tasks)
         
@@ -178,7 +182,7 @@ async def process_custom_portfolio(
             score_for_alloc = 0.0 if (sell_to_cash_active and raw_score < 50.0) else raw_score
             amplified_score = max(0, safe_score((score_for_alloc * amplification) - (amplification - 1) * 50))
             
-            current_portfolio_list_calc.append({
+            final_combined_portfolio_data_calc.append({
                 'ticker': ticker, 
                 'live_price': live_price_val, 
                 'raw_invest_score': raw_score,
@@ -187,11 +191,9 @@ async def process_custom_portfolio(
                 'path': [ticker]
             })
 
-        total_amp = sum(e['amplified_score_adjusted'] for e in current_portfolio_list_calc)
-        for entry in current_portfolio_list_calc:
-            internal = (entry['amplified_score_adjusted'] / total_amp) * 100 if total_amp > 0 else 0
-            entry['combined_percent_allocation'] = (internal * weight) / 100.0
-            final_combined_portfolio_data_calc.append(entry)
+    total_amp = sum(e['amplified_score_adjusted'] for e in final_combined_portfolio_data_calc)
+    for entry in final_combined_portfolio_data_calc:
+        entry['combined_percent_allocation'] = (entry['amplified_score_adjusted'] / total_amp * 100) if total_amp > 0 else 0
 
     tailored_data = []
     final_cash = 0.0
@@ -215,7 +217,9 @@ async def process_custom_portfolio(
                         'live_price_at_eval': price,
                         'actual_money_allocation': cost,
                         'actual_percent_allocation': (cost / total_val) * 100,
-                        'pnl': 0.0
+                        'raw_invest_score': entry.get('raw_invest_score', 'N/A'),
+                        'sub_portfolio_id': entry.get('sub_portfolio_id', 'N/A'),
+                        'path': entry.get('path', [])
                     })
                     total_spent += cost
         final_cash = total_val - total_spent
@@ -229,6 +233,7 @@ async def handle_invest_command(args: List[str], ai_params: Optional[Dict] = Non
             'ema_sensitivity': ai_params.get('ema_sensitivity', 2),
             'amplification': ai_params.get('amplification', 1.0),
             'num_portfolios': len(ai_params.get('sub_portfolios', [])),
+            'user_id': ai_params.get('user_id')
         }
         for i, sp in enumerate(ai_params.get('sub_portfolios', []), 1):
             tickers = sp.get('tickers', [])

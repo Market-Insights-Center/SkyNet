@@ -8,7 +8,7 @@ export default function Login() {
     const emailRef = useRef();
     const passwordRef = useRef();
     const { login, loginWithGoogle } = useAuth();
-    const [error, setError] = useState("");
+    const [error, setError] = useState(null);
     const [loading, setLoading] = useState(false);
     const navigate = useNavigate();
 
@@ -16,24 +16,47 @@ export default function Login() {
         e.preventDefault();
 
         try {
-            setError("");
+            setError(null);
             setLoading(true);
             await login(emailRef.current.value, passwordRef.current.value);
             navigate("/profile");
         } catch (err) {
-            setError("Failed to log in: " + err.message);
+            console.error(err);
+            if (err.code === "auth/user-not-found" || err.code === "auth/invalid-email") {
+                setError(
+                    <span>
+                        No account found. <Link to="/signup" className="underline hover:text-white font-bold">Create one here</Link>.
+                    </span>
+                );
+            } else if (err.code === "auth/wrong-password") {
+                setError("Incorrect password.");
+            } else if (err.code === "auth/invalid-credential") {
+                setError(
+                    <span>
+                        Invalid credentials. If you don't have an account, <Link to="/signup" className="underline hover:text-white font-bold">Sign Up</Link>.
+                    </span>
+                );
+            } else if (err.code === 'auth/configuration-not-found') {
+                setError("Sign-in provider is disabled in the Firebase Console.");
+            } else {
+                setError("Failed to log in: " + err.message);
+            }
         }
         setLoading(false);
     }
 
     async function handleGoogleLogin() {
         try {
-            setError("");
+            setError(null);
             setLoading(true);
             await loginWithGoogle();
             navigate("/profile");
         } catch (err) {
-            setError("Failed to log in with Google: " + err.message);
+            if (err.code === 'auth/configuration-not-found') {
+                setError("Google Sign-In is disabled in the Firebase Console.");
+            } else {
+                setError("Failed to log in with Google: " + err.message);
+            }
         }
         setLoading(false);
     }
@@ -49,8 +72,8 @@ export default function Login() {
 
                 {error && (
                     <div className="bg-red-500/10 border border-red-500/50 text-red-400 p-3 rounded-lg mb-4 flex items-center gap-2">
-                        <AlertCircle size={18} />
-                        <span>{error}</span>
+                        <AlertCircle size={18} className="shrink-0" />
+                        <span className="text-sm">{error}</span>
                     </div>
                 )}
 
@@ -116,9 +139,6 @@ export default function Login() {
 
                 <div className="w-full text-center mt-6 text-sm text-gray-400">
                     Need an account? <Link to="/signup" className="text-purple-400 hover:text-purple-300">Sign Up</Link>
-                </div>
-                <div className="w-full text-center mt-2 text-sm text-gray-400">
-                    <Link to="/forgot-password" className="text-purple-400 hover:text-purple-300">Forgot Password?</Link>
                 </div>
             </div>
         </div>

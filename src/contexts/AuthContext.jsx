@@ -29,11 +29,15 @@ export function AuthProvider({ children }) {
             .then(async (userCredential) => {
                 const user = userCredential.user;
                 // Create user document in Firestore
-                await setDoc(doc(db, "users", user.uid), {
-                    email: user.email,
-                    createdAt: new Date(),
-                    ...additionalData
-                });
+                try {
+                    await setDoc(doc(db, "users", user.uid), {
+                        email: user.email,
+                        createdAt: new Date(),
+                        ...additionalData
+                    });
+                } catch (error) {
+                    console.error("Error creating user document:", error);
+                }
                 return user;
             });
     }
@@ -42,22 +46,28 @@ export function AuthProvider({ children }) {
         return signInWithEmailAndPassword(auth, email, password);
     }
 
-    function loginWithGoogle() {
+    function loginWithGoogle(additionalData = {}) {
         const provider = new GoogleAuthProvider();
         return signInWithPopup(auth, provider)
             .then(async (result) => {
                 const user = result.user;
-                // Check if user exists, if not create
                 const docRef = doc(db, "users", user.uid);
                 const docSnap = await getDoc(docRef);
 
                 if (!docSnap.exists()) {
+                    // New user via Google: Save profile + questionnaire data
                     await setDoc(doc(db, "users", user.uid), {
                         email: user.email,
                         createdAt: new Date(),
                         displayName: user.displayName,
-                        photoURL: user.photoURL
+                        photoURL: user.photoURL,
+                        ...additionalData
                     });
+                } else {
+                    // Existing user: Update questionnaire if provided
+                    if (Object.keys(additionalData).length > 0) {
+                        await setDoc(doc(db, "users", user.uid), additionalData, { merge: true });
+                    }
                 }
                 return user;
             });
@@ -82,7 +92,6 @@ export function AuthProvider({ children }) {
     function updateUsername(username) {
         return updateProfile(currentUser, { displayName: username })
             .then(() => {
-                // Update in firestore as well
                 return setDoc(doc(db, "users", currentUser.uid), { displayName: username }, { merge: true });
             });
     }

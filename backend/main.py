@@ -30,6 +30,7 @@ class InvestRequest(BaseModel):
     tailor_to_value: bool = False
     total_value: Optional[float] = None
     use_fractional_shares: bool = False
+    user_id: Optional[str] = None
 
 class CultivateRequest(BaseModel):
     cultivate_code: str
@@ -37,6 +38,7 @@ class CultivateRequest(BaseModel):
     use_fractional_shares: bool = False
     action: str = "run_analysis"
     date_to_save: Optional[str] = None
+    user_id: Optional[str] = None
 
 class CustomRequest(BaseModel):
     portfolio_code: str
@@ -47,6 +49,7 @@ class CustomRequest(BaseModel):
     total_value: Optional[float] = None
     use_fractional_shares: bool = False
     action: str = "run_existing_portfolio"
+    user_id: Optional[str] = None
 
 class TrackingRequest(BaseModel):
     portfolio_code: str
@@ -65,6 +68,7 @@ class TrackingRequest(BaseModel):
     trades: Optional[List[Dict[str, Any]]] = None
     new_run_data: Optional[List[Dict[str, Any]]] = None
     final_cash: Optional[float] = None
+    user_id: Optional[str] = None
 
 def normalize_table_data(data_list: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     normalized = []
@@ -112,7 +116,8 @@ async def run_invest(request: InvestRequest):
         "sub_portfolios": [sp.model_dump() for sp in request.sub_portfolios],
         "tailor_to_value": request.tailor_to_value,
         "total_value": request.total_value,
-        "use_fractional_shares": request.use_fractional_shares
+        "use_fractional_shares": request.use_fractional_shares,
+        "user_id": request.user_id
     }
     try:
         result = await invest_command.handle_invest_command(
@@ -142,7 +147,8 @@ async def run_cultivate(request: CultivateRequest):
         "portfolio_value": request.portfolio_value,
         "use_fractional_shares": request.use_fractional_shares,
         "action": request.action,
-        "date_to_save": request.date_to_save
+        "date_to_save": request.date_to_save,
+        "user_id": request.user_id
     }
     try:
         result = await cultivate_command.handle_cultivate_command(args=[], ai_params=ai_params, is_called_by_ai=True)
@@ -172,7 +178,8 @@ async def run_custom(request: CustomRequest):
         "tailor_to_value": request.tailor_to_value,
         "total_value": request.total_value,
         "use_fractional_shares": request.use_fractional_shares,
-        "action": request.action
+        "action": request.action,
+        "user_id": request.user_id
     }
     if request.sub_portfolios:
         ai_params["sub_portfolios"] = [sp.model_dump() for sp in request.sub_portfolios]
@@ -204,7 +211,6 @@ async def run_tracking(request: TrackingRequest):
     print(f"Received /tracking request: {request}")
     ai_params = request.model_dump()
     
-    # Convert sub_portfolios to dicts if present
     if request.sub_portfolios:
         ai_params["sub_portfolios"] = [sp.model_dump() for sp in request.sub_portfolios]
 
@@ -218,8 +224,6 @@ async def run_tracking(request: TrackingRequest):
             return result
 
         if isinstance(result, dict) and result.get("status") == "success" and "table" in result:
-             # Data is already formatted by tracking_command, just pass it through or normalize specific parts
-             # Note: Tracking command might return raw data that needs normalization
              if "table" in result and isinstance(result["table"], list) and len(result["table"]) > 0 and "alloc" not in result["table"][0]:
                  result["table"] = normalize_table_data(result["table"])
              return result

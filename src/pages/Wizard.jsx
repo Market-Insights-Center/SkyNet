@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronRight, Play, X } from 'lucide-react';
+import { ChevronRight, Play, X, Lock } from 'lucide-react';
+import { useAuth } from '../contexts/AuthContext';
 import WizardInputs, { PortfolioConfigForm } from '../components/WizardInputs.jsx';
 import WizardPreview from '../components/WizardPreview.jsx';
 import Results from './Results.jsx';
@@ -9,6 +10,7 @@ import Results from './Results.jsx';
 const Wizard = () => {
     const location = useLocation();
     const navigate = useNavigate();
+    const { currentUser } = useAuth();
     const [isAnalyzing, setIsAnalyzing] = useState(false);
     const [showResults, setShowResults] = useState(false);
     const [toolType, setToolType] = useState('');
@@ -86,15 +88,18 @@ const Wizard = () => {
             return str.split(',').map(t => t.trim()).filter(t => t.length > 0);
         };
 
-        // Helper to map sensitivity string to int
         const mapSens = (s) => {
             const m = { "Low (Long-term)": 1, "Medium (Swing)": 2, "High (Day Trade)": 3, "Medium": 2 };
             return m[s] || 2;
         }
 
+        // Common base with User ID
+        let body = { user_id: currentUser?.uid };
+
         switch (type) {
             case 'invest':
-                return {
+                body = {
+                    ...body,
                     ema_sensitivity: mapSens(inputs.ema_sensitivity),
                     amplification: parseFloat(inputs.amplification) || 1.0,
                     sub_portfolios: (Array.isArray(inputs.sub_portfolios) ? inputs.sub_portfolios : [{ tickers: "AAPL", weight: 100 }]).map(sp => ({
@@ -105,20 +110,24 @@ const Wizard = () => {
                     total_value: parseFloat(inputs.capital) || 10000,
                     use_fractional_shares: inputs.use_fractional_shares || false
                 };
+                break;
 
             case 'cultivate':
                 const rawCode = inputs.strategy_code || "Code A";
                 const cleanCode = rawCode.includes("Code B") ? "B" : "A";
-                return {
+                body = {
+                    ...body,
                     cultivate_code: cleanCode,
                     portfolio_value: parseFloat(inputs.capital) || 10000,
                     use_fractional_shares: inputs.use_fractional_shares || false,
                     action: "run_analysis"
                 };
+                break;
 
             case 'custom':
             case 'tracking':
-                const body = {
+                body = {
+                    ...body,
                     portfolio_code: inputs.name || "My Strategy",
                     tailor_to_value: true,
                     total_value: parseFloat(inputs.capital) || 10000,
@@ -137,18 +146,16 @@ const Wizard = () => {
                         }));
                     }
                 }
-                return body;
-
-            default: return {};
+                break;
         }
+        return body;
     };
 
     const executeAnalysis = async (body) => {
         setIsAnalyzing(true);
         try {
             const endpoint = `http://localhost:8000/api/${toolType}`;
-            console.log("Sending Request:", body);
-
+            
             const response = await fetch(endpoint, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -162,7 +169,6 @@ const Wizard = () => {
 
             const data = await response.json();
             
-            // Handle "Not Found" for Custom and Tracking -> Trigger Modal
             if ((toolType === 'custom' || toolType === 'tracking') && data.status === 'not_found') {
                 setMissingPortfolioCode(inputs.name);
                 setShowConfigModal(true);
@@ -183,13 +189,18 @@ const Wizard = () => {
     };
 
     const handleRunAnalysis = () => {
+        if (!currentUser) {
+            if (window.confirm("You must be logged in to execute commands. Create an account?")) {
+                navigate('/signup');
+            }
+            return;
+        }
         const body = getRequestBody(toolType);
         executeAnalysis(body);
     };
 
     const handleConfigSubmit = () => {
         setShowConfigModal(false);
-        // Re-run with extra config
         const body = getRequestBody(toolType, newConfig);
         executeAnalysis(body);
     };
@@ -244,8 +255,8 @@ const Wizard = () => {
                                 </div>
                             ) : (
                                 <div className="flex items-center gap-2 z-10">
-                                    <Play size={20} fill="currentColor" />
-                                    <span>Run Analysis</span>
+                                    {currentUser ? <Play size={20} fill="currentColor" /> : <Lock size={20} />}
+                                    <span>{currentUser ? "Run Analysis" : "Login to Analyze"}</span>
                                 </div>
                             )}
                         </button>

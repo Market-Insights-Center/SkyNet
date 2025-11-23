@@ -34,11 +34,11 @@ def ensure_portfolio_output_dir():
         try:
             os.makedirs(PORTFOLIO_OUTPUT_DIR)
         except OSError:
-            pass # Fail silently if creation fails in a race condition
+            pass
 
 async def save_portfolio_to_csv(file_path: str, portfolio_data_to_save: Dict[str, Any], is_called_by_ai: bool = False):
     file_exists = os.path.isfile(file_path)
-    fieldnames = ['portfolio_code', 'ema_sensitivity', 'amplification', 'num_portfolios', 'frac_shares', 'risk_tolerance', 'risk_type', 'remove_amplification_cap']
+    fieldnames = ['portfolio_code', 'ema_sensitivity', 'amplification', 'num_portfolios', 'frac_shares', 'risk_tolerance', 'risk_type', 'remove_amplification_cap', 'user_id']
     num_portfolios_val = int(portfolio_data_to_save.get('num_portfolios', 0))
     for i in range(1, num_portfolios_val + 1):
         fieldnames.extend([f'tickers_{i}', f'weight_{i}'])
@@ -51,23 +51,25 @@ async def save_portfolio_to_csv(file_path: str, portfolio_data_to_save: Dict[str
         if not is_called_by_ai:
             print(f"Error saving portfolio config: {e}")
 
-def _get_custom_portfolio_run_csv_filepath(portfolio_code: str) -> str:
-    return os.path.join(PORTFOLIO_OUTPUT_DIR, f"run_data_portfolio_{portfolio_code.lower().replace(' ','_')}.csv")
+def _get_custom_portfolio_run_csv_filepath(portfolio_code: str, user_id: str = None) -> str:
+    uid_suffix = f"_{user_id}" if user_id else ""
+    return os.path.join(PORTFOLIO_OUTPUT_DIR, f"run_data_portfolio_{portfolio_code.lower().replace(' ','_')}{uid_suffix}.csv")
 
-async def _update_portfolio_origin_data(portfolio_code: str, tailored_stock_holdings: List[Dict[str, Any]]):
-    # ... (Function remains the same as previous turn, omitted for brevity but included in file) ...
-    pass # Stub to indicate presence; actual function body should be kept.
-
-# --- Full implementation of _update_portfolio_origin_data included below for completeness ---
 from collections import defaultdict
-async def _update_portfolio_origin_data(portfolio_code: str, tailored_stock_holdings: List[Dict[str, Any]]):
+async def _update_portfolio_origin_data(portfolio_code: str, tailored_stock_holdings: List[Dict[str, Any]], user_id: str = None):
+    """
+    Updates tracking_origin.csv with new positions.
+    Prevents duplicating entries if they already exist for this Portfolio + User.
+    """
     origin_data = defaultdict(dict)
     if os.path.exists(TRACKING_ORIGIN_FILE):
         try:
             with open(TRACKING_ORIGIN_FILE, 'r', newline='', encoding='utf-8') as f:
                 reader = csv.DictReader(f)
                 for row in reader:
-                    if row['PortfolioCode'] == portfolio_code:
+                    # Match Portfolio Code AND User ID (handle None/Empty for legacy)
+                    row_user = row.get('UserId')
+                    if row['PortfolioCode'] == portfolio_code and (row_user == user_id or (not row_user and not user_id)):
                         origin_data[row['Ticker']] = {'Shares': row['Shares'], 'Price': row['Price']}
         except (IOError, csv.Error) as e:
             print(f"⚠️ Warning: Could not read origin data file: {e}")
@@ -79,6 +81,7 @@ async def _update_portfolio_origin_data(portfolio_code: str, tailored_stock_hold
         if ticker and ticker != 'Cash' and ticker not in origin_data:
             new_entries_to_add.append({
                 'PortfolioCode': portfolio_code,
+                'UserId': user_id if user_id else '',
                 'Ticker': ticker,
                 'Shares': holding.get('shares'),
                 'Price': holding.get('live_price_at_eval')
@@ -90,7 +93,7 @@ async def _update_portfolio_origin_data(portfolio_code: str, tailored_stock_hold
     try:
         file_exists = os.path.exists(TRACKING_ORIGIN_FILE)
         with open(TRACKING_ORIGIN_FILE, 'a', newline='', encoding='utf-8') as f:
-            fieldnames = ['PortfolioCode', 'Ticker', 'Shares', 'Price']
+            fieldnames = ['PortfolioCode', 'UserId', 'Ticker', 'Shares', 'Price']
             writer = csv.DictWriter(f, fieldnames=fieldnames)
             if not file_exists or os.path.getsize(TRACKING_ORIGIN_FILE) == 0:
                 writer.writeheader()
@@ -98,8 +101,8 @@ async def _update_portfolio_origin_data(portfolio_code: str, tailored_stock_hold
     except IOError as e:
         print(f"❌ Error: Could not write to origin data file: {e}")
 
-async def _save_custom_portfolio_run_to_csv(portfolio_code: str, tailored_stock_holdings: List[Dict[str, Any]], final_cash: float, total_portfolio_value_for_percent_calc: Optional[float] = None, is_called_by_ai: bool = False):
-    filepath = _get_custom_portfolio_run_csv_filepath(portfolio_code)
+async def _save_custom_portfolio_run_to_csv(portfolio_code: str, tailored_stock_holdings: List[Dict[str, Any]], final_cash: float, total_portfolio_value_for_percent_calc: Optional[float] = None, is_called_by_ai: bool = False, user_id: str = None):
+    filepath = _get_custom_portfolio_run_csv_filepath(portfolio_code, user_id)
     timestamp_utc_str = datetime.now(pytz.UTC).isoformat()
     data_for_csv = []
     
@@ -140,38 +143,34 @@ async def _save_custom_portfolio_run_to_csv(portfolio_code: str, tailored_stock_
             print(f"❌ Error saving custom portfolio run CSV: {e}")
 
     if tailored_stock_holdings:
-        await _update_portfolio_origin_data(portfolio_code, tailored_stock_holdings)
+        await _update_portfolio_origin_data(portfolio_code, tailored_stock_holdings, user_id)
 
-# --- Main Handler ---
 async def handle_custom_command(args: List[str], ai_params: Optional[Dict] = None, is_called_by_ai: bool = False):
-    if not is_called_by_ai:
-        print("\n--- /custom Command ---")
-
-    if ai_params: # AI Call
+    if ai_params: 
         portfolio_code_input = ai_params.get("portfolio_code")
+        user_id = ai_params.get("user_id")
+
         if not portfolio_code_input:
             return "Error for AI (/custom): 'portfolio_code' is required."
 
         action = ai_params.get("action", "run_existing_portfolio")
 
         if action == "run_existing_portfolio":
-            # 1. Try to find the portfolio config
             portfolio_config_from_db = None
             if os.path.exists(PORTFOLIO_DB_FILE):
                 try:
                     with open(PORTFOLIO_DB_FILE, 'r', encoding='utf-8', newline='') as f_db:
                         reader = csv.DictReader(f_db)
                         for row in reader:
-                            if row.get('portfolio_code', '').strip().lower() == portfolio_code_input.lower():
+                            row_code = row.get('portfolio_code', '').strip().lower()
+                            row_user = row.get('user_id')
+                            if row_code == portfolio_code_input.lower() and (row_user == user_id or not row_user):
                                 portfolio_config_from_db = row
                                 break
                 except Exception: pass
 
-            # 2. If not found, check if we have data to create it
             if not portfolio_config_from_db:
-                # Check if creation parameters are present
                 if "sub_portfolios" in ai_params and "ema_sensitivity" in ai_params:
-                    # Create new config from AI params
                     new_config = {
                         'portfolio_code': portfolio_code_input,
                         'ema_sensitivity': str(ai_params.get('ema_sensitivity', 2)),
@@ -180,39 +179,29 @@ async def handle_custom_command(args: List[str], ai_params: Optional[Dict] = Non
                         'frac_shares': 'true' if ai_params.get('use_fractional_shares') else 'false',
                         'risk_tolerance': '10',
                         'risk_type': 'stock',
-                        'remove_amplification_cap': 'true'
+                        'remove_amplification_cap': 'true',
+                        'user_id': user_id
                     }
-                    
-                    # Parse sub_portfolios
                     for i, sp in enumerate(ai_params.get('sub_portfolios', []), 1):
                         tickers_list = sp.get('tickers', [])
-                        # If tickers is already a string (from text input), use it; if list, join it
-                        if isinstance(tickers_list, list):
-                            tickers_str = ",".join(tickers_list)
-                        else:
-                            tickers_str = str(tickers_list)
-                            
+                        if isinstance(tickers_list, list): tickers_str = ",".join(tickers_list)
+                        else: tickers_str = str(tickers_list)
                         new_config[f'tickers_{i}'] = tickers_str.upper()
                         new_config[f'weight_{i}'] = str(sp.get('weight', 0))
 
-                    # Save new config
                     await save_portfolio_to_csv(PORTFOLIO_DB_FILE, new_config, is_called_by_ai=True)
                     portfolio_config_from_db = new_config
                 else:
-                    # Not found and no config provided -> Return specific status for frontend
                     return {"status": "not_found", "message": f"Portfolio '{portfolio_code_input}' not found."}
 
-            # 3. Run the portfolio (Existing or Newly Created)
             tailor_run_ai = ai_params.get("tailor_to_value", False)
             total_value_ai_float = None
-            
             if tailor_run_ai:
                 try:
                     total_value_ai_float = float(ai_params.get("total_value", 0))
                     if total_value_ai_float <= 0: return "Error: 'total_value' must be positive."
                 except ValueError: return "Error: Invalid 'total_value'."
 
-            # Determine fractional shares (override > config)
             frac_shares_final = ai_params.get("use_fractional_shares")
             if frac_shares_final is None:
                 frac_shares_final = portfolio_config_from_db.get('frac_shares', 'false').lower() == 'true'
@@ -227,13 +216,13 @@ async def handle_custom_command(args: List[str], ai_params: Optional[Dict] = Non
                     is_called_by_ai=True
                 )
 
-                # Auto-save the run
                 await _save_custom_portfolio_run_to_csv(
                     portfolio_code=portfolio_code_input,
                     tailored_stock_holdings=tailored_data,
                     final_cash=final_cash,
                     total_portfolio_value_for_percent_calc=total_value_ai_float if tailor_run_ai else None,
-                    is_called_by_ai=True
+                    is_called_by_ai=True,
+                    user_id=user_id
                 )
 
                 return {
@@ -245,6 +234,4 @@ async def handle_custom_command(args: List[str], ai_params: Optional[Dict] = Non
 
             except Exception as e:
                 return f"Error processing portfolio '{portfolio_code_input}': {str(e)}"
-
-    # CLI implementation omitted for brevity as requested focus is on API/Frontend connection
     return None
