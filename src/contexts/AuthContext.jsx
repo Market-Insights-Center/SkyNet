@@ -36,7 +36,7 @@ export function AuthProvider({ children }) {
                         ...additionalData
                     });
                 } catch (error) {
-                    console.error("Error creating user document:", error);
+                    console.error("Error creating user document (Offline or Permission Issue):", error);
                 }
                 return user;
             });
@@ -51,24 +51,32 @@ export function AuthProvider({ children }) {
         return signInWithPopup(auth, provider)
             .then(async (result) => {
                 const user = result.user;
-                const docRef = doc(db, "users", user.uid);
-                const docSnap = await getDoc(docRef);
+                
+                // Wrap Firestore operations in a try-catch so auth doesn't fail if DB is unreachable
+                try {
+                    const docRef = doc(db, "users", user.uid);
+                    const docSnap = await getDoc(docRef);
 
-                if (!docSnap.exists()) {
-                    // New user via Google: Save profile + questionnaire data
-                    await setDoc(doc(db, "users", user.uid), {
-                        email: user.email,
-                        createdAt: new Date(),
-                        displayName: user.displayName,
-                        photoURL: user.photoURL,
-                        ...additionalData
-                    });
-                } else {
-                    // Existing user: Update questionnaire if provided
-                    if (Object.keys(additionalData).length > 0) {
-                        await setDoc(doc(db, "users", user.uid), additionalData, { merge: true });
+                    if (!docSnap.exists()) {
+                        // New user via Google: Save profile + questionnaire data
+                        await setDoc(doc(db, "users", user.uid), {
+                            email: user.email,
+                            createdAt: new Date(),
+                            displayName: user.displayName,
+                            photoURL: user.photoURL,
+                            ...additionalData
+                        });
+                    } else {
+                        // Existing user: Update questionnaire if provided
+                        if (Object.keys(additionalData).length > 0) {
+                            await setDoc(doc(db, "users", user.uid), additionalData, { merge: true });
+                        }
                     }
+                } catch (error) {
+                    // Log the error but allow the user to proceed with login
+                    console.warn("Firestore profile sync failed. Client might be offline or DB missing.", error);
                 }
+                
                 return user;
             });
     }

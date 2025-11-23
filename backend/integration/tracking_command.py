@@ -37,14 +37,17 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CONFIG_FILE = os.path.join(BASE_DIR, 'config.ini')
 
 async def _load_portfolio_run(portfolio_code: str, user_id: str = None) -> List[Dict[str, Any]]:
+    # STRICT OWNERSHIP: Only load file specific to this user
     filepath = _get_custom_portfolio_run_csv_filepath(portfolio_code, user_id)
     if not os.path.exists(filepath):
         return []
     try:
         with open(filepath, 'r', encoding='utf-8') as f:
             lines = f.readlines()
+        # Filter out comment lines
         data_lines = [line for line in lines if not line.startswith('#')]
         if not data_lines: return []
+        
         reader = csv.DictReader(data_lines)
         return list(reader)
     except Exception:
@@ -58,8 +61,11 @@ async def _load_portfolio_origin_data(portfolio_code: str, user_id: str = None) 
         with open(TRACKING_ORIGIN_FILE, 'r', newline='', encoding='utf-8') as f:
             reader = csv.DictReader(f)
             for row in reader:
-                row_user = row.get('UserId')
-                if row.get('PortfolioCode') == portfolio_code and (row_user == user_id or (not row_user and not user_id)):
+                # STRICT OWNERSHIP: Match PortfolioCode AND UserId exactly
+                row_user = row.get('UserId', '').strip()
+                target_user = user_id.strip() if user_id else ''
+                
+                if row.get('PortfolioCode') == portfolio_code and row_user == target_user:
                     try:
                         origin_data[row['Ticker']] = {
                             'shares': float(row['Shares']),
@@ -73,10 +79,10 @@ async def _load_portfolio_origin_data(portfolio_code: str, user_id: str = None) 
 
 async def generate_performance_data(portfolio_code: str, current_holdings: Dict[str, float], user_id: str = None) -> Dict[str, Any]:
     origin_data = await _load_portfolio_origin_data(portfolio_code, user_id)
-    if not origin_data:
-        return {"status": "no_data", "message": "No origin data found."}
-
+    
     all_tickers = list(set(origin_data.keys()) | set(current_holdings.keys()))
+    
+    # Fetch live prices
     tasks = [calculate_ema_invest(ticker, 2, is_called_by_ai=True) for ticker in all_tickers]
     results = await asyncio.gather(*tasks, return_exceptions=True)
     
@@ -96,34 +102,36 @@ async def generate_performance_data(portfolio_code: str, current_holdings: Dict[
         live_price = live_prices.get(ticker, 0.0)
         
         if origin:
-            origin_shares = origin['shares']
             origin_price = origin['price']
-            origin_val = origin_shares * origin_price
-            pnl = (live_price - origin_price) * origin_shares
+            # PnL calculated on CURRENT holdings against ORIGIN price
+            cost_basis = current_shares * origin_price
+            current_val = current_shares * live_price
+            pnl = current_val - cost_basis
             
             table_rows.append({
                 "ticker": ticker,
                 "origin_price": origin_price,
                 "live_price": live_price,
-                "origin_shares": origin_shares,
+                "origin_shares": origin['shares'],
                 "current_shares": current_shares,
                 "pnl": pnl,
-                "pnl_percent": (pnl / origin_val * 100) if origin_val > 0 else 0
+                "pnl_percent": ((live_price - origin_price) / origin_price * 100) if origin_price > 0 else 0
             })
             total_pnl += pnl
-            total_origin_value += origin_val
-            total_current_value += (current_shares * live_price)
+            total_origin_value += cost_basis
+            total_current_value += current_val
 
     return {
         "status": "success",
         "rows": table_rows,
+        "live_prices": live_prices, 
         "total_pnl": total_pnl,
         "total_pnl_percent": (total_pnl / total_origin_value * 100) if total_origin_value > 0 else 0,
         "total_current_value": total_current_value
     }
 
 async def _send_tracking_email_html(recipient_email: str, subject: str, portfolio_code: str, total_value: float, trade_recs: List[Dict], new_run_data: List[Dict], new_cash: float):
-    # (Email sending logic remains identical to previous version)
+    # (Email logic remains unchanged)
     try:
         config = configparser.ConfigParser()
         config.read(CONFIG_FILE)
@@ -189,7 +197,12 @@ async def handle_tracking_command(args: List[str], ai_params: Optional[Dict] = N
                 with open(PORTFOLIO_DB_FILE, 'r', encoding='utf-8') as f:
                     reader = csv.DictReader(f)
                     for row in reader:
-                        if row.get('portfolio_code', '').lower() == portfolio_code.lower() and (row.get('user_id') == user_id or not row.get('user_id')):
+                        # STRICT OWNERSHIP CHECK
+                        row_code = row.get('portfolio_code', '').lower().strip()
+                        row_user = row.get('user_id', '').strip()
+                        target_user = user_id.strip() if user_id else ''
+                        
+                        if row_code == portfolio_code.lower() and row_user == target_user:
                             portfolio_config = row
                             break
             except Exception: pass
@@ -197,6 +210,7 @@ async def handle_tracking_command(args: List[str], ai_params: Optional[Dict] = N
         if not portfolio_config:
             sub_portfolios = ai_params.get("sub_portfolios")
             if sub_portfolios:
+                # Create new config tied to USER ID
                 new_config = {
                     'portfolio_code': portfolio_code,
                     'ema_sensitivity': str(ai_params.get('ema_sensitivity', 2)),
@@ -204,7 +218,7 @@ async def handle_tracking_command(args: List[str], ai_params: Optional[Dict] = N
                     'num_portfolios': str(len(sub_portfolios)),
                     'frac_shares': 'true' if ai_params.get('use_fractional_shares') else 'false',
                     'risk_tolerance': '10', 'risk_type': 'stock', 'remove_amplification_cap': 'true',
-                    'user_id': user_id
+                    'user_id': user_id # Enforce ownership
                 }
                 for i, sp in enumerate(sub_portfolios, 1):
                     tickers = sp.get('tickers', [])
@@ -217,10 +231,14 @@ async def handle_tracking_command(args: List[str], ai_params: Optional[Dict] = N
             else:
                 return {"status": "not_found", "message": f"Portfolio '{portfolio_code}' not found."}
 
+        # LOAD OLD DATA (For "Since Last Save")
+        # This loads the state of the CSV *before* we overwrite it later
         old_run_data = await _load_portfolio_run(portfolio_code, user_id)
+        
         total_value = float(ai_params.get("total_value", 10000))
         use_frac = ai_params.get("use_fractional_shares", False)
         
+        # Run New Analysis
         _, _, final_cash, new_run_data = await process_custom_portfolio(
             portfolio_data_config=portfolio_config,
             tailor_portfolio_requested=True,
@@ -231,14 +249,31 @@ async def handle_tracking_command(args: List[str], ai_params: Optional[Dict] = N
         )
 
         trades = []
-        old_holdings = {row['Ticker']: float(row['Shares']) for row in old_run_data if row['Ticker'] != 'Cash'}
-        new_holdings = {row['ticker']: float(row['shares']) for row in new_run_data}
-        all_tickers = sorted(list(set(old_holdings.keys()) | set(new_holdings.keys())))
+        old_holdings_map = {}
+        old_prices_at_save = {}
+
+        # Parse old run data safely
+        if old_run_data:
+            for row in old_run_data:
+                ticker = row.get('Ticker')
+                if ticker and ticker != 'Cash':
+                    try:
+                        shares = float(row.get('Shares', 0))
+                        # Correctly get price from previous save file to compare against current
+                        price = float(row.get('LivePriceAtEval', 0))
+                        
+                        old_holdings_map[ticker] = shares
+                        old_prices_at_save[ticker] = price
+                    except (ValueError, TypeError):
+                        continue
+
+        new_holdings_map = {row['ticker']: float(row['shares']) for row in new_run_data}
+        all_tickers = sorted(list(set(old_holdings_map.keys()) | set(new_holdings_map.keys())))
         
         comparison_table = []
         for ticker in all_tickers:
-            old_s = old_holdings.get(ticker, 0.0)
-            new_s = new_holdings.get(ticker, 0.0)
+            old_s = old_holdings_map.get(ticker, 0.0)
+            new_s = new_holdings_map.get(ticker, 0.0)
             diff = new_s - old_s
             
             if not math.isclose(diff, 0, abs_tol=0.001):
@@ -249,7 +284,33 @@ async def handle_tracking_command(args: List[str], ai_params: Optional[Dict] = N
                 })
                 trades.append({"ticker": ticker, "side": status.lower(), "quantity": abs(diff)})
 
-        perf_data = await generate_performance_data(portfolio_code, old_holdings, user_id)
+        # Fetch live prices for performance calculation
+        perf_data = await generate_performance_data(portfolio_code, old_holdings_map, user_id)
+        live_prices = perf_data.get("live_prices", {})
+        
+        # Build "Since Last Save" Table
+        since_last_save_table = []
+        
+        # We iterate over what was in the save file
+        for ticker, old_price in old_prices_at_save.items():
+            current_price = live_prices.get(ticker, 0.0)
+            # For PnL "Since Last Save", we use the shares we held *at that time* (or arguably current, but let's use current holding of that ticker to show gain/loss on current position)
+            # A pure "Since Last Save" usually implies: (Current Price - Last Save Price) * Current Shares
+            shares_held = new_holdings_map.get(ticker, 0.0)
+            
+            if current_price > 0 and shares_held > 0:
+                price_diff = current_price - old_price
+                pnl = price_diff * shares_held
+                pct = (price_diff / old_price * 100) if old_price > 0 else 0
+                
+                since_last_save_table.append({
+                    "ticker": ticker,
+                    "shares": shares_held,
+                    "last_save_price": old_price,
+                    "current_price": current_price,
+                    "pnl": pnl,
+                    "pnl_percent": pct
+                })
 
         return {
             "status": "success",
@@ -261,6 +322,7 @@ async def handle_tracking_command(args: List[str], ai_params: Optional[Dict] = N
             "table": new_run_data,
             "comparison": comparison_table,
             "performance": perf_data.get("rows", []),
+            "since_last_save": since_last_save_table,
             "raw_result": {"final_cash": final_cash, "trades": trades, "portfolio_code": portfolio_code}
         }
 
@@ -282,9 +344,8 @@ async def handle_tracking_command(args: List[str], ai_params: Optional[Dict] = N
 
         if email_to:
             subject = f"Tracking Update: {portfolio_code}"
-            # Assumes _send_tracking_email_html handles the actual sending
-            # logic provided in full file earlier is used here
-            pass 
+            await _send_tracking_email_html(email_to, subject, portfolio_code, total_value, trades, new_run_data, final_cash)
+            execution_log.append(f"HTML Email sent to {email_to}.")
 
         if overwrite and new_run_data:
             await _save_custom_portfolio_run_to_csv(

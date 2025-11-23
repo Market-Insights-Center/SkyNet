@@ -78,9 +78,13 @@ async def _load_all_portfolio_configs(is_called_by_ai: bool = False, user_id: st
             reader = csv.DictReader(infile)
             for row in reader:
                 code = row.get('portfolio_code')
-                # Only load if user_id matches, or if the row has no user_id (legacy/public)
-                row_user = row.get('user_id')
-                if code and (row_user == user_id or not row_user):
+                # STRICT OWNERSHIP: Match User ID exactly.
+                # Note: If user_id is None (public/legacy), we might want to hide private ones.
+                # Here, we assume strict matching: you only see YOURS. 
+                row_user = row.get('user_id', '').strip()
+                target_user = user_id.strip() if user_id else ''
+
+                if code and row_user == target_user:
                     configs[code.lower().strip()] = {k.strip(): v for k, v in row.items()}
         return configs
     except Exception as e:

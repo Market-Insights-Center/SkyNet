@@ -4,6 +4,7 @@ from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
 import sys
 import os
+import csv
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
@@ -56,11 +57,9 @@ class TrackingRequest(BaseModel):
     total_value: Optional[float] = None
     use_fractional_shares: bool = False
     action: str = "run_analysis"
-    # For Creation if missing
     sub_portfolios: Optional[List[SubPortfolio]] = None
     ema_sensitivity: Optional[int] = None
     amplification: Optional[float] = None
-    # For Execution
     rh_username: Optional[str] = None
     rh_password: Optional[str] = None
     email_to: Optional[str] = None
@@ -69,6 +68,13 @@ class TrackingRequest(BaseModel):
     new_run_data: Optional[List[Dict[str, Any]]] = None
     final_cash: Optional[float] = None
     user_id: Optional[str] = None
+
+class UserProfile(BaseModel):
+    user_id: str
+    email: str
+    risk_tolerance: int
+    trading_frequency: str
+    portfolio_types: List[str]
 
 def normalize_table_data(data_list: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     normalized = []
@@ -106,6 +112,19 @@ def normalize_table_data(data_list: List[Dict[str, Any]]) -> List[Dict[str, Any]
 @app.get("/")
 def read_root():
     return {"status": "online", "message": "Portfolio Lab Backend is running"}
+
+@app.post("/api/save_user_profile")
+async def save_user_profile(profile: UserProfile):
+    file_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'user_profiles.csv')
+    try:
+        file_exists = os.path.isfile(file_path)
+        with open(file_path, 'a', newline='', encoding='utf-8') as f:
+            writer = csv.DictWriter(f, fieldnames=profile.model_dump().keys())
+            if not file_exists: writer.writeheader()
+            writer.writerow(profile.model_dump())
+        return {"status": "success"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/invest")
 async def run_invest(request: InvestRequest):

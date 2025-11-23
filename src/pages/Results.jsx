@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowLeft, Download, Share2, ArrowUp, ArrowDown, Activity, Mail, Save } from 'lucide-react';
+import { motion } from 'framer-motion';
+import { ArrowLeft, Download, Share2, ArrowUp, ArrowDown, Activity } from 'lucide-react';
 
 // Chart Colors
 const CHART_COLORS = [
@@ -58,12 +58,11 @@ const ExecutionModal = ({ isOpen, onClose, onExecute }) => {
     const [execRh, setExecRh] = useState(false);
     const [overwrite, setOverwrite] = useState(false);
 
-    // Load saved credentials on mount
     useEffect(() => {
         if (isOpen) {
             const savedEmail = localStorage.getItem('mic_email');
             const savedUser = localStorage.getItem('mic_rh_user');
-            const savedPass = localStorage.getItem('mic_rh_pass'); // Stored locally for convenience as requested
+            const savedPass = localStorage.getItem('mic_rh_pass');
             
             if (savedEmail) {
                 setEmail(savedEmail);
@@ -80,7 +79,6 @@ const ExecutionModal = ({ isOpen, onClose, onExecute }) => {
     }, [isOpen]);
 
     const handleConfirm = () => {
-        // Save credentials to localStorage for next time
         if (sendEmail && email) localStorage.setItem('mic_email', email);
         if (execRh && rhUser) localStorage.setItem('mic_rh_user', rhUser);
         if (execRh && rhPass) localStorage.setItem('mic_rh_pass', rhPass);
@@ -101,7 +99,6 @@ const ExecutionModal = ({ isOpen, onClose, onExecute }) => {
                 </h3>
                 
                 <div className="space-y-6">
-                    {/* Email Section */}
                     <div className={`p-4 rounded-lg border ${sendEmail ? 'border-gold bg-gold/5' : 'border-gray-700 bg-black/30'}`}>
                         <label className="flex items-center gap-3 cursor-pointer mb-2">
                             <input type="checkbox" checked={sendEmail} onChange={(e) => setSendEmail(e.target.checked)} className="accent-gold w-5 h-5" />
@@ -116,7 +113,6 @@ const ExecutionModal = ({ isOpen, onClose, onExecute }) => {
                         )}
                     </div>
 
-                    {/* Robinhood Section */}
                     <div className={`p-4 rounded-lg border ${execRh ? 'border-gold bg-gold/5' : 'border-gray-700 bg-black/30'}`}>
                         <label className="flex items-center gap-3 cursor-pointer mb-2">
                             <input type="checkbox" checked={execRh} onChange={(e) => setExecRh(e.target.checked)} className="accent-gold w-5 h-5" />
@@ -131,7 +127,6 @@ const ExecutionModal = ({ isOpen, onClose, onExecute }) => {
                         )}
                     </div>
 
-                    {/* Overwrite Section */}
                     <label className="flex items-center gap-3 cursor-pointer p-2 hover:bg-white/5 rounded">
                         <input type="checkbox" checked={overwrite} onChange={(e) => setOverwrite(e.target.checked)} className="accent-gold w-5 h-5" />
                         <span className="text-gray-300">Overwrite last save file?</span>
@@ -154,7 +149,7 @@ const ExecutionModal = ({ isOpen, onClose, onExecute }) => {
 
 const Results = ({ toolType, onBack }) => {
     const data = window.analysisResults || { summary: [], table: [] };
-    const { summary: summaryStats, table: rawTableData, raw_result, comparison, performance } = data;
+    const { summary: summaryStats, table: rawTableData, raw_result, comparison, performance, since_last_save } = data;
     
     const [sortConfig, setSortConfig] = useState({ key: 'allocPercent', direction: 'desc' });
     const [showExecModal, setShowExecModal] = useState(false);
@@ -284,46 +279,71 @@ const Results = ({ toolType, onBack }) => {
 
             {/* Tracking Specific Tables */}
             {toolType === 'tracking' && (
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                    {/* Trade Recommendations */}
-                    <div className="bg-white/5 border border-white/10 rounded-xl overflow-hidden">
-                        <div className="p-4 bg-white/10 border-b border-white/10"><h3 className="font-bold text-white">Trade Recommendations</h3></div>
-                        <div className="overflow-x-auto">
-                            <table className="w-full text-left">
-                                <thead><tr className="text-xs text-gray-400 border-b border-white/10"><th className="p-3">Ticker</th><th className="p-3">Action</th><th className="p-3 text-right">Diff</th></tr></thead>
-                                <tbody>
-                                    {comparison && comparison.map((row, i) => (
-                                        <tr key={i} className="border-b border-white/5 hover:bg-white/5 text-sm">
-                                            <td className="p-3 font-bold text-white">{row.ticker}</td>
-                                            <td className={`p-3 font-bold ${row.action === 'Buy' ? 'text-green-400' : 'text-red-400'}`}>{row.action}</td>
-                                            {/* MODIFIED: Rounds to 2 decimal places */}
-                                            <td className="p-3 text-right text-gray-300">{row.diff > 0 ? '+' : ''}{row.diff.toFixed(2)}</td>
-                                        </tr>
-                                    ))}
-                                    {(!comparison || comparison.length === 0) && <tr><td colSpan="3" className="p-4 text-center text-gray-500">No rebalancing needed.</td></tr>}
-                                </tbody>
-                            </table>
+                <div className="space-y-8">
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                        {/* Trade Recommendations */}
+                        <div className="bg-white/5 border border-white/10 rounded-xl overflow-hidden">
+                            <div className="p-4 bg-white/10 border-b border-white/10"><h3 className="font-bold text-white">Trade Recommendations</h3></div>
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-left">
+                                    <thead><tr className="text-xs text-gray-400 border-b border-white/10"><th className="p-3">Ticker</th><th className="p-3">Action</th><th className="p-3 text-right">Diff</th></tr></thead>
+                                    <tbody>
+                                        {comparison && comparison.map((row, i) => (
+                                            <tr key={i} className="border-b border-white/5 hover:bg-white/5 text-sm">
+                                                <td className="p-3 font-bold text-white">{row.ticker}</td>
+                                                <td className={`p-3 font-bold ${row.action === 'Buy' ? 'text-green-400' : 'text-red-400'}`}>{row.action}</td>
+                                                <td className="p-3 text-right text-gray-300">{row.diff > 0 ? '+' : ''}{row.diff.toFixed(2)}</td>
+                                            </tr>
+                                        ))}
+                                        {(!comparison || comparison.length === 0) && <tr><td colSpan="3" className="p-4 text-center text-gray-500">No rebalancing needed.</td></tr>}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        {/* All-Time Performance */}
+                        <div className="bg-white/5 border border-white/10 rounded-xl overflow-hidden">
+                            <div className="p-4 bg-white/10 border-b border-white/10"><h3 className="font-bold text-white">All-Time Performance</h3></div>
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-left">
+                                    <thead><tr className="text-xs text-gray-400 border-b border-white/10"><th className="p-3">Ticker</th><th className="p-3 text-right">Origin</th><th className="p-3 text-right">Current</th><th className="p-3 text-right">P&L</th></tr></thead>
+                                    <tbody>
+                                        {performance && performance.map((row, i) => (
+                                            <tr key={i} className="border-b border-white/5 hover:bg-white/5 text-sm">
+                                                <td className="p-3 font-bold text-white">{row.ticker}</td>
+                                                <td className="p-3 text-right text-gray-400">${row.origin_price.toFixed(2)}</td>
+                                                <td className="p-3 text-right text-gray-300">${row.live_price.toFixed(2)}</td>
+                                                <td className={`p-3 text-right font-bold ${row.pnl >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                                    {row.pnl >= 0 ? '+' : ''}{row.pnl.toFixed(2)} ({row.pnl_percent.toFixed(1)}%)
+                                                </td>
+                                            </tr>
+                                        ))}
+                                        {(!performance || performance.length === 0) && <tr><td colSpan="4" className="p-4 text-center text-gray-500">No historical data found.</td></tr>}
+                                    </tbody>
+                                </table>
+                            </div>
                         </div>
                     </div>
 
-                    {/* Historical Performance */}
+                    {/* NEW: Since Last Save Performance */}
                     <div className="bg-white/5 border border-white/10 rounded-xl overflow-hidden">
-                        <div className="p-4 bg-white/10 border-b border-white/10"><h3 className="font-bold text-white">All-Time Performance</h3></div>
+                        <div className="p-4 bg-white/10 border-b border-white/10"><h3 className="font-bold text-white">Performance Since Last Save</h3></div>
                         <div className="overflow-x-auto">
                             <table className="w-full text-left">
-                                <thead><tr className="text-xs text-gray-400 border-b border-white/10"><th className="p-3">Ticker</th><th className="p-3 text-right">Origin</th><th className="p-3 text-right">Current</th><th className="p-3 text-right">P&L</th></tr></thead>
+                                <thead><tr className="text-xs text-gray-400 border-b border-white/10"><th className="p-3">Ticker</th><th className="p-3 text-right">Held Shares</th><th className="p-3 text-right">Last Save Price</th><th className="p-3 text-right">Current Price</th><th className="p-3 text-right">P&L</th></tr></thead>
                                 <tbody>
-                                    {performance && performance.map((row, i) => (
+                                    {since_last_save && since_last_save.map((row, i) => (
                                         <tr key={i} className="border-b border-white/5 hover:bg-white/5 text-sm">
                                             <td className="p-3 font-bold text-white">{row.ticker}</td>
-                                            <td className="p-3 text-right text-gray-400">${row.origin_price.toFixed(2)}</td>
-                                            <td className="p-3 text-right text-gray-300">${row.live_price.toFixed(2)}</td>
+                                            <td className="p-3 text-right text-gray-300">{row.shares.toFixed(2)}</td>
+                                            <td className="p-3 text-right text-gray-400">${row.last_save_price.toFixed(2)}</td>
+                                            <td className="p-3 text-right text-gray-300">${row.current_price.toFixed(2)}</td>
                                             <td className={`p-3 text-right font-bold ${row.pnl >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                                                 {row.pnl >= 0 ? '+' : ''}{row.pnl.toFixed(2)} ({row.pnl_percent.toFixed(1)}%)
                                             </td>
                                         </tr>
                                     ))}
-                                    {(!performance || performance.length === 0) && <tr><td colSpan="4" className="p-4 text-center text-gray-500">No historical data found.</td></tr>}
+                                    {(!since_last_save || since_last_save.length === 0) && <tr><td colSpan="5" className="p-4 text-center text-gray-500">No previous run data available.</td></tr>}
                                 </tbody>
                             </table>
                         </div>
