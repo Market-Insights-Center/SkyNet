@@ -1,9 +1,12 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
+import { useAuth } from '../contexts/AuthContext';
+import { User } from 'lucide-react';
 
 const Layout = ({ children }) => {
     const location = useLocation();
+    const { currentUser } = useAuth();
 
     const navItems = [
         { name: 'Portfolio Lab', path: '/' },
@@ -25,7 +28,7 @@ const Layout = ({ children }) => {
                             </Link>
                         </div>
                         <div className="hidden md:block">
-                            <div className="ml-10 flex items-baseline space-x-4">
+                            <div className="ml-10 flex items-center space-x-4">
                                 {navItems.map((item) => {
                                     const isActive = location.pathname === item.path;
                                     return (
@@ -47,6 +50,33 @@ const Layout = ({ children }) => {
                                         </Link>
                                     );
                                 })}
+
+                                <div className="h-6 w-px bg-white/10 mx-2" />
+
+                                {currentUser ? (
+                                    <Link
+                                        to="/profile"
+                                        className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors duration-300 ${location.pathname === '/profile' ? 'text-gold' : 'text-gray-300 hover:text-white'}`}
+                                    >
+                                        <User size={16} />
+                                        {currentUser.displayName || "Profile"}
+                                    </Link>
+                                ) : (
+                                    <div className="flex items-center space-x-4">
+                                        <Link
+                                            to="/login"
+                                            className="text-gray-300 hover:text-white text-sm font-medium transition-colors"
+                                        >
+                                            Log In
+                                        </Link>
+                                        <Link
+                                            to="/signup"
+                                            className="bg-gold/10 hover:bg-gold/20 text-gold border border-gold/50 px-4 py-2 rounded-md text-sm font-medium transition-all"
+                                        >
+                                            Sign Up
+                                        </Link>
+                                    </div>
+                                )}
                             </div>
                         </div>
                     </div>

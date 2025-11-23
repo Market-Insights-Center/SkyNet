@@ -1,11 +1,14 @@
 import React, { useState } from 'react';
 import { Info, Plus, Trash2, Check } from 'lucide-react';
 
+// --- Helper Components ---
+
 const InputGroup = ({ label, children, tooltip }) => (
     <div className="mb-6">
         <div className="flex items-center justify-between mb-2">
             <label className="text-sm font-medium text-gray-300">{label}</label>
-            {tooltip && <Info size={14} className="text-gray-500 hover:text-gold cursor-help" />}
+            {/* MODIFIED: Added proper title attribute for tooltip display */}
+            {tooltip && <div title={tooltip}><Info size={14} className="text-gray-500 hover:text-gold cursor-help" /></div>}
         </div>
         {children}
     </div>
@@ -59,22 +62,6 @@ const SliderInput = ({ min, max, defaultValue, unit = '', step = 1, onChange }) 
     );
 };
 
-const ToggleSwitch = ({ label, onChange }) => {
-    const [active, setActive] = useState(false);
-    return (
-        <div className="flex items-center justify-between p-4 bg-black/50 rounded-lg border border-gray-800 cursor-pointer" onClick={() => {
-            const newState = !active;
-            setActive(newState);
-            if (onChange) onChange(newState);
-        }}>
-            <span className="text-sm text-gray-300">{label}</span>
-            <div className={`w-12 h-6 rounded-full relative transition-colors duration-300 ${active ? 'bg-gold' : 'bg-gray-700'}`}>
-                <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all duration-300 ${active ? 'left-7' : 'left-1'}`} />
-            </div>
-        </div>
-    );
-};
-
 const CheckboxInput = ({ label, onChange }) => {
     const [checked, setChecked] = useState(false);
     
@@ -93,6 +80,22 @@ const CheckboxInput = ({ label, onChange }) => {
                 {checked && <Check size={14} className="text-black" strokeWidth={3} />}
             </div>
             <span className="text-sm text-gray-300 select-none">{label}</span>
+        </div>
+    );
+};
+
+const ToggleSwitch = ({ label, onChange }) => {
+    const [active, setActive] = useState(false);
+    return (
+        <div className="flex items-center justify-between p-4 bg-black/50 rounded-lg border border-gray-800 cursor-pointer" onClick={() => {
+            const newState = !active;
+            setActive(newState);
+            if (onChange) onChange(newState);
+        }}>
+            <span className="text-sm text-gray-300">{label}</span>
+            <div className={`w-12 h-6 rounded-full relative transition-colors duration-300 ${active ? 'bg-gold' : 'bg-gray-700'}`}>
+                <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all duration-300 ${active ? 'left-7' : 'left-1'}`} />
+            </div>
         </div>
     );
 };
@@ -156,6 +159,43 @@ const SubPortfolioInput = ({ subPortfolios, onChange }) => {
     );
 };
 
+// --- Exported Modal Component ---
+
+export const PortfolioConfigForm = ({ onChange }) => {
+    const [subPortfolios, setSubPortfolios] = useState([{ tickers: '', weight: 100 }]);
+
+    const handleSubPortfolioChange = (newPortfolios) => {
+        setSubPortfolios(newPortfolios);
+        onChange('sub_portfolios', newPortfolios);
+    };
+
+    return (
+        <div>
+            <InputGroup label="EMA Sensitivity">
+                <SelectInput
+                    options={['Low (Long-term)', 'Medium (Swing)', 'High (Day Trade)']}
+                    onChange={(val) => onChange('sensitivity', val)}
+                />
+            </InputGroup>
+            {/* MODIFIED: Added Tooltip */}
+            <InputGroup label="Amplification Factor" tooltip="Amplification signifies how much to 'amplify' the weight that stocks with more momentum get in the portfolio.">
+                <SliderInput
+                    min={0.25} max={3} defaultValue={1.5} unit="x" step={0.25}
+                    onChange={(val) => onChange('amplification', val)}
+                />
+            </InputGroup>
+            <InputGroup label="Sub-portfolios (Tickers)" tooltip="Define tickers and weights for your new strategy.">
+                <SubPortfolioInput 
+                    subPortfolios={subPortfolios} 
+                    onChange={handleSubPortfolioChange} 
+                />
+            </InputGroup>
+        </div>
+    );
+};
+
+// --- Main WizardInputs Component ---
+
 const WizardInputs = ({ toolType, onChange }) => {
     const [subPortfolios, setSubPortfolios] = useState([{ tickers: '', weight: 100 }]);
 
@@ -168,40 +208,36 @@ const WizardInputs = ({ toolType, onChange }) => {
         onChange(field, value);
     };
 
+    const renderBasicInputs = (placeholder) => (
+        <>
+            <InputGroup label="Portfolio Code Name">
+                <TextInput
+                    placeholder={placeholder}
+                    onChange={(val) => handleChange('name', val)}
+                />
+            </InputGroup>
+            <InputGroup label="Portfolio Value ($)">
+                <TextInput
+                    placeholder="10000"
+                    defaultValue="10000"
+                    onChange={(val) => handleChange('capital', parseFloat(val) || 0)}
+                />
+            </InputGroup>
+            <div className="mt-4">
+                <CheckboxInput 
+                    label="Use Fractional Shares"
+                    onChange={(val) => handleChange('use_fractional_shares', val)}
+                />
+            </div>
+        </>
+    );
+
     switch (toolType) {
         case 'custom':
-            return (
-                <>
-                    <InputGroup label="Portfolio Name">
-                        <TextInput
-                            placeholder="e.g., Alpha Strategy V1"
-                            onChange={(val) => handleChange('name', val)}
-                        />
-                    </InputGroup>
-                    <InputGroup label="Sensitivity Level">
-                        <SliderInput
-                            min={1} max={10} defaultValue={5}
-                            onChange={(val) => handleChange('sensitivity', val)}
-                        />
-                    </InputGroup>
-                    <InputGroup label="Amplification Factor">
-                        <SliderInput
-                            min={0.25} max={3} defaultValue={1.5} unit="x" step={0.25}
-                            onChange={(val) => handleChange('amplification', val)}
-                        />
-                    </InputGroup>
-                    <InputGroup label="Sub-portfolios (Tickers)">
-                        <TextInput
-                            placeholder="AAPL, MSFT (Sub 1)"
-                            onChange={(val) => handleChange('sub_portfolios', val)}
-                        />
-                    </InputGroup>
-                    <ToggleSwitch
-                        label="Enable Auto-Rebalancing"
-                        onChange={(val) => handleChange('auto_rebalance', val)}
-                    />
-                </>
-            );
+            return renderBasicInputs("e.g., MY_STRATEGY_V1");
+
+        case 'tracking':
+            return renderBasicInputs("e.g., EXISTING_PORTFOLIO");
 
         case 'invest':
             return (
@@ -226,7 +262,8 @@ const WizardInputs = ({ toolType, onChange }) => {
                             onChange={(val) => handleChange('sensitivity', val)}
                         />
                     </InputGroup>
-                    <InputGroup label="Amplification">
+                    {/* MODIFIED: Added Tooltip */}
+                    <InputGroup label="Amplification" tooltip="Amplification signifies how much to 'amplify' the weight that stocks with more momentum get in the portfolio.">
                         <SliderInput
                             min={0.25} max={5} defaultValue={1} unit="x" step={0.25}
                             onChange={(val) => handleChange('amplification', val)}
@@ -247,46 +284,27 @@ const WizardInputs = ({ toolType, onChange }) => {
                 <>
                     <InputGroup label="Strategy Code">
                         <SelectInput
-                            options={['Strategy A (Growth)', 'Strategy B (Value)', 'Strategy C (Yield)']}
+                            options={['Code A (Market)', 'Code B (SPY)']}
                             onChange={(val) => handleChange('strategy_code', val)}
                         />
                     </InputGroup>
                     <InputGroup label="Total Portfolio Value ($)">
                         <TextInput
-                            placeholder="10000" defaultValue="50000"
+                            placeholder="10000" defaultValue="10000"
                             onChange={(val) => handleChange('capital', parseFloat(val) || 0)}
                         />
                     </InputGroup>
-                    <InputGroup label="Risk Tolerance">
-                        <SliderInput
-                            min={1} max={10} defaultValue={7}
-                            onChange={(val) => handleChange('risk_tolerance', val)}
+                    <div className="mt-4">
+                        <CheckboxInput 
+                            label="Use Fractional Shares"
+                            onChange={(val) => handleChange('use_fractional_shares', val)}
                         />
-                    </InputGroup>
+                    </div>
                 </>
             );
 
-        case 'tracking':
-            return (
-                <>
-                    <InputGroup label="Select Portfolio">
-                        <SelectInput
-                            options={['Main Holdings', 'Speculative Tech', 'Dividend Aristocrats']}
-                            onChange={(val) => handleChange('portfolio_id', val)}
-                        />
-                    </InputGroup>
-                    <InputGroup label="Benchmark">
-                        <SelectInput
-                            options={['S&P 500', 'Nasdaq 100', 'Total World']}
-                            onChange={(val) => handleChange('benchmark', val)}
-                        />
-                    </InputGroup>
-                    <ToggleSwitch
-                        label="Show Real-time Drift"
-                        onChange={(val) => handleChange('show_drift', val)}
-                    />
-                </>
-            );
+        case 'tracking_simple': 
+             return renderBasicInputs("e.g., EXISTING_PORTFOLIO");
 
         default:
             return <div className="text-gray-500">Select a tool to configure inputs.</div>;

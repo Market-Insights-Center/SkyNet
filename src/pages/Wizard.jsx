@@ -1,23 +1,63 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
-import { ChevronRight, Play } from 'lucide-react';
-import WizardInputs from '../components/WizardInputs.jsx';
+import { motion, AnimatePresence } from 'framer-motion';
+import { ChevronRight, Play, X } from 'lucide-react';
+import WizardInputs, { PortfolioConfigForm } from '../components/WizardInputs.jsx';
 import WizardPreview from '../components/WizardPreview.jsx';
 import Results from './Results.jsx';
 
 const Wizard = () => {
     const location = useLocation();
     const navigate = useNavigate();
-    const [activeStep, setActiveStep] = useState(1);
     const [isAnalyzing, setIsAnalyzing] = useState(false);
     const [showResults, setShowResults] = useState(false);
     const [toolType, setToolType] = useState('');
+    
+    // Modal state for Custom/Tracking not found
+    const [showConfigModal, setShowConfigModal] = useState(false);
+    const [missingPortfolioCode, setMissingPortfolioCode] = useState('');
+    const [newConfig, setNewConfig] = useState({});
+
+    // Progress state
+    const [progress, setProgress] = useState(0);
+    const [progressText, setProgressText] = useState('');
 
     useEffect(() => {
-        const path = location.pathname.substring(1); // remove leading slash
+        const path = location.pathname.substring(1);
         setToolType(path);
     }, [location]);
+
+    useEffect(() => {
+        let interval;
+        if (isAnalyzing) {
+            setProgress(0);
+            setProgressText('Initializing secure connection...');
+            interval = setInterval(() => {
+                setProgress(prev => {
+                    let increment = 0;
+                    if (prev < 20) increment = 1.5;
+                    else if (prev < 60) increment = 0.8;
+                    else if (prev < 85) increment = 0.5;
+                    else if (prev < 98) increment = 0.2;
+                    
+                    const newProgress = Math.min(prev + increment, 99);
+                    if (newProgress < 15) setProgressText('Initializing secure connection...');
+                    else if (newProgress < 30) setProgressText('Fetching live market data (Yahoo Finance)...');
+                    else if (newProgress < 45) setProgressText('Analyzing 10y Historical Volatility & Beta...');
+                    else if (newProgress < 60) setProgressText('Calculating EMA Sensitivity & Trends...');
+                    else if (newProgress < 70) setProgressText('Computing Asset Correlations...');
+                    else if (newProgress < 80) setProgressText('Optimizing Weights & Risk Controls...');
+                    else if (newProgress < 90) setProgressText('Applying Fractional Share Logic...');
+                    else setProgressText('Finalizing Portfolio Report...');
+                    return newProgress;
+                });
+            }, 200);
+        } else {
+            setProgress(0);
+            setProgressText('');
+        }
+        return () => clearInterval(interval);
+    }, [isAnalyzing]);
 
     const getToolTitle = () => {
         switch (toolType) {
@@ -35,84 +75,79 @@ const Wizard = () => {
         setInputs(prev => ({ ...prev, [field]: value }));
     };
 
-    const getRequestBody = (type) => {
-        // Helper to safely parse tickers string into list if needed
+    const handleConfigChange = (field, value) => {
+        setNewConfig(prev => ({ ...prev, [field]: value }));
+    };
+
+    const getRequestBody = (type, extraConfig = null) => {
         const parseTickerString = (str) => {
             if (!str) return [];
+            if (Array.isArray(str)) return str;
             return str.split(',').map(t => t.trim()).filter(t => t.length > 0);
         };
 
+        // Helper to map sensitivity string to int
+        const mapSens = (s) => {
+            const m = { "Low (Long-term)": 1, "Medium (Swing)": 2, "High (Day Trade)": 3, "Medium": 2 };
+            return m[s] || 2;
+        }
+
         switch (type) {
             case 'invest':
-                const sensMap = { "Low (Long-term)": 1, "Medium (Swing)": 2, "High (Day Trade)": 3, "Medium": 2 };
-                const emaSens = sensMap[inputs.ema_sensitivity] || 2;
-                const investCapital = parseFloat(inputs.capital) || 10000;
-
-                // Construct sub_portfolios from the array we received from WizardInputs
-                let subPortfolios = [];
-                if (Array.isArray(inputs.sub_portfolios)) {
-                    subPortfolios = inputs.sub_portfolios.map(sp => ({
+                return {
+                    ema_sensitivity: mapSens(inputs.ema_sensitivity),
+                    amplification: parseFloat(inputs.amplification) || 1.0,
+                    sub_portfolios: (Array.isArray(inputs.sub_portfolios) ? inputs.sub_portfolios : [{ tickers: "AAPL", weight: 100 }]).map(sp => ({
                         tickers: parseTickerString(sp.tickers),
                         weight: parseFloat(sp.weight) || 0
-                    }));
-                } else {
-                    // Fallback default if nothing entered yet
-                    subPortfolios = [{ tickers: ["AAPL", "MSFT", "NVDA"], weight: 100.0 }];
-                }
-
-                return {
-                    ema_sensitivity: emaSens,
-                    amplification: parseFloat(inputs.amplification) || 1.0,
-                    sub_portfolios: subPortfolios,
+                    })),
                     tailor_to_value: true,
-                    total_value: investCapital,
-                    use_fractional_shares: inputs.use_fractional_shares || false // Pass the checkbox value
+                    total_value: parseFloat(inputs.capital) || 10000,
+                    use_fractional_shares: inputs.use_fractional_shares || false
                 };
 
             case 'cultivate':
+                const rawCode = inputs.strategy_code || "Code A";
+                const cleanCode = rawCode.includes("Code B") ? "B" : "A";
                 return {
-                    cultivate_code: inputs.strategy_code || "Strategy A (Growth)",
-                    portfolio_value: parseFloat(inputs.capital) || 50000,
-                    use_fractional_shares: false,
+                    cultivate_code: cleanCode,
+                    portfolio_value: parseFloat(inputs.capital) || 10000,
+                    use_fractional_shares: inputs.use_fractional_shares || false,
                     action: "run_analysis"
                 };
-            case 'custom':
-                const sensMapCustom = { "Low (Long-term)": 1, "Medium (Swing)": 2, "High (Day Trade)": 3, "Medium": 2 };
-                const emaSensCustom = sensMapCustom[inputs.ema_sensitivity] || 2;
 
-                return {
-                    portfolio_code: inputs.name || "My Strategy",
-                    ema_sensitivity: emaSensCustom,
-                    amplification: parseFloat(inputs.amplification) || 1.5,
-                    sub_portfolios: [
-                        {
-                            tickers: parseTickerString(inputs.sub_portfolios || "AAPL, MSFT"),
-                            weight: 100.0
-                        }
-                    ],
-                    tailor_to_value: false,
-                    total_value: 10000,
-                    use_fractional_shares: inputs.auto_rebalance || false, 
-                    action: "run_analysis"
-                };
+            case 'custom':
             case 'tracking':
-                return {
-                    portfolio_code: inputs.portfolio_id || "Main Holdings",
-                    total_value: 10000, // Default
-                    use_fractional_shares: false,
+                const body = {
+                    portfolio_code: inputs.name || "My Strategy",
+                    tailor_to_value: true,
+                    total_value: parseFloat(inputs.capital) || 10000,
+                    use_fractional_shares: inputs.use_fractional_shares || false,
                     action: "run_analysis"
                 };
+                if (type === 'custom') body.action = "run_existing_portfolio";
+
+                if (extraConfig) {
+                    body.ema_sensitivity = mapSens(extraConfig.sensitivity);
+                    body.amplification = parseFloat(extraConfig.amplification) || 1.5;
+                    if (Array.isArray(extraConfig.sub_portfolios)) {
+                        body.sub_portfolios = extraConfig.sub_portfolios.map(sp => ({
+                            tickers: parseTickerString(sp.tickers),
+                            weight: parseFloat(sp.weight) || 0
+                        }));
+                    }
+                }
+                return body;
+
             default: return {};
         }
     };
 
-    const handleRunAnalysis = async () => {
+    const executeAnalysis = async (body) => {
         setIsAnalyzing(true);
         try {
             const endpoint = `http://localhost:8000/api/${toolType}`;
-            const body = getRequestBody(toolType);
-
-            console.log("Sending Request:", body); 
+            console.log("Sending Request:", body);
 
             const response = await fetch(endpoint, {
                 method: 'POST',
@@ -126,14 +161,37 @@ const Wizard = () => {
             }
 
             const data = await response.json();
+            
+            // Handle "Not Found" for Custom and Tracking -> Trigger Modal
+            if ((toolType === 'custom' || toolType === 'tracking') && data.status === 'not_found') {
+                setMissingPortfolioCode(inputs.name);
+                setShowConfigModal(true);
+                setIsAnalyzing(false);
+                return; 
+            }
+
             window.analysisResults = data; 
             setShowResults(true);
         } catch (error) {
             console.error(error);
             alert(`Failed to run analysis: ${error.message}`);
         } finally {
-            setIsAnalyzing(false);
+            if (!showConfigModal) {
+               setIsAnalyzing(false);
+            }
         }
+    };
+
+    const handleRunAnalysis = () => {
+        const body = getRequestBody(toolType);
+        executeAnalysis(body);
+    };
+
+    const handleConfigSubmit = () => {
+        setShowConfigModal(false);
+        // Re-run with extra config
+        const body = getRequestBody(toolType, newConfig);
+        executeAnalysis(body);
     };
 
     if (showResults) {
@@ -141,8 +199,7 @@ const Wizard = () => {
     }
 
     return (
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
-            {/* Header */}
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 relative">
             <div className="mb-8 flex items-center justify-between">
                 <div>
                     <h1 className="text-3xl font-bold text-white mb-2 flex items-center gap-3">
@@ -152,23 +209,9 @@ const Wizard = () => {
                     </h1>
                     <p className="text-gray-400">Configure your parameters to generate an optimal strategy.</p>
                 </div>
-
-                {/* Progress Stepper */}
-                <div className="flex items-center gap-4">
-                    {[1, 2, 3].map((step) => (
-                        <div key={step} className="flex items-center">
-                            <div className={`w-8 h-8 rounded-full flex items-center justify-center border-2 transition-colors duration-300 ${activeStep >= step ? 'border-gold bg-gold/10 text-gold' : 'border-gray-700 text-gray-700'
-                                }`}>
-                                {step}
-                            </div>
-                            {step < 3 && <div className={`w-12 h-0.5 mx-2 ${activeStep > step ? 'bg-gold' : 'bg-gray-800'}`} />}
-                        </div>
-                    ))}
-                </div>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 h-[600px]">
-                {/* Left Panel: Inputs */}
                 <motion.div
                     initial={{ opacity: 0, x: -20 }}
                     animate={{ opacity: 1, x: 0 }}
@@ -182,24 +225,33 @@ const Wizard = () => {
                         <button
                             onClick={handleRunAnalysis}
                             disabled={isAnalyzing}
-                            className="w-full py-4 bg-gradient-to-r from-gold to-yellow-600 text-black font-bold text-lg rounded-lg hover:shadow-[0_0_20px_rgba(212,175,55,0.4)] transition-all duration-300 flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
+                            className="w-full py-4 bg-gradient-to-r from-gold to-yellow-600 text-black font-bold text-lg rounded-lg hover:shadow-[0_0_20px_rgba(212,175,55,0.4)] transition-all duration-300 flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed relative overflow-hidden"
                         >
+                            {isAnalyzing && (
+                                <div 
+                                    className="absolute top-0 left-0 h-full bg-white/20 transition-all duration-500 ease-out"
+                                    style={{ width: `${progress}%` }}
+                                />
+                            )}
+                            
                             {isAnalyzing ? (
-                                <>
-                                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-black"></div>
-                                    Processing...
-                                </>
+                                <div className="flex flex-col items-center justify-center z-10">
+                                    <div className="flex items-center gap-2">
+                                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-black"></div>
+                                        <span>{Math.floor(progress)}%</span>
+                                    </div>
+                                    <span className="text-xs font-normal opacity-80 mt-1">{progressText}</span>
+                                </div>
                             ) : (
-                                <>
+                                <div className="flex items-center gap-2 z-10">
                                     <Play size={20} fill="currentColor" />
-                                    Run Analysis
-                                </>
+                                    <span>Run Analysis</span>
+                                </div>
                             )}
                         </button>
                     </div>
                 </motion.div>
 
-                {/* Right Panel: Preview */}
                 <motion.div
                     initial={{ opacity: 0, x: 20 }}
                     animate={{ opacity: 1, x: 0 }}
@@ -209,6 +261,56 @@ const Wizard = () => {
                     <WizardPreview toolType={toolType} isAnalyzing={isAnalyzing} />
                 </motion.div>
             </div>
+
+            <AnimatePresence>
+                {showConfigModal && (
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm"
+                    >
+                        <motion.div
+                            initial={{ scale: 0.9, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            exit={{ scale: 0.9, opacity: 0 }}
+                            className="bg-gray-900 border border-white/10 rounded-xl p-8 max-w-2xl w-full shadow-2xl relative"
+                        >
+                            <button 
+                                onClick={() => setShowConfigModal(false)}
+                                className="absolute top-4 right-4 text-gray-400 hover:text-white"
+                            >
+                                <X size={24} />
+                            </button>
+                            
+                            <h2 className="text-2xl font-bold text-white mb-2">New Portfolio Detected</h2>
+                            <p className="text-gray-400 mb-6">
+                                The code <span className="text-gold font-bold">{missingPortfolioCode}</span> was not found. 
+                                Please configure the strategy parameters below to create it.
+                            </p>
+
+                            <div className="max-h-[60vh] overflow-y-auto custom-scrollbar pr-2">
+                                <PortfolioConfigForm onChange={handleConfigChange} />
+                            </div>
+
+                            <div className="mt-8 flex justify-end gap-4">
+                                <button 
+                                    onClick={() => setShowConfigModal(false)}
+                                    className="px-6 py-3 rounded-lg border border-white/10 text-gray-300 hover:bg-white/5 transition-colors"
+                                >
+                                    Cancel
+                                </button>
+                                <button 
+                                    onClick={handleConfigSubmit}
+                                    className="px-6 py-3 rounded-lg bg-gold text-black font-bold hover:bg-yellow-500 transition-colors shadow-lg hover:shadow-gold/20"
+                                >
+                                    Create & Run Strategy
+                                </button>
+                            </div>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
         </div>
     );
 };
