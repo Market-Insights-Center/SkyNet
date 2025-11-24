@@ -12,26 +12,15 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 import configparser
 
-try:
-    from .custom_command import (
-        _get_custom_portfolio_run_csv_filepath, 
-        _save_custom_portfolio_run_to_csv, 
-        TRACKING_ORIGIN_FILE, 
-        PORTFOLIO_DB_FILE,
-        save_portfolio_to_csv
-    )
-    from .invest_command import process_custom_portfolio, calculate_ema_invest
-    from .execution_command import execute_portfolio_rebalance, get_robinhood_equity
-except ImportError:
-    from custom_command import (
-        _get_custom_portfolio_run_csv_filepath, 
-        _save_custom_portfolio_run_to_csv, 
-        TRACKING_ORIGIN_FILE, 
-        PORTFOLIO_DB_FILE,
-        save_portfolio_to_csv
-    )
-    from invest_command import process_custom_portfolio, calculate_ema_invest
-    from execution_command import execute_portfolio_rebalance, get_robinhood_equity
+from integration.custom_command import (
+    _get_custom_portfolio_run_csv_filepath, 
+    _save_custom_portfolio_run_to_csv, 
+    TRACKING_ORIGIN_FILE, 
+    PORTFOLIO_DB_FILE,
+    save_portfolio_to_csv
+)
+from integration.invest_command import process_custom_portfolio, calculate_ema_invest
+from integration.execution_command import execute_portfolio_rebalance, get_robinhood_equity
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CONFIG_FILE = os.path.join(BASE_DIR, 'config.ini')

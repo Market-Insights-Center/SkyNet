@@ -5,6 +5,8 @@ from typing import List, Optional, Dict, Any
 import sys
 import os
 import csv
+import pandas as pd
+import yfinance as yf
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
@@ -251,6 +253,115 @@ async def run_tracking(request: TrackingRequest):
     except Exception as e:
         import traceback
         traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+class MarketDataRequest(BaseModel):
+    tickers: List[str]
+
+@app.post("/api/market-data")
+async def get_market_data(request: MarketDataRequest):
+    print(f"Received /market-data request: {request.tickers}")
+    if not request.tickers:
+        return {}
+    
+    try:
+        tickers_str = " ".join(request.tickers)
+        # Fetch data in batch
+        tickers = yf.Tickers(tickers_str)
+        
+        results = {}
+        
+        # Fetch history for all tickers at once (efficient)
+        history_data = yf.download(tickers_str, period="5y", interval="1d", group_by='ticker', progress=False)
+        
+        for symbol in request.tickers:
+            try:
+                # Handle single ticker case where structure is different
+                if len(request.tickers) == 1:
+                    hist = history_data
+                    ticker_obj = tickers.tickers[symbol] if hasattr(tickers, 'tickers') else yf.Ticker(symbol)
+                else:
+                    hist = history_data[symbol]
+                    ticker_obj = tickers.tickers[symbol]
+                
+                # Get Info
+                info = ticker_obj.info
+                
+                # Current Price
+                current_price = info.get('currentPrice') or info.get('regularMarketPrice') or (hist['Close'].iloc[-1] if not hist.empty else 0.0)
+                
+                # Calculate Changes
+                def get_change(days_ago):
+                    if hist.empty or len(hist) < days_ago: return 0.0
+                    try:
+                        # Find closest trading day
+                        start_price = hist['Close'].iloc[-days_ago]
+                        if pd.isna(start_price): return 0.0
+                        return ((current_price - start_price) / start_price) * 100
+                    except: return 0.0
+
+                # 1 Day
+                change_1d = info.get('regularMarketChangePercent', 0.0)
+                if change_1d is None: change_1d = 0.0
+                
+                # 1 Week (5 trading days)
+                change_1w = get_change(5)
+                
+                # 1 Month (21 trading days)
+                change_1m = get_change(21)
+                
+                # YTD
+                current_year = pd.Timestamp.now().year
+                ytd_hist = hist[hist.index.year == current_year]
+                if not ytd_hist.empty:
+                    start_price = ytd_hist['Close'].iloc[0]
+                    change_ytd = ((current_price - start_price) / start_price) * 100
+                else:
+                    change_ytd = 0.0
+
+                # 1 Year (252 trading days)
+                change_1y = get_change(252)
+                
+                # 5 Year (1260 trading days)
+                change_5y = get_change(1260)
+                
+                # Market Cap formatting
+                mkt_cap = info.get('marketCap', 0)
+                if mkt_cap >= 1e12: mkt_cap_str = f"{mkt_cap/1e12:.2f}T"
+                elif mkt_cap >= 1e9: mkt_cap_str = f"{mkt_cap/1e9:.2f}B"
+                elif mkt_cap >= 1e6: mkt_cap_str = f"{mkt_cap/1e6:.2f}M"
+                else: mkt_cap_str = str(mkt_cap)
+
+                # Volume formatting
+                vol = info.get('volume') or (hist['Volume'].iloc[-1] if not hist.empty else 0)
+                if vol >= 1e9: vol_str = f"{vol/1e9:.2f}B"
+                elif vol >= 1e6: vol_str = f"{vol/1e6:.2f}M"
+                elif vol >= 1e3: vol_str = f"{vol/1e3:.2f}K"
+                else: vol_str = str(vol)
+
+                results[symbol] = {
+                    "price": current_price,
+                    "change": change_1d,
+                    "marketCap": mkt_cap_str,
+                    "volume": vol_str,
+                    "iv": "N/A",
+                    "earnings": info.get('earningsDate', ['N/A'])[0] if isinstance(info.get('earningsDate'), list) and info.get('earningsDate') else "N/A",
+                    "peRatio": info.get('trailingPE', 0.0),
+                    "weekChange": change_1w,
+                    "monthChange": change_1m,
+                    "ytdChange": change_ytd,
+                    "yearChange": change_1y,
+                    "fiveYearChange": change_5y
+                }
+
+            except Exception as e:
+                print(f"Error processing {symbol}: {e}")
+                results[symbol] = {"error": str(e)}
+
+        return results
+
+    except Exception as e:
+        print(f"Global error in /market-data: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == "__main__":

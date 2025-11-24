@@ -17,10 +17,7 @@ PORTFOLIO_OUTPUT_DIR = os.path.join(BASE_DIR, 'saved_runs')
 TRACKING_ORIGIN_FILE = os.path.join(BASE_DIR, 'tracking_origin.csv')
 
 # --- Local Imports ---
-try:
-    from .invest_command import process_custom_portfolio, safe_score
-except ImportError:
-    from invest_command import process_custom_portfolio, safe_score
+from integration.invest_command import process_custom_portfolio, safe_score
 
 def safe_score(value) -> float:
     try:
@@ -200,6 +197,7 @@ async def handle_custom_command(args: List[str], ai_params: Optional[Dict] = Non
                 try:
                     total_value_ai_float = float(ai_params.get("total_value", 0))
                     if total_value_ai_float <= 0: return "Error: 'total_value' must be positive."
+                except ValueError: return "Error: Invalid 'total_value'."
                 except ValueError: return "Error: Invalid 'total_value'."
 
             frac_shares_final = ai_params.get("use_fractional_shares")
