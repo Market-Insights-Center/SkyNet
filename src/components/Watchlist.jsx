@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import {
     DndContext,
     closestCenter,
@@ -16,16 +16,17 @@ import {
     useSortable,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { MoreVertical, Plus, Search, GripVertical, X, ChevronDown, ChevronUp, Check, RefreshCw, Trash2 } from 'lucide-react';
+import { MoreVertical, Plus, Search, GripVertical, X, ChevronDown, ChevronUp, Check, RefreshCw, Trash2, Maximize2 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { db } from '../firebase';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 
-// Initialize with STRINGS, not objects, to prevent initial load crashes
+// Initialize with STRINGS, not objects
 const INITIAL_TICKERS = ['AAPL', 'MSFT', 'GOOG', 'AMZN', 'NVDA', 'META', 'TSLA', 'PLUG'];
 
 const AVAILABLE_COLUMNS = [
     { id: 'price', label: 'Price' },
+    { id: 'trend', label: 'Trend' },
     { id: 'change', label: '1D %' },
     { id: 'marketCap', label: 'Market Cap' },
     { id: 'volume', label: 'Volume' },
@@ -40,10 +41,10 @@ const AVAILABLE_COLUMNS = [
 
 const DEFAULT_COLUMNS = [
     { id: 'price', label: 'Price' },
+    { id: 'trend', label: 'Trend' },
     { id: 'change', label: '1D %' },
     { id: 'marketCap', label: 'Market Cap' },
     { id: 'volume', label: 'Volume' },
-    { id: 'monthChange', label: '1M %' },
 ];
 
 // --- Helpers ---
@@ -66,6 +67,77 @@ const parseValue = (val) => {
 
 // --- Sub-Components ---
 
+const TradingViewWidget = ({ ticker }) => {
+  const container = useRef();
+
+  useEffect(() => {
+    const script = document.createElement("script");
+    script.src = "https://s3.tradingview.com/tv.js";
+    script.async = true;
+    script.onload = () => {
+        if (window.TradingView) {
+            new window.TradingView.widget({
+                "width": "100%",
+                "height": "100%",
+                "symbol": ticker,
+                "interval": "D",
+                "timezone": "Etc/UTC",
+                "theme": "dark",
+                "style": "1", // 1 = Candles
+                "locale": "en",
+                "toolbar_bg": "#f1f3f6",
+                "enable_publishing": false,
+                "allow_symbol_change": true,
+                "container_id": `tradingview_${ticker}`
+            });
+        }
+    };
+    
+    // Append script
+    if (container.current) {
+        container.current.innerHTML = "";
+        const div = document.createElement("div");
+        div.id = `tradingview_${ticker}`;
+        div.style.height = "100%";
+        container.current.appendChild(div);
+        container.current.appendChild(script);
+    }
+  }, [ticker]);
+
+  return <div ref={container} className="w-full h-full min-h-[500px]" />;
+};
+
+const Sparkline = ({ data, isPositive }) => {
+  if (!data || data.length < 2) return <div className="w-[100px] h-[30px] opacity-20 bg-gray-700/10 rounded"></div>;
+
+  const width = 100;
+  const height = 30;
+  const min = Math.min(...data);
+  const max = Math.max(...data);
+  const range = max - min || 1; 
+
+  const points = data.map((val, i) => {
+    const x = (i / (data.length - 1)) * width;
+    const y = height - ((val - min) / range) * height;
+    return `${x},${y}`;
+  }).join(' ');
+
+  const color = isPositive ? "#10B981" : "#EF4444"; 
+
+  return (
+    <svg width={width} height={height} className="overflow-visible">
+      <path
+        d={`M ${points}`}
+        fill="none"
+        stroke={color}
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+};
+
 const SortableHeader = ({ column, onToggle, isEditing, sortConfig, onSort }) => {
     const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: column.id });
 
@@ -80,9 +152,12 @@ const SortableHeader = ({ column, onToggle, isEditing, sortConfig, onSort }) => 
         <div
             ref={setNodeRef}
             style={style}
-            {...(isEditing ? { ...attributes, ...listeners } : {})}
+            {...attributes}
+            {...listeners}
             className={`flex items-center gap-1 select-none px-2 py-1 rounded transition-colors ${isEditing ? 'bg-white/5 border border-white/10' : 'hover:text-gold'}`}
-            onClick={() => !isEditing && onSort(column.id)}
+            onClick={(e) => {
+                if (!isEditing) onSort(column.id);
+            }}
         >
             {isEditing && (
                 <button onClick={(e) => { e.stopPropagation(); onToggle(column); }} className="mr-1 text-red-400 hover:text-red-300">
@@ -97,10 +172,8 @@ const SortableHeader = ({ column, onToggle, isEditing, sortConfig, onSort }) => 
     );
 };
 
-const SortableRow = ({ ticker, columns, onDelete, data }) => {
-    // Defensive coding: Ensure ticker is a string
+const SortableRow = ({ ticker, columns, onDelete, data, onSelect }) => {
     const tickerId = typeof ticker === 'string' ? ticker : (ticker?.symbol || 'UNKNOWN');
-    
     const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: tickerId });
 
     const style = {
@@ -126,11 +199,24 @@ const SortableRow = ({ ticker, columns, onDelete, data }) => {
             </div>
 
             <div>
-                <div className="font-bold text-white">{tickerId}</div>
+                <button 
+                    onClick={() => onSelect(tickerId)}
+                    className="font-bold text-white hover:text-blue-400 hover:underline text-left"
+                >
+                    {tickerId}
+                </button>
                 <div className="text-xs text-gray-500 truncate max-w-[100px]" title={name}>{name}</div>
             </div>
 
             {columns.map((col) => {
+                if (col.id === 'trend') {
+                    return (
+                        <div key={col.id} className="flex items-center justify-start h-full">
+                            <Sparkline data={rowData.sparkline} isPositive={isPositive} />
+                        </div>
+                    );
+                }
+
                 const val = rowData[col.id];
                 let displayVal = val !== undefined ? val : '-';
                 let colorClass = 'text-gray-300';
@@ -183,6 +269,7 @@ const Watchlist = () => {
     const [isAddOpen, setIsAddOpen] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
     const [sortConfig, setSortConfig] = useState({ key: null, direction: null });
+    const [selectedTicker, setSelectedTicker] = useState(null); // For TradingView Modal
 
     const sensors = useSensors(
         useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -203,7 +290,6 @@ const Watchlist = () => {
                     if (data.name) setWatchlistName(data.name);
                     
                     if (data.tickers && Array.isArray(data.tickers)) {
-                        // CRITICAL FIX: Convert objects to strings immediately
                         const cleanTickers = data.tickers.map(t => 
                             typeof t === 'string' ? t : (t.id || t.symbol || '')
                         ).filter(Boolean);
@@ -212,6 +298,11 @@ const Watchlist = () => {
                     }
                     
                     if (data.columns) setVisibleColumns(data.columns);
+                    
+                    // Restore Sort Configuration
+                    if (data.sortConfig) {
+                        setSortConfig(data.sortConfig);
+                    }
                 }
             } catch (e) {
                 console.error("Error loading watchlist:", e);
@@ -228,8 +319,9 @@ const Watchlist = () => {
                 const docRef = doc(db, "users", currentUser.uid, "watchlists", "default");
                 await setDoc(docRef, {
                     name: watchlistName,
-                    tickers, // Will save as clean array of strings
+                    tickers, 
                     columns: visibleColumns,
+                    sortConfig, // Saving sort preferences
                     updatedAt: new Date().toISOString()
                 }, { merge: true });
             } catch (e) {
@@ -237,7 +329,7 @@ const Watchlist = () => {
             }
         }, 1000);
         return () => clearTimeout(timeoutId);
-    }, [watchlistName, tickers, visibleColumns, currentUser]);
+    }, [watchlistName, tickers, visibleColumns, sortConfig, currentUser]);
 
     // --- Data Fetching ---
 
@@ -252,7 +344,7 @@ const Watchlist = () => {
             });
             const data = await response.json();
             if (data) {
-                setMarketData(prev => ({ ...prev, ...data }));
+                setMarketData(prev => ({ ...prev, ...data.results }));
             }
         } catch (error) {
             console.error("Failed to fetch market data:", error);
@@ -312,7 +404,7 @@ const Watchlist = () => {
                     body: JSON.stringify({ tickers: [symbol] })
                 });
                 const newData = await response.json();
-                setMarketData(prev => ({ ...prev, ...newData }));
+                setMarketData(prev => ({ ...prev, ...newData.results }));
             } catch (e) { console.error(e); }
             setIsLoadingData(false);
         }
@@ -322,14 +414,12 @@ const Watchlist = () => {
 
     const removeTicker = (symbol) => {
         setTickers(prev => prev.filter(t => t !== symbol));
-        // Optional: Remove data from marketData if you want to cleanup memory, though not strictly necessary
     };
 
     const handleDragEnd = (event) => {
         const { active, over } = event;
         if (!over) return;
 
-        // Column Reordering
         if (visibleColumns.some(c => c.id === active.id)) {
             if (active.id !== over.id) {
                 setVisibleColumns((items) => {
@@ -339,7 +429,6 @@ const Watchlist = () => {
                 });
             }
         } 
-        // Row Reordering (Only if sort is disabled)
         else if (!sortConfig.key) { 
             if (active.id !== over.id) {
                 setTickers((items) => {
@@ -361,6 +450,28 @@ const Watchlist = () => {
 
     return (
         <section className="py-12 px-4 bg-deep-black">
+            {/* Modal for TradingView */}
+            {selectedTicker && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+                    <div className="relative w-full max-w-5xl h-[80vh] bg-[#151515] rounded-xl border border-white/10 shadow-2xl overflow-hidden flex flex-col">
+                        <div className="flex justify-between items-center p-4 border-b border-white/10 bg-[#0A0A0A]">
+                            <h3 className="text-xl font-bold text-white flex items-center gap-2">
+                                {selectedTicker} <span className="text-gray-500 text-sm">Interactive Chart</span>
+                            </h3>
+                            <button 
+                                onClick={() => setSelectedTicker(null)}
+                                className="p-2 text-gray-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
+                            >
+                                <X size={24} />
+                            </button>
+                        </div>
+                        <div className="flex-grow bg-[#151515]">
+                            <TradingViewWidget ticker={selectedTicker} />
+                        </div>
+                    </div>
+                </div>
+            )}
+
             <div className="max-w-7xl mx-auto">
                 <div className="bg-[#0a0a0a] border border-white/10 rounded-2xl overflow-hidden shadow-2xl">
                     {/* Header */}
@@ -449,7 +560,6 @@ const Watchlist = () => {
                                     <SortableContext 
                                         items={visibleColumns.map(c => c.id)} 
                                         strategy={horizontalListSortingStrategy}
-                                        disabled={!isEditingColumns} 
                                     >
                                         {visibleColumns.map(col => (
                                             <SortableHeader 
@@ -482,6 +592,7 @@ const Watchlist = () => {
                                                     data={marketData}
                                                     columns={visibleColumns}
                                                     onDelete={removeTicker}
+                                                    onSelect={setSelectedTicker}
                                                 />
                                             ))
                                         )}
