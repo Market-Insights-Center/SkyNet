@@ -340,6 +340,7 @@ async def get_market_data(request: MarketDataRequest):
                 else: vol_str = str(vol)
 
                 results[symbol] = {
+                    "name": info.get('shortName') or info.get('longName') or symbol, # ADDED NAME
                     "price": current_price,
                     "change": change_1d,
                     "marketCap": mkt_cap_str,
