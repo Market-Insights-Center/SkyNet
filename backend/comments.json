@@ -1,140 +1,57 @@
 [
   {
-    "id": 101,
+    "id": 1,
     "article_id": 1,
-    "user": "alice@example.com",
-    "text": "Great insights! I've been using simple ML models for my portfolio, but the institutional tools described here are on another level.",
-    "date": "2025-11-23 18:35",
-    "likes": 8,
-    "dislikes": 0,
-    "replies": [
-      {
-        "user": "bob@example.com",
-        "text": "Totally agree. The barrier to entry is lowering, though.",
-        "date": "2025-11-23 22:35"
-      },
-      {
-        "id": 102,
-        "article_id": 4,
-        "user": "Replier",
-        "text": "This is a reply.",
-        "date": "2025-11-24"
-      },
-      {
-        "id": 102,
-        "article_id": 5,
-        "user": "Replier",
-        "text": "This is a reply.",
-        "date": "2025-11-24"
-      },
-      {
-        "id": 102,
-        "article_id": 6,
-        "user": "Replier",
-        "text": "This is a reply.",
-        "date": "2025-11-24"
-      },
-      {
-        "id": 102,
-        "article_id": 7,
-        "user": "Replier",
-        "text": "This is a reply.",
-        "date": "2025-11-24"
-      }
-    ]
-  },
-  {
-    "id": 102,
-    "article_id": 1,
-    "user": "charlie@example.com",
-    "text": "I'm skeptical about AI completely replacing human intuition. There are nuances in the market that algos miss.",
-    "date": "2025-11-24 13:35",
-    "likes": 2,
-    "dislikes": 1,
-    "replies": []
-  },
-  {
-    "id": 103,
-    "article_id": 3,
-    "user": "dave@example.com",
-    "text": "Regulation is necessary for mass adoption. We can't have the Wild West forever.",
-    "date": "2025-11-24 18:05",
-    "likes": 10,
-    "dislikes": 2,
-    "replies": []
-  },
-  {
-    "id": 104,
-    "article_id": 5,
-    "user": "eve@example.com",
-    "text": "Covered calls are my bread and butter. Glad to see them mentioned!",
-    "date": "2025-11-24 18:35",
-    "likes": 8,
-    "dislikes": 0,
-    "replies": [
-      {
-        "user": "frank@example.com",
-        "text": "What delta do you usually sell at?",
-        "date": "2025-11-24 18:35"
-      }
-    ]
-  },
-  {
-    "id": 101,
-    "article_id": 4,
-    "user": "Commenter",
-    "text": "First comment!",
-    "date": "2025-11-24"
-  },
-  {
-    "id": 101,
-    "article_id": 5,
-    "user": "Commenter",
-    "text": "First comment!",
-    "date": "2025-11-24"
-  },
-  {
-    "id": 101,
-    "article_id": 6,
-    "user": "Commenter",
-    "text": "First comment!",
-    "date": "2025-11-24"
-  },
-  {
-    "id": 101,
-    "article_id": 7,
-    "user": "Commenter",
-    "text": "First comment!",
-    "date": "2025-11-24"
-  },
-  {
-    "id": 0,
-    "article_id": 3,
     "user": "Verzogerung",
-    "text": "Haha\n",
-    "date": "2025-11-25T04:07:03.613Z"
-  },
-  {
-    "id": 0,
-    "article_id": 7,
-    "user": "Verzogerung",
-    "text": "Cool story bro",
-    "date": "2025-11-25T04:07:22.806Z"
-  },
-  {
-    "id": 0,
-    "article_id": 7,
-    "user": "Verzogerung",
-    "text": "kk",
-    "date": "2025-11-25T04:09:06.587Z"
-  },
-  {
-    "id": 105,
-    "article_id": 7,
-    "user": "Verzogerung",
-    "text": "cool bro\n",
-    "date": "2025-11-25T05:13:14.504Z",
+    "text": "yep",
+    "date": "2025-11-25T07:02:29.114Z",
     "replies": [],
+    "likes": 0,
+    "dislikes": 0
+  },
+  {
+    "id": 2,
+    "article_id": 1,
+    "user": "Verzogerung",
+    "text": "ty",
+    "date": "2025-11-25T07:02:35.202Z",
+    "replies": [],
+    "likes": 0,
+    "dislikes": 0
+  },
+  {
+    "id": 3,
+    "article_id": 1,
+    "user": "TestUser",
+    "text": "This is a test comment",
+    "date": "2023-01-01",
+    "replies": [
+      {
+        "id": 0,
+        "article_id": 1,
+        "user": "TestUser",
+        "text": "This is a reply",
+        "date": "2023-01-01"
+      }
+    ],
+    "likes": 0,
+    "dislikes": 0
+  },
+  {
+    "id": 4,
+    "article_id": 1,
+    "user": "TestUser",
+    "text": "This is a test comment",
+    "date": "2023-01-01",
+    "replies": [
+      {
+        "id": 0,
+        "article_id": 1,
+        "user": "TestUser",
+        "text": "This is a reply",
+        "date": "2023-01-01"
+      }
+    ],
     "likes": 0,
     "dislikes": 0
   }
