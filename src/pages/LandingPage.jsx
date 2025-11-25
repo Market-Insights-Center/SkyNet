@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 import { Check, ChevronDown, ChevronUp, Brain, RefreshCw, Shield, Twitter, Linkedin, Disc } from 'lucide-react';
 import MarketDashboard from '../components/MarketDashboard';
 import Watchlist from '../components/Watchlist';
+import NewsFeed from '../components/NewsFeed';
 
 const LandingPage = () => {
     return (
@@ -76,6 +77,7 @@ const LandingPage = () => {
 
             {/* Market Intelligence Section */}
             <MarketDashboard />
+            <NewsFeed />
             <Watchlist />
 
             {/* Mission Statement Section */}

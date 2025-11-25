@@ -11,6 +11,12 @@ import SignUp from './pages/SignUp';
 import Profile from './pages/Profile';
 import StartupAnimation from './components/StartupAnimation';
 
+import Forum from './pages/Forum';
+import NewsPage from './pages/NewsPage';
+import ArticleView from './pages/ArticleView';
+import AdminDashboard from './pages/AdminDashboard';
+import CreateArticle from './pages/CreateArticle';
+
 function App() {
     const [isLoading, setIsLoading] = useState(true);
 
@@ -31,6 +37,11 @@ function App() {
                             <Route path="/login" element={<Login />} />
                             <Route path="/signup" element={<SignUp />} />
                             <Route path="/profile" element={<Profile />} />
+                            <Route path="/forum" element={<Forum />} />
+                            <Route path="/news" element={<NewsPage />} />
+                            <Route path="/news/:id" element={<ArticleView />} />
+                            <Route path="/admin" element={<AdminDashboard />} />
+                            <Route path="/create-article" element={<CreateArticle />} />
                         </Routes>
                     </Layout>
                 </Router>

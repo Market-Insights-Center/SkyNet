@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
@@ -7,10 +7,12 @@ import os
 import csv
 import pandas as pd
 import numpy as np
-import math
 import yfinance as yf
 import asyncio
 import logging
+import datetime
+import random
+import json
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
@@ -29,6 +31,89 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# --- GLOBAL LIMITER ---
+# Crucial: Restricts concurrent fetches to 4 to prevent Yahoo from blocking connections
+YF_SEMAPHORE = asyncio.Semaphore(4)
+
+# --- CACHE ---
+MARKET_DATA_CACHE = {}
+CACHE_EXPIRY_SECONDS = 300 # 5 minutes
+
+async def fetch_slow_data_task(symbol: str):
+    """Background task to fetch slow data (IV, Earnings, Info) and update cache."""
+    async with YF_SEMAPHORE:
+        def _get_slow():
+            try:
+                import time
+                time.sleep(random.uniform(0.5, 1.5)) # Lower priority
+                ticker = yf.Ticker(symbol)
+                
+                # 1. INFO (Name/MarketCap/PE)
+                info = {}
+                try: info = ticker.info
+                except: pass
+
+                # 2. EARNINGS
+                earnings_str = "N/A"
+                try:
+                    cal = ticker.calendar
+                    if cal and isinstance(cal, dict):
+                        dates = cal.get('Earnings Date')
+                        if dates:
+                            first = dates[0] if isinstance(dates, list) else dates
+                            if hasattr(first, 'strftime'):
+                                earnings_str = first.strftime("%m-%d")
+                            else:
+                                earnings_str = str(first)[:10]
+                except: pass
+
+                # 3. IV (Options)
+                iv_str = "N/A"
+                try:
+                    # Need current price for IV calc
+                    current_price = 0.0
+                    if hasattr(ticker, 'fast_info'):
+                        p = getattr(ticker.fast_info, 'last_price', None)
+                        if p: current_price = float(p)
+                    
+                    if current_price > 0:
+                        exps = ticker.options
+                        if exps:
+                            target_date = exps[0]
+                            today = datetime.date.today()
+                            for d_str in exps:
+                                try:
+                                    d_obj = datetime.datetime.strptime(d_str, "%Y-%m-%d").date()
+                                    if (d_obj - today).days > 15:
+                                        target_date = d_str
+                                        break
+                                except: continue
+                            
+                            chain = ticker.option_chain(target_date)
+                            calls = chain.calls
+                            if not calls.empty:
+                                calls['dist'] = (calls['strike'] - current_price).abs()
+                                valid = calls[calls['impliedVolatility'] > 0.001].copy()
+                                if not valid.empty:
+                                    best = valid.sort_values('dist').iloc[0]
+                                    iv_str = f"{best['impliedVolatility'] * 100:.2f}%"
+                except: pass
+
+                return info, earnings_str, iv_str
+            except Exception as e:
+                print(f"Error fetching slow data for {symbol}: {e}")
+                return {}, "N/A", "N/A"
+
+        info, earnings_str, iv_str = await asyncio.to_thread(_get_slow)
+        
+        # Update Cache
+        MARKET_DATA_CACHE[symbol] = {
+            "timestamp": datetime.datetime.now().timestamp(),
+            "info": info,
+            "earnings": earnings_str,
+            "iv": iv_str
+        }
 
 # --- Models ---
 
@@ -91,12 +176,106 @@ class UserProfile(BaseModel):
 class MarketDataRequest(BaseModel):
     tickers: List[str]
 
+class ModRequest(BaseModel):
+    email: str
+    action: str  # "add" or "remove"
+    requester_email: str
+
+class VoteRequest(BaseModel):
+    type: str # 'up' or 'down'
+
+class Comment(BaseModel):
+    id: int
+    article_id: int
+    user: str
+    text: str
+    date: str
+    replies: Optional[List[Dict[str, Any]]] = []
+    likes: int = 0
+    dislikes: int = 0
+
+class Article(BaseModel):
+    id: Optional[int] = None
+    title: str
+    subheading: str
+    content: str
+    author: str
+    date: str
+    category: str = "General"
+    hashtags: List[str] = []
+    cover_image: Optional[str] = None
+    likes: int = 0
+    dislikes: int = 0
+    shares: int = 0
+
+class UserSubscription(BaseModel):
+    email: str
+    subscription_plan: str = "Free"
+    subscription_cost: float = 0.0
+
 # --- Helper Functions ---
 
-def normalize_table_data(data_list: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+MODS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'mods.csv')
+ARTICLES_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'articles.json')
+COMMENTS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'comments.json')
+USERS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'users.json')
+
+def load_json(filepath):
+    if not os.path.exists(filepath):
+        return []
+    try:
+        with open(filepath, 'r') as f:
+            return json.load(f)
+    except:
+        return []
+
+def save_json(filepath, data):
+    with open(filepath, 'w') as f:
+        json.dump(data, f, indent=2)
+
+def get_mod_list():
+    if not os.path.exists(MODS_FILE):
+        # Create with default super admin
+        with open(MODS_FILE, 'w', newline='') as f:
+            writer = csv.writer(f)
+            writer.writerow(["email"])
+            writer.writerow(["marketinsightscenter@gmail.com"])
+        return ["marketinsightscenter@gmail.com"]
+    
+    mods = []
+    try:
+        with open(MODS_FILE, 'r') as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                if row and row.get("email"):
+                    mods.append(row["email"])
+    except Exception as e:
+        print(f"Error reading mods file: {e}")
+    
+    # Ensure super admin is always in the list
+    if "marketinsightscenter@gmail.com" not in mods:
+        mods.append("marketinsightscenter@gmail.com")
+    
+    return mods
+
+def save_mod_list(mods):
+    try:
+        with open(MODS_FILE, 'w', newline='') as f:
+            writer = csv.writer(f)
+            writer.writerow(["email"])
+            for email in mods:
+                writer.writerow([email])
+    except Exception as e:
+        print(f"Error saving mods file: {e}")
+
+def normalize_table_data(data):
     normalized = []
-    for item in data_list:
-        ticker = item.get("ticker") or item.get("Ticker") or "Unknown"
+    # Handle different data structures (list of dicts or dict of dicts)
+    iterable = data.values() if isinstance(data, dict) else data
+    
+    for item in iterable:
+        ticker = item.get("ticker") or item.get("Ticker")
+        if not ticker: continue
         if ticker == "Cash": continue 
 
         shares = item.get("shares") or item.get("Shares") or 0
@@ -126,118 +305,66 @@ def normalize_table_data(data_list: List[Dict[str, Any]]) -> List[Dict[str, Any]
         })
     return normalized
 
-async def fetch_ticker_data(symbol: str) -> Dict[str, Any]:
-    """
-    Fetches data for a single ticker with extensive logging and fallbacks.
-    """
-    print(f"--- Fetching data for: {symbol} ---")
+async def fetch_ticker_data(symbol: str, background_tasks: BackgroundTasks = None) -> Dict[str, Any]:
     
-    def _get_data():
-        try:
-            ticker = yf.Ticker(symbol)
-            
-            # 1. Try Fast Info (Real-time-ish)
+    # 1. FAST DATA (Price, Change, Sparkline) - Always fetch fresh
+    async with YF_SEMAPHORE:
+        def _get_fast():
             try:
-                current_price = ticker.fast_info.get('last_price', 0.0)
-                print(f"   [{symbol}] FastInfo Price: {current_price}")
-            except Exception as e:
-                print(f"   [{symbol}] FastInfo Failed: {e}")
+                ticker = yf.Ticker(symbol)
+                
+                # Price
                 current_price = 0.0
-
-            # 2. Get History (1 Year)
-            # We use auto_adjust=False to match traditional Close prices if needed
-            hist = ticker.history(period="1y", interval="1d")
-            if hist.empty:
-                print(f"   [{symbol}] History (1y) is EMPTY.")
-            else:
-                print(f"   [{symbol}] History (1y) fetched. Rows: {len(hist)}. Last Close: {hist['Close'].iloc[-1]}")
-
-            # 3. Get Intraday for Sparkline (5d, 15m to ensure granularity)
-            spark_hist = ticker.history(period="5d", interval="15m")
-            
-            # 4. Metadata
-            info = {}
-            try:
-                info = ticker.info
-                # Fallback price if fast_info failed and history failed
-                if current_price == 0.0:
-                    current_price = info.get('currentPrice') or info.get('regularMarketPrice') or 0.0
-                    print(f"   [{symbol}] Info Fallback Price: {current_price}")
-            except Exception as e:
-                print(f"   [{symbol}] Info Fetch Failed: {e}")
-
-            return hist, spark_hist, current_price, info
-        except Exception as e:
-            print(f"   [{symbol}] CRITICAL FETCH ERROR: {e}")
-            return pd.DataFrame(), pd.DataFrame(), 0.0, {}
-
-    # Run the blocking calls in a thread
-    hist, spark_hist, current_price, info = await asyncio.to_thread(_get_data)
-
-    # --- Process Data ---
-    
-    # Defaults
-    change_p_1d = 0.0
-    change_1w = 0.0
-    change_1m = 0.0
-    change_1y = 0.0
-    change_ytd = 0.0
-    vol_str = "-"
-    market_cap_str = "-"
-    sparkline_points = []
-    name = info.get('shortName') or info.get('longName') or symbol
-
-    # Price Fallback Logic
-    if current_price == 0.0 and not hist.empty:
-        current_price = float(hist['Close'].iloc[-1])
-        print(f"   [{symbol}] Using History Last Close as Price: {current_price}")
-
-    if not hist.empty and current_price > 0:
-        # 1D Change Calculation
-        # If we have at least 2 days of data
-        if len(hist) >= 2:
-            prev_close = float(hist['Close'].iloc[-2])
-            change_p_1d = ((current_price - prev_close) / prev_close) * 100
-        
-        # Helper for historical changes
-        def calc_change(days):
-            if len(hist) > days:
                 try:
-                    past = float(hist['Close'].iloc[-(days + 1)])
-                    if past > 0:
-                        return ((current_price - past) / past) * 100
-                except Exception as ex:
-                    print(f"   [{symbol}] Calc Change Error ({days}d): {ex}")
-            return 0.0
+                    if hasattr(ticker, 'fast_info'):
+                        p = getattr(ticker.fast_info, 'last_price', None)
+                        if not p: p = getattr(ticker.fast_info, 'regular_market_price', None)
+                        if p: current_price = float(p)
+                except: pass
 
-        change_1w = calc_change(5)
-        change_1m = calc_change(21)
-        change_1y = calc_change(252)
+                # History (2y for calculations)
+                try:
+                    hist = ticker.history(period="2y", interval="1d")
+                except:
+                    hist = pd.DataFrame()
+                
+                if not hist.empty and current_price == 0.0:
+                    current_price = float(hist['Close'].iloc[-1])
 
-        # YTD Calculation
-        try:
-            current_year = pd.Timestamp.now().year
-            ytd_data = hist[hist.index.year == current_year]
-            if not ytd_data.empty:
-                start = float(ytd_data['Close'].iloc[0])
-                if start > 0:
-                    change_ytd = ((current_price - start) / start) * 100
-        except Exception as ex:
-            print(f"   [{symbol}] YTD Calc Error: {ex}")
+                # Sparkline
+                try:
+                    spark_hist = ticker.history(period="5d", interval="15m")
+                except:
+                    spark_hist = pd.DataFrame()
 
-        # Volume
-        vol = 0
-        if 'Volume' in hist.columns:
-            # Get last valid volume
-            vol = int(hist['Volume'].iloc[-1])
-        
-        # Format Volume
-        if vol >= 1e9: vol_str = f"{vol/1e9:.2f}B"
-        elif vol >= 1e6: vol_str = f"{vol/1e6:.2f}M"
-        elif vol >= 1e3: vol_str = f"{vol/1e3:.2f}K"
-        else: vol_str = str(vol)
+                return hist, spark_hist, current_price
+            except:
+                return pd.DataFrame(), pd.DataFrame(), 0.0
 
-    # Market Cap
+        hist, spark_hist, current_price = await asyncio.to_thread(_get_fast)
+
+    # 2. SLOW DATA (Info, Earnings, IV) - Check Cache
+    cached = MARKET_DATA_CACHE.get(symbol)
+    now = datetime.datetime.now().timestamp()
+    
+    need_fetch = False
+    if not cached:
+        need_fetch = True
+        slow_data = {"info": {}, "earnings": "Loading...", "iv": "Loading..."}
+    elif (now - cached["timestamp"]) > CACHE_EXPIRY_SECONDS:
+        need_fetch = True
+        slow_data = cached # Return stale data while updating
+    else:
+        slow_data = cached
+
+    if need_fetch and background_tasks:
+        background_tasks.add_task(fetch_slow_data_task, symbol)
+
+    # --- Calculations ---
+    info = slow_data.get("info", {})
+    name = info.get('shortName') or info.get('longName') or symbol
+    
+    market_cap_str = "-"
     mc = info.get('marketCap')
     if mc:
         if mc >= 1e12: market_cap_str = f"{mc/1e12:.2f}T"
@@ -245,17 +372,59 @@ async def fetch_ticker_data(symbol: str) -> Dict[str, Any]:
         elif mc >= 1e6: market_cap_str = f"{mc/1e6:.2f}M"
         else: market_cap_str = f"{mc:.0f}"
 
-    # Sparkline Logic
+    vol_str = "-"
+    change_p_1d = 0.0
+    change_1w = 0.0
+    change_1m = 0.0
+    change_1y = 0.0
+    change_ytd = 0.0
+    sparkline_points = []
+
+    if not hist.empty and current_price > 0:
+        # 1D Change
+        if len(hist) >= 2:
+            prev = float(hist['Close'].iloc[-2])
+            if prev > 0:
+                change_p_1d = ((current_price - prev) / prev) * 100
+        
+        # Volume
+        if 'Volume' in hist.columns:
+            vol = int(hist['Volume'].iloc[-1])
+            if vol >= 1e9: vol_str = f"{vol/1e9:.2f}B"
+            elif vol >= 1e6: vol_str = f"{vol/1e6:.2f}M"
+            elif vol >= 1e3: vol_str = f"{vol/1e3:.2f}K"
+            else: vol_str = str(vol)
+
+        # Historical Changes
+        def get_change(days_back):
+            if len(hist) > days_back:
+                try:
+                    old_price = float(hist['Close'].iloc[-(days_back+1)])
+                    if old_price > 0:
+                        return ((current_price - old_price) / old_price) * 100
+                except: pass
+            return 0.0
+
+        change_1w = get_change(5)
+        change_1m = get_change(21)
+        change_1y = get_change(252)
+
+        # YTD
+        try:
+            yr = pd.Timestamp.now().year
+            ytd_hist = hist[hist.index.year == yr]
+            if not ytd_hist.empty:
+                start_price = float(ytd_hist['Close'].iloc[0])
+                if start_price > 0:
+                    change_ytd = ((current_price - start_price) / start_price) * 100
+        except: pass
+
     if not spark_hist.empty and 'Close' in spark_hist.columns:
         try:
             clean = spark_hist['Close'].dropna()
             if not clean.empty:
-                # Take the last 20-30 points regardless of day boundaries for a smoother line
-                # or focus on the last trading day.
-                # Let's take the last 30 points to ensure we have data.
                 sparkline_points = clean.tail(30).tolist()
-        except Exception as ex:
-            print(f"   [{symbol}] Sparkline Error: {ex}")
+        except: pass
 
     return {
         "symbol": symbol,
@@ -269,8 +438,8 @@ async def fetch_ticker_data(symbol: str) -> Dict[str, Any]:
         "monthChange": change_1m,
         "ytdChange": change_ytd,
         "yearChange": change_1y,
-        "iv": "N/A",
-        "earnings": "N/A",
+        "iv": slow_data.get("iv", "N/A"),
+        "earnings": slow_data.get("earnings", "N/A"),
         "peRatio": info.get('trailingPE', 0.0)
     }
 
@@ -294,30 +463,20 @@ async def save_user_profile(profile: UserProfile):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/market-data")
-async def get_market_data(request: MarketDataRequest):
-    print(f"Received Market Data Request for: {request.tickers}")
-    if not request.tickers:
-        return {"results": {}}
+async def get_market_data(request: MarketDataRequest, background_tasks: BackgroundTasks):
+    if not request.tickers: return {"results": {}}
     
     try:
-        # Concurrent execution for speed
-        tasks = [fetch_ticker_data(ticker) for ticker in request.tickers]
+        # Concurrent execution with Semaphore controlled inside the function
+        tasks = [fetch_ticker_data(t, background_tasks) for t in request.tickers]
         results_list = await asyncio.gather(*tasks)
-        
-        # Transform list to dict keyed by symbol
         results = {res['symbol']: res for res in results_list}
-        
         return {"results": results}
-
     except Exception as e:
-        print(f"Global error in market-data: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
-
-# --- Existing Command Routes ---
 
 @app.post("/api/invest")
 async def run_invest(request: InvestRequest):
-    print(f"Received /invest request: {request}")
     ai_params = {
         "ema_sensitivity": request.ema_sensitivity,
         "amplification": request.amplification,
@@ -349,7 +508,6 @@ async def run_invest(request: InvestRequest):
 
 @app.post("/api/cultivate")
 async def run_cultivate(request: CultivateRequest):
-    print(f"Received /cultivate request: {request}")
     ai_params = {
         "cultivate_code": request.cultivate_code,
         "portfolio_value": request.portfolio_value,
@@ -360,8 +518,6 @@ async def run_cultivate(request: CultivateRequest):
     }
     try:
         result = await cultivate_command.handle_cultivate_command(args=[], ai_params=ai_params, is_called_by_ai=True)
-        if isinstance(result, str) and result.startswith("Error"):
-             raise HTTPException(status_code=400, detail=result)
         if isinstance(result, tuple):
              tailored_entries, final_cash = result
              table_data = normalize_table_data(tailored_entries)
@@ -380,7 +536,6 @@ async def run_cultivate(request: CultivateRequest):
 
 @app.post("/api/custom")
 async def run_custom(request: CustomRequest):
-    print(f"Received /custom request: {request}")
     ai_params = {
         "portfolio_code": request.portfolio_code,
         "tailor_to_value": request.tailor_to_value,
@@ -396,9 +551,6 @@ async def run_custom(request: CustomRequest):
     
     try:
         result = await custom_command.handle_custom_command(args=[], ai_params=ai_params, is_called_by_ai=True)
-        if isinstance(result, str) and result.startswith("Error"):
-             raise HTTPException(status_code=400, detail=result)
-        if isinstance(result, dict) and result.get("status") == "not_found": return result 
         if isinstance(result, dict) and "holdings" in result:
              table_data = normalize_table_data(result["holdings"])
              return {
@@ -416,31 +568,242 @@ async def run_custom(request: CustomRequest):
 
 @app.post("/api/tracking")
 async def run_tracking(request: TrackingRequest):
-    print(f"Received /tracking request: {request}")
     ai_params = request.model_dump()
-    
     if request.sub_portfolios:
         ai_params["sub_portfolios"] = [sp.model_dump() for sp in request.sub_portfolios]
 
     try:
         result = await tracking_command.handle_tracking_command(args=[], ai_params=ai_params, is_called_by_ai=True)
-        
-        if isinstance(result, str) and result.startswith("Error"):
-             raise HTTPException(status_code=400, detail=result)
-        
-        if isinstance(result, dict) and result.get("status") == "not_found":
-            return result
-
-        if isinstance(result, dict) and result.get("status") == "success" and "table" in result:
-             if "table" in result and isinstance(result["table"], list) and len(result["table"]) > 0 and "alloc" not in result["table"][0]:
+        if isinstance(result, dict) and "table" in result and isinstance(result["table"], list):
+             if len(result["table"]) > 0 and "alloc" not in result["table"][0]:
                  result["table"] = normalize_table_data(result["table"])
-             return result
-
         return result
     except Exception as e:
-        import traceback
-        traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
+
+# --- Mod Management Endpoints ---
+
+@app.get("/api/mods")
+def read_mods():
+    return {"mods": get_mod_list()}
+
+@app.post("/api/mods")
+def manage_mods(request: ModRequest):
+    SUPER_ADMIN = "marketinsightscenter@gmail.com"
+    
+    if request.requester_email != SUPER_ADMIN:
+        raise HTTPException(status_code=403, detail="Only the Super Admin can manage moderators.")
+
+    current_mods = get_mod_list()
+    
+    if request.action == "add":
+        if request.email not in current_mods:
+            current_mods.append(request.email)
+            save_mod_list(current_mods)
+            return {"status": "success", "message": f"Added {request.email} as moderator."}
+        return {"status": "info", "message": f"{request.email} is already a moderator."}
+    
+    elif request.action == "remove":
+        if request.email == SUPER_ADMIN:
+             raise HTTPException(status_code=400, detail="Cannot remove the Super Admin.")
+        
+        if request.email in current_mods:
+            current_mods.remove(request.email)
+            save_mod_list(current_mods)
+            return {"status": "success", "message": f"Removed {request.email} from moderators."}
+        return {"status": "info", "message": f"{request.email} is not a moderator."}
+    
+    raise HTTPException(status_code=400, detail="Invalid action.")
+
+# --- Community Features (Articles & Comments) ---
+
+@app.post("/api/comments")
+def add_comment(comment: Comment):
+    comments = load_json(COMMENTS_FILE)
+    new_comment = comment.model_dump()
+    
+    # Generate ID
+    max_id = 0
+    def find_max_id(comment_list):
+        m = 0
+        for c in comment_list:
+            if c.get('id', 0) > m: m = c.get('id', 0)
+            if 'replies' in c:
+                rm = find_max_id(c['replies'])
+                if rm > m: m = rm
+        return m
+
+    max_id = find_max_id(comments)
+    new_comment['id'] = max_id + 1
+    
+    comments.append(new_comment)
+    save_json(COMMENTS_FILE, comments)
+    return new_comment
+
+@app.post("/api/comments/{comment_id}/reply")
+def add_reply(comment_id: int, reply: Dict[str, Any]):
+    comments = load_json(COMMENTS_FILE)
+    
+    def add_reply_recursive(comment_list):
+        for c in comment_list:
+            if c['id'] == comment_id:
+                if 'replies' not in c: c['replies'] = []
+                c['replies'].append(reply)
+                return True
+            if 'replies' in c and add_reply_recursive(c['replies']):
+                return True
+        return False
+
+    if add_reply_recursive(comments):
+        save_json(COMMENTS_FILE, comments)
+        return {"status": "success", "message": "Reply added"}
+    
+    raise HTTPException(status_code=404, detail="Parent comment not found")
+
+@app.post("/api/comments/{comment_id}/vote")
+def vote_comment(comment_id: int, vote: VoteRequest):
+    comments = load_json(COMMENTS_FILE)
+    
+    def vote_recursive(comment_list):
+        for c in comment_list:
+            if c['id'] == comment_id:
+                if vote.type == 'up': c['likes'] += 1
+                elif vote.type == 'down': c['dislikes'] += 1
+                return True
+            if 'replies' in c and vote_recursive(c['replies']):
+                return True
+        return False
+
+    if vote_recursive(comments):
+        save_json(COMMENTS_FILE, comments)
+        return {"status": "success"}
+    
+    raise HTTPException(status_code=404, detail="Comment not found")
+
+@app.delete("/api/comments/{comment_id}")
+def delete_comment(comment_id: int, requester_email: str):
+    mods = get_mod_list()
+    if requester_email not in mods:
+        raise HTTPException(status_code=403, detail="Only moderators can delete comments.")
+    
+    comments = load_json(COMMENTS_FILE)
+    
+    def delete_recursive(comment_list):
+        new_list = []
+        for c in comment_list:
+            if c['id'] == comment_id:
+                continue # Skip this one (delete it)
+            
+            if 'replies' in c:
+                c['replies'] = delete_recursive(c['replies'])
+            
+            new_list.append(c)
+        return new_list
+
+    new_comments = delete_recursive(comments)
+    save_json(COMMENTS_FILE, new_comments)
+    return {"status": "success", "message": "Comment deleted"}
+
+@app.get("/api/articles")
+def get_articles():
+    articles = load_json(ARTICLES_FILE)
+    return articles
+
+@app.get("/api/articles/{article_id}")
+def get_article(article_id: int):
+    articles = load_json(ARTICLES_FILE)
+    for a in articles:
+        if a.get("id") == article_id:
+            return a
+    raise HTTPException(status_code=404, detail="Article not found")
+
+@app.get("/api/stats")
+def get_stats():
+    users = load_json(USERS_FILE)
+    comments = load_json(COMMENTS_FILE)
+    articles = load_json(ARTICLES_FILE)
+    
+    # Calculate stats
+    total_users = len(users)
+    
+    def count_comments(comment_list):
+        count = 0
+        for c in comment_list:
+            count += 1
+            if 'replies' in c:
+                count += count_comments(c['replies'])
+        return count
+    
+    total_posts = count_comments(comments)
+    
+    # Trending topics (hashtags from articles)
+    hashtag_counts = {}
+    for a in articles:
+        for tag in a.get('hashtags', []):
+            hashtag_counts[tag] = hashtag_counts.get(tag, 0) + 1
+            
+    sorted_tags = sorted(hashtag_counts.items(), key=lambda x: x[1], reverse=True)
+    trending = [tag for tag, count in sorted_tags[:5]]
+    
+    # Fallback if no tags
+    if not trending:
+        trending = ["#AI_Investing", "#Market_Trends", "#Crypto", "#Tech", "#Finance"]
+
+    return {
+        "community_stats": {
+            "online": random.randint(1200, 1500), # Mock "online" for liveliness
+            "total_users": total_users,
+            "total_posts": total_posts + len(articles)
+        },
+        "trending_topics": trending
+    }
+
+@app.post("/api/articles/{article_id}/vote")
+def vote_article(article_id: int, vote: VoteRequest):
+    articles = load_json(ARTICLES_FILE)
+    for a in articles:
+        if a.get("id") == article_id:
+            if vote.type == 'up': a['likes'] += 1
+            elif vote.type == 'down': a['dislikes'] += 1
+            save_json(ARTICLES_FILE, articles)
+            return {"status": "success", "likes": a['likes'], "dislikes": a['dislikes']}
+    raise HTTPException(status_code=404, detail="Article not found")
+
+@app.post("/api/articles")
+def add_article(article: Article):
+    articles = load_json(ARTICLES_FILE)
+    new_article = article.model_dump()
+    
+    # Generate ID
+    max_id = 0
+    for a in articles:
+        if a.get("id", 0) > max_id:
+            max_id = a.get("id", 0)
+    new_article["id"] = max_id + 1
+    
+    articles.insert(0, new_article) # Add to top
+    save_json(ARTICLES_FILE, articles)
+    return new_article
+
+@app.get("/api/users")
+def get_users():
+    return load_json(USERS_FILE)
+
+@app.post("/api/users")
+def save_user(user: UserSubscription):
+    users = load_json(USERS_FILE)
+    user_data = user.model_dump()
+    
+    # Update existing or add new
+    for i, u in enumerate(users):
+        if u['email'] == user_data['email']:
+            users[i] = user_data
+            save_json(USERS_FILE, users)
+            return {"status": "success", "message": "User updated"}
+            
+    users.append(user_data)
+    save_json(USERS_FILE, users)
+    return {"status": "success", "message": "User added"}
 
 if __name__ == "__main__":
     import uvicorn

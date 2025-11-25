@@ -2,12 +2,12 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../contexts/AuthContext';
-import { User, Search, Home, Briefcase, MessageSquare, Users, Mail, Command } from 'lucide-react';
+import { User, Search, Home, Briefcase, MessageSquare, Users, Mail, Command, Shield } from 'lucide-react';
 
 const Layout = ({ children }) => {
     const location = useLocation();
     const navigate = useNavigate();
-    const { currentUser } = useAuth();
+    const { currentUser, isMod } = useAuth();
     const [searchQuery, setSearchQuery] = useState('');
     const [showSuggestions, setShowSuggestions] = useState(false);
     const searchRef = useRef(null);
@@ -19,6 +19,10 @@ const Layout = ({ children }) => {
         { name: 'Direct M.I.C.', path: '/messages', icon: Mail },
         { name: 'Profile', path: '/profile', icon: User },
     ];
+
+    if (isMod) {
+        navItems.push({ name: 'Admin', path: '/admin', icon: Shield });
+    }
 
     const searchableItems = [
         { name: 'Home', path: '/', type: 'Page' },

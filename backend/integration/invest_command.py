@@ -1,4 +1,4 @@
-# invest_command.py
+# backend/integration/invest_command.py
 
 import yfinance as yf
 import pandas as pd
@@ -10,6 +10,7 @@ import matplotlib
 matplotlib.use('Agg')
 import asyncio
 import matplotlib.pyplot as plt
+# FIX: Added Dict, List, Any to imports
 from typing import List, Dict, Any, Optional, Tuple
 import csv
 import traceback
@@ -78,9 +79,6 @@ async def _load_all_portfolio_configs(is_called_by_ai: bool = False, user_id: st
             reader = csv.DictReader(infile)
             for row in reader:
                 code = row.get('portfolio_code')
-                # STRICT OWNERSHIP: Match User ID exactly.
-                # Note: If user_id is None (public/legacy), we might want to hide private ones.
-                # Here, we assume strict matching: you only see YOURS. 
                 row_user = row.get('user_id', '').strip()
                 target_user = user_id.strip() if user_id else ''
 
@@ -102,10 +100,17 @@ async def calculate_ema_invest(ticker: str, ema_interval: int, is_called_by_ai: 
             else:
                 period = "1mo"; interval = "1h"
             
-            await asyncio.sleep(np.random.uniform(0.1, 0.3))
+            # Reduced sleep to speed up processing
+            await asyncio.sleep(np.random.uniform(0.05, 0.1))
             data = await asyncio.to_thread(stock.history, period=period, interval=interval)
             
-            if data.empty or 'Close' not in data.columns: return None, None
+            if data.empty or 'Close' not in data.columns: 
+                # Fallback try to get current price if history fails
+                try:
+                    price = stock.fast_info.last_price
+                    return float(price), 50.0
+                except:
+                    return None, None
             
             data['EMA_8'] = data['Close'].ewm(span=8, adjust=False).mean()
             data['EMA_55'] = data['Close'].ewm(span=55, adjust=False).mean()
@@ -142,7 +147,6 @@ async def process_custom_portfolio(
     is_top_level_call = all_portfolio_configs_passed is None
     suppress_prints = (is_custom_command_simplified_output or is_called_by_ai) and is_top_level_call
 
-    # Extract user_id if present in config to filter sub-portfolios loading
     user_id = portfolio_data_config.get('user_id')
 
     if is_top_level_call:
@@ -175,7 +179,7 @@ async def process_custom_portfolio(
         results = await asyncio.gather(*tasks)
         
         for ticker, res in zip(items_in_sub, results):
-            if not res: continue
+            if not res or not isinstance(res, tuple) or len(res) < 2: continue
             live_price, ema_invest = res
             
             if live_price is None and ema_invest is None: continue

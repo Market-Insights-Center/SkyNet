@@ -1,0 +1,123 @@
+[
+  {
+    "id": 7,
+    "title": "Python Test Article",
+    "subheading": "Testing via Python script",
+    "content": "<p>Content</p>",
+    "author": "PyTester",
+    "date": "2025-11-24",
+    "category": "Tech",
+    "hashtags": [
+      "python",
+      "api"
+    ],
+    "cover_image": "https://example.com/image.jpg",
+    "likes": 11,
+    "dislikes": 9,
+    "shares": 0
+  },
+  {
+    "id": 6,
+    "title": "Python Test Article",
+    "subheading": "Testing via Python script",
+    "content": "<p>Content</p>",
+    "author": "PyTester",
+    "date": "2025-11-24",
+    "category": "Tech",
+    "hashtags": [
+      "python",
+      "api"
+    ],
+    "cover_image": "https://example.com/image.jpg",
+    "likes": 0,
+    "dislikes": 0,
+    "shares": 0
+  },
+  {
+    "id": 5,
+    "title": "Python Test Article",
+    "subheading": "Testing via Python script",
+    "content": "<p>Content</p>",
+    "author": "PyTester",
+    "date": "2025-11-24",
+    "category": "Tech",
+    "hashtags": [
+      "python",
+      "api"
+    ],
+    "cover_image": "https://example.com/image.jpg",
+    "likes": 0,
+    "dislikes": 0,
+    "shares": 0
+  },
+  {
+    "id": 4,
+    "title": "Python Test Article",
+    "subheading": "Testing via Python script",
+    "content": "<p>Content</p>",
+    "author": "PyTester",
+    "date": "2025-11-24",
+    "category": "Tech",
+    "hashtags": [
+      "python",
+      "api"
+    ],
+    "cover_image": "https://example.com/image.jpg",
+    "likes": 0,
+    "dislikes": 0,
+    "shares": 0
+  },
+  {
+    "id": 1,
+    "title": "The Future of AI in Quantitative Trading",
+    "subheading": "How machine learning is reshaping market strategies.",
+    "content": "Artificial Intelligence is no longer just a buzzword in the financial sector; it's a fundamental driver of change. From predictive analytics to automated execution, AI is enabling traders to process vast amounts of data at speeds previously unimaginable. In this deep dive, we explore the specific algorithms transforming hedge funds and how retail investors can leverage similar tools...",
+    "author": "Dr. Elena Vance",
+    "date": "2025-11-22",
+    "category": "Technology",
+    "hashtags": [
+      "#AI",
+      "#Trading",
+      "#FinTech"
+    ],
+    "cover_image": "https://images.unsplash.com/photo-1639322537228-f710d846310a?auto=format&fit=crop&q=80&w=1000",
+    "likes": 124,
+    "dislikes": 5,
+    "shares": 30
+  },
+  {
+    "id": 2,
+    "title": "Market Volatility: A Strategic Opportunity?",
+    "subheading": "Navigating the choppy waters of the current economic climate.",
+    "content": "Volatility is often feared, but for the astute investor, it presents unique opportunities. By understanding the underlying causes of market swings\u2014be it geopolitical tension or interest rate adjustments\u2014one can position their portfolio to not just survive, but thrive. We analyze historical volatility patterns and suggest defensive yet profitable postures...",
+    "author": "Marcus Thorne",
+    "date": "2025-11-19",
+    "category": "Strategy",
+    "hashtags": [
+      "#Volatility",
+      "#Investing",
+      "#Strategy"
+    ],
+    "cover_image": "https://images.unsplash.com/photo-1611974765270-ca1258634369?auto=format&fit=crop&q=80&w=1000",
+    "likes": 89,
+    "dislikes": 12,
+    "shares": 15
+  },
+  {
+    "id": 3,
+    "title": "Crypto Regulation: What to Expect in 2025",
+    "subheading": "Global governments are tightening the net. Here's what it means for you.",
+    "author": "Jessica Bloom",
+    "date": "2025-11-24",
+    "category": "Education",
+    "hashtags": [
+      "#Options",
+      "#RetailTrading",
+      "#Education"
+    ],
+    "cover_image": "https://images.unsplash.com/photo-1590283603385-17ffb3a7f29f?auto=format&fit=crop&q=80&w=1000",
+    "likes": 305,
+    "dislikes": 2,
+    "shares": 120
+  }
+]

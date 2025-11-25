@@ -1,0 +1,62 @@
+[
+  {
+    "email": "marketinsightscenter@gmail.com",
+    "subscription_plan": "Enterprise",
+    "subscription_cost": 0.0
+  },
+  {
+    "email": "alice@example.com",
+    "subscription_plan": "Pro",
+    "subscription_cost": 29.99
+  },
+  {
+    "email": "bob@example.com",
+    "subscription_plan": "Pro",
+    "subscription_cost": 29.99
+  },
+  {
+    "email": "charlie@example.com",
+    "subscription_plan": "Pro",
+    "subscription_cost": 29.99
+  },
+  {
+    "email": "david@example.com",
+    "subscription_plan": "Enterprise",
+    "subscription_cost": 99.99
+  },
+  {
+    "email": "eve@example.com",
+    "subscription_plan": "Enterprise",
+    "subscription_cost": 99.99
+  },
+  {
+    "email": "frank@example.com",
+    "subscription_plan": "Pro",
+    "subscription_cost": 29.99
+  },
+  {
+    "email": "grace@example.com",
+    "subscription_plan": "Pro",
+    "subscription_cost": 29.99
+  },
+  {
+    "email": "heidi@example.com",
+    "subscription_plan": "Free",
+    "subscription_cost": 0.0
+  },
+  {
+    "email": "ivan@example.com",
+    "subscription_plan": "Free",
+    "subscription_cost": 0.0
+  },
+  {
+    "email": "judy@example.com",
+    "subscription_plan": "Enterprise",
+    "subscription_cost": 99.99
+  },
+  {
+    "email": "pytest@example.com",
+    "subscription_plan": "Enterprise",
+    "subscription_cost": 99.99
+  }
+]

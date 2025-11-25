@@ -1,16 +1,17 @@
 import React, { useState, useRef, useEffect } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import { useNavigate, Link } from "react-router-dom";
-import { AlertCircle, CheckCircle, LogOut, User, Lock, ArrowLeft, Loader2 } from "lucide-react";
+import { AlertCircle, CheckCircle, LogOut, User, Lock, ArrowLeft, Loader2, Shield, ArrowRight } from "lucide-react";
 import { doc, getDoc, setDoc } from "firebase/firestore";
-import { db } from "../firebase";
+import { db, auth } from "../firebase";
+import { GoogleAuthProvider, reauthenticateWithPopup, EmailAuthProvider, reauthenticateWithCredential } from "firebase/auth";
 import WaveBackground from "../components/WaveBackground";
 import { motion, AnimatePresence } from "framer-motion";
 
 export default function Profile() {
     const [error, setError] = useState("");
     const [message, setMessage] = useState("");
-    const { currentUser, logout, updateUsername, updateUserPassword } = useAuth();
+    const { currentUser, logout, updateUsername, updateUserPassword, isMod } = useAuth();
     const navigate = useNavigate();
     const [loading, setLoading] = useState(false);
     const [showQuestionnaire, setShowQuestionnaire] = useState(false);
@@ -82,16 +83,36 @@ export default function Profile() {
             promises.push(updateUserPassword(passwordRef.current.value));
         }
 
-        Promise.all(promises)
-            .then(() => {
-                setMessage("Profile updated successfully");
-            })
-            .catch((err) => {
+        try {
+            await Promise.all(promises);
+            setMessage("Profile updated successfully");
+        } catch (err) {
+            if (err.code === 'auth/requires-recent-login') {
+                setError("Security check required. Please re-authenticate.");
+
+                // Attempt re-auth based on provider
+                const providerId = currentUser.providerData[0]?.providerId;
+
+                if (providerId === 'google.com') {
+                    try {
+                        const provider = new GoogleAuthProvider();
+                        await reauthenticateWithPopup(currentUser, provider);
+                        // Retry updates
+                        await Promise.all(promises);
+                        setMessage("Profile updated successfully after verification");
+                        setError("");
+                    } catch (reAuthErr) {
+                        setError("Re-authentication failed: " + reAuthErr.message);
+                    }
+                } else {
+                    setError("Please sign out and sign in again to update sensitive information.");
+                }
+            } else {
                 setError("Failed to update account: " + err.message);
-            })
-            .finally(() => {
-                setLoading(false);
-            });
+            }
+        } finally {
+            setLoading(false);
+        }
     }
 
     // Questionnaire Handlers
@@ -140,7 +161,7 @@ export default function Profile() {
         try {
             // 1. Save to Firestore
             await setDoc(doc(db, "users", currentUser.uid), profileData, { merge: true });
-            
+
             // 2. Save to Backend CSV
             await saveProfileToBackend(currentUser.uid, currentUser.email, profileData);
 
@@ -159,14 +180,14 @@ export default function Profile() {
             <WaveBackground />
 
             <div className="relative z-10 w-full max-w-2xl p-8 bg-gray-900/50 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl">
-                
+
                 {/* Back Button */}
                 <div className="mb-6">
                     <button
                         onClick={() => navigate("/")}
                         className="flex items-center gap-2 text-gray-400 hover:text-white transition-colors group"
                     >
-                        <ArrowLeft size={20} className="group-hover:-translate-x-1 transition-transform" /> 
+                        <ArrowLeft size={20} className="group-hover:-translate-x-1 transition-transform" />
                         Back to Portfolio Lab
                     </button>
                 </div>
@@ -199,14 +220,40 @@ export default function Profile() {
 
                 <div className="mb-8 p-4 bg-black/30 rounded-lg border border-white/5">
                     <div className="flex items-center gap-4">
-                        <div className="w-16 h-16 rounded-full bg-gradient-to-br from-purple-600 to-blue-600 flex items-center justify-center text-2xl font-bold">
+                        <div className="w-16 h-16 rounded-full bg-gradient-to-br from-purple-600 to-blue-600 flex items-center justify-center text-2xl font-bold relative">
                             {currentUser?.displayName ? currentUser.displayName[0].toUpperCase() : currentUser?.email?.[0]?.toUpperCase() || "U"}
+                            {/* Mod Badge on Avatar */}
+                            {isMod && (
+                                <div className="absolute -bottom-1 -right-1 bg-gold text-black text-[10px] font-bold px-1.5 py-0.5 rounded border border-white/20 shadow-lg">
+                                    MOD
+                                </div>
+                            )}
                         </div>
                         <div>
-                            <h3 className="text-xl font-semibold text-white">{currentUser?.displayName || "User"}</h3>
+                            <div className="flex items-center gap-2">
+                                <h3 className="text-xl font-semibold text-white">{currentUser?.displayName || "User"}</h3>
+                                {isMod && (
+                                    <span className="bg-gold/20 text-gold text-xs font-bold px-2 py-0.5 rounded border border-gold/30 tracking-wider flex items-center gap-1">
+                                        <Shield size={12} className="fill-current" /> MODERATOR
+                                    </span>
+                                )}
+                            </div>
                             <p className="text-gray-400 text-sm">{currentUser?.email}</p>
                         </div>
                     </div>
+
+                    {/* Admin Dashboard Link */}
+                    {isMod && (
+                        <div className="mt-4 pt-4 border-t border-white/10">
+                            <Link to="/admin" className="flex items-center justify-between p-3 bg-white/5 hover:bg-white/10 rounded-lg transition-colors group">
+                                <div className="flex items-center gap-3 text-gold">
+                                    <Shield size={20} />
+                                    <span className="font-bold">Access Admin Dashboard</span>
+                                </div>
+                                <ArrowRight size={18} className="text-gray-400 group-hover:text-white group-hover:translate-x-1 transition-all" />
+                            </Link>
+                        </div>
+                    )}
                 </div>
 
                 <form onSubmit={handleUpdateProfile} className="space-y-6">
@@ -266,11 +313,11 @@ export default function Profile() {
             {/* Questionnaire Modal */}
             <AnimatePresence>
                 {showQuestionnaire && (
-                    <motion.div 
+                    <motion.div
                         initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
                         className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-md p-4 overflow-y-auto"
                     >
-                        <motion.div 
+                        <motion.div
                             initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
                             className="bg-gray-900 border border-gold/30 rounded-2xl p-8 max-w-2xl w-full shadow-2xl relative my-8"
                         >

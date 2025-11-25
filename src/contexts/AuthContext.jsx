@@ -23,6 +23,8 @@ export function useAuth() {
 export function AuthProvider({ children }) {
     const [currentUser, setCurrentUser] = useState(null);
     const [loading, setLoading] = useState(true);
+    const [isMod, setIsMod] = useState(false);
+    const [isSuperMod, setIsSuperMod] = useState(false);
 
     function signup(email, password, additionalData = {}) {
         return createUserWithEmailAndPassword(auth, email, password)
@@ -51,7 +53,7 @@ export function AuthProvider({ children }) {
         return signInWithPopup(auth, provider)
             .then(async (result) => {
                 const user = result.user;
-                
+
                 // Wrap Firestore operations in a try-catch so auth doesn't fail if DB is unreachable
                 try {
                     const docRef = doc(db, "users", user.uid);
@@ -76,7 +78,7 @@ export function AuthProvider({ children }) {
                     // Log the error but allow the user to proceed with login
                     console.warn("Firestore profile sync failed. Client might be offline or DB missing.", error);
                 }
-                
+
                 return user;
             });
     }
@@ -113,8 +115,33 @@ export function AuthProvider({ children }) {
         return unsubscribe;
     }, []);
 
+    useEffect(() => {
+        async function checkModStatus() {
+            if (currentUser) {
+                try {
+                    const response = await fetch('http://localhost:8000/api/mods');
+                    if (response.ok) {
+                        const data = await response.json();
+                        const mods = data.mods || [];
+                        const userEmail = currentUser.email;
+                        setIsMod(mods.includes(userEmail));
+                        setIsSuperMod(userEmail === "marketinsightscenter@gmail.com");
+                    }
+                } catch (error) {
+                    console.error("Failed to fetch mod list:", error);
+                }
+            } else {
+                setIsMod(false);
+                setIsSuperMod(false);
+            }
+        }
+        checkModStatus();
+    }, [currentUser]);
+
     const value = {
         currentUser,
+        isMod,
+        isSuperMod,
         login,
         signup,
         loginWithGoogle,
