@@ -1,4 +1,11 @@
 id,title,subheading,content,author,date,category,hashtags,cover_image,likes,dislikes,shares,liked_by,disliked_by
+10,Vote Test,,Content,Tester,2025-11-26,General,[],,0,0,1,[],[]
+9,Vote Test,,Content,Tester,2025-11-26,General,[],,0,0,0,[],[]
+8,Vote Test,,Content,Tester,2025-11-26,General,[],,0,0,1,[],[]
+7,Vote Test,,Content,Tester,2025-11-26,General,[],,0,1,0,[],"[""user_vote_test""]"
+6,Vote Test,,Content,Tester,2025-11-26,General,[],,0,1,0,[],"[""user_vote_test""]"
+5,Vote Test,,Content,Tester,2025-11-26,General,[],,0,1,0,[],"[""user_vote_test""]"
+4,Vote Test,,Content,Tester,2025-11-26,General,[],,0,1,0,[],"[""user_vote_test""]"
 1,AI Power Crunch: The Nuclear Data Center Play,Tech giants are buying nuclear plants to fuel the AI arms race.,"
                 <p>The AI revolution has hit a physical wall: electricity. Training a single large language model uses as much energy as 100 homes do in a year. With the US power grid already strained, Big Tech is turning to the only source of carbon-free, 24/7 baseload power available: Nuclear.</p>
                 
@@ -11,7 +18,7 @@ id,title,subheading,content,author,date,category,hashtags,cover_image,likes,disl
                     <li>New Small Modular Reactor (SMR) stocks like Oklo are speculative but represent the long-term solution.</li>
                     <li>Uranium miners (CCJ) provide the raw fuel for this renaissance.</li>
                 </ul>
-            ",M.I.C. Research,2025-11-25,Energy,"[""#Nuclear"", ""#AI"", ""#Energy"", ""#Stocks""]",https://images.unsplash.com/photo-1569000972-921b92a92793?auto=format&fit=crop&q=80&w=1000,147,7,56,"[""jb8jHxIcJuNzZF4GWUm1Kfar4it1""]",[]
+            ",M.I.C. Research,2025-11-25,Energy,"[""#Nuclear"", ""#AI"", ""#Energy"", ""#Stocks""]",https://images.unsplash.com/photo-1569000972-921b92a92793?auto=format&fit=crop&q=80&w=1000,147,8,56,"[""jb8jHxIcJuNzZF4GWUm1Kfar4it1""]","[""user_vote_test""]"
 2,Interest Rates 2026: Higher for Longer is Real,Why the 10-year Treasury yield refuses to break below 4%.,"
                 <p>Wall Street's consensus for 2025 was aggressive rate cuts. The reality has been a resilient economy and sticky inflation known as the 'No Landing' scenario. As we look toward 2026, the bond market is signaling that the 'neutral rate' of interest has structurally shifted higher.</p>
                 

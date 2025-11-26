@@ -13,6 +13,7 @@ import StartupAnimation from './components/StartupAnimation';
 
 import Forum from './pages/Forum';
 import NewsPage from './pages/NewsPage';
+import KnowledgeStream from './pages/KnowledgeStream';
 import ArticleView from './pages/ArticleView';
 import AdminDashboard from './pages/AdminDashboard';
 
@@ -38,6 +39,7 @@ function App() {
                             <Route path="/profile" element={<Profile />} />
                             <Route path="/forum" element={<Forum />} />
                             <Route path="/news" element={<NewsPage />} />
+                            <Route path="/knowledge-stream" element={<KnowledgeStream />} />
                             <Route path="/article/:id" element={<ArticleView />} />
                             <Route path="/admin" element={<AdminDashboard />} />
                         </Routes>

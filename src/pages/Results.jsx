@@ -37,7 +37,7 @@ const DonutChart = ({ data }) => {
                             strokeDasharray={strokeDasharray} strokeDashoffset={strokeDashoffset}
                             className="transition-all duration-500 hover:opacity-80"
                         >
-                            <title>{item.label}: ${value.toLocaleString(undefined, {minimumFractionDigits: 2})} ({((value/total)*100).toFixed(1)}%)</title>
+                            <title>{item.label}: ${value.toLocaleString(undefined, { minimumFractionDigits: 2 })} ({((value / total) * 100).toFixed(1)}%)</title>
                         </circle>
                     );
                 })}
@@ -63,7 +63,7 @@ const ExecutionModal = ({ isOpen, onClose, onExecute }) => {
             const savedEmail = localStorage.getItem('mic_email');
             const savedUser = localStorage.getItem('mic_rh_user');
             const savedPass = localStorage.getItem('mic_rh_pass');
-            
+
             if (savedEmail) {
                 setEmail(savedEmail);
                 setSendEmail(true);
@@ -82,7 +82,7 @@ const ExecutionModal = ({ isOpen, onClose, onExecute }) => {
         if (sendEmail && email) localStorage.setItem('mic_email', email);
         if (execRh && rhUser) localStorage.setItem('mic_rh_user', rhUser);
         if (execRh && rhPass) localStorage.setItem('mic_rh_pass', rhPass);
-        
+
         onExecute({ email, rhUser, rhPass, sendEmail, execRh, overwrite });
     };
 
@@ -90,14 +90,14 @@ const ExecutionModal = ({ isOpen, onClose, onExecute }) => {
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
-            <motion.div 
+            <motion.div
                 initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }}
                 className="bg-gray-900 border border-white/10 rounded-xl p-8 max-w-md w-full shadow-2xl relative"
             >
                 <h3 className="text-2xl font-bold text-white mb-4 flex items-center gap-2">
                     <Activity className="text-gold" /> Execution Options
                 </h3>
-                
+
                 <div className="space-y-6">
                     <div className={`p-4 rounded-lg border ${sendEmail ? 'border-gold bg-gold/5' : 'border-gray-700 bg-black/30'}`}>
                         <label className="flex items-center gap-3 cursor-pointer mb-2">
@@ -105,8 +105,8 @@ const ExecutionModal = ({ isOpen, onClose, onExecute }) => {
                             <span className="font-bold text-white">Send Trades to Email</span>
                         </label>
                         {sendEmail && (
-                            <input 
-                                type="email" placeholder="Enter your email address" 
+                            <input
+                                type="email" placeholder="Enter your email address"
                                 value={email} onChange={(e) => setEmail(e.target.value)}
                                 className="w-full bg-black border border-gray-700 rounded p-2 text-white mt-2 focus:border-gold outline-none"
                             />
@@ -135,7 +135,7 @@ const ExecutionModal = ({ isOpen, onClose, onExecute }) => {
 
                 <div className="mt-8 flex justify-end gap-4">
                     <button onClick={onClose} className="text-gray-400 hover:text-white">Cancel</button>
-                    <button 
+                    <button
                         onClick={handleConfirm}
                         className="bg-gold text-black font-bold px-6 py-2 rounded-lg hover:bg-yellow-500 transition-colors"
                     >
@@ -150,7 +150,7 @@ const ExecutionModal = ({ isOpen, onClose, onExecute }) => {
 const Results = ({ toolType, onBack }) => {
     const data = window.analysisResults || { summary: [], table: [] };
     const { summary: summaryStats, table: rawTableData, raw_result, comparison, performance, since_last_save } = data;
-    
+
     const [sortConfig, setSortConfig] = useState({ key: 'allocPercent', direction: 'desc' });
     const [showExecModal, setShowExecModal] = useState(false);
 
@@ -188,8 +188,8 @@ const Results = ({ toolType, onBack }) => {
         setShowExecModal(false);
         const body = {
             action: "execute_trades",
-            portfolio_code: raw_result?.portfolio_code || "Unknown", 
-            trades: raw_result?.trades || [], 
+            portfolio_code: raw_result?.portfolio_code || "Unknown",
+            trades: raw_result?.trades || [],
             final_cash: cashValue,
             total_value: totalPortfolioValue,
             new_run_data: rawTableData,
@@ -200,7 +200,7 @@ const Results = ({ toolType, onBack }) => {
         };
 
         try {
-            const response = await fetch('http://localhost:8000/api/tracking', {
+            const response = await fetch('http://localhost:8001/api/tracking', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(body)
@@ -268,7 +268,7 @@ const Results = ({ toolType, onBack }) => {
                                         <td className="p-4 text-gray-300">{row.shares}</td>
                                         <td className="p-4 text-gray-300">${row.price.toFixed(2)}</td>
                                         <td className="p-4 text-gold">{(row.allocPercent).toFixed(2)}%</td>
-                                        <td className="p-4 font-bold text-white text-right">${row.value.toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
+                                        <td className="p-4 font-bold text-white text-right">${row.value.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
                                     </tr>
                                 ))}
                             </tbody>

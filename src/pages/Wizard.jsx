@@ -14,7 +14,7 @@ const Wizard = () => {
     const [isAnalyzing, setIsAnalyzing] = useState(false);
     const [showResults, setShowResults] = useState(false);
     const [toolType, setToolType] = useState('');
-    
+
     // Modal state for Custom/Tracking not found
     const [showConfigModal, setShowConfigModal] = useState(false);
     const [missingPortfolioCode, setMissingPortfolioCode] = useState('');
@@ -41,7 +41,7 @@ const Wizard = () => {
                     else if (prev < 60) increment = 0.8;
                     else if (prev < 85) increment = 0.5;
                     else if (prev < 98) increment = 0.2;
-                    
+
                     const newProgress = Math.min(prev + increment, 99);
                     if (newProgress < 15) setProgressText('Initializing secure connection...');
                     else if (newProgress < 30) setProgressText('Fetching live market data (Yahoo Finance)...');
@@ -154,8 +154,8 @@ const Wizard = () => {
     const executeAnalysis = async (body) => {
         setIsAnalyzing(true);
         try {
-            const endpoint = `http://localhost:8000/api/${toolType}`;
-            
+            const endpoint = `http://localhost:8001/api/${toolType}`;
+
             const response = await fetch(endpoint, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -168,22 +168,22 @@ const Wizard = () => {
             }
 
             const data = await response.json();
-            
+
             if ((toolType === 'custom' || toolType === 'tracking') && data.status === 'not_found') {
                 setMissingPortfolioCode(inputs.name);
                 setShowConfigModal(true);
                 setIsAnalyzing(false);
-                return; 
+                return;
             }
 
-            window.analysisResults = data; 
+            window.analysisResults = data;
             setShowResults(true);
         } catch (error) {
             console.error(error);
             alert(`Failed to run analysis: ${error.message}`);
         } finally {
             if (!showConfigModal) {
-               setIsAnalyzing(false);
+                setIsAnalyzing(false);
             }
         }
     };
@@ -239,12 +239,12 @@ const Wizard = () => {
                             className="w-full py-4 bg-gradient-to-r from-gold to-yellow-600 text-black font-bold text-lg rounded-lg hover:shadow-[0_0_20px_rgba(212,175,55,0.4)] transition-all duration-300 flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed relative overflow-hidden"
                         >
                             {isAnalyzing && (
-                                <div 
+                                <div
                                     className="absolute top-0 left-0 h-full bg-white/20 transition-all duration-500 ease-out"
                                     style={{ width: `${progress}%` }}
                                 />
                             )}
-                            
+
                             {isAnalyzing ? (
                                 <div className="flex flex-col items-center justify-center z-10">
                                     <div className="flex items-center gap-2">
@@ -287,16 +287,16 @@ const Wizard = () => {
                             exit={{ scale: 0.9, opacity: 0 }}
                             className="bg-gray-900 border border-white/10 rounded-xl p-8 max-w-2xl w-full shadow-2xl relative"
                         >
-                            <button 
+                            <button
                                 onClick={() => setShowConfigModal(false)}
                                 className="absolute top-4 right-4 text-gray-400 hover:text-white"
                             >
                                 <X size={24} />
                             </button>
-                            
+
                             <h2 className="text-2xl font-bold text-white mb-2">New Portfolio Detected</h2>
                             <p className="text-gray-400 mb-6">
-                                The code <span className="text-gold font-bold">{missingPortfolioCode}</span> was not found. 
+                                The code <span className="text-gold font-bold">{missingPortfolioCode}</span> was not found.
                                 Please configure the strategy parameters below to create it.
                             </p>
 
@@ -305,13 +305,13 @@ const Wizard = () => {
                             </div>
 
                             <div className="mt-8 flex justify-end gap-4">
-                                <button 
+                                <button
                                     onClick={() => setShowConfigModal(false)}
                                     className="px-6 py-3 rounded-lg border border-white/10 text-gray-300 hover:bg-white/5 transition-colors"
                                 >
                                     Cancel
                                 </button>
-                                <button 
+                                <button
                                     onClick={handleConfigSubmit}
                                     className="px-6 py-3 rounded-lg bg-gold text-black font-bold hover:bg-yellow-500 transition-colors shadow-lg hover:shadow-gold/20"
                                 >

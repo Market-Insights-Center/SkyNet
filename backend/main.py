@@ -1,3 +1,4 @@
+
 from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -91,6 +92,7 @@ class UserSubscription(BaseModel):
     subscription_plan: str
     cost: float
     updated_at: Optional[str] = None
+    password: Optional[str] = None # For Google users setting password
 
 class Comment(BaseModel):
     id: int
@@ -109,6 +111,7 @@ Comment.model_rebuild()
 class Article(BaseModel):
     id: Optional[int] = None
     title: str
+    subheading: Optional[str] = ""
     content: str
     author: str
     date: Optional[str] = None
@@ -313,7 +316,12 @@ def save_user(user: UserSubscription):
     # Update existing or add new
     for i, u in enumerate(users):
         if u['email'] == user_data['email']:
-            users[i] = user_data
+            # Preserve existing fields if not provided in update
+            existing_user = users[i]
+            updated_user = {**existing_user, **user_data}
+            # Remove None values to avoid overwriting with nulls if that's not intended
+            # But here we want to update what's passed.
+            users[i] = updated_user
             save_json(USERS_FILE, users)
             return {"status": "success", "message": "User updated"}
             
@@ -323,7 +331,7 @@ def save_user(user: UserSubscription):
 
 @app.get("/api/mods")
 def get_mods():
-    return get_mod_list()
+    return {"mods": get_mod_list()}
 
 @app.post("/api/mods")
 def manage_mods(request: ModRequest):
@@ -418,7 +426,119 @@ def vote_article(article_id: int, request: ArticleVoteRequest):
     liked_by = article.get('liked_by', [])
     disliked_by = article.get('disliked_by', [])
     
-    # Remove existing votes
+    # Ensure lists
+    if not isinstance(liked_by, list): liked_by = []
+    if not isinstance(disliked_by, list): disliked_by = []
+
+    # Remove existing votes from both lists to ensure exclusivity
+    if user_id in liked_by:
+        liked_by.remove(user_id)
+        article['likes'] = max(0, article.get('likes', 0) - 1)
+    if user_id in disliked_by:
+        disliked_by.remove(user_id)
+        article['dislikes'] = max(0, article.get('dislikes', 0) - 1)
+        
+    # Add new vote
+    if vote_type == 'up':
+        liked_by.append(user_id)
+@app.post("/api/mods")
+def manage_mods(request: ModRequest):
+    mods = get_mod_list()
+    
+    # Only super admin can add/remove mods
+    if request.requester_email != "marketinsightscenter@gmail.com":
+         raise HTTPException(status_code=403, detail="Only Super Admin can manage moderators")
+
+    if request.action == "add":
+        if request.email not in mods:
+            mods.append(request.email)
+            with open(MODS_FILE, 'a', newline='') as f:
+                writer = csv.writer(f)
+                writer.writerow([request.email])
+        return {"status": "success", "mods": mods}
+    
+    elif request.action == "remove":
+        if request.email == "marketinsightscenter@gmail.com":
+            raise HTTPException(status_code=400, detail="Cannot remove Super Admin")
+        
+        if request.email in mods:
+            mods.remove(request.email)
+            # Rewrite file
+            with open(MODS_FILE, 'w', newline='') as f:
+                writer = csv.writer(f)
+                writer.writerow(["email"])
+                for m in mods:
+                    writer.writerow([m])
+        return {"status": "success", "mods": mods}
+    
+    return {"status": "error", "message": "Invalid action"}
+
+# --- Article Endpoints ---
+
+@app.get("/api/articles")
+def get_articles(limit: int = 100, sort: str = "recent"):
+    articles = read_articles_from_csv()
+    # Sort by date descending
+    articles.sort(key=lambda x: x.get('date', ''), reverse=True)
+    return articles[:limit]
+
+@app.get("/api/articles/{article_id}")
+def get_article(article_id: int):
+    articles = read_articles_from_csv()
+    article = next((a for a in articles if int(a['id']) == article_id), None)
+    if not article:
+        raise HTTPException(status_code=404, detail="Article not found")
+    
+    # Attach comments
+    comments = load_json(COMMENTS_FILE)
+    article_comments = [c for c in comments if c['article_id'] == article_id]
+    article['comments'] = article_comments
+    
+    return article
+
+@app.post("/api/articles")
+def create_article(article: Article):
+    articles = read_articles_from_csv()
+    new_id = max([int(a.get('id', 0)) for a in articles], default=0) + 1
+    article.id = new_id
+    # Ensure date is set if not provided
+    if not article.date:
+        article.date = datetime.datetime.now().strftime("%Y-%m-%d")
+        
+    articles.insert(0, article.model_dump())
+    save_articles_to_csv(articles)
+    return {"status": "success", "article": article}
+
+@app.delete("/api/articles/{article_id}")
+def delete_article(article_id: int):
+    articles = read_articles_from_csv()
+    initial_len = len(articles)
+    articles = [a for a in articles if int(a['id']) != article_id]
+    
+    if len(articles) == initial_len:
+        raise HTTPException(status_code=404, detail="Article not found")
+        
+    save_articles_to_csv(articles)
+    return {"status": "success", "message": "Article deleted"}
+
+@app.post("/api/articles/{article_id}/vote")
+def vote_article(article_id: int, request: ArticleVoteRequest):
+    articles = read_articles_from_csv()
+    article = next((a for a in articles if int(a['id']) == article_id), None)
+    if not article:
+        raise HTTPException(status_code=404, detail="Article not found")
+    
+    user_id = request.user_id
+    vote_type = request.vote_type
+    
+    liked_by = article.get('liked_by', [])
+    disliked_by = article.get('disliked_by', [])
+    
+    # Ensure lists
+    if not isinstance(liked_by, list): liked_by = []
+    if not isinstance(disliked_by, list): disliked_by = []
+
+    # Remove existing votes from both lists to ensure exclusivity
     if user_id in liked_by:
         liked_by.remove(user_id)
         article['likes'] = max(0, article.get('likes', 0) - 1)
@@ -467,7 +587,11 @@ def add_comment(comment: Comment):
     return {"status": "success", "comment": comment}
 
 @app.delete("/api/comments/{comment_id}")
-def delete_comment(comment_id: int):
+def delete_comment(comment_id: int, requester_email: str):
+    mods = get_mod_list()
+    if requester_email not in mods:
+        raise HTTPException(status_code=403, detail="Only admins can delete comments")
+
     comments = load_json(COMMENTS_FILE)
     initial_len = len(comments)
     comments = [c for c in comments if c['id'] != comment_id]
@@ -480,4 +604,4 @@ def delete_comment(comment_id: int):
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host="0.0.0.0", port=8001)

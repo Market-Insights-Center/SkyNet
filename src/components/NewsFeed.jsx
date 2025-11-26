@@ -8,7 +8,7 @@ const NewsFeed = ({ limit = 3 }) => {
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        fetch(`http://localhost:8000/api/articles?limit=${limit}`)
+        fetch(`http://localhost:8001/api/articles?limit=${limit}`)
             .then(res => res.json())
             .then(data => {
                 setArticles(data);

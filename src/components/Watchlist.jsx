@@ -326,36 +326,19 @@ const Watchlist = () => {
 
     const fetchChunk = async (chunk) => {
         try {
-            // 1. Fetch Basic Data
-            const response = await fetch('http://localhost:8000/api/market-data', {
+            const response = await fetch('http://localhost:8001/api/market-data', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ tickers: chunk })
             });
             const data = await response.json();
-            if (data && data.results) {
-                setMarketData(prev => ({ ...prev, ...data.results }));
-            }
 
-            // 2. Fetch Details (IV, Earnings) - Lazy Load
-            const detailsResponse = await fetch('http://localhost:8000/api/market-data/details', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ tickers: chunk })
-            });
-            const detailsData = await detailsResponse.json();
-            if (detailsData && detailsData.results) {
-                setMarketData(prev => {
-                    const updated = { ...prev };
-                    Object.keys(detailsData.results).forEach(ticker => {
-                        if (updated[ticker]) {
-                            updated[ticker] = { ...updated[ticker], ...detailsData.results[ticker] };
-                        } else {
-                            updated[ticker] = detailsData.results[ticker];
-                        }
-                    });
-                    return updated;
+            if (Array.isArray(data)) {
+                const newMarketData = {};
+                data.forEach(item => {
+                    newMarketData[item.ticker] = item;
                 });
+                setMarketData(prev => ({ ...prev, ...newMarketData }));
             }
         } catch (error) {
             console.error("Failed to fetch chunk:", chunk, error);
@@ -366,14 +349,12 @@ const Watchlist = () => {
         if (tickers.length === 0) return;
         setIsLoadingData(true);
 
-        // Chunk tickers into groups of 3
         const chunkSize = 3;
         const chunks = [];
         for (let i = 0; i < tickers.length; i += chunkSize) {
             chunks.push(tickers.slice(i, i + chunkSize));
         }
 
-        // Process chunks sequentially
         for (const chunk of chunks) {
             await fetchChunk(chunk);
         }

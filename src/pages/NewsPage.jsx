@@ -14,7 +14,7 @@ const NewsPage = () => {
 
     useEffect(() => {
         if (currentUser) {
-            fetch('http://localhost:8000/api/mods')
+            fetch('http://localhost:8001/api/mods')
                 .then(res => res.json())
                 .then(data => {
                     if (data.mods.includes(currentUser.email)) {
@@ -26,7 +26,7 @@ const NewsPage = () => {
     }, [currentUser]);
 
     useEffect(() => {
-        fetch('http://localhost:8000/api/articles?limit=100')
+        fetch('http://localhost:8001/api/articles?limit=100')
             .then(res => res.json())
             .then(data => {
                 setArticles(data);

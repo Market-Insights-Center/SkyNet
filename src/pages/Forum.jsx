@@ -12,7 +12,7 @@ const Forum = () => {
     });
 
     React.useEffect(() => {
-        fetch('http://localhost:8000/api/stats')
+        fetch('http://localhost:8001/api/stats')
             .then(res => res.json())
             .then(data => setStats(data))
             .catch(err => console.error("Error fetching stats:", err));

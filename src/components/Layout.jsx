@@ -16,7 +16,7 @@ const Layout = ({ children }) => {
 
     useEffect(() => {
         if (currentUser) {
-            fetch('http://localhost:8000/api/mods')
+            fetch('http://localhost:8001/api/mods')
                 .then(res => res.json())
                 .then(data => {
                     if (data.mods.includes(currentUser.email)) {
@@ -31,6 +31,7 @@ const Layout = ({ children }) => {
         { name: 'Home', path: '/', icon: Home },
         { name: 'Products', path: '/products', icon: Briefcase },
         { name: 'Forum', path: '/forum', icon: Users },
+        { name: 'Knowledge Stream', path: '/knowledge-stream', icon: FileText },
         { name: 'Direct M.I.C.', path: '/messages', icon: Mail },
         { name: 'Profile', path: '/profile', icon: User },
         ...(isMod ? [{ name: 'Admin', path: '/admin', icon: Shield }] : [])

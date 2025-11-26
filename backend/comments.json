@@ -40,5 +40,16 @@
         "replies": [],
         "likes": 0,
         "dislikes": 0
+    },
+    {
+        "id": 5,
+        "article_id": 9,
+        "user": "Commenter",
+        "email": "commenter@example.com",
+        "text": "Test Comment",
+        "date": "2023-01-01",
+        "replies": [],
+        "likes": 0,
+        "dislikes": 0
     }
 ]

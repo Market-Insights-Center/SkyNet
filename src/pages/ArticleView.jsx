@@ -25,7 +25,7 @@ const ArticleView = () => {
 
     useEffect(() => {
         // Fetch Mods
-        fetch('http://localhost:8000/api/mods')
+        fetch('http://localhost:8001/api/mods')
             .then(res => res.json())
             .then(data => {
                 setMods(data.mods || []);
@@ -36,7 +36,7 @@ const ArticleView = () => {
             .catch(err => console.error("Error fetching mods:", err));
 
         // Fetch Article
-        fetch(`http://localhost:8000/api/articles/${id}`)
+        fetch(`http://localhost:8001/api/articles/${id}`)
             .then(res => res.json())
             .then(data => {
                 setArticle(data);
@@ -81,7 +81,7 @@ const ArticleView = () => {
             else setDislikes(prev => prev + 1);
         }
 
-        fetch(`http://localhost:8000/api/articles/${id}/vote`, {
+        fetch(`http://localhost:8001/api/articles/${id}/vote`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ user_id: currentUser.uid, vote_type: type })
@@ -105,7 +105,7 @@ const ArticleView = () => {
             window.location.href = `mailto:?subject=${encodeURIComponent(article.title)}&body=${encodeURIComponent(window.location.href)}`;
         }
 
-        fetch(`http://localhost:8000/api/articles/${id}/share`, { method: 'POST' })
+        fetch(`http://localhost:8001/api/articles/${id}/share`, { method: 'POST' })
             .catch(err => console.error("Error sharing:", err));
     };
 
@@ -145,30 +145,8 @@ const ArticleView = () => {
             setNewComment('');
         }
 
-        // In a real app, you'd send the parentId to the backend to handle nesting
-        // For this mock/json implementation, we'll just send the flat structure or updated structure if backend supported it fully
-        // But since we are just appending to a JSON list in backend, we might need to send the whole updated comments list or handle it smarter.
-        // For simplicity with current backend: we will just post it. 
-        // NOTE: The current backend append logic doesn't support deep updates easily without changing the endpoint to accept a full list or a parent_id.
-        // Let's assume for now we just post it and the backend stores it flat, but frontend handles nesting visually if we had a way to link them.
-        // ACTUALLY, to make it work with current backend, we need to send the comment. 
-        // If we want true persistence of nesting, we need to update the backend to handle `parent_id`.
-        // Since I didn't add `parent_id` to the backend model explicitly but added `replies` list, 
-        // I should probably just update the specific comment if it's a reply.
-        // However, the current backend `POST /comments` just appends to the list.
-        // To properly support replies with the current simple backend, I'll just post it as a new comment but with a `parent_id` field if I added it.
-        // Wait, I added `replies: List[Comment]` to the model.
-        // So I should probably PUT/PATCH the parent comment to add the reply.
-        // But I don't have a PATCH endpoint for comments.
-        // Let's stick to: Post the comment. If it's a reply, we might need a different strategy or just accept it's flat in backend for now but nested in UI state?
-        // No, user wants it implemented.
-        // I will implement a simple "append to parent's replies" logic if I can.
-        // Since I can't easily change the backend logic to find and update a comment deeply nested without more work,
-        // I will just save it as a top level comment for now in backend, but in UI it looks nested until refresh.
-        // TO FIX THIS PROPERLY: I should have added `parent_id` to the Comment model and backend logic.
-        // Let's do that in the next step if needed. For now, let's just get the UI working.
-
-        fetch('http://localhost:8000/api/comments', {
+        // Send comment to backend
+        fetch('http://localhost:8001/api/comments', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(commentData)
@@ -186,7 +164,7 @@ const ArticleView = () => {
             };
             setComments(deleteFromList(comments));
 
-            fetch(`http://localhost:8000/api/comments/${commentId}?requester_email=${currentUser.email}`, {
+            fetch(`http://localhost:8001/api/comments/${commentId}?requester_email=${currentUser.email}`, {
                 method: 'DELETE'
             }).catch(err => console.error("Error deleting comment:", err));
         }

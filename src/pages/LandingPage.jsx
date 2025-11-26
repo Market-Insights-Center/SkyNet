@@ -209,7 +209,7 @@ const RecentArticles = () => {
     useEffect(() => {
         const fetchArticles = async () => {
             try {
-                const response = await fetch('http://localhost:8000/api/articles?limit=3');
+                const response = await fetch('http://localhost:8001/api/articles?limit=3');
                 if (response.ok) {
                     const data = await response.json();
                     setArticles(data);
@@ -230,9 +230,9 @@ const RecentArticles = () => {
         <section className="py-24 px-4 bg-black">
             <div className="max-w-7xl mx-auto">
                 <div className="text-center mb-16">
-                    <h2 className="text-4xl font-bold mb-6">Latest <span className="text-gold">Insights</span></h2>
+                    <h2 className="text-4xl font-bold mb-6">M.I.C.K.S. <span className="text-gold">(News Stream)</span></h2>
                     <p className="text-xl text-gray-400 max-w-2xl mx-auto">
-                        Stay ahead of the market with our latest analysis and reports.
+                        Market Insights Center Knowledge Stream - Latest Articles
                     </p>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
@@ -276,8 +276,8 @@ const RecentArticles = () => {
                     ))}
                 </div>
                 <div className="text-center mt-12">
-                    <Link to="/news" className="inline-flex items-center text-gray-300 hover:text-white transition-colors">
-                        View All Articles <ArrowRight size={16} className="ml-2" />
+                    <Link to="/knowledge-stream" className="inline-flex items-center text-gray-300 hover:text-white transition-colors">
+                        View Full Stream <ArrowRight size={16} className="ml-2" />
                     </Link>
                 </div>
             </div>
@@ -344,6 +344,11 @@ const LandingPage = () => {
                 </section>
             </ErrorBoundary>
 
+            {/* Recent Articles (M.I.C.K.S.) - Moved here */}
+            <ErrorBoundary>
+                <RecentArticles />
+            </ErrorBoundary>
+
             {/* Features Section */}
             <ErrorBoundary>
                 <section className="py-24 px-4 bg-black relative z-10">
@@ -381,10 +386,6 @@ const LandingPage = () => {
 
             <ErrorBoundary>
                 <WealthCalculator />
-            </ErrorBoundary>
-
-            <ErrorBoundary>
-                <RecentArticles />
             </ErrorBoundary>
 
             <ErrorBoundary>
