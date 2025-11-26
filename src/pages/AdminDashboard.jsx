@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import { Shield, FileText, Users, Trash2, Edit, Plus, Save, X, Check } from 'lucide-react';
+import { Shield, FileText, Users, Trash2, Edit, Plus, Save, X, Eye } from 'lucide-react';
 
 const AdminDashboard = () => {
     const { currentUser } = useAuth();
@@ -15,8 +15,12 @@ const AdminDashboard = () => {
 
     // Article Form State
     const [editingArticle, setEditingArticle] = useState(null);
-    const [newArticle, setNewArticle] = useState({ title: '', subheading: '', content: '', category: 'Market', author: 'M.I.C. Team', cover_image: '' });
+    const [newArticle, setNewArticle] = useState({ title: '', subheading: '', content: '', category: 'Market', author: 'M.I.C. Team', cover_image: '', hashtags: '' });
     const [showArticleForm, setShowArticleForm] = useState(false);
+
+    // User Edit State
+    const [editingUser, setEditingUser] = useState(null);
+    const [viewingProfile, setViewingProfile] = useState(null);
 
     // Mod Form State
     const [newModEmail, setNewModEmail] = useState('');
@@ -59,21 +63,26 @@ const AdminDashboard = () => {
         e.preventDefault();
         const articleData = editingArticle || newArticle;
 
-        // Basic validation
         if (!articleData.title || !articleData.content) return;
+
+        // Handle Hashtags conversion
+        let processedData = { ...articleData };
+        if (typeof processedData.hashtags === 'string') {
+            processedData.hashtags = processedData.hashtags.split(',').map(tag => tag.trim());
+        }
 
         try {
             const response = await fetch('http://localhost:8001/api/articles', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(articleData)
+                body: JSON.stringify(processedData)
             });
 
             if (response.ok) {
                 fetchData();
                 setShowArticleForm(false);
                 setEditingArticle(null);
-                setNewArticle({ title: '', subheading: '', content: '', category: 'Market', author: 'M.I.C. Team', cover_image: '' });
+                setNewArticle({ title: '', subheading: '', content: '', category: 'Market', author: 'M.I.C. Team', cover_image: '', hashtags: '' });
             }
         } catch (error) {
             console.error("Error saving article:", error);
@@ -84,14 +93,35 @@ const AdminDashboard = () => {
         if (!window.confirm("Are you sure you want to delete this article?")) return;
         try {
             await fetch(`http://localhost:8001/api/articles/${id}`, { method: 'DELETE' });
-            fetchData();
+            fetchData(); // Refresh list after delete
         } catch (error) {
             console.error("Error deleting article:", error);
         }
     };
 
     // --- User Management ---
-    // (Currently just viewing, could add edit subscription logic if needed)
+
+    const handleUserUpdate = async (e) => {
+        e.preventDefault();
+        try {
+            const response = await fetch('http://localhost:8001/api/users', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    email: editingUser.email,
+                    subscription_plan: editingUser.subscription_plan,
+                    cost: parseFloat(editingUser.subscription_cost || editingUser.cost)
+                })
+            });
+            
+            if (response.ok) {
+                setEditingUser(null);
+                fetchData();
+            }
+        } catch (error) {
+            console.error("Error updating user:", error);
+        }
+    };
 
     // --- Mod Management ---
 
@@ -232,6 +262,16 @@ const AdminDashboard = () => {
                                             />
                                         </div>
                                     </div>
+                                    <div>
+                                        <label className="block text-sm text-gray-400 mb-1">Hashtags (comma separated)</label>
+                                        <input
+                                            type="text"
+                                            value={editingArticle ? (Array.isArray(editingArticle.hashtags) ? editingArticle.hashtags.join(', ') : editingArticle.hashtags) : newArticle.hashtags}
+                                            onChange={(e) => editingArticle ? setEditingArticle({ ...editingArticle, hashtags: e.target.value }) : setNewArticle({ ...newArticle, hashtags: e.target.value })}
+                                            className="w-full bg-black/50 border border-white/10 rounded px-3 py-2 text-white focus:border-gold outline-none"
+                                            placeholder="e.g., AI, Crypto, Tech"
+                                        />
+                                    </div>
                                     <div className="flex justify-end gap-4 pt-4">
                                         <button
                                             type="button"
@@ -282,14 +322,41 @@ const AdminDashboard = () => {
                 {activeTab === 'users' && (
                     <div>
                         <h2 className="text-xl font-bold mb-6">User Management</h2>
+                        
+                        {/* Profile Modal */}
+                        {viewingProfile && (
+                            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4">
+                                <div className="bg-[#1a1a1a] p-8 rounded-xl max-w-2xl w-full border border-gold/30 relative">
+                                    <button 
+                                        onClick={() => setViewingProfile(null)} 
+                                        className="absolute top-4 right-4 text-gray-400 hover:text-white"
+                                    >
+                                        <X size={24} />
+                                    </button>
+                                    <h3 className="text-2xl font-bold text-gold mb-6">User Profile: {viewingProfile.email}</h3>
+                                    
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-gray-300 max-h-[60vh] overflow-y-auto custom-scrollbar">
+                                        {Object.entries(viewingProfile).map(([key, val]) => (
+                                            key !== 'email' && (
+                                                <div key={key} className="border-b border-white/10 pb-2">
+                                                    <span className="text-gray-500 block text-xs uppercase tracking-wider mb-1">{key.replace(/_/g, ' ')}</span>
+                                                    <span className="font-bold text-white">{val}</span>
+                                                </div>
+                                            )
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
                         <div className="overflow-x-auto">
                             <table className="w-full text-left border-collapse">
                                 <thead>
                                     <tr className="border-b border-white/10 text-gray-400">
                                         <th className="p-4">Email</th>
-                                        <th className="p-4">Plan</th>
-                                        <th className="p-4">Risk Tolerance</th>
-                                        <th className="p-4">Trading Frequency</th>
+                                        <th className="p-4">Subscription Tier</th>
+                                        <th className="p-4">Monthly Cost</th>
+                                        <th className="p-4">Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -297,12 +364,51 @@ const AdminDashboard = () => {
                                         <tr key={i} className="border-b border-white/5 hover:bg-white/5">
                                             <td className="p-4">{user.email}</td>
                                             <td className="p-4">
-                                                <span className={`px-2 py-1 rounded text-xs font-bold ${user.subscription_plan === 'Institutional' ? 'bg-purple-500/20 text-purple-400' : 'bg-gray-500/20 text-gray-400'}`}>
-                                                    {user.subscription_plan || 'Free'}
-                                                </span>
+                                                {editingUser?.email === user.email ? (
+                                                    <input 
+                                                        value={editingUser.subscription_plan} 
+                                                        onChange={(e) => setEditingUser({ ...editingUser, subscription_plan: e.target.value })}
+                                                        className="bg-black/50 border border-white/10 rounded px-2 py-1 text-white w-full"
+                                                    />
+                                                ) : (
+                                                    <span className={`px-2 py-1 rounded text-xs font-bold ${user.subscription_plan === 'Institutional' ? 'bg-purple-500/20 text-purple-400' : 'bg-gray-500/20 text-gray-400'}`}>
+                                                        {user.subscription_plan || 'Free'}
+                                                    </span>
+                                                )}
                                             </td>
-                                            <td className="p-4">{user.risk_tolerance || '-'}</td>
-                                            <td className="p-4">{user.trading_frequency || '-'}</td>
+                                            <td className="p-4">
+                                                {editingUser?.email === user.email ? (
+                                                    <input 
+                                                        type="number"
+                                                        value={editingUser.subscription_cost || editingUser.cost} 
+                                                        onChange={(e) => setEditingUser({ ...editingUser, cost: e.target.value })}
+                                                        className="bg-black/50 border border-white/10 rounded px-2 py-1 text-white w-24"
+                                                    />
+                                                ) : (
+                                                    `$${user.subscription_cost || user.cost || 0}`
+                                                )}
+                                            </td>
+                                            <td className="p-4 flex gap-2">
+                                                {editingUser?.email === user.email ? (
+                                                    <button onClick={handleUserUpdate} className="p-2 text-green-400 hover:bg-green-500/10 rounded" title="Save Changes">
+                                                        <Save size={18} />
+                                                    </button>
+                                                ) : (
+                                                    <button onClick={() => setEditingUser(user)} className="p-2 text-blue-400 hover:bg-blue-500/10 rounded" title="Edit Subscription">
+                                                        <Edit size={18} />
+                                                    </button>
+                                                )}
+                                                
+                                                {user.profile && (
+                                                    <button 
+                                                        onClick={() => setViewingProfile(user.profile)} 
+                                                        className="p-2 text-gold hover:bg-gold/10 rounded" 
+                                                        title="View Questionnaire"
+                                                    >
+                                                        <Eye size={18} />
+                                                    </button>
+                                                )}
+                                            </td>
                                         </tr>
                                     ))}
                                 </tbody>

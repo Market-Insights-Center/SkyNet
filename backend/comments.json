@@ -1,15 +1,5 @@
 [
     {
-        "id": 1,
-        "article_id": 1,
-        "user": "Verzogerung",
-        "text": "cool story\n",
-        "date": "2025-11-25T16:18:59.343Z",
-        "replies": [],
-        "likes": 0,
-        "dislikes": 0
-    },
-    {
         "id": 2,
         "article_id": 1,
         "user": "Verzogerung",
@@ -48,6 +38,17 @@
         "email": "commenter@example.com",
         "text": "Test Comment",
         "date": "2023-01-01",
+        "replies": [],
+        "likes": 0,
+        "dislikes": 0
+    },
+    {
+        "id": 6,
+        "article_id": 9,
+        "user": "Verzogerung",
+        "email": "marketinsightscenter@gmail.com",
+        "text": "ur a bitch",
+        "date": "2025-11-26T20:18:20.717Z",
         "replies": [],
         "likes": 0,
         "dislikes": 0

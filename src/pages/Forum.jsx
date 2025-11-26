@@ -8,7 +8,8 @@ const Forum = () => {
     const [stats, setStats] = React.useState({
         total_users: 0,
         active_users: 0,
-        total_posts: 0
+        total_posts: 0,
+        trending_topics: []
     });
 
     React.useEffect(() => {
@@ -40,10 +41,13 @@ const Forum = () => {
                                 <TrendingUp size={20} className="mr-2" /> Trending Topics
                             </h3>
                             <ul className="space-y-3 text-gray-300">
-                                <li className="hover:text-gold cursor-pointer transition-colors">#AI_Investing</li>
-                                <li className="hover:text-gold cursor-pointer transition-colors">#Crypto_Regulation</li>
-                                <li className="hover:text-gold cursor-pointer transition-colors">#Green_Energy</li>
-                                <li className="hover:text-gold cursor-pointer transition-colors">#Market_Crash</li>
+                                {stats.trending_topics && stats.trending_topics.length > 0 ? (
+                                    stats.trending_topics.map((tag, i) => (
+                                        <li key={i} className="hover:text-gold cursor-pointer transition-colors">#{tag}</li>
+                                    ))
+                                ) : (
+                                    <li className="text-gray-500 italic">No trending topics yet</li>
+                                )}
                             </ul>
                         </div>
 
@@ -66,9 +70,9 @@ const Forum = () => {
                         </div>
                     </div>
 
-                    {/* Main Content - Knowledge Stream */}
+                    {/* Main Content - NewsFeed limited to 6 */}
                     <div className="lg:col-span-3">
-                        <NewsFeed limit={5} />
+                        <NewsFeed limit={6} />
                     </div>
                 </div>
             </div>

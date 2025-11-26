@@ -1,4 +1,3 @@
-
 from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -13,12 +12,18 @@ import asyncio
 import logging
 import datetime
 import random
-import json 
+import json
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+from collections import Counter
+from firebase_admin import auth 
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
+# Ensure database.py has read_user_profiles implemented as discussed
 from integration import invest_command, cultivate_command, custom_command, tracking_command
-from database import read_articles_from_csv, save_articles_to_csv
+from database import read_articles_from_csv, save_articles_to_csv, read_user_profiles
 
 # Configure Logging
 logging.basicConfig(level=logging.INFO)
@@ -34,8 +39,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# --- GLOBAL LIMITER ---
-# Crucial: Restricts concurrent fetches to 4 to prevent Yahoo from blocking connections
+# --- CONFIGURATION ---
+# Replace with your actual email credentials or use environment variables
+EMAIL_USER = os.environ.get("EMAIL_USER", "marketinsightscenter@gmail.com") 
+EMAIL_PASS = os.environ.get("EMAIL_PASS", "your-app-password") # Google App Password
+
 YF_SEMAPHORE = asyncio.Semaphore(4)
 
 # --- Constants ---
@@ -82,17 +90,23 @@ class TrackingRequest(BaseModel):
     email: str
     risk_tolerance: int
     user_id: str
-    vote_type: str # 'up' or 'down'
+    vote_type: str
 
 class ShareRequest(BaseModel):
     platform: str
+
+class EmailShareRequest(BaseModel):
+    email: str
+    sender_name: str
+    article_link: str
+    article_title: str
 
 class UserSubscription(BaseModel):
     email: str
     subscription_plan: str
     cost: float
     updated_at: Optional[str] = None
-    password: Optional[str] = None # For Google users setting password
+    password: Optional[str] = None 
 
 class Comment(BaseModel):
     id: int
@@ -105,7 +119,6 @@ class Comment(BaseModel):
     likes: int = 0
     dislikes: int = 0
 
-# Needed for recursive models
 Comment.model_rebuild()
 
 class Article(BaseModel):
@@ -130,12 +143,12 @@ class MarketDataRequest(BaseModel):
 
 class ModRequest(BaseModel):
     email: str
-    action: str # "add" or "remove"
+    action: str 
     requester_email: str
 
 class ArticleVoteRequest(BaseModel):
     user_id: str
-    vote_type: str # 'up' or 'down'
+    vote_type: str 
 
 # --- Helper Functions ---
 
@@ -154,7 +167,6 @@ def save_json(filepath, data):
 
 def get_mod_list():
     if not os.path.exists(MODS_FILE):
-        # Create with default super admin
         with open(MODS_FILE, 'w', newline='') as f:
             writer = csv.writer(f)
             writer.writerow(["email"])
@@ -171,22 +183,45 @@ def get_mod_list():
     except Exception as e:
         print(f"Error reading mods file: {e}")
     
-    # Ensure super admin is always in the list
     if "marketinsightscenter@gmail.com" not in mods:
         mods.append("marketinsightscenter@gmail.com")
     
     return mods
 
+def send_real_email(to_email, subject, body):
+    """Sends a real email using SMTP if configured."""
+    if "your-app-password" in EMAIL_PASS:
+        print(f"[EMAIL MOCK] To: {to_email} | Subject: {subject}")
+        return False
+
+    try:
+        msg = MIMEMultipart()
+        msg['From'] = EMAIL_USER
+        msg['To'] = to_email
+        msg['Subject'] = subject
+        msg.attach(MIMEText(body, 'plain'))
+
+        server = smtplib.SMTP('smtp.gmail.com', 587)
+        server.starttls()
+        server.login(EMAIL_USER, EMAIL_PASS)
+        text = msg.as_string()
+        server.sendmail(EMAIL_USER, to_email, text)
+        server.quit()
+        print(f"[EMAIL SENT] To: {to_email}")
+        return True
+    except Exception as e:
+        print(f"[EMAIL ERROR]: {e}")
+        return False
+
 # --- API Endpoints ---
 
+# ... [Invest, Cultivate, Custom, Tracking endpoints omitted for brevity] ...
 @app.post("/api/invest")
 async def invest_endpoint(request: InvestRequest):
     try:
         ai_params = request.model_dump()
         result = await invest_command.handle_invest_command([], ai_params=ai_params, is_called_by_ai=True)
         if isinstance(result, tuple):
-             # Unpack tuple from process_custom_portfolio
-             # return [], final_combined_portfolio_data_calc, final_cash, tailored_data
              _, _, final_cash, tailored_data = result
              return {"status": "success", "holdings": tailored_data, "final_cash": final_cash}
         return result
@@ -200,7 +235,6 @@ async def cultivate_endpoint(request: CultivateRequest):
         ai_params = request.model_dump()
         result = await cultivate_command.handle_cultivate_command([], ai_params=ai_params, is_called_by_ai=True)
         if isinstance(result, tuple):
-             # return tailored_entries, final_cash
              tailored_entries, final_cash = result
              return {"status": "success", "holdings": tailored_entries, "final_cash": final_cash}
         return result
@@ -228,6 +262,7 @@ async def tracking_endpoint(request: TrackingRequest):
         logger.error(f"Tracking Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+
 @app.post("/api/market-data")
 async def market_data_endpoint(request: MarketDataRequest):
     try:
@@ -242,92 +277,211 @@ async def market_data_endpoint(request: MarketDataRequest):
                     stock = yf.Ticker(ticker)
                     info = stock.fast_info
                     price = info.last_price
+                    
+                    # Fetch history for 1 year to calculate all changes + sparkline
+                    hist = stock.history(period="1y")
+                    
+                    change_1w = 0
+                    change_1m = 0
+                    change_1y = 0
+                    sparkline = []
+
+                    if not hist.empty:
+                        current = hist['Close'].iloc[-1]
+                        
+                        # 1 Week (approx 5 trading days)
+                        if len(hist) > 5:
+                            price_1w = hist['Close'].iloc[-6]
+                            change_1w = ((current - price_1w) / price_1w) * 100
+                        
+                        # 1 Month (approx 21 trading days)
+                        if len(hist) > 21:
+                            price_1m = hist['Close'].iloc[-22]
+                            change_1m = ((current - price_1m) / price_1m) * 100
+
+                        # 1 Year (approx 252 trading days)
+                        if len(hist) > 0:
+                            price_1y = hist['Close'].iloc[0]
+                            change_1y = ((current - price_1y) / price_1y) * 100
+                            
+                        # Sparkline: Last 30 points
+                        sparkline = hist['Close'].tail(30).tolist()
+
                     prev_close = info.previous_close
                     change = price - prev_close
                     change_percent = (change / prev_close) * 100 if prev_close else 0
-                    
-                    # 1Y and 5Y change (approximate)
-                    hist = stock.history(period="5y")
-                    change_1y = 0
-                    change_5y = 0
-                    
-                    if not hist.empty:
-                        current = hist['Close'].iloc[-1]
-                        if len(hist) > 252:
-                            price_1y = hist['Close'].iloc[-252]
-                            change_1y = ((current - price_1y) / price_1y) * 100
-                        if len(hist) > 0:
-                            price_5y = hist['Close'].iloc[0]
-                            change_5y = ((current - price_5y) / price_5y) * 100
 
                     data.append({
                         "ticker": ticker,
                         "price": price,
-                        "change": change,
-                        "changePercent": change_percent,
+                        "change": change,           # 1D Change $
+                        "changePercent": change_percent, # 1D Change %
+                        "change1W": change_1w,
+                        "change1M": change_1m,
+                        "change1Y": change_1y,
                         "marketCap": info.market_cap,
                         "volume": info.last_volume,
-                        "change1Y": change_1y,
-                        "change5Y": change_5y
+                        "sparkline": sparkline
                     })
                 except Exception as e:
                     print(f"Error fetching {ticker}: {e}")
-                    # Return partial data or skip
                     data.append({
                         "ticker": ticker,
-                        "price": 0,
-                        "change": 0,
-                        "changePercent": 0,
-                        "marketCap": 0,
-                        "volume": 0,
-                        "change1Y": 0,
-                        "change5Y": 0
+                        "price": 0, "change": 0, "changePercent": 0,
+                        "change1W": 0, "change1M": 0, "change1Y": 0,
+                        "marketCap": 0, "volume": 0, "sparkline": []
                     })
         return data
     except Exception as e:
         logger.error(f"Market Data Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.post("/api/market-data/details")
+async def market_data_details_endpoint(request: MarketDataRequest):
+    try:
+        tickers = request.tickers
+        if not tickers:
+            return {"results": {}}
+        
+        results = {}
+        async with YF_SEMAPHORE:
+            for ticker in tickers:
+                try:
+                    stock = yf.Ticker(ticker)
+                    info = stock.info
+                    
+                    # Robust IV Check
+                    iv = info.get('impliedVolatility')
+                    if iv is None:
+                        # Try computing from options if available (advanced), else N/A
+                        iv_display = "N/A"
+                    else:
+                        iv_display = f"{iv:.2%}"
+
+                    pe = info.get('trailingPE', info.get('forwardPE'))
+                    pe_display = f"{pe:.2f}" if pe else "N/A"
+
+                    earnings = "N/A"
+                    ts = info.get('earningsTimestamp')
+                    if ts:
+                        earnings = datetime.datetime.fromtimestamp(ts).strftime('%Y-%m-%d')
+                    
+                    results[ticker] = {
+                        "iv": iv_display,
+                        "peRatio": pe_display,
+                        "earnings": earnings
+                    }
+                except Exception as e:
+                    print(f"Error fetching details for {ticker}: {e}")
+                    results[ticker] = { "iv": "N/A", "peRatio": "N/A", "earnings": "N/A" }
+                    
+        return {"results": results}
+    except Exception as e:
+        logger.error(f"Market Data Details Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.get("/api/stats")
 def get_stats():
-    users = load_json(USERS_FILE)
+    # To get total users count, we should ideally check Firebase
+    try:
+        page = auth.list_users()
+        total_users = 0
+        while page:
+            total_users += len(page.users)
+            page = page.get_next_page()
+    except:
+        users = load_json(USERS_FILE)
+        total_users = len(users)
+
     articles = read_articles_from_csv()
     
-    total_users = len(users)
-    # Heuristic for active users: 80% of total users for now, or check updated_at if available
-    active_users = int(total_users * 0.8) if total_users > 0 else 0
-    total_posts = len(articles)
-    
+    all_hashtags = []
+    for a in articles:
+        if isinstance(a.get('hashtags'), list):
+            all_hashtags.extend(a['hashtags'])
+        elif isinstance(a.get('hashtags'), str):
+             tags = a['hashtags'].replace('[','').replace(']','').replace('"','').replace("'",'').split(',')
+             all_hashtags.extend([t.strip() for t in tags if t.strip()])
+
+    trending = [tag for tag, count in Counter(all_hashtags).most_common(5)] if all_hashtags else ["AI_Investing", "Crypto", "Market"]
+
     return {
         "total_users": total_users,
-        "active_users": active_users,
-        "total_posts": total_posts
+        "active_users": int(total_users * 0.8),
+        "total_posts": len(articles),
+        "trending_topics": trending
     }
 
 @app.get("/api/users")
 def get_users():
-    return load_json(USERS_FILE)
+    """
+    Fetches ALL users from Firebase Auth and merges with local DB data.
+    This ensures admins see everyone, even if they haven't been saved to users.json yet.
+    """
+    local_users = load_json(USERS_FILE)
+    profiles = read_user_profiles()
+    
+    # Create a map for fast lookup of local data
+    local_map = {u['email']: u for u in local_users}
+    
+    all_users = []
+    
+    try:
+        # Fetch from Firebase
+        page = auth.list_users()
+        while page:
+            for user in page.users:
+                email = user.email
+                if not email: continue
+                
+                # Default Object
+                user_obj = {
+                    "email": email,
+                    "uid": user.uid,
+                    "subscription_plan": "Free",
+                    "cost": 0.0,
+                    "profile": None
+                }
+                
+                # Merge Local Subscription Data
+                if email in local_map:
+                    user_obj.update(local_map[email])
+                
+                # Merge Profile Data
+                if email in profiles:
+                    user_obj['profile'] = profiles[email]
+                    user_obj['risk_tolerance'] = profiles[email].get('risk_tolerance')
+                    user_obj['trading_frequency'] = profiles[email].get('trading_frequency')
+                
+                all_users.append(user_obj)
+                
+            page = page.get_next_page()
+            
+    except Exception as e:
+        print(f"Error fetching Firebase users: {e}")
+        # Fallback to local file if Firebase fails (dev mode without creds)
+        return local_users
+
+    return all_users
 
 @app.post("/api/users")
 def save_user(user: UserSubscription):
     users = load_json(USERS_FILE)
     user_data = user.model_dump()
     
-    # Update existing or add new
+    found = False
     for i, u in enumerate(users):
         if u['email'] == user_data['email']:
-            # Preserve existing fields if not provided in update
-            existing_user = users[i]
-            updated_user = {**existing_user, **user_data}
-            # Remove None values to avoid overwriting with nulls if that's not intended
-            # But here we want to update what's passed.
-            users[i] = updated_user
-            save_json(USERS_FILE, users)
-            return {"status": "success", "message": "User updated"}
+            users[i]['subscription_plan'] = user_data['subscription_plan']
+            users[i]['cost'] = user_data['cost']
+            found = True
+            break
             
-    users.append(user_data)
+    if not found:
+        users.append(user_data)
+        
     save_json(USERS_FILE, users)
-    return {"status": "success", "message": "User added"}
+    return {"status": "success", "message": "User updated"}
 
 @app.get("/api/mods")
 def get_mods():
@@ -336,8 +490,6 @@ def get_mods():
 @app.post("/api/mods")
 def manage_mods(request: ModRequest):
     mods = get_mod_list()
-    
-    # Only super admin can add/remove mods
     if request.requester_email != "marketinsightscenter@gmail.com":
          raise HTTPException(status_code=403, detail="Only Super Admin can manage moderators")
 
@@ -347,30 +499,22 @@ def manage_mods(request: ModRequest):
             with open(MODS_FILE, 'a', newline='') as f:
                 writer = csv.writer(f)
                 writer.writerow([request.email])
-        return {"status": "success", "mods": mods}
-    
     elif request.action == "remove":
-        if request.email == "marketinsightscenter@gmail.com":
-            raise HTTPException(status_code=400, detail="Cannot remove Super Admin")
-        
+        if request.email == "marketinsightscenter@gmail.com": raise HTTPException(status_code=400)
         if request.email in mods:
             mods.remove(request.email)
-            # Rewrite file
             with open(MODS_FILE, 'w', newline='') as f:
                 writer = csv.writer(f)
                 writer.writerow(["email"])
-                for m in mods:
-                    writer.writerow([m])
-        return {"status": "success", "mods": mods}
+                for m in mods: writer.writerow([m])
     
-    return {"status": "error", "message": "Invalid action"}
+    return {"status": "success", "mods": mods}
 
 # --- Article Endpoints ---
 
 @app.get("/api/articles")
 def get_articles(limit: int = 100, sort: str = "recent"):
     articles = read_articles_from_csv()
-    # Sort by date descending
     articles.sort(key=lambda x: x.get('date', ''), reverse=True)
     return articles[:limit]
 
@@ -378,14 +522,9 @@ def get_articles(limit: int = 100, sort: str = "recent"):
 def get_article(article_id: int):
     articles = read_articles_from_csv()
     article = next((a for a in articles if int(a['id']) == article_id), None)
-    if not article:
-        raise HTTPException(status_code=404, detail="Article not found")
-    
-    # Attach comments
+    if not article: raise HTTPException(status_code=404, detail="Article not found")
     comments = load_json(COMMENTS_FILE)
-    article_comments = [c for c in comments if c['article_id'] == article_id]
-    article['comments'] = article_comments
-    
+    article['comments'] = [c for c in comments if c['article_id'] == article_id]
     return article
 
 @app.post("/api/articles")
@@ -393,10 +532,7 @@ def create_article(article: Article):
     articles = read_articles_from_csv()
     new_id = max([int(a.get('id', 0)) for a in articles], default=0) + 1
     article.id = new_id
-    # Ensure date is set if not provided
-    if not article.date:
-        article.date = datetime.datetime.now().strftime("%Y-%m-%d")
-        
+    if not article.date: article.date = datetime.datetime.now().strftime("%Y-%m-%d")
     articles.insert(0, article.model_dump())
     save_articles_to_csv(articles)
     return {"status": "success", "article": article}
@@ -405,9 +541,11 @@ def create_article(article: Article):
 def delete_article(article_id: int):
     articles = read_articles_from_csv()
     initial_len = len(articles)
-    articles = [a for a in articles if int(a['id']) != article_id]
+    # Ensure strict integer comparison logic
+    articles = [a for a in articles if int(a['id']) != int(article_id)]
     
     if len(articles) == initial_len:
+        print(f"Failed to delete article {article_id}. ID not found.")
         raise HTTPException(status_code=404, detail="Article not found")
         
     save_articles_to_csv(articles)
@@ -417,146 +555,26 @@ def delete_article(article_id: int):
 def vote_article(article_id: int, request: ArticleVoteRequest):
     articles = read_articles_from_csv()
     article = next((a for a in articles if int(a['id']) == article_id), None)
-    if not article:
-        raise HTTPException(status_code=404, detail="Article not found")
+    if not article: raise HTTPException(status_code=404)
     
     user_id = request.user_id
-    vote_type = request.vote_type
-    
-    liked_by = article.get('liked_by', [])
-    disliked_by = article.get('disliked_by', [])
-    
-    # Ensure lists
-    if not isinstance(liked_by, list): liked_by = []
-    if not isinstance(disliked_by, list): disliked_by = []
+    if not isinstance(article.get('liked_by'), list): article['liked_by'] = []
+    if not isinstance(article.get('disliked_by'), list): article['disliked_by'] = []
 
-    # Remove existing votes from both lists to ensure exclusivity
-    if user_id in liked_by:
-        liked_by.remove(user_id)
+    if user_id in article['liked_by']:
+        article['liked_by'].remove(user_id)
         article['likes'] = max(0, article.get('likes', 0) - 1)
-    if user_id in disliked_by:
-        disliked_by.remove(user_id)
+    if user_id in article['disliked_by']:
+        article['disliked_by'].remove(user_id)
         article['dislikes'] = max(0, article.get('dislikes', 0) - 1)
         
-    # Add new vote
-    if vote_type == 'up':
-        liked_by.append(user_id)
-@app.post("/api/mods")
-def manage_mods(request: ModRequest):
-    mods = get_mod_list()
-    
-    # Only super admin can add/remove mods
-    if request.requester_email != "marketinsightscenter@gmail.com":
-         raise HTTPException(status_code=403, detail="Only Super Admin can manage moderators")
-
-    if request.action == "add":
-        if request.email not in mods:
-            mods.append(request.email)
-            with open(MODS_FILE, 'a', newline='') as f:
-                writer = csv.writer(f)
-                writer.writerow([request.email])
-        return {"status": "success", "mods": mods}
-    
-    elif request.action == "remove":
-        if request.email == "marketinsightscenter@gmail.com":
-            raise HTTPException(status_code=400, detail="Cannot remove Super Admin")
+    if request.vote_type == 'up':
+        article['liked_by'].append(user_id)
+        article['likes'] += 1
+    elif request.vote_type == 'down':
+        article['disliked_by'].append(user_id)
+        article['dislikes'] += 1
         
-        if request.email in mods:
-            mods.remove(request.email)
-            # Rewrite file
-            with open(MODS_FILE, 'w', newline='') as f:
-                writer = csv.writer(f)
-                writer.writerow(["email"])
-                for m in mods:
-                    writer.writerow([m])
-        return {"status": "success", "mods": mods}
-    
-    return {"status": "error", "message": "Invalid action"}
-
-# --- Article Endpoints ---
-
-@app.get("/api/articles")
-def get_articles(limit: int = 100, sort: str = "recent"):
-    articles = read_articles_from_csv()
-    # Sort by date descending
-    articles.sort(key=lambda x: x.get('date', ''), reverse=True)
-    return articles[:limit]
-
-@app.get("/api/articles/{article_id}")
-def get_article(article_id: int):
-    articles = read_articles_from_csv()
-    article = next((a for a in articles if int(a['id']) == article_id), None)
-    if not article:
-        raise HTTPException(status_code=404, detail="Article not found")
-    
-    # Attach comments
-    comments = load_json(COMMENTS_FILE)
-    article_comments = [c for c in comments if c['article_id'] == article_id]
-    article['comments'] = article_comments
-    
-    return article
-
-@app.post("/api/articles")
-def create_article(article: Article):
-    articles = read_articles_from_csv()
-    new_id = max([int(a.get('id', 0)) for a in articles], default=0) + 1
-    article.id = new_id
-    # Ensure date is set if not provided
-    if not article.date:
-        article.date = datetime.datetime.now().strftime("%Y-%m-%d")
-        
-    articles.insert(0, article.model_dump())
-    save_articles_to_csv(articles)
-    return {"status": "success", "article": article}
-
-@app.delete("/api/articles/{article_id}")
-def delete_article(article_id: int):
-    articles = read_articles_from_csv()
-    initial_len = len(articles)
-    articles = [a for a in articles if int(a['id']) != article_id]
-    
-    if len(articles) == initial_len:
-        raise HTTPException(status_code=404, detail="Article not found")
-        
-    save_articles_to_csv(articles)
-    return {"status": "success", "message": "Article deleted"}
-
-@app.post("/api/articles/{article_id}/vote")
-def vote_article(article_id: int, request: ArticleVoteRequest):
-    articles = read_articles_from_csv()
-    article = next((a for a in articles if int(a['id']) == article_id), None)
-    if not article:
-        raise HTTPException(status_code=404, detail="Article not found")
-    
-    user_id = request.user_id
-    vote_type = request.vote_type
-    
-    liked_by = article.get('liked_by', [])
-    disliked_by = article.get('disliked_by', [])
-    
-    # Ensure lists
-    if not isinstance(liked_by, list): liked_by = []
-    if not isinstance(disliked_by, list): disliked_by = []
-
-    # Remove existing votes from both lists to ensure exclusivity
-    if user_id in liked_by:
-        liked_by.remove(user_id)
-        article['likes'] = max(0, article.get('likes', 0) - 1)
-    if user_id in disliked_by:
-        disliked_by.remove(user_id)
-        article['dislikes'] = max(0, article.get('dislikes', 0) - 1)
-        
-    # Add new vote
-    if vote_type == 'up':
-        liked_by.append(user_id)
-        article['likes'] = article.get('likes', 0) + 1
-    elif vote_type == 'down':
-        disliked_by.append(user_id)
-        article['dislikes'] = article.get('dislikes', 0) + 1
-        
-    article['liked_by'] = liked_by
-    article['disliked_by'] = disliked_by
-    
     save_articles_to_csv(articles)
     return {"status": "success", "likes": article['likes'], "dislikes": article['dislikes']}
 
@@ -564,24 +582,43 @@ def vote_article(article_id: int, request: ArticleVoteRequest):
 def share_article(article_id: int, request: ShareRequest):
     articles = read_articles_from_csv()
     article = next((a for a in articles if int(a['id']) == article_id), None)
-    if not article:
-        raise HTTPException(status_code=404, detail="Article not found")
-        
+    if not article: raise HTTPException(status_code=404)
     article['shares'] = article.get('shares', 0) + 1
     save_articles_to_csv(articles)
     return {"status": "success", "shares": article['shares']}
 
-# --- Comment Endpoints ---
+@app.post("/api/articles/{article_id}/share/email")
+def share_article_email(article_id: int, request: EmailShareRequest):
+    body = f"""
+    Hello,
+
+    {request.sender_name} has shared an article with you from Market Insights Center:
+
+    Title: {request.article_title}
+    Read here: {request.article_link}
+
+    Best,
+    Market Insights Center
+    """
+    
+    # Try real email
+    sent = send_real_email(request.email, f"{request.sender_name} shared an article", body)
+    
+    # Increment share count regardless of email success (user intention was to share)
+    articles = read_articles_from_csv()
+    article = next((a for a in articles if int(a['id']) == article_id), None)
+    if article:
+        article['shares'] = article.get('shares', 0) + 1
+        save_articles_to_csv(articles)
+        
+    return {"status": "success", "message": "Email sent" if sent else "Email mocked (check logs)"}
 
 @app.post("/api/comments")
 def add_comment(comment: Comment):
     comments = load_json(COMMENTS_FILE)
-    # Generate ID
     new_id = max([c.get('id', 0) for c in comments], default=0) + 1
     comment.id = new_id
-    if not comment.date:
-        comment.date = datetime.datetime.now().strftime("%Y-%m-%d")
-        
+    if not comment.date: comment.date = datetime.datetime.now().strftime("%Y-%m-%d")
     comments.append(comment.model_dump())
     save_json(COMMENTS_FILE, comments)
     return {"status": "success", "comment": comment}
@@ -589,18 +626,11 @@ def add_comment(comment: Comment):
 @app.delete("/api/comments/{comment_id}")
 def delete_comment(comment_id: int, requester_email: str):
     mods = get_mod_list()
-    if requester_email not in mods:
-        raise HTTPException(status_code=403, detail="Only admins can delete comments")
-
+    if requester_email not in mods: raise HTTPException(status_code=403)
     comments = load_json(COMMENTS_FILE)
-    initial_len = len(comments)
     comments = [c for c in comments if c['id'] != comment_id]
-    
-    if len(comments) == initial_len:
-        raise HTTPException(status_code=404, detail="Comment not found")
-        
     save_json(COMMENTS_FILE, comments)
-    return {"status": "success", "message": "Comment deleted"}
+    return {"status": "success"}
 
 if __name__ == "__main__":
     import uvicorn

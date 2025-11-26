@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ThumbsUp, ThumbsDown, MessageCircle, Share2, ArrowRight, Send, X, Copy, Mail, Linkedin, Twitter, Trash2 } from 'lucide-react';
+import { ThumbsUp, ThumbsDown, MessageCircle, Share2, ArrowRight, Send, X, Copy, Mail, Trash2 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 
 const ArticleView = () => {
@@ -19,6 +19,10 @@ const ArticleView = () => {
     const [loading, setLoading] = useState(true);
     const [mods, setMods] = useState([]);
     const [isMod, setIsMod] = useState(false);
+
+    // Email Modal State
+    const [showEmailModal, setShowEmailModal] = useState(false);
+    const [emailTo, setEmailTo] = useState('');
 
     const [replyingTo, setReplyingTo] = useState(null); // comment ID
     const [replyText, setReplyText] = useState('');
@@ -45,7 +49,6 @@ const ArticleView = () => {
                 setShares(data.shares || 0);
                 setComments(data.comments || []);
 
-                // Check user vote
                 if (currentUser) {
                     if (data.liked_by && data.liked_by.includes(currentUser.uid)) setUserVote('up');
                     else if (data.disliked_by && data.disliked_by.includes(currentUser.uid)) setUserVote('down');
@@ -61,18 +64,15 @@ const ArticleView = () => {
     const handleVote = (type) => {
         if (!currentUser) return;
 
-        // Optimistic UI update
         const prevVote = userVote;
         const prevLikes = likes;
         const prevDislikes = dislikes;
 
         if (userVote === type) {
-            // Remove vote
             setUserVote(null);
             if (type === 'up') setLikes(prev => prev - 1);
             else setDislikes(prev => prev - 1);
         } else {
-            // Change vote or new vote
             if (userVote === 'up') setLikes(prev => prev - 1);
             if (userVote === 'down') setDislikes(prev => prev - 1);
 
@@ -87,7 +87,6 @@ const ArticleView = () => {
             body: JSON.stringify({ user_id: currentUser.uid, vote_type: type })
         }).catch(err => {
             console.error("Error voting:", err);
-            // Revert on error
             setUserVote(prevVote);
             setLikes(prevLikes);
             setDislikes(prevDislikes);
@@ -95,18 +94,53 @@ const ArticleView = () => {
     };
 
     const handleShareOption = (option) => {
-        setShares(prev => prev + 1);
         setShowShareMenu(false);
 
         if (option === 'copy') {
             navigator.clipboard.writeText(window.location.href);
             alert("Link copied to clipboard!");
-        } else if (option === 'email') {
-            window.location.href = `mailto:?subject=${encodeURIComponent(article.title)}&body=${encodeURIComponent(window.location.href)}`;
-        }
-
-        fetch(`http://localhost:8001/api/articles/${id}/share`, { method: 'POST' })
+            
+            // Increment share count for copy
+            fetch(`http://localhost:8001/api/articles/${id}/share`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ platform: 'clipboard' })
+            })
+            .then(res => res.json())
+            .then(data => setShares(data.shares))
             .catch(err => console.error("Error sharing:", err));
+
+        } else if (option === 'email') {
+            setShowEmailModal(true);
+        }
+    };
+
+    const sendEmail = (e) => {
+        e.preventDefault();
+        if (!emailTo) return;
+
+        // Send to backend to simulate email and increment count
+        fetch(`http://localhost:8001/api/articles/${id}/share/email`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                email: emailTo,
+                sender_name: currentUser ? currentUser.displayName || currentUser.email : "A User",
+                article_link: window.location.href,
+                article_title: article.title
+            })
+        })
+        .then(res => res.json())
+        .then(() => {
+            alert(`Email sent to ${emailTo}!`);
+            setShowEmailModal(false);
+            setEmailTo('');
+            setShares(prev => prev + 1); // Optimistic update
+        })
+        .catch(err => {
+            console.error("Error sending email:", err);
+            alert("Failed to send email.");
+        });
     };
 
     const handleCommentSubmit = (e, parentId = null) => {
@@ -125,7 +159,6 @@ const ArticleView = () => {
         };
 
         if (parentId) {
-            // Add reply to parent comment
             const updateComments = (commentsList) => {
                 return commentsList.map(c => {
                     if (c.id === parentId) {
@@ -140,12 +173,10 @@ const ArticleView = () => {
             setReplyingTo(null);
             setReplyText('');
         } else {
-            // Add new top-level comment
             setComments([commentData, ...comments]);
             setNewComment('');
         }
 
-        // Send comment to backend
         fetch('http://localhost:8001/api/comments', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -155,7 +186,6 @@ const ArticleView = () => {
 
     const handleDeleteComment = (commentId) => {
         if (isMod) {
-            // Recursive delete from state
             const deleteFromList = (list) => {
                 return list.filter(c => c.id !== commentId).map(c => ({
                     ...c,
@@ -254,7 +284,66 @@ const ArticleView = () => {
     }
 
     return (
-        <div className="min-h-screen bg-deep-black text-white pt-24 px-4 pb-20">
+        <div className="min-h-screen bg-deep-black text-white pt-24 px-4 pb-20 relative">
+            
+            {/* Email Share Modal */}
+            <AnimatePresence>
+                {showEmailModal && (
+                    <motion.div 
+                        initial={{ opacity: 0 }} 
+                        animate={{ opacity: 1 }} 
+                        exit={{ opacity: 0 }} 
+                        className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm px-4"
+                    >
+                        <div className="bg-[#1a1a1a] p-6 rounded-xl border border-white/10 w-full max-w-md shadow-2xl">
+                            <div className="flex justify-between items-center mb-4">
+                                <h3 className="text-xl font-bold text-white flex items-center gap-2">
+                                    <Mail className="text-gold" size={20} /> Share via Email
+                                </h3>
+                                <button onClick={() => setShowEmailModal(false)} className="text-gray-400 hover:text-white">
+                                    <X size={20} />
+                                </button>
+                            </div>
+                            
+                            <form onSubmit={sendEmail}>
+                                <label className="block text-sm text-gray-400 mb-1">To:</label>
+                                <input 
+                                    type="email" 
+                                    placeholder="recipient@example.com" 
+                                    className="w-full bg-black/50 border border-white/10 rounded-lg p-3 mb-6 text-white focus:border-gold outline-none"
+                                    value={emailTo}
+                                    onChange={e => setEmailTo(e.target.value)}
+                                    required
+                                    autoFocus
+                                />
+                                
+                                <div className="bg-white/5 p-4 rounded-lg border border-white/5 mb-6">
+                                    <p className="text-xs text-gray-500 mb-1">Preview:</p>
+                                    <p className="text-sm text-white font-bold mb-1">{currentUser ? (currentUser.displayName || currentUser.email) : "A User"} shared this article with you...</p>
+                                    <p className="text-xs text-blue-400 truncate">{article.title}</p>
+                                </div>
+
+                                <div className="flex justify-end gap-3">
+                                    <button 
+                                        type="button" 
+                                        onClick={() => setShowEmailModal(false)} 
+                                        className="px-4 py-2 text-gray-400 hover:text-white font-bold"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button 
+                                        type="submit" 
+                                        className="bg-gold text-black font-bold px-6 py-2 rounded-lg hover:bg-yellow-500 transition-colors flex items-center gap-2"
+                                    >
+                                        Send Email <Send size={14} />
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
             <article className="max-w-4xl mx-auto">
                 {/* Header */}
                 <div className="mb-8">
@@ -262,6 +351,13 @@ const ArticleView = () => {
                         <ArrowRight className="rotate-180 mr-2" size={16} /> Back to Stream
                     </Link>
                     <h1 className="text-4xl md:text-6xl font-bold mb-6 leading-tight">{article.title}</h1>
+                    {article.hashtags && article.hashtags.length > 0 && (
+                        <div className="flex gap-2 mb-4 flex-wrap">
+                            {article.hashtags.map((tag, i) => (
+                                <span key={i} className="text-xs font-bold text-purple-400 bg-purple-500/10 px-2 py-1 rounded">#{tag}</span>
+                            ))}
+                        </div>
+                    )}
                     <p className="text-xl md:text-2xl text-gray-300 font-light leading-relaxed border-l-4 border-gold pl-6 py-2">
                         {article.subheading}
                     </p>
@@ -347,6 +443,12 @@ const ArticleView = () => {
                 </div>
 
                 {/* Article Content */}
+                {article.cover_image && (
+                    <div className="mb-8 rounded-xl overflow-hidden border border-white/10 shadow-2xl">
+                        <img src={article.cover_image} alt="Cover" className="w-full h-auto object-cover max-h-[500px]" />
+                    </div>
+                )}
+                
                 <div
                     className="prose prose-invert prose-lg max-w-none mb-16 text-gray-300 leading-loose"
                     dangerouslySetInnerHTML={{ __html: article.content }}

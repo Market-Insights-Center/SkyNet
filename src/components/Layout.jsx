@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../contexts/AuthContext';
-import { User, Search, Home, Briefcase, MessageSquare, Users, Mail, Command, Shield } from 'lucide-react';
+import { User, Search, Home, Briefcase, MessageSquare, Users, Mail, Command, Shield, FileText } from 'lucide-react';
 
 const Layout = ({ children }) => {
     const location = useLocation();
@@ -31,7 +31,7 @@ const Layout = ({ children }) => {
         { name: 'Home', path: '/', icon: Home },
         { name: 'Products', path: '/products', icon: Briefcase },
         { name: 'Forum', path: '/forum', icon: Users },
-        { name: 'Knowledge Stream', path: '/knowledge-stream', icon: FileText },
+        // Knowledge Stream removed as requested
         { name: 'Direct M.I.C.', path: '/messages', icon: Mail },
         { name: 'Profile', path: '/profile', icon: User },
         ...(isMod ? [{ name: 'Admin', path: '/admin', icon: Shield }] : [])
