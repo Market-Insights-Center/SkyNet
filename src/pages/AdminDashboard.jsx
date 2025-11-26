@@ -1,337 +1,417 @@
 import React, { useState, useEffect } from 'react';
-import { Shield, Users, AlertTriangle, CheckCircle, XCircle, Trash2, FileText } from 'lucide-react';
+import { motion } from 'framer-motion';
+import { Shield, Users, Search, Edit2, Check, X, FileText, Plus, Trash2 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
-import { useNavigate } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 
 const AdminDashboard = () => {
-    const { currentUser, isMod } = useAuth();
-    const navigate = useNavigate();
-    const [mods, setMods] = useState([]);
-    const [articles, setArticles] = useState([]);
-    const [users, setUsers] = useState([]);
-    const [newModEmail, setNewModEmail] = useState('');
+    const { currentUser } = useAuth();
+    const [isMod, setIsMod] = useState(false);
     const [loading, setLoading] = useState(true);
-    const [message, setMessage] = useState(null);
-    const [activeTab, setActiveTab] = useState('mods'); // 'mods', 'articles', 'users'
+
+    // Data States
+    const [users, setUsers] = useState([]);
+    const [articles, setArticles] = useState([]);
+    const [mods, setMods] = useState([]);
+
+    // UI States
+    const [activeTab, setActiveTab] = useState('users'); // 'users', 'articles', 'mods'
+    const [searchTerm, setSearchTerm] = useState('');
+    const [editingUser, setEditingUser] = useState(null);
+    const [showNewArticleForm, setShowNewArticleForm] = useState(false);
+    const [newArticle, setNewArticle] = useState({ title: '', subheading: '', content: '', author: 'M.I.C. Team', category: 'Insight', cover_image: '' });
+    const [newModEmail, setNewModEmail] = useState('');
+
+    const location = useLocation();
 
     useEffect(() => {
-        if (!isMod) {
-            navigate('/');
-            return;
+        const params = new URLSearchParams(location.search);
+        const tab = params.get('tab');
+        const action = params.get('action');
+
+        if (tab) {
+            setActiveTab(tab);
         }
-        fetchData();
-    }, [isMod, navigate]);
+        if (tab === 'articles' && action === 'new') {
+            setShowNewArticleForm(true);
+        }
 
-    const fetchData = async () => {
-        setLoading(true);
-        try {
-            // Fetch Mods
-            const modsRes = await fetch('http://localhost:8000/api/mods');
-            const modsData = await modsRes.json();
-            setMods(modsData.mods || []);
-
-            // Fetch Articles
-            const articlesRes = await fetch('http://localhost:8000/api/articles');
-            const articlesData = await articlesRes.json();
-            setArticles(articlesData || []);
-
-            // Fetch Users
-            const usersRes = await fetch('http://localhost:8000/api/users');
-            const usersData = await usersRes.json();
-            setUsers(usersData || []);
-
-        } catch (error) {
-            console.error("Error fetching admin data:", error);
-        } finally {
+        if (currentUser) {
+            // Verify Mod Status
+            fetch('http://localhost:8000/api/mods')
+                .then(res => res.json())
+                .then(data => {
+                    if (data.mods.includes(currentUser.email)) {
+                        setIsMod(true);
+                        fetchData();
+                    } else {
+                        setLoading(false);
+                    }
+                })
+                .catch(err => {
+                    console.error("Error checking mods:", err);
+                    setLoading(false);
+                });
+        } else {
             setLoading(false);
         }
+    }, [currentUser, location.search]);
+
+    const fetchData = () => {
+        // Fetch Users
+        fetch('http://localhost:8000/api/users')
+            .then(res => res.json())
+            .then(data => setUsers(data))
+            .catch(err => console.error("Error fetching users:", err));
+
+        // Fetch Articles
+        fetch('http://localhost:8000/api/articles?limit=100')
+            .then(res => res.json())
+            .then(data => setArticles(data))
+            .catch(err => console.error("Error fetching articles:", err));
+
+        // Fetch Mods
+        fetch('http://localhost:8000/api/mods')
+            .then(res => res.json())
+            .then(data => setMods(data.mods))
+            .catch(err => console.error("Error fetching mods:", err))
+            .finally(() => setLoading(false));
     };
 
-    const handleAddMod = async (e) => {
+    const handleSubscriptionChange = (email, newTier) => {
+        const user = users.find(u => u.email === email);
+        if (!user) return;
+
+        const updatedUser = { ...user, subscription_plan: newTier };
+
+        // Optimistic update
+        setUsers(users.map(u => u.email === email ? updatedUser : u));
+        setEditingUser(null);
+
+        fetch('http://localhost:8000/api/users', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(updatedUser)
+        }).catch(err => console.error("Error updating user:", err));
+    };
+
+    const handleCreateArticle = (e) => {
         e.preventDefault();
-        try {
-            const response = await fetch('http://localhost:8000/api/mods', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    email: newModEmail,
-                    action: 'add',
-                    requester_email: currentUser.email
-                })
-            });
-            const data = await response.json();
-            setMessage({ type: data.status === 'success' ? 'success' : 'error', text: data.message });
-            if (data.status === 'success') {
-                setNewModEmail('');
-                fetchData();
-            }
-        } catch (error) {
-            setMessage({ type: 'error', text: 'Failed to add moderator' });
-        }
+        const articleData = {
+            ...newArticle,
+            date: new Date().toISOString().split('T')[0],
+            hashtags: []
+        };
+
+        fetch('http://localhost:8000/api/articles', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(articleData)
+        })
+            .then(res => res.json())
+            .then(savedArticle => {
+                setArticles([savedArticle, ...articles]);
+                setShowNewArticleForm(false);
+                setNewArticle({ title: '', subheading: '', content: '', author: 'M.I.C. Team', category: 'Insight', cover_image: '' });
+            })
+            .catch(err => console.error("Error creating article:", err));
     };
 
-    const handleRemoveMod = async (email) => {
-        if (!window.confirm(`Remove ${email} from moderators?`)) return;
-        try {
-            const response = await fetch('http://localhost:8000/api/mods', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    email: email,
-                    action: 'remove',
-                    requester_email: currentUser.email
-                })
-            });
-            const data = await response.json();
-            setMessage({ type: data.status === 'success' ? 'success' : 'error', text: data.message });
-            if (data.status === 'success') fetchData();
-        } catch (error) {
-            setMessage({ type: 'error', text: 'Failed to remove moderator' });
-        }
-    };
-
-    const handleDeleteArticle = async (articleId) => {
-        if (!window.confirm('Are you sure you want to delete this article? This cannot be undone.')) return;
-        try {
-            const response = await fetch(`http://localhost:8000/api/articles/${articleId}?requester_email=${currentUser.email}`, {
+    const handleDeleteArticle = (id) => {
+        if (window.confirm("Are you sure you want to delete this article?")) {
+            fetch(`http://localhost:8000/api/articles/${id}?requester_email=${currentUser.email}`, {
                 method: 'DELETE'
-            });
-            const data = await response.json();
-            if (data.status === 'success') {
-                setMessage({ type: 'success', text: 'Article deleted successfully' });
-                fetchData();
-            } else {
-                setMessage({ type: 'error', text: data.detail || 'Failed to delete article' });
-            }
-        } catch (error) {
-            setMessage({ type: 'error', text: 'Error deleting article' });
+            })
+                .then(() => {
+                    setArticles(articles.filter(a => a.id !== id));
+                })
+                .catch(err => console.error("Error deleting article:", err));
         }
     };
 
-    const handleUpdateUser = async (email, field, value) => {
-        try {
-            // Find current user data to merge
-            const user = users.find(u => u.email === email) || { email, subscription_plan: 'Free', subscription_cost: 0 };
-            const updatedUser = { ...user, [field]: value };
+    const handleAddMod = (e) => {
+        e.preventDefault();
+        fetch('http://localhost:8000/api/mods', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email: newModEmail, action: 'add', requester_email: currentUser.email })
+        })
+            .then(res => res.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    setMods([...mods, newModEmail]);
+                    setNewModEmail('');
+                } else {
+                    alert(data.message);
+                }
+            })
+            .catch(err => console.error("Error adding mod:", err));
+    };
 
-            const response = await fetch('http://localhost:8000/api/users', {
+    const handleRemoveMod = (email) => {
+        if (window.confirm(`Remove ${email} from moderators?`)) {
+            fetch('http://localhost:8000/api/mods', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(updatedUser)
-            });
-
-            if (response.ok) {
-                setMessage({ type: 'success', text: 'User updated successfully' });
-                fetchData();
-            } else {
-                setMessage({ type: 'error', text: 'Failed to update user' });
-            }
-        } catch (error) {
-            setMessage({ type: 'error', text: 'Error updating user' });
+                body: JSON.stringify({ email: email, action: 'remove', requester_email: currentUser.email })
+            })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        setMods(mods.filter(m => m !== email));
+                    } else {
+                        alert(data.message);
+                    }
+                })
+                .catch(err => console.error("Error removing mod:", err));
         }
     };
 
-    if (loading) return <div className="min-h-screen pt-24 flex justify-center"><div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-gold"></div></div>;
+    if (loading) return <div className="min-h-screen bg-deep-black flex items-center justify-center text-white">Loading...</div>;
+
+    if (!isMod) {
+        return (
+            <div className="min-h-screen bg-deep-black flex flex-col items-center justify-center text-white p-4">
+                <Shield size={64} className="text-red-500 mb-6" />
+                <h1 className="text-4xl font-bold mb-4">Access Denied</h1>
+                <p className="text-gray-400 mb-8 text-center max-w-md">
+                    You do not have permission to view this area. This page is restricted to M.I.C. Moderators only.
+                </p>
+                <Link to="/" className="bg-gold text-black px-8 py-3 rounded-lg font-bold hover:bg-yellow-500 transition-colors">
+                    Return Home
+                </Link>
+            </div>
+        );
+    }
+
+    const filteredUsers = users.filter(user =>
+        user.email.toLowerCase().includes(searchTerm.toLowerCase())
+    );
 
     return (
-        <div className="min-h-screen pt-24 pb-12 px-4 sm:px-6 lg:px-8">
-            <div className="max-w-6xl mx-auto">
-                <div className="flex items-center gap-4 mb-8">
-                    <Shield className="text-gold" size={40} />
+        <div className="min-h-screen bg-deep-black text-white pt-24 px-4 pb-20">
+            <div className="max-w-7xl mx-auto">
+                <div className="flex items-center justify-between mb-8">
                     <div>
-                        <h1 className="text-3xl font-bold text-white">Admin Dashboard</h1>
-                        <p className="text-gray-400">Manage community and content</p>
+                        <h1 className="text-4xl font-bold mb-2 flex items-center">
+                            <Shield className="text-gold mr-3" /> Admin Dashboard
+                        </h1>
+                        <p className="text-gray-400">Manage users, articles, and permissions.</p>
+                    </div>
+                    <div className="bg-white/5 border border-white/10 rounded-lg px-4 py-2 flex items-center">
+                        <span className="w-2 h-2 rounded-full bg-green-500 mr-2 animate-pulse" />
+                        <span className="font-bold text-sm">System Operational</span>
                     </div>
                 </div>
 
-                {message && (
-                    <div className={`mb-6 p-4 rounded-xl flex items-center gap-3 ${message.type === 'success' ? 'bg-green-500/10 text-green-400 border border-green-500/20' : 'bg-red-500/10 text-red-400 border border-red-500/20'}`}>
-                        {message.type === 'success' ? <CheckCircle size={20} /> : <AlertTriangle size={20} />}
-                        {message.text}
-                    </div>
-                )}
-
                 {/* Tabs */}
-                <div className="flex gap-4 mb-8 border-b border-white/10 pb-1">
-                    <button
-                        onClick={() => setActiveTab('mods')}
-                        className={`px-4 py-2 text-sm font-medium transition-colors relative ${activeTab === 'mods' ? 'text-gold' : 'text-gray-400 hover:text-white'}`}
-                    >
-                        Moderators
-                        {activeTab === 'mods' && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gold" />}
-                    </button>
+                <div className="flex gap-4 mb-8 border-b border-white/10 pb-4">
                     <button
                         onClick={() => setActiveTab('users')}
-                        className={`px-4 py-2 text-sm font-medium transition-colors relative ${activeTab === 'users' ? 'text-gold' : 'text-gray-400 hover:text-white'}`}
+                        className={`px-4 py-2 rounded-lg font-bold transition-colors ${activeTab === 'users' ? 'bg-gold text-black' : 'bg-white/5 text-gray-400 hover:text-white'}`}
                     >
-                        Users
-                        {activeTab === 'users' && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gold" />}
+                        <Users size={18} className="inline mr-2" /> Users
                     </button>
                     <button
                         onClick={() => setActiveTab('articles')}
-                        className={`px-4 py-2 text-sm font-medium transition-colors relative ${activeTab === 'articles' ? 'text-gold' : 'text-gray-400 hover:text-white'}`}
+                        className={`px-4 py-2 rounded-lg font-bold transition-colors ${activeTab === 'articles' ? 'bg-gold text-black' : 'bg-white/5 text-gray-400 hover:text-white'}`}
                     >
-                        Articles
-                        {activeTab === 'articles' && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gold" />}
+                        <FileText size={18} className="inline mr-2" /> Articles
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('mods')}
+                        className={`px-4 py-2 rounded-lg font-bold transition-colors ${activeTab === 'mods' ? 'bg-gold text-black' : 'bg-white/5 text-gray-400 hover:text-white'}`}
+                    >
+                        <Shield size={18} className="inline mr-2" /> Moderators
                     </button>
                 </div>
 
-                {activeTab === 'mods' && (
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                        {/* Add Mod */}
-                        <div className="bg-[#111] rounded-2xl border border-white/10 p-6">
-                            <h2 className="text-xl font-bold text-white mb-6 flex items-center gap-2">
-                                <Users size={20} className="text-gold" /> Add Moderator
-                            </h2>
-                            <form onSubmit={handleAddMod} className="space-y-4">
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-400 mb-1">User Email</label>
+                {/* Content Area */}
+                <div className="bg-white/5 border border-white/10 rounded-xl overflow-hidden min-h-[500px]">
+
+                    {/* USERS TAB */}
+                    {activeTab === 'users' && (
+                        <div>
+                            <div className="p-6 border-b border-white/10 flex flex-col md:flex-row justify-between items-center gap-4">
+                                <h2 className="text-xl font-bold">User Management</h2>
+                                <div className="relative w-full md:w-64">
+                                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500" size={16} />
                                     <input
-                                        type="email"
-                                        required
-                                        value={newModEmail}
-                                        onChange={(e) => setNewModEmail(e.target.value)}
-                                        className="w-full bg-black/50 border border-white/10 rounded-lg px-4 py-2 text-white focus:border-gold focus:ring-1 focus:ring-gold outline-none"
-                                        placeholder="user@example.com"
+                                        type="text"
+                                        placeholder="Search users..."
+                                        value={searchTerm}
+                                        onChange={(e) => setSearchTerm(e.target.value)}
+                                        className="w-full bg-black/30 border border-white/10 rounded-lg py-2 pl-10 pr-4 text-sm text-white focus:border-gold focus:outline-none"
                                     />
                                 </div>
+                            </div>
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-left">
+                                    <thead className="bg-white/5 text-gray-400 text-xs uppercase tracking-wider">
+                                        <tr>
+                                            <th className="px-6 py-4">Email</th>
+                                            <th className="px-6 py-4">Plan</th>
+                                            <th className="px-6 py-4">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-white/5">
+                                        {filteredUsers.map((user, idx) => (
+                                            <tr key={idx} className="hover:bg-white/5 transition-colors">
+                                                <td className="px-6 py-4 font-bold">{user.email}</td>
+                                                <td className="px-6 py-4">
+                                                    {editingUser === user.email ? (
+                                                        <select
+                                                            value={user.subscription_plan}
+                                                            onChange={(e) => handleSubscriptionChange(user.email, e.target.value)}
+                                                            className="bg-black border border-gold text-gold rounded px-2 py-1 text-sm focus:outline-none"
+                                                        >
+                                                            <option value="Free">Free</option>
+                                                            <option value="Explorer">Explorer</option>
+                                                            <option value="Navigator">Navigator</option>
+                                                            <option value="Visionary">Visionary</option>
+                                                        </select>
+                                                    ) : (
+                                                        <span className={`font-bold ${user.subscription_plan === 'Visionary' ? 'text-gold' : 'text-gray-400'}`}>
+                                                            {user.subscription_plan}
+                                                        </span>
+                                                    )}
+                                                </td>
+                                                <td className="px-6 py-4">
+                                                    {editingUser === user.email ? (
+                                                        <button onClick={() => setEditingUser(null)} className="text-gray-400 hover:text-white"><X size={18} /></button>
+                                                    ) : (
+                                                        <button onClick={() => setEditingUser(user.email)} className="text-gold hover:text-yellow-400 flex items-center text-sm font-bold"><Edit2 size={16} className="mr-1" /> Edit</button>
+                                                    )}
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* ARTICLES TAB */}
+                    {activeTab === 'articles' && (
+                        <div className="p-6">
+                            <div className="flex justify-between items-center mb-6">
+                                <h2 className="text-xl font-bold">Article Management</h2>
                                 <button
-                                    type="submit"
-                                    className="w-full bg-gold text-black font-bold py-2 rounded-lg hover:bg-yellow-400 transition-colors"
+                                    onClick={() => setShowNewArticleForm(!showNewArticleForm)}
+                                    className="bg-gold text-black px-4 py-2 rounded-lg font-bold hover:bg-yellow-500 transition-colors flex items-center"
                                 >
-                                    Grant Access
+                                    {showNewArticleForm ? <X size={18} className="mr-2" /> : <Plus size={18} className="mr-2" />}
+                                    {showNewArticleForm ? "Cancel" : "New Article"}
+                                </button>
+                            </div>
+
+                            {showNewArticleForm && (
+                                <form onSubmit={handleCreateArticle} className="mb-8 bg-white/5 p-6 rounded-xl border border-white/10 space-y-4">
+                                    <input
+                                        type="text"
+                                        placeholder="Title"
+                                        value={newArticle.title}
+                                        onChange={(e) => setNewArticle({ ...newArticle, title: e.target.value })}
+                                        className="w-full bg-black/30 border border-white/10 rounded-lg p-3 text-white focus:border-gold focus:outline-none"
+                                        required
+                                    />
+                                    <input
+                                        type="text"
+                                        placeholder="Subheading"
+                                        value={newArticle.subheading}
+                                        onChange={(e) => setNewArticle({ ...newArticle, subheading: e.target.value })}
+                                        className="w-full bg-black/30 border border-white/10 rounded-lg p-3 text-white focus:border-gold focus:outline-none"
+                                        required
+                                    />
+                                    <textarea
+                                        placeholder="Content (HTML supported)"
+                                        value={newArticle.content}
+                                        onChange={(e) => setNewArticle({ ...newArticle, content: e.target.value })}
+                                        className="w-full bg-black/30 border border-white/10 rounded-lg p-3 text-white focus:border-gold focus:outline-none min-h-[200px]"
+                                        required
+                                    />
+                                    <div className="flex gap-4">
+                                        <input
+                                            type="text"
+                                            placeholder="Category"
+                                            value={newArticle.category}
+                                            onChange={(e) => setNewArticle({ ...newArticle, category: e.target.value })}
+                                            className="flex-1 bg-black/30 border border-white/10 rounded-lg p-3 text-white focus:border-gold focus:outline-none"
+                                        />
+                                        <input
+                                            type="text"
+                                            placeholder="Author"
+                                            value={newArticle.author}
+                                            onChange={(e) => setNewArticle({ ...newArticle, author: e.target.value })}
+                                            className="flex-1 bg-black/30 border border-white/10 rounded-lg p-3 text-white focus:border-gold focus:outline-none"
+                                        />
+                                    </div>
+                                    <button type="submit" className="w-full bg-gold text-black py-3 rounded-lg font-bold hover:bg-yellow-500 transition-colors">
+                                        Publish Article
+                                    </button>
+                                </form>
+                            )}
+
+                            <div className="space-y-4">
+                                {articles.map(article => (
+                                    <div key={article.id} className="bg-white/5 p-4 rounded-lg flex justify-between items-center border border-white/5 hover:border-gold/30 transition-colors">
+                                        <div>
+                                            <h3 className="font-bold text-lg">{article.title}</h3>
+                                            <p className="text-sm text-gray-400">{new Date(article.date).toLocaleDateString()} • {article.author}</p>
+                                        </div>
+                                        <button
+                                            onClick={() => handleDeleteArticle(article.id)}
+                                            className="text-red-400 hover:text-red-300 p-2 hover:bg-red-500/10 rounded-lg transition-colors"
+                                        >
+                                            <Trash2 size={20} />
+                                        </button>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* MODS TAB */}
+                    {activeTab === 'mods' && (
+                        <div className="p-6">
+                            <h2 className="text-xl font-bold mb-6">Moderator Management</h2>
+
+                            <form onSubmit={handleAddMod} className="flex gap-4 mb-8">
+                                <input
+                                    type="email"
+                                    placeholder="Enter email to add as mod"
+                                    value={newModEmail}
+                                    onChange={(e) => setNewModEmail(e.target.value)}
+                                    className="flex-1 bg-black/30 border border-white/10 rounded-lg p-3 text-white focus:border-gold focus:outline-none"
+                                    required
+                                />
+                                <button type="submit" className="bg-gold text-black px-6 rounded-lg font-bold hover:bg-yellow-500 transition-colors">
+                                    Add Mod
                                 </button>
                             </form>
-                        </div>
 
-                        {/* Mod List */}
-                        <div className="bg-[#111] rounded-2xl border border-white/10 p-6">
-                            <h2 className="text-xl font-bold text-white mb-6 flex items-center gap-2">
-                                <Shield size={20} className="text-gold" /> Active Moderators
-                            </h2>
-                            <div className="space-y-3">
-                                {mods.map((email) => (
-                                    <div key={email} className="flex items-center justify-between p-3 bg-white/5 rounded-lg border border-white/5">
-                                        <span className="text-gray-300">{email}</span>
-                                        {email !== "marketinsightscenter@gmail.com" && (
+                            <div className="space-y-2">
+                                {mods.map((mod, idx) => (
+                                    <div key={idx} className="bg-white/5 p-4 rounded-lg flex justify-between items-center">
+                                        <span className="font-bold text-gray-300">{mod}</span>
+                                        {mod !== 'marketinsightscenter@gmail.com' && (
                                             <button
-                                                onClick={() => handleRemoveMod(email)}
-                                                className="text-red-400 hover:text-red-300 p-1 hover:bg-red-500/10 rounded transition-colors"
-                                                title="Remove Access"
+                                                onClick={() => handleRemoveMod(mod)}
+                                                className="text-red-400 hover:text-red-300 text-sm font-bold"
                                             >
-                                                <XCircle size={18} />
+                                                Remove
                                             </button>
                                         )}
-                                        {email === "marketinsightscenter@gmail.com" && (
-                                            <span className="text-xs text-gold bg-gold/10 px-2 py-1 rounded border border-gold/20">Super Admin</span>
+                                        {mod === 'marketinsightscenter@gmail.com' && (
+                                            <span className="text-gold text-xs font-bold border border-gold/30 px-2 py-1 rounded">SUPER ADMIN</span>
                                         )}
                                     </div>
                                 ))}
                             </div>
                         </div>
-                    </div>
-                )}
+                    )}
 
-                {activeTab === 'articles' && (
-                    <div className="bg-[#111] rounded-2xl border border-white/10 p-6">
-                        <h2 className="text-xl font-bold text-white mb-6 flex items-center gap-2">
-                            <FileText size={20} className="text-gold" /> Manage Articles
-                        </h2>
-                        <div className="overflow-x-auto">
-                            <table className="w-full text-left border-collapse">
-                                <thead>
-                                    <tr className="border-b border-white/10 text-gray-400 text-sm">
-                                        <th className="py-3 px-4">Title</th>
-                                        <th className="py-3 px-4">Author</th>
-                                        <th className="py-3 px-4">Date</th>
-                                        <th className="py-3 px-4">Category</th>
-                                        <th className="py-3 px-4 text-right">Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {articles.map((article) => (
-                                        <tr key={article.id} className="border-b border-white/5 hover:bg-white/5 transition-colors">
-                                            <td className="py-3 px-4 text-white font-medium">{article.title}</td>
-                                            <td className="py-3 px-4 text-gray-300">{article.author}</td>
-                                            <td className="py-3 px-4 text-gray-400 text-sm">{new Date(article.date).toLocaleDateString()}</td>
-                                            <td className="py-3 px-4 text-gray-300">
-                                                <span className="bg-white/10 px-2 py-1 rounded text-xs">{article.category}</span>
-                                            </td>
-                                            <td className="py-3 px-4 text-right">
-                                                <button
-                                                    onClick={() => handleDeleteArticle(article.id)}
-                                                    className="text-red-400 hover:text-red-300 p-2 hover:bg-red-500/10 rounded transition-colors"
-                                                    title="Delete Article"
-                                                >
-                                                    <Trash2 size={18} />
-                                                </button>
-                                            </td>
-                                        </tr>
-                                    ))}
-                                    {articles.length === 0 && (
-                                        <tr>
-                                            <td colSpan="5" className="py-8 text-center text-gray-500">No articles found.</td>
-                                        </tr>
-                                    )}
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                )}
-
-                {activeTab === 'users' && (
-                    <div className="bg-[#111] rounded-2xl border border-white/10 p-6">
-                        <h2 className="text-xl font-bold text-white mb-6 flex items-center gap-2">
-                            <Users size={20} className="text-gold" /> Manage Users
-                        </h2>
-                        <div className="overflow-x-auto">
-                            <table className="w-full text-left border-collapse">
-                                <thead>
-                                    <tr className="border-b border-white/10 text-gray-400 text-sm">
-                                        <th className="py-3 px-4">Email</th>
-                                        <th className="py-3 px-4">Subscription Plan</th>
-                                        <th className="py-3 px-4">Cost ($)</th>
-                                        <th className="py-3 px-4 text-right">Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {users.map((user, index) => (
-                                        <tr key={user.email || index} className="border-b border-white/5 hover:bg-white/5 transition-colors">
-                                            <td className="py-3 px-4 text-white font-medium">{user.email}</td>
-                                            <td className="py-3 px-4">
-                                                <select
-                                                    value={user.subscription_plan || 'Free'}
-                                                    onChange={(e) => handleUpdateUser(user.email, 'subscription_plan', e.target.value)}
-                                                    className="bg-black/50 border border-white/10 rounded px-2 py-1 text-sm text-white focus:border-gold outline-none"
-                                                >
-                                                    <option value="Free">Free</option>
-                                                    <option value="Pro">Pro</option>
-                                                    <option value="Enterprise">Enterprise</option>
-                                                </select>
-                                            </td>
-                                            <td className="py-3 px-4">
-                                                <input
-                                                    type="number"
-                                                    value={user.subscription_cost || 0}
-                                                    onChange={(e) => handleUpdateUser(user.email, 'subscription_cost', parseFloat(e.target.value))}
-                                                    className="bg-black/50 border border-white/10 rounded px-2 py-1 text-sm text-white focus:border-gold outline-none w-24"
-                                                />
-                                            </td>
-                                            <td className="py-3 px-4 text-right text-gray-500 text-xs">
-                                                Auto-saves
-                                            </td>
-                                        </tr>
-                                    ))}
-                                    {users.length === 0 && (
-                                        <tr>
-                                            <td colSpan="4" className="py-8 text-center text-gray-500">No users found.</td>
-                                        </tr>
-                                    )}
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                )}
+                </div>
             </div>
         </div>
     );

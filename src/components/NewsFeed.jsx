@@ -3,23 +3,34 @@ import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { ArrowRight, Clock, ThumbsUp } from 'lucide-react';
 
-const NewsFeed = () => {
-    const [latestArticles, setLatestArticles] = useState([]);
+const NewsFeed = ({ limit = 3 }) => {
+    const [articles, setArticles] = useState([]);
+    const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        const fetchArticles = async () => {
-            try {
-                const response = await fetch('http://localhost:8000/api/articles');
-                if (response.ok) {
-                    const data = await response.json();
-                    setLatestArticles(data.slice(0, 3));
-                }
-            } catch (error) {
-                console.error("Error fetching articles:", error);
-            }
-        };
-        fetchArticles();
-    }, []);
+        fetch(`http://localhost:8000/api/articles?limit=${limit}`)
+            .then(res => res.json())
+            .then(data => {
+                setArticles(data);
+                setLoading(false);
+            })
+            .catch(err => {
+                console.error("Error fetching articles:", err);
+                setLoading(false);
+            });
+    }, [limit]);
+
+    if (loading) {
+        return (
+            <section className="py-16 px-4 bg-deep-black border-t border-white/5">
+                <div className="max-w-7xl mx-auto text-center">
+                    <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-gold mx-auto"></div>
+                </div>
+            </section>
+        );
+    }
+
+    if (articles.length === 0) return null;
 
     return (
         <section className="py-16 px-4 bg-deep-black border-t border-white/5">
@@ -40,7 +51,7 @@ const NewsFeed = () => {
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                    {latestArticles.map((article, index) => (
+                    {articles.map((article, index) => (
                         <motion.div
                             key={article.id}
                             initial={{ opacity: 0, y: 20 }}
@@ -54,11 +65,11 @@ const NewsFeed = () => {
                             <div className="p-6 flex flex-col h-full">
                                 <div className="flex justify-between items-start mb-4">
                                     <span className="text-xs font-bold text-gold uppercase tracking-wider border border-gold/20 px-2 py-1 rounded">
-                                        Insight
+                                        {article.category || "Insight"}
                                     </span>
                                     <div className="flex items-center text-gray-500 text-xs">
                                         <Clock size={12} className="mr-1" />
-                                        {article.date}
+                                        {new Date(article.date).toLocaleDateString()}
                                     </div>
                                 </div>
 

@@ -1,295 +1,40 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Link } from 'react-router-dom';
-import { Check, ChevronDown, ChevronUp, Brain, RefreshCw, Shield, Twitter, Linkedin, Disc } from 'lucide-react';
+import { ArrowRight, Play, Check, ChevronDown, ChevronUp, TrendingUp, Shield, Zap, Globe, BarChart2, Lock, Users, FileText } from 'lucide-react';
 import MarketDashboard from '../components/MarketDashboard';
 import Watchlist from '../components/Watchlist';
-import NewsFeed from '../components/NewsFeed';
 
-const LandingPage = () => {
-    return (
-        <div className="min-h-screen bg-deep-black text-white overflow-x-hidden font-sans">
-            {/* Hero Section with Video Background */}
-            <section className="relative h-screen flex items-center justify-center overflow-hidden">
-                <div className="absolute inset-0 z-0">
-                    <div className="absolute inset-0 bg-black/60 z-10" />
-                    <video
-                        autoPlay
-                        loop
-                        muted
-                        playsInline
-                        className="w-full h-full object-cover"
-                        poster="blackimg.png"
-                    >
-                        <source src="/landingpagestocks.mp4" type="video/mp4" />
-                        Your browser does not support the video tag.
-                    </video>
-                </div>
+class ErrorBoundary extends React.Component {
+    constructor(props) {
+        super(props);
+        this.state = { hasError: false };
+    }
 
-                <div className="relative z-20 text-center px-4 max-w-5xl mx-auto">
-                    <motion.h1
-                        initial={{ opacity: 0, y: 30 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ duration: 0.8 }}
-                        className="text-6xl md:text-8xl font-bold mb-6 tracking-tight drop-shadow-2xl"
-                    >
-                        M.I.C. <span className="text-gold">SINGULARITY</span>
-                    </motion.h1>
+    static getDerivedStateFromError(error) {
+        return { hasError: true };
+    }
 
-                    <motion.p
-                        initial={{ opacity: 0, y: 30 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ duration: 0.8, delay: 0.2 }}
-                        className="text-2xl md:text-3xl text-gray-200 font-light mb-12 tracking-wide drop-shadow-lg"
-                    >
-                        The Next Era of Investing, For All
-                    </motion.p>
+    componentDidCatch(error, errorInfo) {
+        console.error("ErrorBoundary caught an error", error, errorInfo);
+    }
 
-                    <motion.div
-                        initial={{ opacity: 0, y: 30 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ duration: 0.8, delay: 0.4 }}
-                    >
-                        <Link
-                            to="/portfolio-lab"
-                            className="bg-gold text-black px-10 py-4 rounded-full text-lg font-bold hover:bg-yellow-500 transition-all transform hover:scale-105 shadow-[0_0_30px_rgba(212,175,55,0.5)]"
-                        >
-                            Enter Portfolio Lab
-                        </Link>
-                    </motion.div>
-                </div>
+    render() {
+        if (this.state.hasError) {
+            return <div className="p-4 text-red-500 bg-white/10 rounded-lg">Something went wrong in this section.</div>;
+        }
 
-                <motion.div
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    transition={{ delay: 1, duration: 1 }}
-                    className="absolute bottom-10 left-1/2 transform -translate-x-1/2 z-20"
-                >
-                    <div className="w-6 h-10 border-2 border-white/30 rounded-full flex justify-center p-1">
-                        <motion.div
-                            animate={{ y: [0, 12, 0] }}
-                            transition={{ repeat: Infinity, duration: 1.5 }}
-                            className="w-1.5 h-1.5 bg-white rounded-full"
-                        />
-                    </div>
-                </motion.div>
-            </section>
-
-            {/* Market Intelligence Section */}
-            <MarketDashboard />
-            <NewsFeed />
-            <Watchlist />
-
-            {/* Mission Statement Section */}
-            <section className="py-24 px-4 bg-deep-black relative">
-                <div className="max-w-4xl mx-auto text-center">
-                    <motion.div
-                        initial={{ opacity: 0, y: 20 }}
-                        whileInView={{ opacity: 1, y: 0 }}
-                        viewport={{ once: true }}
-                        transition={{ duration: 0.8 }}
-                    >
-                        <h2 className="text-3xl md:text-4xl font-bold text-gold mb-8">Our Mission</h2>
-                        <p className="text-xl md:text-2xl text-gray-300 leading-relaxed font-light">
-                            "At M.I.C. Singularity, we believe that advanced financial intelligence shouldn't be the privilege of the few. Our mission is to democratize institutional-grade portfolio management through the power of artificial intelligence. By fusing cutting-edge algorithms with intuitive design, we empower every investor—from the novice to the expert—to build, test, and execute wealth-generating strategies with precision and confidence. Welcome to the singularity of finance."
-                        </p>
-                    </motion.div>
-                </div>
-            </section>
-
-            {/* Products Section */}
-            <section className="py-24 px-4 bg-[#0a0a0a]" id="products">
-                <div className="max-w-7xl mx-auto">
-                    <div className="text-center mb-16">
-                        <h2 className="text-4xl md:text-5xl font-bold mb-4">Our Products</h2>
-                        <p className="text-gray-400 text-xl">Access the tools that power the singularity</p>
-                    </div>
-
-                    {/* Main Product: Portfolio Lab */}
-                    <div className="mb-16">
-                        <Link to="/portfolio-lab">
-                            <motion.div
-                                initial={{ opacity: 0, y: 20 }}
-                                whileInView={{ opacity: 1, y: 0 }}
-                                viewport={{ once: true }}
-                                className="relative group overflow-hidden rounded-3xl border border-gold/30 bg-gradient-to-br from-deep-black to-purple-900/20 p-8 md:p-12 hover:border-gold/60 transition-all duration-500"
-                            >
-                                <div className="absolute inset-0 bg-gold/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-                                <div className="relative z-10 flex flex-col md:flex-row items-center gap-8">
-                                    <div className="flex-1 text-center md:text-left">
-                                        <div className="inline-block px-4 py-1 rounded-full bg-gold/20 text-gold font-bold text-sm mb-4 border border-gold/30">
-                                            FLAGSHIP
-                                        </div>
-                                        <h3 className="text-3xl md:text-4xl font-bold mb-4 text-white group-hover:text-gold transition-colors">Portfolio Lab</h3>
-                                        <p className="text-gray-300 text-lg mb-6 leading-relaxed">
-                                            The ultimate environment for testing, analyzing, and perfecting your investment strategies.
-                                            Harness the power of AI to simulate market conditions and optimize your allocations before risking real capital.
-                                        </p>
-                                        <span className="inline-flex items-center text-gold font-bold group-hover:translate-x-2 transition-transform">
-                                            Enter Laboratory <ChevronDown className="ml-2 -rotate-90" />
-                                        </span>
-                                    </div>
-                                    <div className="flex-1 flex justify-center">
-                                        <div className="w-48 h-48 md:w-64 md:h-64 rounded-full bg-black/50 border-2 border-gold/30 flex items-center justify-center relative shadow-[0_0_50px_rgba(212,175,55,0.2)] group-hover:shadow-[0_0_80px_rgba(212,175,55,0.4)] transition-shadow duration-500">
-                                            <Brain size={80} className="text-gold animate-pulse" />
-                                            <div className="absolute inset-0 border border-white/10 rounded-full animate-[spin_10s_linear_infinite]" />
-                                            <div className="absolute inset-4 border border-purple-500/30 rounded-full animate-[spin_15s_linear_infinite_reverse]" />
-                                        </div>
-                                    </div>
-                                </div>
-                            </motion.div>
-                        </Link>
-                    </div>
-
-                    {/* Features Grid */}
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-12">
-                        <FeatureCard
-                            icon={Brain}
-                            title="AI-Powered Analysis"
-                            desc="Our neural networks process millions of data points to identify hidden patterns and predictive signals that human analysis misses."
-                            delay={0.1}
-                        />
-                        <FeatureCard
-                            icon={RefreshCw}
-                            title="Automated Rebalancing"
-                            desc="Keep your portfolio perfectly aligned with your goals. Our systems automatically adjust allocations to maintain your target risk profile."
-                            delay={0.2}
-                        />
-                        <FeatureCard
-                            icon={Shield}
-                            title="Institutional Risk Management"
-                            desc="Protect your wealth with the same sophisticated hedging and risk mitigation strategies used by top hedge funds."
-                            delay={0.3}
-                        />
-                    </div>
-                </div>
-            </section>
-
-            {/* Interactive Wealth Calculator */}
-            <WealthCalculator />
-
-            {/* Pricing Section */}
-            <section className="py-24 px-4 bg-gradient-to-b from-deep-black to-[#1a1a1a]">
-                <div className="max-w-7xl mx-auto">
-                    <motion.div
-                        initial={{ opacity: 0, y: 20 }}
-                        whileInView={{ opacity: 1, y: 0 }}
-                        viewport={{ once: true }}
-                        className="text-center mb-16"
-                    >
-                        <h2 className="text-4xl md:text-5xl font-bold mb-4">Choose Your Path</h2>
-                        <p className="text-gray-400 text-xl">Unlock the full potential of your portfolio</p>
-                    </motion.div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                        <PricingCard
-                            title="Explorer"
-                            price="$0"
-                            period="/mo"
-                            features={[
-                                "Access to Portfolio Lab",
-                                "1 Custom Strategy",
-                                "Basic Market Data",
-                                "Community Support"
-                            ]}
-                            delay={0.1}
-                        />
-                        <PricingCard
-                            title="Navigator"
-                            price="$29"
-                            period="/mo"
-                            isPopular={true}
-                            features={[
-                                "Unlimited Strategies",
-                                "Advanced Analytics",
-                                "Real-time Data",
-                                "Priority Support",
-                                "14-Day Free Trial"
-                            ]}
-                            delay={0.2}
-                        />
-                        <PricingCard
-                            title="Visionary"
-                            price="$99"
-                            period="/mo"
-                            features={[
-                                "AI-Driven Insights",
-                                "API Access",
-                                "Institutional Tools",
-                                "Dedicated Advisor",
-                                "30-Day Free Trial"
-                            ]}
-                            delay={0.3}
-                        />
-                    </div>
-                </div>
-            </section>
-
-            {/* FAQ Section */}
-            <FAQSection />
-
-            {/* Newsletter Section */}
-            <section className="py-24 px-4 bg-gold/5 border-y border-gold/10">
-                <div className="max-w-4xl mx-auto text-center">
-                    <h2 className="text-3xl md:text-4xl font-bold mb-6">Join the Singularity</h2>
-                    <p className="text-gray-400 text-xl mb-8">Get the latest market insights and platform updates delivered to your inbox.</p>
-                    <div className="flex flex-col sm:flex-row gap-4 justify-center max-w-lg mx-auto">
-                        <input
-                            type="email"
-                            placeholder="Enter your email"
-                            className="flex-grow px-6 py-3 rounded-lg bg-black/50 border border-white/20 focus:border-gold focus:outline-none text-white placeholder-gray-500"
-                        />
-                        <button className="bg-gold text-black px-8 py-3 rounded-lg font-bold hover:bg-yellow-500 transition-colors">
-                            Subscribe
-                        </button>
-                    </div>
-                </div>
-            </section>
-
-            {/* Footer */}
-            <footer className="bg-black py-12 px-4 border-t border-white/10">
-                <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-4 gap-8 mb-8">
-                    <div className="col-span-1 md:col-span-2">
-                        <h3 className="text-2xl font-bold mb-4">M.I.C. <span className="text-gold">SINGULARITY</span></h3>
-                        <p className="text-gray-400 max-w-sm">Democratizing institutional-grade portfolio management for the modern investor.</p>
-                    </div>
-                    <div>
-                        <h4 className="font-bold mb-4 text-white">Platform</h4>
-                        <ul className="space-y-2 text-gray-400">
-                            <li><Link to="/portfolio-lab" className="hover:text-gold transition-colors">Portfolio Lab</Link></li>
-                            <li><Link to="/pricing" className="hover:text-gold transition-colors">Pricing</Link></li>
-                            <li><Link to="/features" className="hover:text-gold transition-colors">Features</Link></li>
-                        </ul>
-                    </div>
-                    <div>
-                        <h4 className="font-bold mb-4 text-white">Legal</h4>
-                        <ul className="space-y-2 text-gray-400">
-                            <li><Link to="/privacy" className="hover:text-gold transition-colors">Privacy Policy</Link></li>
-                            <li><Link to="/terms" className="hover:text-gold transition-colors">Terms of Service</Link></li>
-                            <li><Link to="/contact" className="hover:text-gold transition-colors">Contact Us</Link></li>
-                        </ul>
-                    </div>
-                </div>
-                <div className="max-w-7xl mx-auto pt-8 border-t border-white/10 flex flex-col md:flex-row justify-between items-center gap-4">
-                    <p className="text-gray-500 text-sm">© 2025 M.I.C. Singularity. All rights reserved.</p>
-                    <div className="flex gap-6">
-                        <a href="#" className="text-gray-400 hover:text-gold transition-colors"><Twitter size={20} /></a>
-                        <a href="#" className="text-gray-400 hover:text-gold transition-colors"><Linkedin size={20} /></a>
-                        <a href="#" className="text-gray-400 hover:text-gold transition-colors"><Disc size={20} /></a>
-                    </div>
-                </div>
-            </footer>
-        </div>
-    );
-};
+        return this.props.children;
+    }
+}
 
 const FeatureCard = ({ icon: Icon, title, desc, delay }) => (
     <motion.div
-        initial={{ opacity: 0, y: 30 }}
+        initial={{ opacity: 0, y: 20 }}
         whileInView={{ opacity: 1, y: 0 }}
         viewport={{ once: true }}
-        transition={{ duration: 0.6, delay }}
-        className="p-8 rounded-2xl bg-white/5 border border-white/10 hover:border-gold/50 transition-all duration-300 group"
+        transition={{ duration: 0.5, delay: delay }}
+        className="bg-white/5 p-8 rounded-2xl border border-white/10 hover:border-gold/50 transition-colors group"
     >
         <div className="w-14 h-14 rounded-xl bg-gold/10 flex items-center justify-center mb-6 group-hover:bg-gold/20 transition-colors">
             <Icon size={32} className="text-gold" />
@@ -454,6 +199,234 @@ const PricingCard = ({ title, price, period, features, isPopular, delay }) => {
                 {price === "$0" ? "Get Started" : "Start Free Trial"}
             </button>
         </motion.div>
+    );
+};
+
+const RecentArticles = () => {
+    const [articles, setArticles] = useState([]);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        const fetchArticles = async () => {
+            try {
+                const response = await fetch('http://localhost:8000/api/articles?limit=3');
+                if (response.ok) {
+                    const data = await response.json();
+                    setArticles(data);
+                }
+            } catch (error) {
+                console.error("Failed to fetch recent articles:", error);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        fetchArticles();
+    }, []);
+
+    if (loading) return null;
+
+    return (
+        <section className="py-24 px-4 bg-black">
+            <div className="max-w-7xl mx-auto">
+                <div className="text-center mb-16">
+                    <h2 className="text-4xl font-bold mb-6">Latest <span className="text-gold">Insights</span></h2>
+                    <p className="text-xl text-gray-400 max-w-2xl mx-auto">
+                        Stay ahead of the market with our latest analysis and reports.
+                    </p>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                    {articles.map((article, index) => (
+                        <motion.div
+                            key={article.id}
+                            initial={{ opacity: 0, y: 20 }}
+                            whileInView={{ opacity: 1, y: 0 }}
+                            viewport={{ once: true }}
+                            transition={{ duration: 0.5, delay: index * 0.1 }}
+                            className="bg-white/5 rounded-xl overflow-hidden border border-white/10 hover:border-gold/30 transition-all group"
+                        >
+                            <Link to={`/article/${article.id}`}>
+                                <div className="h-48 overflow-hidden relative">
+                                    <div className="absolute inset-0 bg-black/20 group-hover:bg-transparent transition-colors z-10" />
+                                    <img
+                                        src={article.cover_image || "https://images.unsplash.com/photo-1611974765270-ca12586343bb?auto=format&fit=crop&q=80&w=1000"}
+                                        alt={article.title}
+                                        className="w-full h-full object-cover transform group-hover:scale-110 transition-transform duration-500"
+                                    />
+                                </div>
+                                <div className="p-6">
+                                    <div className="flex items-center gap-2 mb-3">
+                                        <span className="text-xs font-bold text-gold bg-gold/10 px-2 py-1 rounded uppercase tracking-wider">
+                                            {article.category || "Market"}
+                                        </span>
+                                        <span className="text-xs text-gray-400">{article.date}</span>
+                                    </div>
+                                    <h3 className="text-xl font-bold mb-3 line-clamp-2 group-hover:text-gold transition-colors">
+                                        {article.title}
+                                    </h3>
+                                    <p className="text-gray-400 text-sm line-clamp-3 mb-4">
+                                        {article.content.substring(0, 100)}...
+                                    </p>
+                                    <div className="flex items-center text-gold text-sm font-bold">
+                                        Read Analysis <ArrowRight size={16} className="ml-2 group-hover:translate-x-1 transition-transform" />
+                                    </div>
+                                </div>
+                            </Link>
+                        </motion.div>
+                    ))}
+                </div>
+                <div className="text-center mt-12">
+                    <Link to="/news" className="inline-flex items-center text-gray-300 hover:text-white transition-colors">
+                        View All Articles <ArrowRight size={16} className="ml-2" />
+                    </Link>
+                </div>
+            </div>
+        </section>
+    );
+};
+
+const LandingPage = () => {
+    return (
+        <div className="min-h-screen bg-black text-white">
+            {/* Hero Section */}
+            <ErrorBoundary>
+                <section className="relative h-screen flex items-center justify-center overflow-hidden">
+                    <div className="absolute inset-0 z-0">
+                        <video
+                            autoPlay
+                            loop
+                            muted
+                            playsInline
+                            className="w-full h-full object-cover opacity-30"
+                        >
+                            <source src="/landingpagestocks.mp4" type="video/mp4" />
+                        </video>
+                        <div className="absolute inset-0 bg-gradient-to-b from-black/20 via-black/50 to-black"></div>
+                    </div>
+
+                    <div className="relative z-10 text-center px-4 max-w-5xl mx-auto mt-16">
+                        <motion.div
+                            initial={{ opacity: 0, y: 30 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ duration: 0.8 }}
+                        >
+                            <h1 className="text-6xl md:text-8xl font-bold mb-6 tracking-tight">
+                                M.I.C. <span className="text-gold">SINGULARITY</span>
+                            </h1>
+                            <p className="text-xl md:text-2xl text-gray-300 mb-10 max-w-3xl mx-auto leading-relaxed">
+                                The next evolution in wealth management. AI-driven insights, institutional-grade strategies, and automated portfolio optimization.
+                            </p>
+                            <div className="flex flex-col md:flex-row gap-6 justify-center">
+                                <Link to="/portfolio-lab" className="bg-gold text-black px-8 py-4 rounded-full font-bold text-lg hover:bg-yellow-500 transition-all transform hover:scale-105 flex items-center justify-center">
+                                    Launch Portfolio Lab <ArrowRight className="ml-2" />
+                                </Link>
+                                <Link to="/products" className="bg-white/10 text-white px-8 py-4 rounded-full font-bold text-lg hover:bg-white/20 transition-all backdrop-blur-sm flex items-center justify-center">
+                                    Explore Products
+                                </Link>
+                            </div>
+                        </motion.div>
+                    </div>
+                </section>
+            </ErrorBoundary>
+
+            {/* Market Dashboard */}
+            <ErrorBoundary>
+                <MarketDashboard />
+            </ErrorBoundary>
+
+            {/* Watchlist Preview */}
+            <ErrorBoundary>
+                <section className="py-12 px-4 bg-black">
+                    <div className="max-w-7xl mx-auto">
+                        <h2 className="text-3xl font-bold mb-8 text-center">Live <span className="text-gold">Watchlist</span></h2>
+                        <Watchlist />
+                    </div>
+                </section>
+            </ErrorBoundary>
+
+            {/* Features Section */}
+            <ErrorBoundary>
+                <section className="py-24 px-4 bg-black relative z-10">
+                    <div className="max-w-7xl mx-auto">
+                        <div className="text-center mb-16">
+                            <h2 className="text-4xl md:text-5xl font-bold mb-6">Engineered for <span className="text-gold">Alpha</span></h2>
+                            <p className="text-xl text-gray-400 max-w-2xl mx-auto">
+                                Our platform combines cutting-edge technology with proven financial models to deliver superior results.
+                            </p>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                            <FeatureCard
+                                icon={Zap}
+                                title="AI-Powered Analysis"
+                                desc="Real-time market scanning and predictive modeling to identify high-probability opportunities before they move."
+                                delay={0.1}
+                            />
+                            <FeatureCard
+                                icon={Shield}
+                                title="Risk Management"
+                                desc="Institutional-grade risk protocols that dynamically adjust your exposure based on market volatility."
+                                delay={0.2}
+                            />
+                            <FeatureCard
+                                icon={BarChart2}
+                                title="Automated Rebalancing"
+                                desc="Smart portfolio adjustments to maintain your target allocation and capitalize on market inefficiencies."
+                                delay={0.3}
+                            />
+                        </div>
+                    </div>
+                </section>
+            </ErrorBoundary>
+
+            <ErrorBoundary>
+                <WealthCalculator />
+            </ErrorBoundary>
+
+            <ErrorBoundary>
+                <RecentArticles />
+            </ErrorBoundary>
+
+            <ErrorBoundary>
+                <FAQSection />
+            </ErrorBoundary>
+
+            {/* Pricing Section */}
+            <ErrorBoundary>
+                <section className="py-24 px-4 bg-deep-black">
+                    <div className="max-w-7xl mx-auto">
+                        <div className="text-center mb-16">
+                            <h2 className="text-4xl font-bold mb-6">Choose Your <span className="text-gold">Tier</span></h2>
+                            <p className="text-xl text-gray-400">Unlock the full potential of M.I.C. Singularity.</p>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                            <PricingCard
+                                title="Explorer"
+                                price="$0"
+                                period="/month"
+                                features={["Basic Market Data", "Daily Newsletter", "Community Access"]}
+                                delay={0.1}
+                            />
+                            <PricingCard
+                                title="Visionary"
+                                price="$49"
+                                period="/month"
+                                features={["Real-time AI Signals", "Advanced Portfolio Lab", "Priority Support", "Unlimited Backtesting"]}
+                                isPopular={true}
+                                delay={0.2}
+                            />
+                            <PricingCard
+                                title="Institutional"
+                                price="$199"
+                                period="/month"
+                                features={["API Access", "Dedicated Account Manager", "Custom Strategy Development", "White-label Reports"]}
+                                delay={0.3}
+                            />
+                        </div>
+                    </div>
+                </section>
+            </ErrorBoundary>
+        </div>
     );
 };
 

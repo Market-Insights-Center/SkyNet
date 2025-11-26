@@ -7,10 +7,25 @@ import { User, Search, Home, Briefcase, MessageSquare, Users, Mail, Command, Shi
 const Layout = ({ children }) => {
     const location = useLocation();
     const navigate = useNavigate();
-    const { currentUser, isMod } = useAuth();
+    const { currentUser } = useAuth();
     const [searchQuery, setSearchQuery] = useState('');
     const [showSuggestions, setShowSuggestions] = useState(false);
     const searchRef = useRef(null);
+
+    const [isMod, setIsMod] = useState(false);
+
+    useEffect(() => {
+        if (currentUser) {
+            fetch('http://localhost:8000/api/mods')
+                .then(res => res.json())
+                .then(data => {
+                    if (data.mods.includes(currentUser.email)) {
+                        setIsMod(true);
+                    }
+                })
+                .catch(err => console.error("Error checking mods:", err));
+        }
+    }, [currentUser]);
 
     const navItems = [
         { name: 'Home', path: '/', icon: Home },
@@ -18,11 +33,8 @@ const Layout = ({ children }) => {
         { name: 'Forum', path: '/forum', icon: Users },
         { name: 'Direct M.I.C.', path: '/messages', icon: Mail },
         { name: 'Profile', path: '/profile', icon: User },
+        ...(isMod ? [{ name: 'Admin', path: '/admin', icon: Shield }] : [])
     ];
-
-    if (isMod) {
-        navItems.push({ name: 'Admin', path: '/admin', icon: Shield });
-    }
 
     const searchableItems = [
         { name: 'Home', path: '/', type: 'Page' },
@@ -33,6 +45,7 @@ const Layout = ({ children }) => {
         { name: 'Custom Strategy', path: '/custom', type: 'Command' },
         { name: 'Tracking', path: '/tracking', type: 'Command' },
         { name: 'Profile', path: '/profile', type: 'Page' },
+        ...(isMod ? [{ name: 'Admin Dashboard', path: '/admin', type: 'Page' }] : []),
         { name: 'Login', path: '/login', type: 'Auth' },
         { name: 'Sign Up', path: '/signup', type: 'Auth' },
     ];

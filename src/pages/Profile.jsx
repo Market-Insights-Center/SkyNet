@@ -3,18 +3,18 @@ import { useAuth } from "../contexts/AuthContext";
 import { useNavigate, Link } from "react-router-dom";
 import { AlertCircle, CheckCircle, LogOut, User, Lock, ArrowLeft, Loader2, Shield, ArrowRight } from "lucide-react";
 import { doc, getDoc, setDoc } from "firebase/firestore";
-import { db, auth } from "../firebase";
-import { GoogleAuthProvider, reauthenticateWithPopup, EmailAuthProvider, reauthenticateWithCredential } from "firebase/auth";
+import { db } from "../firebase";
 import WaveBackground from "../components/WaveBackground";
 import { motion, AnimatePresence } from "framer-motion";
 
 export default function Profile() {
     const [error, setError] = useState("");
     const [message, setMessage] = useState("");
-    const { currentUser, logout, updateUsername, updateUserPassword, isMod } = useAuth();
+    const { currentUser, logout, updateUsername, updateUserPassword } = useAuth();
     const navigate = useNavigate();
     const [loading, setLoading] = useState(false);
     const [showQuestionnaire, setShowQuestionnaire] = useState(false);
+    const [isMod, setIsMod] = useState(false);
 
     const usernameRef = useRef();
     const passwordRef = useRef();
@@ -33,6 +33,16 @@ export default function Profile() {
     useEffect(() => {
         async function checkProfile() {
             if (currentUser) {
+                // Check Mod Status
+                fetch('http://localhost:8000/api/mods')
+                    .then(res => res.json())
+                    .then(data => {
+                        if (data.mods.includes(currentUser.email)) {
+                            setIsMod(true);
+                        }
+                    })
+                    .catch(err => console.error("Error checking mods:", err));
+
                 try {
                     const docRef = doc(db, "users", currentUser.uid);
                     const docSnap = await getDoc(docRef);
@@ -83,36 +93,16 @@ export default function Profile() {
             promises.push(updateUserPassword(passwordRef.current.value));
         }
 
-        try {
-            await Promise.all(promises);
-            setMessage("Profile updated successfully");
-        } catch (err) {
-            if (err.code === 'auth/requires-recent-login') {
-                setError("Security check required. Please re-authenticate.");
-
-                // Attempt re-auth based on provider
-                const providerId = currentUser.providerData[0]?.providerId;
-
-                if (providerId === 'google.com') {
-                    try {
-                        const provider = new GoogleAuthProvider();
-                        await reauthenticateWithPopup(currentUser, provider);
-                        // Retry updates
-                        await Promise.all(promises);
-                        setMessage("Profile updated successfully after verification");
-                        setError("");
-                    } catch (reAuthErr) {
-                        setError("Re-authentication failed: " + reAuthErr.message);
-                    }
-                } else {
-                    setError("Please sign out and sign in again to update sensitive information.");
-                }
-            } else {
+        Promise.all(promises)
+            .then(() => {
+                setMessage("Profile updated successfully");
+            })
+            .catch((err) => {
                 setError("Failed to update account: " + err.message);
-            }
-        } finally {
-            setLoading(false);
-        }
+            })
+            .finally(() => {
+                setLoading(false);
+            });
     }
 
     // Questionnaire Handlers

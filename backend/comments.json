@@ -1,58 +1,44 @@
 [
-  {
-    "id": 1,
-    "article_id": 1,
-    "user": "Verzogerung",
-    "text": "yep",
-    "date": "2025-11-25T07:02:29.114Z",
-    "replies": [],
-    "likes": 0,
-    "dislikes": 0
-  },
-  {
-    "id": 2,
-    "article_id": 1,
-    "user": "Verzogerung",
-    "text": "ty",
-    "date": "2025-11-25T07:02:35.202Z",
-    "replies": [],
-    "likes": 0,
-    "dislikes": 0
-  },
-  {
-    "id": 3,
-    "article_id": 1,
-    "user": "TestUser",
-    "text": "This is a test comment",
-    "date": "2023-01-01",
-    "replies": [
-      {
-        "id": 0,
+    {
+        "id": 1,
         "article_id": 1,
-        "user": "TestUser",
-        "text": "This is a reply",
-        "date": "2023-01-01"
-      }
-    ],
-    "likes": 0,
-    "dislikes": 0
-  },
-  {
-    "id": 4,
-    "article_id": 1,
-    "user": "TestUser",
-    "text": "This is a test comment",
-    "date": "2023-01-01",
-    "replies": [
-      {
-        "id": 0,
+        "user": "Verzogerung",
+        "text": "cool story\n",
+        "date": "2025-11-25T16:18:59.343Z",
+        "replies": [],
+        "likes": 0,
+        "dislikes": 0
+    },
+    {
+        "id": 2,
         "article_id": 1,
-        "user": "TestUser",
-        "text": "This is a reply",
-        "date": "2023-01-01"
-      }
-    ],
-    "likes": 0,
-    "dislikes": 0
-  }
+        "user": "Verzogerung",
+        "text": "nice",
+        "date": "2025-11-25T16:19:02.576Z",
+        "replies": [],
+        "likes": 0,
+        "dislikes": 0
+    },
+    {
+        "id": 3,
+        "article_id": 1,
+        "user": "Verzogerung",
+        "email": "marketinsightscenter@gmail.com",
+        "text": "yep",
+        "date": "2025-11-25T21:36:45.331Z",
+        "replies": [],
+        "likes": 0,
+        "dislikes": 0
+    },
+    {
+        "id": 4,
+        "article_id": 1,
+        "user": "Verzogerung",
+        "email": "marketinsightscenter@gmail.com",
+        "text": "fs",
+        "date": "2025-11-25T21:36:48.731Z",
+        "replies": [],
+        "likes": 0,
+        "dislikes": 0
+    }
 ]
