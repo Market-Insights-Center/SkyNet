@@ -15,7 +15,8 @@ import NewsPage from './pages/NewsPage';
 import KnowledgeStream from './pages/KnowledgeStream';
 import ArticleView from './pages/ArticleView';
 import AdminDashboard from './pages/AdminDashboard';
-import Chatbox from './pages/Chatbox'; // Import Chatbox
+import Chatbox from './pages/Chatbox';
+import IdeasPage from './pages/IdeasPage';
 
 function App() {
     const [isLoading, setIsLoading] = useState(true);
@@ -24,7 +25,7 @@ function App() {
         <>
             {/* FIX: Move Animation OUTSIDE AuthProvider */}
             {isLoading && <StartupAnimation onComplete={() => setIsLoading(false)} />}
-            
+
             <AuthProvider>
                 {!isLoading && (
                     <Router>
@@ -47,6 +48,7 @@ function App() {
                                 <Route path="/article/:id" element={<ArticleView />} />
                                 <Route path="/admin" element={<AdminDashboard />} />
                                 <Route path="/chat" element={<Chatbox />} />
+                                <Route path="/ideas" element={<IdeasPage />} />
                             </Routes>
                         </Layout>
                     </Router>

@@ -1,20 +1,18 @@
 import csv
 import os
 import json
-from firebase_admin_setup import get_db, get_auth
-from firebase_admin import auth, firestore
+# --- Firebase Helpers ---
 
 # Paths
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.path.join(BASE_DIR, 'data')
 ARTICLES_CSV = os.path.join(DATA_DIR, 'articles.csv')
+IDEAS_CSV = os.path.join(DATA_DIR, 'ideas.csv')
 USER_PROFILES_CSV = os.path.join(BASE_DIR, 'user_profiles.csv')
 
 # Ensure data dir exists
 if not os.path.exists(DATA_DIR):
     os.makedirs(DATA_DIR)
-
-# --- Firebase Helpers ---
 
 def get_all_users_count():
     try:
@@ -123,6 +121,72 @@ def save_articles_to_csv(articles):
         return True
     except Exception as e:
         print(f"Error saving to CSV: {e}")
+        return False
+
+# --- Ideas CSV Helpers ---
+
+def init_ideas_csv():
+    if not os.path.exists(IDEAS_CSV):
+        with open(IDEAS_CSV, 'w', newline='', encoding='utf-8') as f:
+            writer = csv.writer(f)
+            writer.writerow(['id', 'ticker', 'title', 'description', 'author', 'date', 'hashtags', 'cover_image', 'likes', 'dislikes', 'liked_by', 'disliked_by'])
+
+def read_ideas_from_csv():
+    ideas = []
+    if not os.path.exists(IDEAS_CSV):
+        init_ideas_csv()
+        return []
+    
+    try:
+        with open(IDEAS_CSV, 'r', encoding='utf-8') as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                try:
+                    row['id'] = int(row['id']) if row.get('id') else 0
+                    row['likes'] = int(row['likes']) if row.get('likes') else 0
+                    row['dislikes'] = int(row['dislikes']) if row.get('dislikes') else 0
+                    
+                    try: row['hashtags'] = json.loads(row['hashtags']) if row.get('hashtags') else []
+                    except: row['hashtags'] = []
+                    
+                    try: row['liked_by'] = json.loads(row['liked_by']) if row.get('liked_by') else []
+                    except: row['liked_by'] = []
+                    
+                    try: row['disliked_by'] = json.loads(row['disliked_by']) if row.get('disliked_by') else []
+                    except: row['disliked_by'] = []
+                    
+                    ideas.append(row)
+                except Exception as e:
+                    print(f"Error parsing idea row {row.get('id')}: {e}")
+                    continue
+    except Exception as e:
+        print(f"Error reading Ideas CSV: {e}")
+        return []
+    return ideas
+
+def save_ideas_to_csv(ideas):
+    try:
+        with open(IDEAS_CSV, 'w', newline='', encoding='utf-8') as f:
+            writer = csv.writer(f)
+            writer.writerow(['id', 'ticker', 'title', 'description', 'author', 'date', 'hashtags', 'cover_image', 'likes', 'dislikes', 'liked_by', 'disliked_by'])
+            for i in ideas:
+                writer.writerow([
+                    i.get('id'),
+                    i.get('ticker'),
+                    i.get('title'),
+                    i.get('description'),
+                    i.get('author'),
+                    i.get('date'),
+                    json.dumps(i.get('hashtags', [])),
+                    i.get('cover_image'),
+                    i.get('likes', 0),
+                    i.get('dislikes', 0),
+                    json.dumps(i.get('liked_by', [])),
+                    json.dumps(i.get('disliked_by', []))
+                ])
+        return True
+    except Exception as e:
+        print(f"Error saving to Ideas CSV: {e}")
         return False
 
 def read_user_profiles():

@@ -3,12 +3,13 @@ import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { ArrowRight, Clock, ThumbsUp } from 'lucide-react';
 
-const NewsFeed = ({ limit = 3 }) => {
+const NewsFeed = ({ limit = 100 }) => { // Default limit increased to show all
     const [articles, setArticles] = useState([]);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        fetch(`http://localhost:8001/api/articles?limit=${limit}`)
+        // Fetch with a high limit to get all posts
+        fetch(`http://localhost:8000/api/articles?limit=${limit}`)
             .then(res => res.json())
             .then(data => {
                 setArticles(data);
@@ -42,12 +43,7 @@ const NewsFeed = ({ limit = 3 }) => {
                         </h2>
                         <p className="text-gray-400">Market Insights Center Knowledge Stream</p>
                     </div>
-                    <Link
-                        to="/news"
-                        className="hidden md:flex items-center text-gold hover:text-white transition-colors font-bold"
-                    >
-                        View All Updates <ArrowRight size={20} className="ml-2" />
-                    </Link>
+                    {/* View All button removed as requested */}
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
@@ -96,15 +92,6 @@ const NewsFeed = ({ limit = 3 }) => {
                             </div>
                         </motion.div>
                     ))}
-                </div>
-
-                <div className="mt-8 text-center md:hidden">
-                    <Link
-                        to="/news"
-                        className="inline-flex items-center text-gold hover:text-white transition-colors font-bold"
-                    >
-                        View All Updates <ArrowRight size={20} className="ml-2" />
-                    </Link>
                 </div>
             </div>
         </section>

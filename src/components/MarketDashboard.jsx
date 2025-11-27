@@ -1,14 +1,13 @@
 import React, { useEffect, useRef, memo } from 'react';
 
-const TradingViewWidget = memo(({ symbol, theme = "dark", autosize = true, height = "100%", width = "100%", interval = "5", timezone = "Etc/UTC", style = "1", locale = "en", toolbar_bg = "#f1f3f6", enable_publishing = false, allow_symbol_change = true, container_id }) => {
+// Exported so it can be used in Watchlist.jsx
+export const TradingViewWidget = memo(({ symbol, theme = "dark", autosize = true, height = "100%", width = "100%", interval = "5", timezone = "Etc/UTC", style = "1", locale = "en", toolbar_bg = "#f1f3f6", enable_publishing = false, allow_symbol_change = true, container_id, hide_top_toolbar, hide_legend, hide_side_toolbar, save_image }) => {
     const container = useRef();
+    const widgetId = container_id || `tv_widget_${Math.random().toString(36).substring(7)}`;
 
     useEffect(() => {
-        const script = document.createElement("script");
-        script.src = "https://s3.tradingview.com/tv.js";
-        script.async = true;
-        script.onload = () => {
-            if (window.TradingView) {
+        const initWidget = () => {
+            if (window.TradingView && document.getElementById(widgetId)) {
                 new window.TradingView.widget({
                     "width": width,
                     "height": height,
@@ -21,20 +20,41 @@ const TradingViewWidget = memo(({ symbol, theme = "dark", autosize = true, heigh
                     "toolbar_bg": toolbar_bg,
                     "enable_publishing": enable_publishing,
                     "allow_symbol_change": allow_symbol_change,
-                    "container_id": container_id
+                    "container_id": widgetId,
+                    "hide_top_toolbar": hide_top_toolbar,
+                    "hide_legend": hide_legend,
+                    "hide_side_toolbar": hide_side_toolbar,
+                    "save_image": save_image
                 });
             }
         };
-        container.current.appendChild(script);
-        return () => {
-            if (container.current) {
-                container.current.innerHTML = "";
+
+        // Check if script is already there
+        if (!document.getElementById('tradingview-widget-script')) {
+            const script = document.createElement("script");
+            script.id = 'tradingview-widget-script';
+            script.src = "https://s3.tradingview.com/tv.js";
+            script.async = true;
+            script.onload = initWidget;
+            document.head.appendChild(script);
+        } else {
+            // Script exists, but window.TradingView might not be ready yet
+            if (window.TradingView) {
+                initWidget();
+            } else {
+                // Poll for the global variable if script exists but didn't trigger onload for this instance
+                const checkExist = setInterval(() => {
+                    if (window.TradingView) {
+                        initWidget();
+                        clearInterval(checkExist);
+                    }
+                }, 100);
             }
-        };
-    }, [symbol]);
+        }
+    }, [symbol, widgetId]);
 
     return (
-        <div id={container_id} ref={container} className="tradingview-widget-container" style={{ height: "100%", width: "100%" }} />
+        <div id={widgetId} className="tradingview-widget-container" style={{ height: "100%", width: "100%" }} />
     );
 });
 
@@ -102,7 +122,7 @@ const MarketDashboard = () => {
                             </h3>
                             <div className="h-full w-full">
                                 <TradingViewWidget
-                                    symbol="FRED:VIXCLS"
+                                    symbol="CBOE:VIX"
                                     container_id="tv_chart_vix"
                                     theme="dark"
                                     style="1" // Candlesticks

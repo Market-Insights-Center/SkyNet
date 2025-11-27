@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Link } from 'react-router-dom';
-import { ArrowRight, Play, Check, ChevronDown, ChevronUp, TrendingUp, Shield, Zap, Globe, BarChart2, Lock, Users, FileText } from 'lucide-react';
+import { ArrowRight, Play, Check, ChevronDown, ChevronUp, TrendingUp, Shield, Zap, Globe, BarChart2, Lock, Users, FileText, Lightbulb } from 'lucide-react';
 import MarketDashboard from '../components/MarketDashboard';
 import Watchlist from '../components/Watchlist';
 import NewsFeed from '../components/NewsFeed';
+import IdeaCard from '../components/IdeaCard';
+import { useAuth } from '../contexts/AuthContext';
 
 class ErrorBoundary extends React.Component {
     constructor(props) {
@@ -204,6 +206,16 @@ const PricingCard = ({ title, price, period, features, isPopular, delay }) => {
 };
 
 const LandingPage = () => {
+    const { currentUser } = useAuth();
+    const [recentIdeas, setRecentIdeas] = useState([]);
+
+    useEffect(() => {
+        fetch('http://localhost:8000/api/ideas?limit=3')
+            .then(res => res.json())
+            .then(data => setRecentIdeas(data))
+            .catch(err => console.error("Error fetching ideas:", err));
+    }, []);
+
     return (
         <div className="min-h-screen bg-black text-white">
             {/* Hero Section */}
@@ -265,6 +277,39 @@ const LandingPage = () => {
             {/* Recent Articles (M.I.C.K.S.) - Displayed below Watchlist via NewsFeed */}
             <ErrorBoundary>
                 <NewsFeed limit={3} />
+            </ErrorBoundary>
+
+            {/* Recent Ideas */}
+            <ErrorBoundary>
+                <section className="py-12 px-4 bg-deep-black">
+                    <div className="max-w-7xl mx-auto">
+                        <div className="flex justify-between items-center mb-8">
+                            <h2 className="text-3xl font-bold flex items-center gap-2">
+                                <Lightbulb className="text-gold" size={32} /> Recent <span className="text-gold">Ideas</span>
+                            </h2>
+                            <Link to="/ideas" className="text-gold hover:text-white flex items-center gap-2 transition-colors">
+                                View All <ArrowRight size={16} />
+                            </Link>
+                        </div>
+
+                        {recentIdeas.length > 0 ? (
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                {recentIdeas.map(idea => (
+                                    <div key={idea.id} className="h-[400px]">
+                                        <IdeaCard
+                                            idea={idea}
+                                            currentUser={currentUser}
+                                        />
+                                    </div>
+                                ))}
+                            </div>
+                        ) : (
+                            <div className="text-center py-12 bg-white/5 rounded-xl border border-white/10">
+                                <p className="text-gray-400 mb-4">No ideas posted yet.</p>
+                            </div>
+                        )}
+                    </div>
+                </section>
             </ErrorBoundary>
 
             {/* Features Section */}

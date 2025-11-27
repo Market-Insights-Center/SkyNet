@@ -1,23 +1,56 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ArrowRight, MessageSquare, TrendingUp, Users } from 'lucide-react';
+import { ArrowRight, TrendingUp, Users, Lightbulb } from 'lucide-react';
 import NewsFeed from '../components/NewsFeed';
+import IdeaCard from '../components/IdeaCard';
+import { useAuth } from '../contexts/AuthContext';
 
 const Forum = () => {
-    const [stats, setStats] = React.useState({
+    const { currentUser } = useAuth();
+    const [stats, setStats] = useState({
         total_users: 0,
         active_users: 0,
         total_posts: 0,
         trending_topics: []
     });
+    const [recentIdeas, setRecentIdeas] = useState([]);
 
-    React.useEffect(() => {
-        fetch('http://localhost:8001/api/stats')
+    useEffect(() => {
+        // Fetch Stats
+        fetch('http://localhost:8000/api/stats')
             .then(res => res.json())
             .then(data => setStats(data))
             .catch(err => console.error("Error fetching stats:", err));
+
+        // Fetch Recent Ideas
+        fetch('http://localhost:8000/api/ideas?limit=6')
+            .then(res => res.json())
+            .then(data => setRecentIdeas(data))
+            .catch(err => console.error("Error fetching ideas:", err));
     }, []);
+
+    const handleVote = async (ideaId, type) => {
+        if (!currentUser) {
+            alert("Please login to vote");
+            return;
+        }
+        try {
+            const res = await fetch(`http://localhost:8000/api/ideas/${ideaId}/vote`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ user_id: currentUser.email, vote_type: type })
+            });
+            if (res.ok) {
+                // Refresh ideas to show new counts
+                fetch('http://localhost:8000/api/ideas?limit=6')
+                    .then(res => res.json())
+                    .then(data => setRecentIdeas(data));
+            }
+        } catch (error) {
+            console.error("Error voting:", error);
+        }
+    };
 
     return (
         <div className="min-h-screen bg-deep-black text-white pt-24 px-4">
@@ -70,9 +103,43 @@ const Forum = () => {
                         </div>
                     </div>
 
-                    {/* Main Content - NewsFeed limited to 6 */}
-                    <div className="lg:col-span-3">
-                        <NewsFeed limit={6} compact={true} />
+                    {/* Main Content */}
+                    <div className="lg:col-span-3 space-y-12">
+                        {/* News Feed (Knowledge Stream) - Wrapper removed, component handles display */}
+                        <NewsFeed />
+
+                        {/* Recent Ideas */}
+                        <section>
+                            <div className="flex justify-between items-center mb-6">
+                                <h2 className="text-2xl font-bold flex items-center gap-2">
+                                    <Lightbulb className="text-gold" size={24} /> Recent Ideas
+                                </h2>
+                                <Link to="/ideas" className="text-gold hover:text-white flex items-center gap-2 transition-colors">
+                                    View All Ideas <ArrowRight size={16} />
+                                </Link>
+                            </div>
+
+                            {recentIdeas.length > 0 ? (
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                    {recentIdeas.map(idea => (
+                                        <div key={idea.id} className="h-[420px]">
+                                            <IdeaCard
+                                                idea={idea}
+                                                currentUser={currentUser}
+                                                onVote={handleVote}
+                                            />
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : (
+                                <div className="text-center py-12 bg-white/5 rounded-xl border border-white/10">
+                                    <p className="text-gray-400 mb-4">No ideas posted yet.</p>
+                                    <Link to="/ideas" className="text-gold hover:underline">
+                                        Be the first to share an idea!
+                                    </Link>
+                                </div>
+                            )}
+                        </section>
                     </div>
                 </div>
             </div>

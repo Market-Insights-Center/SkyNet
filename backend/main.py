@@ -1,4 +1,5 @@
-from fastapi import FastAPI, HTTPException, Depends
+from fastapi import FastAPI, HTTPException, Depends, UploadFile, File
+from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
@@ -24,7 +25,7 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 # Ensure database.py has read_user_profiles implemented as discussed
 from integration import invest_command, cultivate_command, custom_command, tracking_command
-from database import read_articles_from_csv, save_articles_to_csv, read_user_profiles
+from database import read_articles_from_csv, save_articles_to_csv, read_user_profiles, read_ideas_from_csv, save_ideas_to_csv
 
 # Configure Logging
 logging.basicConfig(level=logging.INFO)
@@ -39,6 +40,12 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Mount static directory for uploads
+STATIC_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static")
+if not os.path.exists(STATIC_DIR):
+    os.makedirs(STATIC_DIR)
+app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 # --- CONFIGURATION ---
 # Replace with your actual email credentials or use environment variables
@@ -112,7 +119,8 @@ class UserSubscription(BaseModel):
 
 class Comment(BaseModel):
     id: int
-    article_id: int
+    article_id: Optional[int] = None
+    idea_id: Optional[int] = None
     user: str
     email: Optional[str] = None
     text: str
@@ -139,6 +147,25 @@ class Article(BaseModel):
     liked_by: List[str] = []
     disliked_by: List[str] = []
     comments: List[Comment] = []
+
+class Idea(BaseModel):
+    id: Optional[int] = None
+    ticker: str
+    title: str
+    description: str
+    author: str
+    date: Optional[str] = None
+    hashtags: List[str] = []
+    cover_image: Optional[str] = None
+    likes: int = 0
+    dislikes: int = 0
+    liked_by: List[str] = []
+    disliked_by: List[str] = []
+    comments: List[Comment] = []
+
+class IdeaVoteRequest(BaseModel):
+    user_id: str
+    vote_type: str
 
 class MarketDataRequest(BaseModel):
     tickers: List[str]
@@ -239,7 +266,6 @@ def send_real_email(to_email, subject, body):
 
 # --- API Endpoints ---
 
-# ... [Invest, Cultivate, Custom, Tracking endpoints omitted for brevity] ...
 @app.post("/api/invest")
 async def invest_endpoint(request: InvestRequest):
     try:
@@ -675,7 +701,68 @@ def delete_comment(comment_id: int, requester_email: str):
     save_json(COMMENTS_FILE, comments)
     return {"status": "success"}
 
-# --- CHAT API ENDPOINTS ---
+# --- Ideas Endpoints ---
+
+@app.get("/api/ideas")
+def get_ideas(limit: int = 100):
+    ideas = read_ideas_from_csv()
+    ideas.sort(key=lambda x: x.get('date', ''), reverse=True)
+    
+    # Attach comments
+    all_comments = load_json(COMMENTS_FILE)
+    for i in ideas:
+        i['comments'] = [c for c in all_comments if c.get('idea_id') == int(i['id'])]
+        
+    return ideas[:limit]
+
+@app.post("/api/ideas")
+def create_idea(idea: Idea):
+    ideas = read_ideas_from_csv()
+    new_id = max([int(i.get('id', 0)) for i in ideas], default=0) + 1
+    idea.id = new_id
+    if not idea.date: idea.date = datetime.datetime.now().strftime("%Y-%m-%d")
+    ideas.insert(0, idea.model_dump())
+    save_ideas_to_csv(ideas)
+    return {"status": "success", "idea": idea}
+
+@app.post("/api/ideas/{idea_id}/vote")
+def vote_idea(idea_id: int, request: IdeaVoteRequest):
+    ideas = read_ideas_from_csv()
+    idea = next((i for i in ideas if int(i['id']) == idea_id), None)
+    if not idea: raise HTTPException(status_code=404)
+    
+    user_id = request.user_id
+    if not isinstance(idea.get('liked_by'), list): idea['liked_by'] = []
+    if not isinstance(idea.get('disliked_by'), list): idea['disliked_by'] = []
+
+    if user_id in idea['liked_by']:
+        idea['liked_by'].remove(user_id)
+        idea['likes'] = max(0, idea.get('likes', 0) - 1)
+    if user_id in idea['disliked_by']:
+        idea['disliked_by'].remove(user_id)
+        idea['dislikes'] = max(0, idea.get('dislikes', 0) - 1)
+        
+    if request.vote_type == 'up':
+        idea['liked_by'].append(user_id)
+        idea['likes'] += 1
+    elif request.vote_type == 'down':
+        idea['disliked_by'].append(user_id)
+        idea['dislikes'] += 1
+        
+    save_ideas_to_csv(ideas)
+    return {"status": "success", "likes": idea['likes'], "dislikes": idea['dislikes']}
+
+@app.post("/api/upload")
+async def upload_file(file: UploadFile = File(...)):
+    try:
+        file_location = os.path.join(STATIC_DIR, file.filename)
+        with open(file_location, "wb+") as file_object:
+            file_object.write(file.file.read())
+        # Return URL relative to server
+        return {"url": f"http://localhost:8000/static/{file.filename}"}
+    except Exception as e:
+        logger.error(f"Upload Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/chat/create")
 def create_chat(request: CreateChatRequest):
