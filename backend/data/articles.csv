@@ -1,10 +1,7 @@
 id,title,subheading,content,author,date,category,hashtags,cover_image,likes,dislikes,shares,liked_by,disliked_by
-10,Vote Test,,Content,Tester,2025-11-26,General,[],,0,0,4,[],[]
 9,Vote Test,,Content,Tester,2025-11-26,General,[],,0,1,0,[],"[""jb8jHxIcJuNzZF4GWUm1Kfar4it1""]"
 8,Vote Test,,Content,Tester,2025-11-26,General,[],,0,0,1,[],[]
 7,Vote Test,,Content,Tester,2025-11-26,General,[],,0,1,0,[],"[""user_vote_test""]"
-6,Vote Test,,Content,Tester,2025-11-26,General,[],,0,1,0,[],"[""user_vote_test""]"
-5,Vote Test,,Content,Tester,2025-11-26,General,[],,0,1,0,[],"[""user_vote_test""]"
 4,Vote Test,,Content,Tester,2025-11-26,General,[],,0,1,0,[],"[""user_vote_test""]"
 1,AI Power Crunch: The Nuclear Data Center Play,Tech giants are buying nuclear plants to fuel the AI arms race.,"
                 <p>The AI revolution has hit a physical wall: electricity. Training a single large language model uses as much energy as 100 homes do in a year. With the US power grid already strained, Big Tech is turning to the only source of carbon-free, 24/7 baseload power available: Nuclear.</p>

@@ -209,6 +209,7 @@ const RecentArticles = () => {
     useEffect(() => {
         const fetchArticles = async () => {
             try {
+                // Fetch only the 3 most recent articles
                 const response = await fetch('http://localhost:8001/api/articles?limit=3');
                 if (response.ok) {
                     const data = await response.json();
@@ -264,8 +265,9 @@ const RecentArticles = () => {
                                     <h3 className="text-xl font-bold mb-3 line-clamp-2 group-hover:text-gold transition-colors">
                                         {article.title}
                                     </h3>
+                                    {/* Strip HTML tags for clean snippet display */}
                                     <p className="text-gray-400 text-sm line-clamp-3 mb-4">
-                                        {article.content.substring(0, 100)}...
+                                        {article.content ? article.content.replace(/<[^>]+>/g, '').substring(0, 100) : ''}...
                                     </p>
                                     <div className="flex items-center text-gold text-sm font-bold">
                                         Read Analysis <ArrowRight size={16} className="ml-2 group-hover:translate-x-1 transition-transform" />
@@ -276,7 +278,7 @@ const RecentArticles = () => {
                     ))}
                 </div>
                 <div className="text-center mt-12">
-                    <Link to="/knowledge-stream" className="inline-flex items-center text-gray-300 hover:text-white transition-colors">
+                    <Link to="/news" className="inline-flex items-center text-gray-300 hover:text-white transition-colors">
                         View Full Stream <ArrowRight size={16} className="ml-2" />
                     </Link>
                 </div>
@@ -344,7 +346,7 @@ const LandingPage = () => {
                 </section>
             </ErrorBoundary>
 
-            {/* Recent Articles (M.I.C.K.S.) - Moved here */}
+            {/* Recent Articles (M.I.C.K.S.) - Displayed below Watchlist */}
             <ErrorBoundary>
                 <RecentArticles />
             </ErrorBoundary>

@@ -212,10 +212,10 @@ export default function Profile() {
                     <div className="flex items-center gap-4">
                         <div className="w-16 h-16 rounded-full bg-gradient-to-br from-purple-600 to-blue-600 flex items-center justify-center text-2xl font-bold relative">
                             {currentUser?.displayName ? currentUser.displayName[0].toUpperCase() : currentUser?.email?.[0]?.toUpperCase() || "U"}
-                            {/* Mod Badge on Avatar */}
+                            {/* Admin Badge on Avatar */}
                             {isMod && (
                                 <div className="absolute -bottom-1 -right-1 bg-gold text-black text-[10px] font-bold px-1.5 py-0.5 rounded border border-white/20 shadow-lg">
-                                    MOD
+                                    Admin
                                 </div>
                             )}
                         </div>
@@ -224,7 +224,7 @@ export default function Profile() {
                                 <h3 className="text-xl font-semibold text-white">{currentUser?.displayName || "User"}</h3>
                                 {isMod && (
                                     <span className="bg-gold/20 text-gold text-xs font-bold px-2 py-0.5 rounded border border-gold/30 tracking-wider flex items-center gap-1">
-                                        <Shield size={12} className="fill-current" /> MODERATOR
+                                        <Shield size={12} className="fill-current" /> ADMINISTRATOR
                                     </span>
                                 )}
                             </div>

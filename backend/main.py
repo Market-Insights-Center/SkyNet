@@ -353,7 +353,22 @@ async def market_data_details_endpoint(request: MarketDataRequest):
                     # Robust IV Check
                     iv = info.get('impliedVolatility')
                     if iv is None:
-                        # Try computing from options if available (advanced), else N/A
+                        try:
+                            # Try computing from options if available (fallback)
+                            # This gets the first expiration date options chain
+                            if stock.options:
+                                opt_date = stock.options[0]
+                                opt = stock.option_chain(opt_date)
+                                # Simple average of ATM call/put implied volatility
+                                # This is a rough approximation if direct data is missing
+                                calls_iv = opt.calls['impliedVolatility'].mean()
+                                puts_iv = opt.puts['impliedVolatility'].mean()
+                                if not np.isnan(calls_iv) and not np.isnan(puts_iv):
+                                    iv = (calls_iv + puts_iv) / 2
+                        except Exception as inner_e:
+                            print(f"Failed to calculate IV fallback for {ticker}: {inner_e}")
+
+                    if iv is None:
                         iv_display = "N/A"
                     else:
                         iv_display = f"{iv:.2%}"
@@ -541,14 +556,18 @@ def create_article(article: Article):
 def delete_article(article_id: int):
     articles = read_articles_from_csv()
     initial_len = len(articles)
-    # Ensure strict integer comparison logic
-    articles = [a for a in articles if int(a['id']) != int(article_id)]
+    
+    # Filter out the article
+    articles = [a for a in articles if int(a.get('id', 0)) != int(article_id)]
     
     if len(articles) == initial_len:
         print(f"Failed to delete article {article_id}. ID not found.")
         raise HTTPException(status_code=404, detail="Article not found")
         
-    save_articles_to_csv(articles)
+    success = save_articles_to_csv(articles)
+    if not success:
+        raise HTTPException(status_code=500, detail="Failed to save changes to database")
+        
     return {"status": "success", "message": "Article deleted"}
 
 @app.post("/api/articles/{article_id}/vote")
