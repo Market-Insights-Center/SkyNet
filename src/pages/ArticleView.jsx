@@ -210,7 +210,7 @@ const ArticleView = () => {
                             <span className="font-bold text-purple-300">{comment.user}</span>
                             {isCommentMod && (
                                 <span className="text-[10px] font-bold bg-gold/20 text-gold px-1.5 py-0.5 rounded border border-gold/30 tracking-wider">
-                                    ADMIN
+                                    Admin
                                 </span>
                             )}
                         </div>

@@ -72,7 +72,7 @@ const Forum = () => {
 
                     {/* Main Content - NewsFeed limited to 6 */}
                     <div className="lg:col-span-3">
-                        <NewsFeed limit={6} />
+                        <NewsFeed limit={6} compact={true} />
                     </div>
                 </div>
             </div>

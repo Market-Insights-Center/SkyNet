@@ -15,6 +15,7 @@ import NewsPage from './pages/NewsPage';
 import KnowledgeStream from './pages/KnowledgeStream';
 import ArticleView from './pages/ArticleView';
 import AdminDashboard from './pages/AdminDashboard';
+import Chatbox from './pages/Chatbox'; // Import Chatbox
 
 function App() {
     const [isLoading, setIsLoading] = useState(true);
@@ -45,6 +46,7 @@ function App() {
                                 <Route path="/knowledge-stream" element={<KnowledgeStream />} />
                                 <Route path="/article/:id" element={<ArticleView />} />
                                 <Route path="/admin" element={<AdminDashboard />} />
+                                <Route path="/chat" element={<Chatbox />} />
                             </Routes>
                         </Layout>
                     </Router>

@@ -52,5 +52,16 @@
         "replies": [],
         "likes": 0,
         "dislikes": 0
+    },
+    {
+        "id": 7,
+        "article_id": 10,
+        "user": "Verzogerung",
+        "email": "marketinsightscenter@gmail.com",
+        "text": "yep im admin",
+        "date": "2025-11-27T03:42:49.081Z",
+        "replies": [],
+        "likes": 0,
+        "dislikes": 0
     }
 ]

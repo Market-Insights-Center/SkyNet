@@ -31,8 +31,8 @@ const Layout = ({ children }) => {
         { name: 'Home', path: '/', icon: Home },
         { name: 'Products', path: '/products', icon: Briefcase },
         { name: 'Forum', path: '/forum', icon: Users },
-        // Knowledge Stream removed as requested
-        { name: 'Direct M.I.C.', path: '/messages', icon: Mail },
+        // Changed "Direct M.I.C." to "Chatbox"
+        { name: 'Chatbox', path: '/chat', icon: MessageSquare }, 
         { name: 'Profile', path: '/profile', icon: User },
         ...(isMod ? [{ name: 'Admin', path: '/admin', icon: Shield }] : [])
     ];
@@ -46,6 +46,7 @@ const Layout = ({ children }) => {
         { name: 'Custom Strategy', path: '/custom', type: 'Command' },
         { name: 'Tracking', path: '/tracking', type: 'Command' },
         { name: 'Profile', path: '/profile', type: 'Page' },
+        { name: 'Chatbox', path: '/chat', type: 'Page' },
         ...(isMod ? [{ name: 'Admin Dashboard', path: '/admin', type: 'Page' }] : []),
         { name: 'Login', path: '/login', type: 'Auth' },
         { name: 'Sign Up', path: '/signup', type: 'Auth' },

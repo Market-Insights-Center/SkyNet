@@ -18,6 +18,7 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from collections import Counter
 from firebase_admin import auth 
+import uuid
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
@@ -50,6 +51,7 @@ YF_SEMAPHORE = asyncio.Semaphore(4)
 USERS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'users.json')
 MODS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'mods.csv')
 COMMENTS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'comments.json')
+CHATS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'chats.json')
 
 # --- Models ---
 
@@ -149,6 +151,28 @@ class ModRequest(BaseModel):
 class ArticleVoteRequest(BaseModel):
     user_id: str
     vote_type: str 
+
+# --- Chat Models ---
+
+class ChatMessage(BaseModel):
+    id: str
+    sender: str
+    text: str
+    timestamp: str
+
+class CreateChatRequest(BaseModel):
+    type: str # 'direct' or 'admin_support'
+    participants: List[str] # Emails of participants
+    initial_message: Optional[str] = None
+    creator_email: str
+
+class SendMessageRequest(BaseModel):
+    sender: str
+    text: str
+
+class DeleteChatRequest(BaseModel):
+    chat_id: str
+    email: str
 
 # --- Helper Functions ---
 
@@ -353,7 +377,22 @@ async def market_data_details_endpoint(request: MarketDataRequest):
                     # Robust IV Check
                     iv = info.get('impliedVolatility')
                     if iv is None:
-                        # Try computing from options if available (advanced), else N/A
+                        try:
+                            # Try computing from options if available (fallback)
+                            # This gets the first expiration date options chain
+                            if stock.options:
+                                opt_date = stock.options[0]
+                                opt = stock.option_chain(opt_date)
+                                # Simple average of ATM call/put implied volatility
+                                # This is a rough approximation if direct data is missing
+                                calls_iv = opt.calls['impliedVolatility'].mean()
+                                puts_iv = opt.puts['impliedVolatility'].mean()
+                                if not np.isnan(calls_iv) and not np.isnan(puts_iv):
+                                    iv = (calls_iv + puts_iv) / 2
+                        except Exception as inner_e:
+                            print(f"Failed to calculate IV fallback for {ticker}: {inner_e}")
+
+                    if iv is None:
                         iv_display = "N/A"
                     else:
                         iv_display = f"{iv:.2%}"
@@ -541,14 +580,18 @@ def create_article(article: Article):
 def delete_article(article_id: int):
     articles = read_articles_from_csv()
     initial_len = len(articles)
-    # Ensure strict integer comparison logic
-    articles = [a for a in articles if int(a['id']) != int(article_id)]
+    
+    # Filter out the article
+    articles = [a for a in articles if int(a.get('id', 0)) != int(article_id)]
     
     if len(articles) == initial_len:
         print(f"Failed to delete article {article_id}. ID not found.")
         raise HTTPException(status_code=404, detail="Article not found")
         
-    save_articles_to_csv(articles)
+    success = save_articles_to_csv(articles)
+    if not success:
+        raise HTTPException(status_code=500, detail="Failed to save changes to database")
+        
     return {"status": "success", "message": "Article deleted"}
 
 @app.post("/api/articles/{article_id}/vote")
@@ -631,6 +674,204 @@ def delete_comment(comment_id: int, requester_email: str):
     comments = [c for c in comments if c['id'] != comment_id]
     save_json(COMMENTS_FILE, comments)
     return {"status": "success"}
+
+# --- CHAT API ENDPOINTS ---
+
+@app.post("/api/chat/create")
+def create_chat(request: CreateChatRequest):
+    chats = load_json(CHATS_FILE)
+    
+    # Determine participants
+    participants = [request.creator_email]
+    
+    if request.type == 'admin_support':
+        mods = get_mod_list()
+        # Add all mods to participants if not already there
+        for m in mods:
+            if m not in participants:
+                participants.append(m)
+        subject = f"Support Ticket: {request.creator_email}"
+    else:
+        # Standard direct chat (can be multi-user)
+        for p in request.participants:
+            if p not in participants:
+                participants.append(p)
+        subject = ", ".join(participants)
+
+    # Check if a chat between these EXACT participants already exists
+    # Filter out chats that are not deleted for the creator
+    if request.type == 'direct':
+        # Sort for consistent comparison
+        target_participants = sorted(participants)
+        
+        existing = next((
+            c for c in chats 
+            if sorted(c['participants']) == target_participants 
+            and c.get('type') != 'admin_support'
+            and request.creator_email not in c.get('deleted_by', [])
+        ), None)
+        
+        if existing:
+            # OPTIMIZATION: Return lightweight version (no messages)
+            return {
+                "id": existing["id"],
+                "type": existing["type"],
+                "participants": existing["participants"],
+                "subject": existing["subject"],
+                "last_updated": existing["last_updated"],
+                "deleted_by": existing.get("deleted_by", []),
+                "last_message_preview": existing["messages"][-1]["text"] if existing["messages"] else ""
+            }
+
+    new_chat = {
+        "id": str(uuid.uuid4()),
+        "type": request.type,
+        "participants": participants,
+        "subject": subject,
+        "created_at": datetime.datetime.now().isoformat(),
+        "last_updated": datetime.datetime.now().isoformat(),
+        "deleted_by": [],
+        "messages": []
+    }
+
+    if request.initial_message:
+        msg = {
+            "id": str(uuid.uuid4()),
+            "sender": request.creator_email,
+            "text": request.initial_message,
+            "timestamp": datetime.datetime.now().isoformat()
+        }
+        new_chat["messages"].append(msg)
+
+    chats.append(new_chat)
+    save_json(CHATS_FILE, chats)
+    
+    # Return lightweight version
+    return {
+        "id": new_chat["id"],
+        "type": new_chat["type"],
+        "participants": new_chat["participants"],
+        "subject": new_chat["subject"],
+        "last_updated": new_chat["last_updated"],
+        "deleted_by": new_chat["deleted_by"],
+        "last_message_preview": request.initial_message or ""
+    }
+
+@app.get("/api/chat/list")
+def list_chats(email: str, all_chats: bool = False):
+    """
+    OPTIMIZATION: Returns lightweight chat objects (WITHOUT 'messages' array).
+    """
+    chats = load_json(CHATS_FILE)
+    
+    mods = get_mod_list()
+    is_admin = email in mods
+    
+    user_chats = []
+    
+    for c in chats:
+        # Check permissions with case-insensitivity safety
+        participants = [p.lower() for p in c.get('participants', [])]
+        user_email = email.lower()
+        
+        is_participant = user_email in participants
+        is_deleted = user_email in [d.lower() for d in c.get('deleted_by', [])]
+        
+        # Logic: 
+        # 1. If requesting "all_chats" (Admin Monitoring), allow if admin.
+        # 2. Otherwise, must be participant AND not deleted.
+        if (all_chats and is_admin) or (is_participant and not is_deleted):
+            # Create lightweight object
+            preview = ""
+            if c.get("messages") and len(c["messages"]) > 0:
+                preview = c["messages"][-1]["text"]
+            
+            user_chats.append({
+                "id": c["id"],
+                "type": c.get("type", "direct"),
+                "participants": c["participants"],
+                "subject": c.get("subject", "Conversation"),
+                "last_updated": c.get("last_updated", ""),
+                "last_message_preview": preview
+            })
+            
+    user_chats.sort(key=lambda x: x.get('last_updated', ''), reverse=True)
+    return user_chats
+
+@app.get("/api/chat/{chat_id}/messages")
+def get_chat_messages(chat_id: str, email: str):
+    """
+    OPTIMIZATION: Specific endpoint to load messages only when needed.
+    """
+    chats = load_json(CHATS_FILE)
+    chat = next((c for c in chats if c['id'] == chat_id), None)
+    
+    if not chat:
+        raise HTTPException(status_code=404, detail="Chat not found")
+    
+    mods = get_mod_list()
+    # Case-insensitive check
+    participants = [p.lower() for p in chat['participants']]
+    if email.lower() not in participants and email not in mods:
+        raise HTTPException(status_code=403, detail="Access denied")
+        
+    return chat.get("messages", [])
+
+@app.post("/api/chat/{chat_id}/message")
+def send_message(chat_id: str, request: SendMessageRequest):
+    chats = load_json(CHATS_FILE)
+    chat = next((c for c in chats if c['id'] == chat_id), None)
+    
+    if not chat:
+        raise HTTPException(status_code=404, detail="Chat not found")
+    
+    # If a user replies to a chat that others deleted, it should reappear for them?
+    # Common behavior: Yes.
+    chat['deleted_by'] = [] # Reset deleted status so everyone sees new message
+    
+    # Case insensitive participant check
+    participants = [p.lower() for p in chat['participants']]
+    if request.sender.lower() not in participants:
+        # Auto-add if it's an admin replying to a ticket they weren't original participant of?
+        # For now, stick to strict participation
+        raise HTTPException(status_code=403, detail="User not in chat")
+
+    msg = {
+        "id": str(uuid.uuid4()),
+        "sender": request.sender,
+        "text": request.text,
+        "timestamp": datetime.datetime.now().isoformat()
+    }
+    
+    if "messages" not in chat: chat["messages"] = []
+    chat['messages'].append(msg)
+    chat['last_updated'] = msg['timestamp']
+    
+    save_json(CHATS_FILE, chats)
+    return msg
+
+@app.post("/api/chat/delete")
+def delete_chat_for_user(request: DeleteChatRequest):
+    chats = load_json(CHATS_FILE)
+    chat = next((c for c in chats if c['id'] == request.chat_id), None)
+    
+    if not chat:
+        raise HTTPException(status_code=404, detail="Chat not found")
+        
+    # Case insensitive check
+    participants = [p.lower() for p in chat['participants']]
+    if request.email.lower() not in participants:
+         raise HTTPException(status_code=403, detail="Not a participant")
+
+    if "deleted_by" not in chat:
+        chat["deleted_by"] = []
+        
+    # Prevent duplicate entries
+    if request.email not in chat["deleted_by"]:
+        chat["deleted_by"].append(request.email)
+        
+    save_json(CHATS_FILE, chats)
+    return {"status": "success", "chat_id": request.chat_id}
 
 if __name__ == "__main__":
     import uvicorn

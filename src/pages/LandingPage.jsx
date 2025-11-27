@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 import { ArrowRight, Play, Check, ChevronDown, ChevronUp, TrendingUp, Shield, Zap, Globe, BarChart2, Lock, Users, FileText } from 'lucide-react';
 import MarketDashboard from '../components/MarketDashboard';
 import Watchlist from '../components/Watchlist';
+import NewsFeed from '../components/NewsFeed';
 
 class ErrorBoundary extends React.Component {
     constructor(props) {
@@ -202,89 +203,6 @@ const PricingCard = ({ title, price, period, features, isPopular, delay }) => {
     );
 };
 
-const RecentArticles = () => {
-    const [articles, setArticles] = useState([]);
-    const [loading, setLoading] = useState(true);
-
-    useEffect(() => {
-        const fetchArticles = async () => {
-            try {
-                const response = await fetch('http://localhost:8001/api/articles?limit=3');
-                if (response.ok) {
-                    const data = await response.json();
-                    setArticles(data);
-                }
-            } catch (error) {
-                console.error("Failed to fetch recent articles:", error);
-            } finally {
-                setLoading(false);
-            }
-        };
-
-        fetchArticles();
-    }, []);
-
-    if (loading) return null;
-
-    return (
-        <section className="py-24 px-4 bg-black">
-            <div className="max-w-7xl mx-auto">
-                <div className="text-center mb-16">
-                    <h2 className="text-4xl font-bold mb-6">M.I.C.K.S. <span className="text-gold">(News Stream)</span></h2>
-                    <p className="text-xl text-gray-400 max-w-2xl mx-auto">
-                        Market Insights Center Knowledge Stream - Latest Articles
-                    </p>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                    {articles.map((article, index) => (
-                        <motion.div
-                            key={article.id}
-                            initial={{ opacity: 0, y: 20 }}
-                            whileInView={{ opacity: 1, y: 0 }}
-                            viewport={{ once: true }}
-                            transition={{ duration: 0.5, delay: index * 0.1 }}
-                            className="bg-white/5 rounded-xl overflow-hidden border border-white/10 hover:border-gold/30 transition-all group"
-                        >
-                            <Link to={`/article/${article.id}`}>
-                                <div className="h-48 overflow-hidden relative">
-                                    <div className="absolute inset-0 bg-black/20 group-hover:bg-transparent transition-colors z-10" />
-                                    <img
-                                        src={article.cover_image || "https://images.unsplash.com/photo-1611974765270-ca12586343bb?auto=format&fit=crop&q=80&w=1000"}
-                                        alt={article.title}
-                                        className="w-full h-full object-cover transform group-hover:scale-110 transition-transform duration-500"
-                                    />
-                                </div>
-                                <div className="p-6">
-                                    <div className="flex items-center gap-2 mb-3">
-                                        <span className="text-xs font-bold text-gold bg-gold/10 px-2 py-1 rounded uppercase tracking-wider">
-                                            {article.category || "Market"}
-                                        </span>
-                                        <span className="text-xs text-gray-400">{article.date}</span>
-                                    </div>
-                                    <h3 className="text-xl font-bold mb-3 line-clamp-2 group-hover:text-gold transition-colors">
-                                        {article.title}
-                                    </h3>
-                                    <p className="text-gray-400 text-sm line-clamp-3 mb-4">
-                                        {article.content.substring(0, 100)}...
-                                    </p>
-                                    <div className="flex items-center text-gold text-sm font-bold">
-                                        Read Analysis <ArrowRight size={16} className="ml-2 group-hover:translate-x-1 transition-transform" />
-                                    </div>
-                                </div>
-                            </Link>
-                        </motion.div>
-                    ))}
-                </div>
-                <div className="text-center mt-12">
-                    <Link to="/knowledge-stream" className="inline-flex items-center text-gray-300 hover:text-white transition-colors">
-                        View Full Stream <ArrowRight size={16} className="ml-2" />
-                    </Link>
-                </div>
-            </div>
-        </section>
-    );
-};
-
 const LandingPage = () => {
     return (
         <div className="min-h-screen bg-black text-white">
@@ -344,9 +262,9 @@ const LandingPage = () => {
                 </section>
             </ErrorBoundary>
 
-            {/* Recent Articles (M.I.C.K.S.) - Moved here */}
+            {/* Recent Articles (M.I.C.K.S.) - Displayed below Watchlist via NewsFeed */}
             <ErrorBoundary>
-                <RecentArticles />
+                <NewsFeed limit={3} />
             </ErrorBoundary>
 
             {/* Features Section */}
