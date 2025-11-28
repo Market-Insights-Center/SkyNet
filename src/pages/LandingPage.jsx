@@ -7,6 +7,7 @@ import MarketDashboard from '../components/MarketDashboard';
 import Watchlist from '../components/Watchlist';
 import NewsFeed from '../components/NewsFeed';
 import IdeaCard from '../components/IdeaCard';
+import Footer from '../components/Footer';
 import { useAuth } from '../contexts/AuthContext';
 
 class ErrorBoundary extends React.Component {
@@ -61,7 +62,7 @@ const Tooltip = ({ text, children }) => {
 
     return (
         <>
-            <div 
+            <div
                 ref={triggerRef}
                 className="relative inline-block"
                 onMouseEnter={handleMouseEnter}
@@ -130,7 +131,7 @@ const PerformanceModal = ({ isOpen, onClose }) => {
 
     return (
         <div className="fixed inset-0 z-[100] flex items-start justify-center pt-16 px-4 pb-4 bg-black/80 backdrop-blur-md">
-            <motion.div 
+            <motion.div
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.95 }}
@@ -138,20 +139,20 @@ const PerformanceModal = ({ isOpen, onClose }) => {
             >
                 <div className="sticky top-0 bg-[#0a0a0a]/95 backdrop-blur border-b border-white/10 p-4 flex justify-between items-center z-10">
                     <h3 className="text-xl font-bold text-gold">Performance Details</h3>
-                    <button 
-                        onClick={onClose} 
+                    <button
+                        onClick={onClose}
                         className="p-2 hover:bg-white/10 rounded-full transition-colors group"
                         aria-label="Close details"
                     >
                         <X size={24} className="text-gray-400 group-hover:text-white transition-colors" />
                     </button>
                 </div>
-                
+
                 <div className="p-6 space-y-8">
                     <div className="rounded-xl overflow-hidden border border-white/10 bg-black relative h-[300px] md:h-[400px]">
-                         <img 
-                            src="/cultivatebacktest.png" 
-                            alt="Cultivate Backtest vs SPY Graph" 
+                        <img
+                            src="/cultivatebacktest.png"
+                            alt="Cultivate Backtest vs SPY Graph"
                             className="w-full h-full object-contain"
                         />
                     </div>
@@ -256,20 +257,20 @@ const WealthCalculator = () => {
     const [initial, setInitial] = useState(10000);
     const [monthly, setMonthly] = useState(500);
     const [showModal, setShowModal] = useState(false);
-    
+
     // Config
     const years = 10;
     const months = years * 12;
 
     // Rates (CAGR -> Monthly Effective Rate)
-    const rateSingularity = 0.2127; 
-    const monthlyRateSingularity = Math.pow(1 + rateSingularity, 1/12) - 1;
+    const rateSingularity = 0.2127;
+    const monthlyRateSingularity = Math.pow(1 + rateSingularity, 1 / 12) - 1;
 
     const rateSPY = 0.1254;
-    const monthlyRateSPY = Math.pow(1 + rateSPY, 1/12) - 1;
+    const monthlyRateSPY = Math.pow(1 + rateSPY, 1 / 12) - 1;
 
     const rateSavings = 0.046;
-    const monthlyRateSavings = Math.pow(1 + rateSavings, 1/12) - 1;
+    const monthlyRateSavings = Math.pow(1 + rateSavings, 1 / 12) - 1;
 
     // Calculation Function
     const calculateFV = (initial, monthly, r, n) => {
@@ -334,7 +335,7 @@ const WealthCalculator = () => {
                                     </Tooltip>
                                 </div>
                                 <p className="text-4xl font-bold text-gold">${Math.round(singularityValue).toLocaleString()}</p>
-                                <button 
+                                <button
                                     onClick={() => setShowModal(true)}
                                     className="text-xs text-gold/70 hover:text-gold mt-2 underline decoration-dotted flex items-center gap-1 transition-colors"
                                 >
@@ -373,7 +374,7 @@ const WealthCalculator = () => {
                                     +${Math.round(singularityValue - savingsValue).toLocaleString()}
                                 </p>
                             </div>
-                             <div className="flex justify-between items-center">
+                            <div className="flex justify-between items-center">
                                 <span className="text-gray-400 text-sm">Potential Gain vs SPY</span>
                                 <p className="text-green-400 font-bold text-lg">
                                     +${Math.round(singularityValue - spyValue).toLocaleString()}
@@ -394,25 +395,25 @@ const WealthCalculator = () => {
 // --- Updated FAQ Section ---
 const FAQSection = () => {
     const faqs = [
-        { 
-            q: "What distinguishes the 'Visionary' tier from the 'Explorer' tier?", 
-            a: "The Visionary tier is built for active investors seeking Alpha. While Explorer gives you market data and community access, Visionary unlocks our proprietary AI buy/sell signals, advanced Portfolio Lab backtesting tools, and real-time risk alerts." 
+        {
+            q: "What distinguishes the 'Visionary' tier from the 'Explorer' tier?",
+            a: "The Visionary tier is built for active investors seeking Alpha. While Explorer gives you market data and community access, Visionary unlocks our proprietary AI buy/sell signals, advanced Portfolio Lab backtesting tools, and real-time risk alerts."
         },
-        { 
-            q: "How does the 'Singularity' model adapt to market changes?", 
-            a: "M.I.C. Singularity uses a hybrid approach of quantitative momentum strategies and deep learning. It constantly retrains on new price action and volatility data, allowing it to shift between offensive and defensive postures automatically." 
+        {
+            q: "How does the 'Singularity' model adapt to market changes?",
+            a: "M.I.C. Singularity uses a hybrid approach of quantitative momentum strategies and deep learning. It constantly retrains on new price action and volatility data, allowing it to shift between offensive and defensive postures automatically."
         },
-        { 
-            q: "Is my personal and financial data secure?", 
-            a: "Security is our priority. We use bank-grade AES-256 encryption for all data transmission and storage. Furthermore, M.I.C. is a non-custodial analytics platform; we do not hold your funds or have withdrawal access to your brokerage accounts." 
+        {
+            q: "Is my personal and financial data secure?",
+            a: "Security is our priority. We use bank-grade AES-256 encryption for all data transmission and storage. Furthermore, M.I.C. is a non-custodial analytics platform; we do not hold your funds or have withdrawal access to your brokerage accounts."
         },
-        { 
-            q: "Do you offer API access for custom integrations?", 
-            a: "Yes, API access is available exclusively in the Institutional tier. This allows you to programmatically access our signals, market data, and sentiment analysis for integration into your own algo-trading bots or dashboards." 
+        {
+            q: "Do you offer API access for custom integrations?",
+            a: "Yes, API access is available exclusively in the Institutional tier. This allows you to programmatically access our signals, market data, and sentiment analysis for integration into your own algo-trading bots or dashboards."
         },
-        { 
-            q: "Can I cancel or upgrade my subscription at any time?", 
-            a: "Absolutely. You can manage your subscription directly from your user dashboard. Upgrades take effect immediately, and cancellations will allow you to keep access until the end of your current billing cycle." 
+        {
+            q: "Can I cancel or upgrade my subscription at any time?",
+            a: "Absolutely. You can manage your subscription directly from your user dashboard. Upgrades take effect immediately, and cancellations will allow you to keep access until the end of your current billing cycle."
         }
     ];
 
@@ -499,86 +500,12 @@ const LandingPage = () => {
     const [showCommunityStream, setShowCommunityStream] = useState(false);
 
     useEffect(() => {
-        const fetchArticles = async () => {
-            try {
-                // Fetch only the 3 most recent articles
-                const response = await fetch('http://localhost:8001/api/articles?limit=3');
-                if (response.ok) {
-                    const data = await response.json();
-                    setArticles(data);
-                }
-            } catch (error) {
-                console.error("Failed to fetch recent articles:", error);
-            } finally {
-                setLoading(false);
-            }
-        };
-
-        fetchArticles();
+        fetch('http://localhost:8001/api/ideas?limit=3')
+            .then(res => res.json())
+            .then(data => setRecentIdeas(data))
+            .catch(err => console.error("Error fetching ideas:", err));
     }, []);
 
-    if (loading) return null;
-
-    return (
-        <section className="py-24 px-4 bg-black">
-            <div className="max-w-7xl mx-auto">
-                <div className="text-center mb-16">
-                    <h2 className="text-4xl font-bold mb-6">M.I.C.K.S. <span className="text-gold">(News Stream)</span></h2>
-                    <p className="text-xl text-gray-400 max-w-2xl mx-auto">
-                        Market Insights Center Knowledge Stream - Latest Articles
-                    </p>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                    {articles.map((article, index) => (
-                        <motion.div
-                            key={article.id}
-                            initial={{ opacity: 0, y: 20 }}
-                            whileInView={{ opacity: 1, y: 0 }}
-                            viewport={{ once: true }}
-                            transition={{ duration: 0.5, delay: index * 0.1 }}
-                            className="bg-white/5 rounded-xl overflow-hidden border border-white/10 hover:border-gold/30 transition-all group"
-                        >
-                            <Link to={`/article/${article.id}`}>
-                                <div className="h-48 overflow-hidden relative">
-                                    <div className="absolute inset-0 bg-black/20 group-hover:bg-transparent transition-colors z-10" />
-                                    <img
-                                        src={article.cover_image || "https://images.unsplash.com/photo-1611974765270-ca12586343bb?auto=format&fit=crop&q=80&w=1000"}
-                                        alt={article.title}
-                                        className="w-full h-full object-cover transform group-hover:scale-110 transition-transform duration-500"
-                                    />
-                                </div>
-                                <div className="p-6">
-                                    <div className="flex items-center gap-2 mb-3">
-                                        <span className="text-xs font-bold text-gold bg-gold/10 px-2 py-1 rounded uppercase tracking-wider">
-                                            {article.category || "Market"}
-                                        </span>
-                                        <span className="text-xs text-gray-400">{article.date}</span>
-                                    </div>
-                                    <h3 className="text-xl font-bold mb-3 line-clamp-2 group-hover:text-gold transition-colors">
-                                        {article.title}
-                                    </h3>
-                                    <p className="text-gray-400 text-sm line-clamp-3 mb-4">
-                                        {article.content.substring(0, 100)}...
-                                    </p>
-                                    <div className="flex items-center text-gold text-sm font-bold">
-                                        Read Analysis <ArrowRight size={16} className="ml-2 group-hover:translate-x-1 transition-transform" />
-                                    </div>
-                                </div>
-                            </Link>
-                        </motion.div>
-                    ))}
-                </div>
-                <div className="text-center mt-12">
-                    <Link to="/knowledge-stream" className="inline-flex items-center text-gray-300 hover:text-white transition-colors">
-                        View Full Stream <ArrowRight size={16} className="ml-2" />
-                    </Link>
-                </div>
-            </div>
-        </section>
-    );
-};
-
-const LandingPage = () => {
     return (
         <div className="min-h-screen bg-black text-white">
             {/* Hero Section */}
@@ -622,27 +549,7 @@ const LandingPage = () => {
                 </section>
             </ErrorBoundary>
 
-            {/* Market Dashboard */}
-            <ErrorBoundary>
-                <MarketDashboard />
-            </ErrorBoundary>
-
-            {/* Watchlist Preview */}
-            <ErrorBoundary>
-                <section className="py-12 px-4 bg-black">
-                    <div className="max-w-7xl mx-auto">
-                        <h2 className="text-3xl font-bold mb-8 text-center">Live <span className="text-gold">Watchlist</span></h2>
-                        <Watchlist />
-                    </div>
-                </section>
-            </ErrorBoundary>
-
-            {/* Recent Articles (M.I.C.K.S.) - Moved here */}
-            <ErrorBoundary>
-                <RecentArticles />
-            </ErrorBoundary>
-
-            {/* Features Section */}
+            {/* Engineered to Fit Any Investor (Formerly Features) */}
             <ErrorBoundary>
                 <section className="py-24 px-4 bg-black relative z-10">
                     <div className="max-w-7xl mx-auto">
@@ -666,7 +573,7 @@ const LandingPage = () => {
                                 desc="Test your hypotheses with institutional-grade backtesting tools on 10+ years of historical data to validate your strategy before risking capital."
                                 delay={0.2}
                             />
-                             <FeatureCard
+                            <FeatureCard
                                 icon={Shield}
                                 title="Risk Protocols"
                                 desc="Dynamic position sizing and volatility targeting help protect your capital during market downturns while staying invested during rallies."
@@ -684,7 +591,7 @@ const LandingPage = () => {
                                 desc="Real-time news aggregation and NLP analysis filter the noise to find the signal in global markets."
                                 delay={0.5}
                             />
-                             <FeatureCard
+                            <FeatureCard
                                 icon={Zap}
                                 title="Automated Execution"
                                 desc="Seamlessly sync with supported brokers for automated rebalancing and trade execution. (Coming Soon)"
@@ -700,8 +607,8 @@ const LandingPage = () => {
                 <WealthCalculator />
             </ErrorBoundary>
 
-             {/* Market Dashboard (Moved Below Calculator) */}
-             <ErrorBoundary>
+            {/* Market Dashboard (Moved Below Calculator) */}
+            <ErrorBoundary>
                 <MarketDashboard />
             </ErrorBoundary>
 
@@ -710,21 +617,20 @@ const LandingPage = () => {
                 <section className="py-12 px-4 bg-black">
                     <div className="max-w-7xl mx-auto">
                         <div className="flex justify-between items-center mb-8">
-                             <h2 className="text-3xl font-bold text-center">Live <span className="text-gold">Watchlist</span></h2>
+                            <h2 className="text-3xl font-bold text-center">Live <span className="text-gold">Watchlist</span></h2>
                         </div>
-                        <Watchlist /> 
-                        
+                        <Watchlist />
+
                         {/* Toggle Button */}
                         <div className="flex justify-center mt-12 mb-8">
                             <motion.button
                                 whileHover={{ scale: 1.05 }}
                                 whileTap={{ scale: 0.95 }}
                                 onClick={() => setShowCommunityStream(!showCommunityStream)}
-                                className={`flex items-center gap-2 px-6 py-3 rounded-full font-bold transition-all ${
-                                    showCommunityStream 
-                                        ? "bg-white/10 text-white hover:bg-white/20 border border-white/10" 
+                                className={`flex items-center gap-2 px-6 py-3 rounded-full font-bold transition-all ${showCommunityStream
+                                        ? "bg-white/10 text-white hover:bg-white/20 border border-white/10"
                                         : "bg-gold/10 text-gold hover:bg-gold/20 border border-gold/30"
-                                }`}
+                                    }`}
                             >
                                 {showCommunityStream ? (
                                     <>
@@ -825,6 +731,11 @@ const LandingPage = () => {
             {/* FAQ Section */}
             <ErrorBoundary>
                 <FAQSection />
+            </ErrorBoundary>
+
+            {/* Footer */}
+            <ErrorBoundary>
+                <Footer />
             </ErrorBoundary>
         </div>
     );
