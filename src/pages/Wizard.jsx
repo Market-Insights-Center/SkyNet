@@ -170,13 +170,13 @@ const Wizard = () => {
         
         // --- [DEBUG START] ---
         console.group("🚀 EXECUTION DEBUG");
-        console.log("Target Endpoint:", `http://localhost:8001/api/${toolType}`);
+        console.log("Target Endpoint:", `/api/${toolType}`);
         console.log("Payload Sending:", JSON.stringify(body, null, 2));
         console.groupEnd();
         // --- [DEBUG END] ---
 
         try {
-            const endpoint = `http://localhost:8001/api/${toolType}`;
+            const endpoint = `/api/${toolType}`;
 
             const response = await fetch(endpoint, {
                 method: 'POST',

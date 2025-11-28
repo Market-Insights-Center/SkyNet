@@ -48,7 +48,7 @@ const CreateIdeaModal = ({ isOpen, onClose, onIdeaCreated, user }) => {
                 const formData = new FormData();
                 formData.append('file', imageFile);
 
-                const uploadRes = await fetch('http://localhost:8001/api/upload', {
+                const uploadRes = await fetch('/api/upload', {
                     method: 'POST',
                     body: formData,
                 });
@@ -72,7 +72,7 @@ const CreateIdeaModal = ({ isOpen, onClose, onIdeaCreated, user }) => {
                 date: new Date().toISOString().split('T')[0]
             };
 
-            const res = await fetch('http://localhost:8001/api/ideas', {
+            const res = await fetch('/api/ideas', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(ideaData)

@@ -250,7 +250,7 @@ const Watchlist = () => {
 
         for (const chunk of chunks) {
             try {
-                const response = await fetch('http://localhost:8001/api/market-data', {
+                const response = await fetch('/api/market-data', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ tickers: chunk })
@@ -270,7 +270,7 @@ const Watchlist = () => {
             } catch (error) { console.error("Failed to fetch basic data", error); }
 
             try {
-                const response = await fetch('http://localhost:8001/api/market-data/details', {
+                const response = await fetch('/api/market-data/details', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ tickers: chunk })
@@ -321,7 +321,7 @@ const Watchlist = () => {
             setTickers(prev => [...prev, symbol]);
             try {
                 // Optimistic fetch
-                const response = await fetch('http://localhost:8001/api/market-data', {
+                const response = await fetch('/api/market-data', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ tickers: [symbol] })

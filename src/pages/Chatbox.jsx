@@ -28,7 +28,7 @@ const Chatbox = () => {
         if (!currentUser) return;
 
         // Check if mod
-        fetch('http://localhost:8001/api/mods')
+        fetch('/api/mods')
             .then(res => res.json())
             .then(data => {
                 if (data.mods.includes(currentUser.email)) setIsMod(true);
@@ -61,8 +61,8 @@ const Chatbox = () => {
     const fetchConversations = async () => {
         try {
             const url = adminViewAll 
-                ? `http://localhost:8001/api/chat/list?email=${currentUser.email}&all_chats=true`
-                : `http://localhost:8001/api/chat/list?email=${currentUser.email}`;
+                ? `/api/chat/list?email=${currentUser.email}&all_chats=true`
+                : `/api/chat/list?email=${currentUser.email}`;
                 
             const res = await fetch(url);
             if (res.ok) {
@@ -82,7 +82,7 @@ const Chatbox = () => {
 
     const fetchChatMessages = async (chatId) => {
         try {
-            const res = await fetch(`http://localhost:8001/api/chat/${chatId}/messages?email=${currentUser.email}`);
+            const res = await fetch(`/api/chat/${chatId}/messages?email=${currentUser.email}`);
             if (res.ok) {
                 const data = await res.json();
                 setMessages(prev => {
@@ -100,7 +100,7 @@ const Chatbox = () => {
         if (!newMessage.trim() || !selectedChat) return;
 
         try {
-            const res = await fetch(`http://localhost:8001/api/chat/${selectedChat.id}/message`, {
+            const res = await fetch(`/api/chat/${selectedChat.id}/message`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -126,7 +126,7 @@ const Chatbox = () => {
 
         try {
             console.log("Deleting chat:", chatId);
-            const res = await fetch('http://localhost:8001/api/chat/delete', {
+            const res = await fetch('/api/chat/delete', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -159,7 +159,7 @@ const Chatbox = () => {
 
     const startAdminChat = async () => {
         try {
-            const res = await fetch('http://localhost:8001/api/chat/create', {
+            const res = await fetch('/api/chat/create', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -180,7 +180,7 @@ const Chatbox = () => {
 
     const fetchUsers = async () => {
         try {
-            const res = await fetch('http://localhost:8001/api/users');
+            const res = await fetch('/api/users');
             const data = await res.json();
             setAllUsers(data.filter(u => u.email !== currentUser.email));
         } catch (err) {
@@ -200,7 +200,7 @@ const Chatbox = () => {
         if (selectedUsers.length === 0) return;
 
         try {
-            const res = await fetch('http://localhost:8001/api/chat/create', {
+            const res = await fetch('/api/chat/create', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({

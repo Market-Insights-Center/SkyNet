@@ -14,7 +14,7 @@ const IdeasPage = () => {
     const fetchIdeas = async () => {
         try {
             // UPDATED PORT: 8001
-            const res = await fetch('http://localhost:8001/api/ideas');
+            const res = await fetch('/api/ideas');
             const data = await res.json();
             setIdeas(data);
         } catch (error) {
@@ -35,7 +35,7 @@ const IdeasPage = () => {
         }
         try {
             // UPDATED PORT: 8001
-            const res = await fetch(`http://localhost:8001/api/ideas/${ideaId}/vote`, {
+            const res = await fetch(`/api/ideas/${ideaId}/vote`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ user_id: currentUser.email, vote_type: type })

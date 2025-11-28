@@ -17,6 +17,8 @@ import ArticleView from './pages/ArticleView';
 import AdminDashboard from './pages/AdminDashboard';
 import Chatbox from './pages/Chatbox';
 import IdeasPage from './pages/IdeasPage';
+import TermsOfService from './pages/TermsOfService';
+import PrivacyPolicy from './pages/PrivacyPolicy';
 
 function App() {
     const [isLoading, setIsLoading] = useState(true);
@@ -30,7 +32,6 @@ function App() {
                 {!isLoading && (
                     <Router>
                         <Layout>
-                            {/* ... your routes ... */}
                             <Routes>
                                 <Route path="/" element={<LandingPage />} />
                                 <Route path="/products" element={<Products />} />
@@ -49,6 +50,8 @@ function App() {
                                 <Route path="/admin" element={<AdminDashboard />} />
                                 <Route path="/chat" element={<Chatbox />} />
                                 <Route path="/ideas" element={<IdeasPage />} />
+                                <Route path="/terms" element={<TermsOfService />} />
+                                <Route path="/privacy" element={<PrivacyPolicy />} />
                             </Routes>
                         </Layout>
                     </Router>

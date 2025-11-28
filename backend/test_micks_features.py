@@ -2,7 +2,7 @@ import requests
 import json
 import time
 
-BASE_URL = "http://localhost:8001"
+BASE_URL = ""
 
 def test_articles_crud():
     print("\n--- Testing Articles CRUD ---")

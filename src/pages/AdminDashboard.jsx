@@ -42,10 +42,10 @@ const AdminDashboard = () => {
         setLoading(true);
         try {
             const [articlesRes, usersRes, modsRes, ideasRes] = await Promise.all([
-                fetch('http://localhost:8001/api/articles?limit=100'),
-                fetch('http://localhost:8001/api/users'),
-                fetch('http://localhost:8001/api/mods'),
-                fetch('http://localhost:8001/api/ideas?limit=100')
+                fetch('/api/articles?limit=100'),
+                fetch('/api/users'),
+                fetch('/api/mods'),
+                fetch('/api/ideas?limit=100')
             ]);
 
             const articlesData = await articlesRes.json();
@@ -77,7 +77,7 @@ const AdminDashboard = () => {
         }
 
         try {
-            const response = await fetch('http://localhost:8001/api/articles', {
+            const response = await fetch('/api/articles', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(processedData)
@@ -97,7 +97,7 @@ const AdminDashboard = () => {
     const handleDeleteArticle = async (id) => {
         if (!window.confirm("Are you sure you want to delete this article?")) return;
         try {
-            await fetch(`http://localhost:8001/api/articles/${id}`, { method: 'DELETE' });
+            await fetch(`/api/articles/${id}`, { method: 'DELETE' });
             fetchData();
         } catch (error) {
             console.error("Error deleting article:", error);
@@ -109,7 +109,7 @@ const AdminDashboard = () => {
     const handleUserUpdate = async (e) => {
         e.preventDefault();
         try {
-            const response = await fetch('http://localhost:8001/api/users', {
+            const response = await fetch('/api/users', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -132,7 +132,7 @@ const AdminDashboard = () => {
     const handleDeleteIdea = async (id) => {
         if (!window.confirm("Are you sure you want to delete this idea? This cannot be undone.")) return;
         try {
-            const res = await fetch(`http://localhost:8001/api/ideas/${id}`, {
+            const res = await fetch(`/api/ideas/${id}`, {
                 method: 'DELETE'
             });
             if (res.ok) {
@@ -148,7 +148,7 @@ const AdminDashboard = () => {
     const handleDeleteComment = async (commentId) => {
         if (!window.confirm("Delete this comment permanently?")) return;
         try {
-            const res = await fetch(`http://localhost:8001/api/comments/${commentId}`, {
+            const res = await fetch(`/api/comments/${commentId}`, {
                 method: 'DELETE'
             });
             if (res.ok) {
@@ -168,7 +168,7 @@ const AdminDashboard = () => {
         e.preventDefault();
         if (!newModEmail) return;
         try {
-            await fetch('http://localhost:8001/api/mods', {
+            await fetch('/api/mods', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ email: newModEmail, action: 'add', requester_email: currentUser.email })
@@ -183,7 +183,7 @@ const AdminDashboard = () => {
     const handleRemoveMod = async (email) => {
         if (!window.confirm(`Remove ${email} as moderator?`)) return;
         try {
-            await fetch('http://localhost:8001/api/mods', {
+            await fetch('/api/mods', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ email: email, action: 'remove', requester_email: currentUser.email })

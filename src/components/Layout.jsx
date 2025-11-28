@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../contexts/AuthContext';
-import { User, Search, Home, Briefcase, MessageSquare, Users, Mail, Command, Shield, FileText } from 'lucide-react';
+import { User, Search, Home, Briefcase, MessageSquare, Users, Command, Shield, Menu, X } from 'lucide-react';
 
 const Layout = ({ children }) => {
     const location = useLocation();
@@ -10,13 +10,15 @@ const Layout = ({ children }) => {
     const { currentUser } = useAuth();
     const [searchQuery, setSearchQuery] = useState('');
     const [showSuggestions, setShowSuggestions] = useState(false);
+    const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false); // NEW: Mobile State
     const searchRef = useRef(null);
 
     const [isMod, setIsMod] = useState(false);
 
     useEffect(() => {
         if (currentUser) {
-            fetch('http://localhost:8001/api/mods')
+            // FIXED: Changed '/api/mods' to '/api/mods'
+            fetch('/api/mods') 
                 .then(res => res.json())
                 .then(data => {
                     if (data.mods.includes(currentUser.email)) {
@@ -31,8 +33,7 @@ const Layout = ({ children }) => {
         { name: 'Home', path: '/', icon: Home },
         { name: 'Products', path: '/products', icon: Briefcase },
         { name: 'Forum', path: '/forum', icon: Users },
-        // Changed "Direct M.I.C." to "Chatbox"
-        { name: 'Chatbox', path: '/chat', icon: MessageSquare }, 
+        { name: 'Chatbox', path: '/chat', icon: MessageSquare },
         { name: 'Profile', path: '/profile', icon: User },
         ...(isMod ? [{ name: 'Admin', path: '/admin', icon: Shield }] : [])
     ];
@@ -94,7 +95,7 @@ const Layout = ({ children }) => {
                             </Link>
                         </div>
 
-                        {/* Right Side: Search + Menu */}
+                        {/* --- DESKTOP MENU (Hidden on Mobile) --- */}
                         <div className="hidden md:flex items-center gap-6">
                             {/* Search Bar */}
                             <div className="relative group" ref={searchRef}>
@@ -172,38 +173,71 @@ const Layout = ({ children }) => {
 
                                 {currentUser ? (
                                     <div className="flex items-center gap-2 text-gray-300">
-                                        <span className="text-sm">{currentUser.displayName}</span>
+                                        <span className="text-sm">{currentUser.displayName || currentUser.email}</span>
                                     </div>
                                 ) : (
                                     <div className="flex items-center space-x-2">
-                                        <Link
-                                            to="/login"
-                                            className="text-gray-300 hover:text-white text-sm font-medium transition-colors px-3 py-2"
-                                        >
-                                            Log In
-                                        </Link>
-                                        <Link
-                                            to="/signup"
-                                            className="bg-gold/10 hover:bg-gold/20 text-gold border border-gold/50 px-4 py-2 rounded-full text-sm font-medium transition-all"
-                                        >
-                                            Sign Up
-                                        </Link>
+                                        <Link to="/login" className="text-gray-300 hover:text-white text-sm font-medium transition-colors px-3 py-2">Log In</Link>
+                                        <Link to="/signup" className="bg-gold/10 hover:bg-gold/20 text-gold border border-gold/50 px-4 py-2 rounded-full text-sm font-medium transition-all">Sign Up</Link>
                                     </div>
                                 )}
                             </div>
                         </div>
+
+                        {/* --- MOBILE MENU BUTTON (Visible only on mobile) --- */}
+                        <div className="md:hidden flex items-center">
+                            <button onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} className="text-gray-300 hover:text-white p-2">
+                                {isMobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
+                            </button>
+                        </div>
                     </div>
                 </div>
+
+                {/* --- MOBILE DROPDOWN --- */}
+                <AnimatePresence>
+                    {isMobileMenuOpen && (
+                        <motion.div
+                            initial={{ opacity: 0, height: 0 }}
+                            animate={{ opacity: 1, height: 'auto' }}
+                            exit={{ opacity: 0, height: 0 }}
+                            className="md:hidden bg-[#1a1a1a] border-b border-white/10 overflow-hidden"
+                        >
+                            <div className="px-4 pt-2 pb-4 space-y-2">
+                                {navItems.map((item) => (
+                                    <Link
+                                        key={item.name}
+                                        to={item.path}
+                                        onClick={() => setIsMobileMenuOpen(false)}
+                                        className={`block px-3 py-3 rounded-md text-base font-medium flex items-center gap-3 ${location.pathname === item.path ? 'text-gold bg-white/5' : 'text-gray-300 hover:text-white hover:bg-white/5'}`}
+                                    >
+                                        <item.icon size={18} />
+                                        {item.name}
+                                    </Link>
+                                ))}
+                                <div className="border-t border-white/10 pt-2 mt-2">
+                                    {currentUser ? (
+                                        <div className="px-3 py-2 text-gray-400 text-sm">
+                                            Signed in as: <span className="text-white font-bold">{currentUser.email}</span>
+                                        </div>
+                                    ) : (
+                                        <div className="flex flex-col gap-2 px-3">
+                                            <Link to="/login" onClick={() => setIsMobileMenuOpen(false)} className="text-center text-gray-300 hover:text-white py-2 border border-white/10 rounded">Log In</Link>
+                                            <Link to="/signup" onClick={() => setIsMobileMenuOpen(false)} className="text-center bg-gold text-black font-bold py-2 rounded">Sign Up</Link>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
             </nav>
 
             {/* Main Content */}
             <main className="pt-20 min-h-screen relative overflow-x-hidden">
-                {/* Background Elements */}
                 <div className="absolute inset-0 z-0 pointer-events-none">
                     <div className="absolute top-0 left-1/4 w-96 h-96 bg-royal-purple/20 rounded-full blur-[128px]" />
                     <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-gold/10 rounded-full blur-[128px]" />
                 </div>
-
                 <div className="relative z-10">
                     {children}
                 </div>

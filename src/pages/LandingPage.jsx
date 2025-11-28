@@ -500,7 +500,7 @@ const LandingPage = () => {
     const [showCommunityStream, setShowCommunityStream] = useState(false);
 
     useEffect(() => {
-        fetch('http://localhost:8001/api/ideas?limit=3')
+        fetch('/api/ideas?limit=3')
             .then(res => res.json())
             .then(data => setRecentIdeas(data))
             .catch(err => console.error("Error fetching ideas:", err));

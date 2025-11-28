@@ -9,7 +9,7 @@ const NewsFeed = ({ limit = 3, compact = false }) => {
 
     useEffect(() => {
         // Fetch using the limit prop so it's dynamic
-        fetch(`http://localhost:8001/api/articles?limit=${limit}`)
+        fetch(`/api/articles?limit=${limit}`)
             .then(res => res.json())
             .then(data => {
                 if (Array.isArray(data)) {

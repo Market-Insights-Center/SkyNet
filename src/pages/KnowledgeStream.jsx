@@ -11,7 +11,7 @@ const KnowledgeStream = () => {
     useEffect(() => {
         const fetchArticles = async () => {
             try {
-                const response = await fetch('http://localhost:8001/api/articles?limit=100'); // Fetch all, handle pagination client-side for now or update API
+                const response = await fetch('/api/articles?limit=100'); // Fetch all, handle pagination client-side for now or update API
                 if (response.ok) {
                     const data = await response.json();
                     setArticles(data);

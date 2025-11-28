@@ -29,7 +29,7 @@ const ArticleView = () => {
 
     useEffect(() => {
         // Fetch Mods
-        fetch('http://localhost:8001/api/mods')
+        fetch('/api/mods')
             .then(res => res.json())
             .then(data => {
                 setMods(data.mods || []);
@@ -40,7 +40,7 @@ const ArticleView = () => {
             .catch(err => console.error("Error fetching mods:", err));
 
         // Fetch Article
-        fetch(`http://localhost:8001/api/articles/${id}`)
+        fetch(`/api/articles/${id}`)
             .then(res => res.json())
             .then(data => {
                 setArticle(data);
@@ -81,7 +81,7 @@ const ArticleView = () => {
             else setDislikes(prev => prev + 1);
         }
 
-        fetch(`http://localhost:8001/api/articles/${id}/vote`, {
+        fetch(`/api/articles/${id}/vote`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ user_id: currentUser.uid, vote_type: type })
@@ -101,7 +101,7 @@ const ArticleView = () => {
             alert("Link copied to clipboard!");
             
             // Increment share count for copy
-            fetch(`http://localhost:8001/api/articles/${id}/share`, {
+            fetch(`/api/articles/${id}/share`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ platform: 'clipboard' })
@@ -120,7 +120,7 @@ const ArticleView = () => {
         if (!emailTo) return;
 
         // Send to backend to simulate email and increment count
-        fetch(`http://localhost:8001/api/articles/${id}/share/email`, {
+        fetch(`/api/articles/${id}/share/email`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -177,7 +177,7 @@ const ArticleView = () => {
             setNewComment('');
         }
 
-        fetch('http://localhost:8001/api/comments', {
+        fetch('/api/comments', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(commentData)
@@ -194,7 +194,7 @@ const ArticleView = () => {
             };
             setComments(deleteFromList(comments));
 
-            fetch(`http://localhost:8001/api/comments/${commentId}?requester_email=${currentUser.email}`, {
+            fetch(`/api/comments/${commentId}?requester_email=${currentUser.email}`, {
                 method: 'DELETE'
             }).catch(err => console.error("Error deleting comment:", err));
         }

@@ -34,7 +34,7 @@ export default function Profile() {
         async function checkProfile() {
             if (currentUser) {
                 // Check Mod Status
-                fetch('http://localhost:8001/api/mods')
+                fetch('/api/mods')
                     .then(res => res.json())
                     .then(data => {
                         if (data.mods.includes(currentUser.email)) {
@@ -121,7 +121,7 @@ export default function Profile() {
                 trading_frequency: data.trading_frequency,
                 portfolio_types: data.portfolio_types
             };
-            await fetch('http://localhost:8001/api/save_user_profile', {
+            await fetch('/api/save_user_profile', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(body)

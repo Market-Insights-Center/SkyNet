@@ -27,7 +27,7 @@ const IdeaCard = ({ idea, currentUser, onVote }) => {
             }
 
             // Check remote mod list
-            fetch('http://localhost:8001/api/mods')
+            fetch('/api/mods')
                 .then(res => res.json())
                 .then(data => {
                     if (data.mods && data.mods.includes(currentUser.email)) {
@@ -65,7 +65,7 @@ const IdeaCard = ({ idea, currentUser, onVote }) => {
         };
 
         try {
-            const res = await fetch('http://localhost:8001/api/comments', {
+            const res = await fetch('/api/comments', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(newCommentPayload)
@@ -116,7 +116,7 @@ const IdeaCard = ({ idea, currentUser, onVote }) => {
         }
 
         try {
-            const res = await fetch(`http://localhost:8001/api/comments/${commentId}?requester_email=${encodeURIComponent(currentUser.email)}`, {
+            const res = await fetch(`/api/comments/${commentId}?requester_email=${encodeURIComponent(currentUser.email)}`, {
                 method: 'DELETE'
             });
 
