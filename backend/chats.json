@@ -37,15 +37,34 @@
         ],
         "subject": "Support Ticket: marketinsightscenter@gmail.com",
         "created_at": "2025-11-26T22:28:09.413817",
-        "last_updated": "2025-11-26T22:28:09.413832",
+        "last_updated": "2025-11-27T18:34:15.477498",
         "messages": [
             {
                 "id": "a5d72335-08ab-44e7-a154-7b8909304bc7",
                 "sender": "marketinsightscenter@gmail.com",
                 "text": "Started a new support ticket.",
                 "timestamp": "2025-11-26T22:28:09.413851"
+            },
+            {
+                "id": "036f52bd-e138-49f4-92e1-d71e0d5906db",
+                "sender": "marketinsightscenter@gmail.com",
+                "text": "neat",
+                "timestamp": "2025-11-27T18:34:06.076167"
+            },
+            {
+                "id": "fc47027b-c293-43cc-82bf-63e70514aef0",
+                "sender": "marketinsightscenter@gmail.com",
+                "text": "yep",
+                "timestamp": "2025-11-27T18:34:10.196336"
+            },
+            {
+                "id": "dd5cd4b1-be17-4dd1-9634-f6289c2fc0d2",
+                "sender": "marketinsightscenter@gmail.com",
+                "text": "asjdfnjasndfjansdjnasjdnvjnajnriniansfinadinfasndfiasndifnair",
+                "timestamp": "2025-11-27T18:34:15.477498"
             }
-        ]
+        ],
+        "deleted_by": []
     },
     {
         "id": "cd6c1b15-c4d7-49b6-90bf-3e863118b0b0",

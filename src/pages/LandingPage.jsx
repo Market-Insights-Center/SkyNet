@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Link } from 'react-router-dom';
-import { ArrowRight, Play, Check, ChevronDown, ChevronUp, TrendingUp, Shield, Zap, Globe, BarChart2, Lock, Users, FileText, Lightbulb } from 'lucide-react';
+import { ArrowRight, Play, Check, ChevronDown, ChevronUp, TrendingUp, Shield, Zap, Globe, BarChart2, Lock, Users, FileText, Lightbulb, HelpCircle, X } from 'lucide-react';
 import MarketDashboard from '../components/MarketDashboard';
 import Watchlist from '../components/Watchlist';
 import NewsFeed from '../components/NewsFeed';
@@ -13,20 +14,10 @@ class ErrorBoundary extends React.Component {
         super(props);
         this.state = { hasError: false };
     }
-
-    static getDerivedStateFromError(error) {
-        return { hasError: true };
-    }
-
-    componentDidCatch(error, errorInfo) {
-        console.error("ErrorBoundary caught an error", error, errorInfo);
-    }
-
+    static getDerivedStateFromError(error) { return { hasError: true }; }
+    componentDidCatch(error, errorInfo) { console.error("ErrorBoundary caught an error", error, errorInfo); }
     render() {
-        if (this.state.hasError) {
-            return <div className="p-4 text-red-500 bg-white/10 rounded-lg">Something went wrong in this section.</div>;
-        }
-
+        if (this.state.hasError) return <div className="p-4 text-red-500 bg-white/10 rounded-lg">Something went wrong in this section.</div>;
         return this.props.children;
     }
 }
@@ -47,22 +38,279 @@ const FeatureCard = ({ icon: Icon, title, desc, delay }) => (
     </motion.div>
 );
 
+// --- Portal-based Tooltip Component ---
+const Tooltip = ({ text, children }) => {
+    const [isVisible, setIsVisible] = useState(false);
+    const [coords, setCoords] = useState({ top: 0, left: 0 });
+    const triggerRef = useRef(null);
+
+    const updatePosition = () => {
+        if (triggerRef.current) {
+            const rect = triggerRef.current.getBoundingClientRect();
+            setCoords({
+                top: rect.top - 10, // Position slightly above the element
+                left: rect.left + (rect.width / 2) // Center horizontally
+            });
+        }
+    };
+
+    const handleMouseEnter = () => {
+        updatePosition();
+        setIsVisible(true);
+    };
+
+    return (
+        <>
+            <div 
+                ref={triggerRef}
+                className="relative inline-block"
+                onMouseEnter={handleMouseEnter}
+                onMouseLeave={() => setIsVisible(false)}
+            >
+                {children}
+            </div>
+            {/* Render tooltip in document.body via Portal to avoid overflow clipping */}
+            {createPortal(
+                <AnimatePresence>
+                    {isVisible && (
+                        <motion.div
+                            initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                            animate={{ opacity: 1, y: 0, scale: 1 }}
+                            exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                            transition={{ duration: 0.15 }}
+                            style={{
+                                position: 'fixed',
+                                top: coords.top,
+                                left: coords.left,
+                                transform: 'translate(-50%, -100%)',
+                                zIndex: 9999 // Very high z-index to sit on top of modal
+                            }}
+                            className="w-64 p-3 bg-gray-900 text-xs text-gray-200 rounded-lg border border-white/10 shadow-xl text-center pointer-events-none"
+                        >
+                            {text}
+                            <div className="absolute top-full left-1/2 transform -translate-x-1/2 -mt-1 border-4 border-transparent border-t-gray-900" />
+                        </motion.div>
+                    )}
+                </AnimatePresence>,
+                document.body
+            )}
+        </>
+    );
+};
+
+const StatRow = ({ label, value, tooltip }) => (
+    <div className="flex justify-between items-center py-1 border-b border-white/5 last:border-0 hover:bg-white/5 px-2 rounded transition-colors">
+        <div className="flex items-center gap-2">
+            <span className="text-gray-400 text-sm">{label}</span>
+            {tooltip && (
+                <Tooltip text={tooltip}>
+                    <HelpCircle size={12} className="text-gray-500 hover:text-gold cursor-help transition-colors" />
+                </Tooltip>
+            )}
+        </div>
+        <span className="text-gray-200 font-mono text-sm font-medium">{value}</span>
+    </div>
+);
+
+// --- Performance Details Modal ---
+const PerformanceModal = ({ isOpen, onClose }) => {
+    if (!isOpen) return null;
+
+    const tooltips = {
+        totalReturn: "The percentage increase in the portfolio's value over the entire period.",
+        cagr: "Compound Annual Growth Rate: The mean annual growth rate of an investment over a specified period of time longer than one year.",
+        correlation: "A statistic that measures the degree to which the portfolio moves in relation to the SPY. Ranges from -1 to 1.",
+        beta: "A measure of the volatility, or systematic risk, of the portfolio in comparison to the market (SPY).",
+        meanDaily: "The average return realized by the portfolio on a daily basis.",
+        stdDev: "Standard Deviation: A measure of the amount of variation or dispersion of the daily returns.",
+        upsideDev: "A measure of volatility that only considers positive returns.",
+        downsideDev: "A measure of volatility that only considers negative returns (downside risk).",
+        cvar: "Conditional Value at Risk (5%): The weighted average of losses that occur beyond the 5% VaR threshold (worst 5% of days).",
+        condGain: "The average gain on the best 5% of trading days."
+    };
+
+    return (
+        // MODIFIED: Changed items-center to items-start, added pt-16 (padding-top) to force modal down
+        <div className="fixed inset-0 z-[100] flex items-start justify-center pt-16 px-4 pb-4 bg-black/80 backdrop-blur-md">
+            <motion.div 
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                // MODIFIED: Changed max-height to calc(100vh-6rem) to account for top padding
+                className="bg-[#0a0a0a] border border-gold/20 rounded-2xl w-full max-w-5xl max-h-[calc(100vh-6rem)] overflow-y-auto shadow-2xl scrollbar-thin scrollbar-thumb-gold/20 scrollbar-track-black"
+            >
+                {/* Sticky Header with X Button */}
+                <div className="sticky top-0 bg-[#0a0a0a]/95 backdrop-blur border-b border-white/10 p-4 flex justify-between items-center z-10">
+                    <h3 className="text-xl font-bold text-gold">Performance Details</h3>
+                    {/* Close Button "X" */}
+                    <button 
+                        onClick={onClose} 
+                        className="p-2 hover:bg-white/10 rounded-full transition-colors group"
+                        aria-label="Close details"
+                    >
+                        <X size={24} className="text-gray-400 group-hover:text-white transition-colors" />
+                    </button>
+                </div>
+                
+                <div className="p-6 space-y-8">
+                    {/* Performance Graph Image */}
+                    <div className="rounded-xl overflow-hidden border border-white/10 bg-black relative h-[300px] md:h-[400px]">
+                         <img 
+                            src="/cultivatebacktest.png" 
+                            alt="Cultivate Backtest vs SPY Graph" 
+                            className="w-full h-full object-contain"
+                        />
+                    </div>
+
+                    {/* Detailed Stats Text Grid */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                        {/* Left Column */}
+                        <div className="space-y-8">
+                            <div>
+                                <h4 className="text-gold font-bold mb-3 border-b border-gold/20 pb-2 tracking-wider text-sm">PERFORMANCE SUMMARY</h4>
+                                <div className="space-y-0.5">
+                                    <StatRow label="Start Date" value="2015-11-30" />
+                                    <StatRow label="End Date" value="2025-11-27" />
+                                    <StatRow label="Duration" value="9.99 years" />
+                                    <StatRow label="Initial Portfolio Value" value="$10,000.00" />
+                                    <StatRow label="Final Portfolio Value" value="$68,721.09" />
+                                    <StatRow label="Total Return" value="587.21%" tooltip={tooltips.totalReturn} />
+                                    <StatRow label="CAGR" value="21.27%" tooltip={tooltips.cagr} />
+                                </div>
+                            </div>
+
+                            <div>
+                                <h4 className="text-gold font-bold mb-3 border-b border-gold/20 pb-2 tracking-wider text-sm">SPY BENCHMARK</h4>
+                                <div className="space-y-0.5">
+                                    <StatRow label="Final Value" value="$32,568.88" />
+                                    <StatRow label="Total Return" value="225.69%" tooltip={tooltips.totalReturn} />
+                                    <StatRow label="CAGR" value="12.54%" tooltip={tooltips.cagr} />
+                                </div>
+                            </div>
+
+                            <div>
+                                <h4 className="text-gold font-bold mb-3 border-b border-gold/20 pb-2 tracking-wider text-sm">CONDITION: OVERALL</h4>
+                                <div className="space-y-0.5">
+                                    <StatRow label="Correlation to SPY" value="0.6187" tooltip={tooltips.correlation} />
+                                    <StatRow label="Beta to SPY" value="1.1277" tooltip={tooltips.beta} />
+                                    
+                                    <div className="mt-3 mb-1"><span className="text-xs text-gold font-bold uppercase">Cultivate Portfolio</span></div>
+                                    <StatRow label="Mean Daily Return" value="0.0984%" tooltip={tooltips.meanDaily} />
+                                    <StatRow label="Std Dev Daily Return" value="2.0824%" tooltip={tooltips.stdDev} />
+                                    <StatRow label="Upside Std Dev" value="1.4233%" tooltip={tooltips.upsideDev} />
+                                    <StatRow label="Downside Std Dev" value="1.4754%" tooltip={tooltips.downsideDev} />
+                                    <StatRow label="CVaR 5% (Loss)" value="-4.8520%" tooltip={tooltips.cvar} />
+                                    <StatRow label="Conditional Gain 5%" value="4.8178%" tooltip={tooltips.condGain} />
+
+                                    <div className="mt-3 mb-1"><span className="text-xs text-gray-400 font-bold uppercase">SPY Benchmark</span></div>
+                                    <StatRow label="Mean Daily Return" value="0.0535%" />
+                                    <StatRow label="Std Dev Daily Return" value="1.1425%" />
+                                    <StatRow label="Upside Std Dev" value="0.8043%" />
+                                    <StatRow label="Downside Std Dev" value="0.9458%" />
+                                    <StatRow label="CVaR 5% (Loss)" value="-2.7814%" />
+                                    <StatRow label="Conditional Gain 5%" value="2.4817%" />
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Right Column */}
+                        <div className="space-y-8">
+                            <div>
+                                <h4 className="text-gold font-bold mb-3 border-b border-gold/20 pb-2 tracking-wider text-sm">CONDITION: SPY SCORE &lt; 40</h4>
+                                <div className="space-y-0.5">
+                                    <StatRow label="Correlation to SPY" value="0.5240" tooltip={tooltips.correlation} />
+                                    <StatRow label="Beta to SPY" value="0.6767" tooltip={tooltips.beta} />
+                                    
+                                    <div className="mt-3 mb-1"><span className="text-xs text-gold font-bold uppercase">Cultivate Portfolio</span></div>
+                                    <StatRow label="Mean Daily Return" value="0.0163%" tooltip={tooltips.meanDaily} />
+                                    <StatRow label="Std Dev Daily Return" value="3.2298%" tooltip={tooltips.stdDev} />
+                                    <StatRow label="Upside Std Dev" value="2.2508%" tooltip={tooltips.upsideDev} />
+                                    <StatRow label="Downside Std Dev" value="2.2550%" tooltip={tooltips.downsideDev} />
+                                    <StatRow label="CVaR 5% (Loss)" value="-7.1732%" tooltip={tooltips.cvar} />
+                                    <StatRow label="Conditional Gain 5%" value="7.5372%" tooltip={tooltips.condGain} />
+
+                                    <div className="mt-3 mb-1"><span className="text-xs text-gray-400 font-bold uppercase">SPY Benchmark</span></div>
+                                    <StatRow label="Mean Daily Return" value="0.1370%" />
+                                    <StatRow label="Std Dev Daily Return" value="2.5010%" />
+                                    <StatRow label="Upside Std Dev" value="1.8387%" />
+                                    <StatRow label="Downside Std Dev" value="1.7942%" />
+                                    <StatRow label="CVaR 5% (Loss)" value="-5.6316%" />
+                                    <StatRow label="Conditional Gain 5%" value="6.1072%" />
+                                </div>
+                            </div>
+
+                            <div>
+                                <h4 className="text-gold font-bold mb-3 border-b border-gold/20 pb-2 tracking-wider text-sm">CONDITION: SPY SCORE &gt;= 60</h4>
+                                <div className="space-y-0.5">
+                                    <StatRow label="Correlation to SPY" value="0.6195" tooltip={tooltips.correlation} />
+                                    <StatRow label="Beta to SPY" value="1.6614" tooltip={tooltips.beta} />
+                                    
+                                    <div className="mt-3 mb-1"><span className="text-xs text-gold font-bold uppercase">Cultivate Portfolio</span></div>
+                                    <StatRow label="Mean Daily Return" value="0.1535%" tooltip={tooltips.meanDaily} />
+                                    <StatRow label="Std Dev Daily Return" value="2.2233%" tooltip={tooltips.stdDev} />
+                                    <StatRow label="Upside Std Dev" value="1.4833%" tooltip={tooltips.upsideDev} />
+                                    <StatRow label="Downside Std Dev" value="1.4402%" tooltip={tooltips.downsideDev} />
+                                    <StatRow label="CVaR 5% (Loss)" value="-4.8172%" tooltip={tooltips.cvar} />
+                                    <StatRow label="Conditional Gain 5%" value="4.9490%" tooltip={tooltips.condGain} />
+
+                                    <div className="mt-3 mb-1"><span className="text-xs text-gray-400 font-bold uppercase">SPY Benchmark</span></div>
+                                    <StatRow label="Mean Daily Return" value="0.0425%" />
+                                    <StatRow label="Std Dev Daily Return" value="0.8290%" />
+                                    <StatRow label="Upside Std Dev" value="0.4458%" />
+                                    <StatRow label="Downside Std Dev" value="0.7138%" />
+                                    <StatRow label="CVaR 5% (Loss)" value="-2.1785%" />
+                                    <StatRow label="Conditional Gain 5%" value="1.5350%" />
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </motion.div>
+        </div>
+    );
+};
+
+// --- WealthCalculator Component ---
 const WealthCalculator = () => {
     const [initial, setInitial] = useState(10000);
     const [monthly, setMonthly] = useState(500);
-    const years = 20;
-    const rate = 0.08; // 8% return
+    const [showModal, setShowModal] = useState(false);
+    
+    // Config
+    const years = 10;
+    const months = years * 12;
 
-    const futureValue = initial * Math.pow(1 + rate, years) + monthly * ((Math.pow(1 + rate, years) - 1) / rate) * (1 + rate);
-    const bankValue = initial + (monthly * 12 * years); // 0% interest assumption for contrast
+    // Rates (CAGR -> Monthly Effective Rate)
+    // Singularity: 21.27% CAGR
+    const rateSingularity = 0.2127; 
+    const monthlyRateSingularity = Math.pow(1 + rateSingularity, 1/12) - 1;
+
+    // SPY: 12.54% CAGR (Derived from 225.69% total return over 10 years)
+    const rateSPY = 0.1254;
+    const monthlyRateSPY = Math.pow(1 + rateSPY, 1/12) - 1;
+
+    // Savings: 4.6% Annualized
+    const rateSavings = 0.046;
+    const monthlyRateSavings = Math.pow(1 + rateSavings, 1/12) - 1;
+
+    // Calculation Function (Future Value of a Series + Initial Lump Sum)
+    const calculateFV = (initial, monthly, r, n) => {
+        if (r === 0) return initial + (monthly * n);
+        const fvLump = initial * Math.pow(1 + r, n);
+        const fvContrib = monthly * ((Math.pow(1 + r, n) - 1) / r);
+        return fvLump + fvContrib;
+    };
+
+    const singularityValue = calculateFV(initial, monthly, monthlyRateSingularity, months);
+    const spyValue = calculateFV(initial, monthly, monthlyRateSPY, months);
+    const savingsValue = calculateFV(initial, monthly, monthlyRateSavings, months);
 
     return (
         <section className="py-24 px-4 bg-deep-black">
             <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
                 <div>
                     <h2 className="text-4xl font-bold mb-6">Visualize Your <span className="text-gold">Potential</span></h2>
-                    <p className="text-gray-400 text-lg mb-12">See how the power of compounding and AI-optimized strategies can transform your financial future over 20 years.</p>
-
+                    <p className="text-gray-400 text-lg mb-12">See how the power of compounding and AI-optimized strategies can transform your financial future over 10 years.</p>
                     <div className="space-y-8">
                         <div>
                             <div className="flex justify-between mb-2">
@@ -71,11 +319,11 @@ const WealthCalculator = () => {
                             </div>
                             <input
                                 type="range"
-                                min="1000"
+                                min="0"
                                 max="100000"
                                 step="1000"
                                 value={initial}
-                                onChange={(e) => setInitial(parseInt(e.target.value))}
+                                onChange={(e) => setInitial(parseInt(e.target.value) || 0)}
                                 className="w-full h-2 bg-white/10 rounded-lg appearance-none cursor-pointer accent-gold"
                             />
                         </div>
@@ -86,35 +334,81 @@ const WealthCalculator = () => {
                             </div>
                             <input
                                 type="range"
-                                min="100"
+                                min="0"
                                 max="5000"
                                 step="100"
                                 value={monthly}
-                                onChange={(e) => setMonthly(parseInt(e.target.value))}
+                                onChange={(e) => setMonthly(parseInt(e.target.value) || 0)}
                                 className="w-full h-2 bg-white/10 rounded-lg appearance-none cursor-pointer accent-gold"
                             />
                         </div>
                     </div>
                 </div>
-
                 <div className="bg-white/5 p-8 rounded-2xl border border-white/10">
                     <div className="space-y-6">
-                        <div className="p-6 bg-black/40 rounded-xl border border-gold/30">
-                            <p className="text-gray-400 text-sm mb-1">With M.I.C. Singularity (8% avg)</p>
-                            <p className="text-4xl font-bold text-gold">${Math.round(futureValue).toLocaleString()}</p>
+                        {/* Singularity Result */}
+                        <div className="p-6 bg-black/40 rounded-xl border border-gold/30 relative">
+                            <div className="relative z-10">
+                                <div className="flex items-center gap-2 mb-1">
+                                    <p className="text-gray-300 text-sm">With M.I.C. Singularity (587.21% growth)</p>
+                                    <Tooltip text="Singularity's performance is based on the Cultivate tool's performance from November 30th 2015 to November 27th 2025">
+                                        <HelpCircle size={14} className="text-gray-500 hover:text-gold cursor-help transition-colors" />
+                                    </Tooltip>
+                                </div>
+                                <p className="text-4xl font-bold text-gold">${Math.round(singularityValue).toLocaleString()}</p>
+                                <button 
+                                    onClick={() => setShowModal(true)}
+                                    className="text-xs text-gold/70 hover:text-gold mt-2 underline decoration-dotted flex items-center gap-1 transition-colors"
+                                >
+                                    see more details
+                                </button>
+                            </div>
                         </div>
+
+                        {/* SPY Benchmark Result */}
                         <div className="p-6 bg-black/40 rounded-xl border border-white/10">
-                            <p className="text-gray-400 text-sm mb-1">Traditional Savings (0% avg)</p>
-                            <p className="text-2xl font-bold text-gray-300">${Math.round(bankValue).toLocaleString()}</p>
+                            <div className="flex items-center gap-2 mb-1">
+                                <p className="text-gray-400 text-sm">SPY Benchmark (225.69% growth)</p>
+                                <Tooltip text="SPY benchmark is based on the growth in the SPY from opening price in November 2015 to opening price in November 2025">
+                                    <HelpCircle size={14} className="text-gray-500 hover:text-gold cursor-help transition-colors" />
+                                </Tooltip>
+                            </div>
+                            <p className="text-2xl font-bold text-gray-200">${Math.round(spyValue).toLocaleString()}</p>
                         </div>
-                        <div className="pt-4 border-t border-white/10">
-                            <p className="text-green-400 font-bold text-lg">
-                                +${Math.round(futureValue - bankValue).toLocaleString()} Potential Gain
-                            </p>
+
+                        {/* Traditional Savings Result */}
+                        <div className="p-6 bg-black/40 rounded-xl border border-white/10">
+                            <div className="flex items-center gap-2 mb-1">
+                                <p className="text-gray-400 text-sm">Traditional Savings (4.6% APY)</p>
+                                <Tooltip text="According to the Federal Reserve Bank of St. Louis (F.R.E.D.) as of November 2025">
+                                    <HelpCircle size={14} className="text-gray-500 hover:text-gold cursor-help transition-colors" />
+                                </Tooltip>
+                            </div>
+                            <p className="text-2xl font-bold text-gray-300">${Math.round(savingsValue).toLocaleString()}</p>
+                        </div>
+
+                        {/* Potential Gains Section */}
+                        <div className="pt-4 border-t border-white/10 space-y-3">
+                            <div className="flex justify-between items-center">
+                                <span className="text-gray-400 text-sm">Potential Gain vs Savings</span>
+                                <p className="text-green-400 font-bold text-lg">
+                                    +${Math.round(singularityValue - savingsValue).toLocaleString()}
+                                </p>
+                            </div>
+                             <div className="flex justify-between items-center">
+                                <span className="text-gray-400 text-sm">Potential Gain vs SPY</span>
+                                <p className="text-green-400 font-bold text-lg">
+                                    +${Math.round(singularityValue - spyValue).toLocaleString()}
+                                </p>
+                            </div>
                         </div>
                     </div>
                 </div>
             </div>
+
+            <AnimatePresence>
+                {showModal && <PerformanceModal isOpen={showModal} onClose={() => setShowModal(false)} />}
+            </AnimatePresence>
         </section>
     );
 };
@@ -143,7 +437,6 @@ const FAQSection = () => {
 
 const FAQItem = ({ question, answer }) => {
     const [isOpen, setIsOpen] = useState(false);
-
     return (
         <div className="border border-white/10 rounded-lg bg-white/5 overflow-hidden">
             <button
@@ -210,7 +503,8 @@ const LandingPage = () => {
     const [recentIdeas, setRecentIdeas] = useState([]);
 
     useEffect(() => {
-        fetch('http://localhost:8000/api/ideas?limit=3')
+        // UPDATED PORT: 8001
+        fetch('http://localhost:8001/api/ideas?limit=3')
             .then(res => res.json())
             .then(data => setRecentIdeas(data))
             .catch(err => console.error("Error fetching ideas:", err));
@@ -268,22 +562,13 @@ const LandingPage = () => {
             <ErrorBoundary>
                 <section className="py-12 px-4 bg-black">
                     <div className="max-w-7xl mx-auto">
-                        <h2 className="text-3xl font-bold mb-8 text-center">Live <span className="text-gold">Watchlist</span></h2>
-                        <Watchlist />
-                    </div>
-                </section>
-            </ErrorBoundary>
-
-            {/* Recent Articles (M.I.C.K.S.) - Displayed below Watchlist via NewsFeed */}
-            <ErrorBoundary>
-                <NewsFeed limit={3} />
-            </ErrorBoundary>
-
-            {/* Recent Ideas */}
-            <ErrorBoundary>
-                <section className="py-12 px-4 bg-deep-black">
-                    <div className="max-w-7xl mx-auto">
                         <div className="flex justify-between items-center mb-8">
+                             <h2 className="text-3xl font-bold text-center">Live <span className="text-gold">Watchlist</span></h2>
+                             {/* Added View All for consistency */}
+                        </div>
+                        <Watchlist /> 
+                        
+                        <div className="flex justify-between items-center mb-8 mt-12">
                             <h2 className="text-3xl font-bold flex items-center gap-2">
                                 <Lightbulb className="text-gold" size={32} /> Recent <span className="text-gold">Ideas</span>
                             </h2>
@@ -310,6 +595,11 @@ const LandingPage = () => {
                         )}
                     </div>
                 </section>
+            </ErrorBoundary>
+
+            {/* News Feed with View All */}
+            <ErrorBoundary>
+                <NewsFeed limit={3} showViewAll={true} />
             </ErrorBoundary>
 
             {/* Features Section */}

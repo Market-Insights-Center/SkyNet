@@ -17,14 +17,14 @@ const Forum = () => {
     const [recentIdeas, setRecentIdeas] = useState([]);
 
     useEffect(() => {
-        // Fetch Stats
-        fetch('http://localhost:8000/api/stats')
+        // Fetch Stats - PORT 8001
+        fetch('http://localhost:8001/api/stats')
             .then(res => res.json())
             .then(data => setStats(data))
             .catch(err => console.error("Error fetching stats:", err));
 
-        // Fetch Recent Ideas
-        fetch('http://localhost:8000/api/ideas?limit=6')
+        // Fetch Recent Ideas - PORT 8001
+        fetch('http://localhost:8001/api/ideas?limit=6')
             .then(res => res.json())
             .then(data => setRecentIdeas(data))
             .catch(err => console.error("Error fetching ideas:", err));
@@ -36,14 +36,15 @@ const Forum = () => {
             return;
         }
         try {
-            const res = await fetch(`http://localhost:8000/api/ideas/${ideaId}/vote`, {
+            // PORT 8001
+            const res = await fetch(`http://localhost:8001/api/ideas/${ideaId}/vote`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ user_id: currentUser.email, vote_type: type })
             });
             if (res.ok) {
-                // Refresh ideas to show new counts
-                fetch('http://localhost:8000/api/ideas?limit=6')
+                // Refresh ideas to show new counts - PORT 8001
+                fetch('http://localhost:8001/api/ideas?limit=6')
                     .then(res => res.json())
                     .then(data => setRecentIdeas(data));
             }
@@ -105,8 +106,10 @@ const Forum = () => {
 
                     {/* Main Content */}
                     <div className="lg:col-span-3 space-y-12">
-                        {/* News Feed (Knowledge Stream) - Wrapper removed, component handles display */}
-                        <NewsFeed />
+                        {/* News Feed */}
+                        <div className="relative">
+                            <NewsFeed limit={6} compact={true} showViewAll={true} />
+                        </div>
 
                         {/* Recent Ideas */}
                         <section>

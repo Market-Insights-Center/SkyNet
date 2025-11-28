@@ -48,7 +48,7 @@ const CreateIdeaModal = ({ isOpen, onClose, onIdeaCreated, user }) => {
                 const formData = new FormData();
                 formData.append('file', imageFile);
 
-                const uploadRes = await fetch('http://localhost:8000/api/upload', {
+                const uploadRes = await fetch('http://localhost:8001/api/upload', {
                     method: 'POST',
                     body: formData,
                 });
@@ -65,13 +65,14 @@ const CreateIdeaModal = ({ isOpen, onClose, onIdeaCreated, user }) => {
                 ticker: ticker.toUpperCase(),
                 title,
                 description,
-                author: user?.email || 'Anonymous',
+                // UPDATED: Use Display Name or fallback to email username (before @)
+                author: user?.displayName || user?.email?.split('@')[0] || 'Anonymous',
                 hashtags: hashtags.split(',').map(tag => tag.trim()).filter(tag => tag),
                 cover_image: finalCoverImageUrl,
                 date: new Date().toISOString().split('T')[0]
             };
 
-            const res = await fetch('http://localhost:8000/api/ideas', {
+            const res = await fetch('http://localhost:8001/api/ideas', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(ideaData)

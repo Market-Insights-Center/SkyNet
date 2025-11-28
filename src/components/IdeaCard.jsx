@@ -1,44 +1,95 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { TrendingUp, ThumbsUp, ThumbsDown, User, Calendar, MessageSquare, Send } from 'lucide-react';
+import { TrendingUp, ThumbsUp, ThumbsDown, User, Calendar, MessageSquare, Send, Trash2 } from 'lucide-react';
 
 const IdeaCard = ({ idea, currentUser, onVote }) => {
     const [showComments, setShowComments] = useState(false);
     const [comments, setComments] = useState(idea.comments || []);
     const [commentText, setCommentText] = useState('');
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [isMod, setIsMod] = useState(false);
+
+    // Check if current user is a moderator
+    useEffect(() => {
+        if (currentUser) {
+            // Immediate check for super admin
+            if (currentUser.email === 'marketinsightscenter@gmail.com') {
+                setIsMod(true);
+                return;
+            }
+
+            // Check remote mod list
+            fetch('http://localhost:8001/api/mods')
+                .then(res => res.json())
+                .then(data => {
+                    if (data.mods && data.mods.includes(currentUser.email)) {
+                        setIsMod(true);
+                    }
+                })
+                .catch(err => console.error("Error checking mod status:", err));
+        }
+    }, [currentUser]);
 
     const handleCommentSubmit = async (e) => {
         e.preventDefault();
-        if (!commentText.trim() || !currentUser) return;
+        
+        if (!currentUser) {
+            alert("Please log in to post a comment.");
+            return;
+        }
 
-        const newComment = {
+        if (!commentText.trim()) return;
+
+        setIsSubmitting(true);
+
+        const newCommentPayload = {
             idea_id: idea.id,
-            user: currentUser.email.split('@')[0],
+            user: currentUser.displayName || currentUser.email.split('@')[0], 
             email: currentUser.email,
             text: commentText,
             date: new Date().toISOString().split('T')[0]
         };
 
         try {
-            const res = await fetch('http://localhost:8000/api/comments', {
+            const res = await fetch('http://localhost:8001/api/comments', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(newComment)
+                body: JSON.stringify(newCommentPayload)
             });
 
             if (res.ok) {
                 const data = await res.json();
-                // Handle different response structures (if backend returns {comment: obj} or just obj)
                 const addedComment = data.comment || data; 
-                if (addedComment) {
-                    setComments(prev => [...prev, addedComment]);
-                    setCommentText('');
-                }
+                setComments(prev => [...prev, addedComment]);
+                setCommentText('');
             } else {
-                console.error("Failed to post comment");
+                console.error("Failed to post comment. Status:", res.status);
+                alert("Could not post comment. Please try again.");
             }
         } catch (error) {
             console.error("Error posting comment:", error);
+            alert("Network error: Could not post comment.");
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+
+    const handleDeleteComment = async (commentId) => {
+        if (!commentId) return;
+        if (!window.confirm("Are you sure you want to delete this comment?")) return;
+
+        try {
+            const res = await fetch(`http://localhost:8001/api/comments/${commentId}`, {
+                method: 'DELETE'
+            });
+
+            if (res.ok) {
+                setComments(prev => prev.filter(c => c.id !== commentId));
+            } else {
+                alert("Failed to delete comment.");
+            }
+        } catch (error) {
+            console.error("Error deleting comment:", error);
         }
     };
 
@@ -48,8 +99,8 @@ const IdeaCard = ({ idea, currentUser, onVote }) => {
             animate={{ opacity: 1, y: 0 }}
             className="bg-white/5 border border-white/10 rounded-xl overflow-hidden hover:border-gold/50 transition-colors group h-full flex flex-col"
         >
-            {/* Cover Image - Height Reduced */}
-            <div className="h-40 bg-black/50 relative overflow-hidden shrink-0">
+            {/* Cover Image - CHANGED to aspect-square to be squared and fit more chart */}
+            <div className="aspect-square bg-black/50 relative overflow-hidden shrink-0 border-b border-white/5">
                 {idea.cover_image ? (
                     <img
                         src={idea.cover_image}
@@ -66,7 +117,7 @@ const IdeaCard = ({ idea, currentUser, onVote }) => {
                 </div>
             </div>
 
-            {/* Content - Padding Reduced */}
+            {/* Content */}
             <div className="p-4 flex flex-col flex-1">
                 <h3 className="text-lg font-bold mb-1 line-clamp-2 group-hover:text-gold transition-colors leading-tight">
                     {idea.title}
@@ -97,20 +148,27 @@ const IdeaCard = ({ idea, currentUser, onVote }) => {
                         </div>
                     </div>
 
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-3">
                         <button
                             onClick={(e) => { e.stopPropagation(); setShowComments(!showComments); }}
                             className="flex items-center gap-1 hover:text-blue-400 transition-colors"
                         >
-                            <MessageSquare size={12} />
+                            <MessageSquare size={14} />
                             <span>{comments.length}</span>
                         </button>
                         <button
                             onClick={() => onVote && onVote(idea.id, 'up')}
                             className={`flex items-center gap-1 hover:text-green-400 transition-colors ${idea.liked_by?.includes(currentUser?.email) ? 'text-green-400' : ''}`}
                         >
-                            <ThumbsUp size={12} />
-                            <span>{idea.likes}</span>
+                            <ThumbsUp size={14} />
+                            <span>{idea.likes || 0}</span>
+                        </button>
+                        <button
+                            onClick={() => onVote && onVote(idea.id, 'down')}
+                            className={`flex items-center gap-1 hover:text-red-400 transition-colors ${idea.disliked_by?.includes(currentUser?.email) ? 'text-red-400' : ''}`}
+                        >
+                            <ThumbsDown size={14} />
+                            <span>{idea.dislikes || 0}</span>
                         </button>
                     </div>
                 </div>
@@ -128,10 +186,21 @@ const IdeaCard = ({ idea, currentUser, onVote }) => {
                                 <div className="max-h-32 overflow-y-auto custom-scrollbar space-y-2">
                                     {comments.length > 0 ? (
                                         comments.map((comment, idx) => (
-                                            <div key={idx} className="bg-white/5 p-2 rounded text-xs">
+                                            <div key={comment.id || idx} className="bg-white/5 p-2 rounded text-xs relative hover:bg-white/10 transition-colors">
                                                 <div className="flex justify-between items-center mb-1">
                                                     <span className="font-bold text-gold">{comment.user}</span>
-                                                    <span className="text-[10px] text-gray-500">{comment.date}</span>
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="text-[10px] text-gray-500">{comment.date}</span>
+                                                        {isMod && (
+                                                            <button 
+                                                                onClick={() => handleDeleteComment(comment.id)}
+                                                                className="text-gray-400 hover:text-red-500 transition-colors p-1"
+                                                                title="Delete Comment"
+                                                            >
+                                                                <Trash2 size={14} />
+                                                            </button>
+                                                        )}
+                                                    </div>
                                                 </div>
                                                 <p className="text-gray-300">{comment.text}</p>
                                             </div>
@@ -152,10 +221,10 @@ const IdeaCard = ({ idea, currentUser, onVote }) => {
                                         />
                                         <button
                                             type="submit"
-                                            disabled={!commentText.trim()}
+                                            disabled={!commentText.trim() || isSubmitting}
                                             className="bg-gold/10 text-gold p-1.5 rounded hover:bg-gold/20 disabled:opacity-50 transition-colors"
                                         >
-                                            <Send size={12} />
+                                            {isSubmitting ? <div className="w-3 h-3 border-2 border-gold border-t-transparent rounded-full animate-spin"></div> : <Send size={12} />}
                                         </button>
                                     </form>
                                 ) : (

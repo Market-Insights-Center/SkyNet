@@ -1,93 +1,93 @@
 import React, { useEffect, useRef, memo } from 'react';
 
-// Exported so it can be used in Watchlist.jsx
-export const TradingViewWidget = memo(({ symbol, theme = "dark", autosize = true, height = "100%", width = "100%", interval = "5", timezone = "Etc/UTC", style = "1", locale = "en", toolbar_bg = "#f1f3f6", enable_publishing = false, allow_symbol_change = true, container_id, hide_top_toolbar, hide_legend, hide_side_toolbar, save_image }) => {
-    const container = useRef();
-    const widgetId = container_id || `tv_widget_${Math.random().toString(36).substring(7)}`;
+// Singleton script loader
+let tvScriptLoadingPromise;
 
-    useEffect(() => {
-        const initWidget = () => {
-            if (window.TradingView && document.getElementById(widgetId)) {
-                new window.TradingView.widget({
-                    "width": width,
-                    "height": height,
-                    "symbol": symbol,
-                    "interval": interval,
-                    "timezone": timezone,
-                    "theme": theme,
-                    "style": style,
-                    "locale": locale,
-                    "toolbar_bg": toolbar_bg,
-                    "enable_publishing": enable_publishing,
-                    "allow_symbol_change": allow_symbol_change,
-                    "container_id": widgetId,
-                    "hide_top_toolbar": hide_top_toolbar,
-                    "hide_legend": hide_legend,
-                    "hide_side_toolbar": hide_side_toolbar,
-                    "save_image": save_image
-                });
-            }
-        };
-
-        // Check if script is already there
-        if (!document.getElementById('tradingview-widget-script')) {
-            const script = document.createElement("script");
-            script.id = 'tradingview-widget-script';
-            script.src = "https://s3.tradingview.com/tv.js";
-            script.async = true;
-            script.onload = initWidget;
-            document.head.appendChild(script);
-        } else {
-            // Script exists, but window.TradingView might not be ready yet
+const loadTradingViewScript = () => {
+    if (!tvScriptLoadingPromise) {
+        tvScriptLoadingPromise = new Promise((resolve) => {
             if (window.TradingView) {
-                initWidget();
-            } else {
-                // Poll for the global variable if script exists but didn't trigger onload for this instance
-                const checkExist = setInterval(() => {
-                    if (window.TradingView) {
-                        initWidget();
-                        clearInterval(checkExist);
-                    }
-                }, 100);
+                resolve();
+                return;
             }
-        }
-    }, [symbol, widgetId]);
+            const script = document.createElement('script');
+            script.src = 'https://s3.tradingview.com/tv.js';
+            script.async = true;
+            script.onload = resolve;
+            document.head.appendChild(script);
+        });
+    }
+    return tvScriptLoadingPromise;
+};
 
-    return (
-        <div id={widgetId} className="tradingview-widget-container" style={{ height: "100%", width: "100%" }} />
-    );
-});
-
-const MiniChartWidget = memo(({ symbol, colorTheme = "dark", width = "100%", height = "100%" }) => {
-    const container = useRef();
+export const TradingViewWidget = memo(({
+    symbol,
+    theme = "dark",
+    autosize = true,
+    height = "100%",
+    width = "100%",
+    interval = "D",
+    timezone = "Etc/UTC",
+    style = "1",
+    locale = "en",
+    toolbar_bg = "#f1f3f6",
+    enable_publishing = false,
+    allow_symbol_change = true,
+    container_id,
+    hide_top_toolbar = false,
+    hide_legend = false,
+    hide_side_toolbar = false,
+    save_image = false
+}) => {
+    const uniqueId = useRef(`tv_widget_${Math.random().toString(36).substring(7)}`).current;
 
     useEffect(() => {
-        const script = document.createElement("script");
-        script.src = "https://s3.tradingview.com/external-embedding/embed-widget-mini-symbol-overview.js";
-        script.async = true;
-        script.innerHTML = JSON.stringify({
-            "symbol": symbol,
-            "width": width,
-            "height": height,
-            "locale": "en",
-            "dateRange": "12M",
-            "colorTheme": colorTheme,
-            "isTransparent": true,
-            "autosize": true,
-            "largeChartUrl": ""
+        let widget = null;
+
+        loadTradingViewScript().then(() => {
+            // Render delay to ensure DOM is painted
+            setTimeout(() => {
+                const containerElement = document.getElementById(uniqueId);
+                
+                if (containerElement && window.TradingView) {
+                    containerElement.innerHTML = '';
+
+                    widget = new window.TradingView.widget({
+                        "container_id": uniqueId,
+                        "width": width,
+                        "height": height,
+                        "symbol": symbol,
+                        "interval": interval,
+                        "timezone": timezone,
+                        "theme": theme,
+                        "style": style,
+                        "locale": locale,
+                        "toolbar_bg": toolbar_bg,
+                        "enable_publishing": enable_publishing,
+                        "allow_symbol_change": allow_symbol_change,
+                        "hide_top_toolbar": hide_top_toolbar,
+                        "hide_legend": hide_legend,
+                        "hide_side_toolbar": hide_side_toolbar,
+                        "save_image": save_image
+                    });
+                }
+            }, 50); 
         });
-        container.current.appendChild(script);
+
         return () => {
-            if (container.current) {
-                container.current.innerHTML = "";
+            const containerElement = document.getElementById(uniqueId);
+            if (containerElement) {
+                containerElement.innerHTML = '';
             }
         };
-    }, [symbol]);
+    }, [symbol, theme, interval, width, height, timezone, style, hide_top_toolbar, hide_legend, hide_side_toolbar]);
 
     return (
-        <div ref={container} className="tradingview-widget-container" style={{ height: "100%", width: "100%" }}>
-            <div className="tradingview-widget-container__widget"></div>
-        </div>
+        <div
+            id={uniqueId}
+            className="tradingview-widget-container"
+            style={{ height: height, width: width }}
+        />
     );
 });
 
@@ -103,30 +103,30 @@ const MarketDashboard = () => {
 
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-[600px]">
                     {/* Primary Chart - SPY */}
-                    <div className="lg:col-span-2 bg-white/5 border border-gold/20 rounded-xl overflow-hidden shadow-[0_0_30px_rgba(0,0,0,0.5)] h-full">
-                        <TradingViewWidget
-                            symbol="AMEX:SPY"
-                            container_id="tv_chart_spy"
-                            theme="dark"
-                            autosize
-                        />
+                    <div className="lg:col-span-2 bg-white/5 border border-gold/20 rounded-xl overflow-hidden shadow-[0_0_30px_rgba(0,0,0,0.5)] flex flex-col">
+                        <div className="flex-grow relative w-full h-full">
+                            <TradingViewWidget
+                                symbol="AMEX:SPY"
+                                theme="dark"
+                                autosize
+                            />
+                        </div>
                     </div>
 
                     {/* Secondary Charts */}
                     <div className="flex flex-col gap-6 h-full">
                         {/* VIXCLS */}
-                        <div className="flex-1 bg-white/5 border border-white/10 rounded-xl overflow-hidden hover:border-gold/30 transition-colors p-4 relative">
-                            <h3 className="text-gold font-bold mb-2 flex items-center gap-2 absolute top-4 left-4 z-10 bg-black/50 px-2 rounded">
+                        <div className="flex-1 bg-white/5 border border-white/10 rounded-xl overflow-hidden hover:border-gold/30 transition-colors p-4 relative flex flex-col">
+                            <h3 className="text-gold font-bold mb-2 flex items-center gap-2 z-10 bg-black/50 px-2 rounded w-fit">
                                 <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
-                                Volatility Index (VIXCLS)
+                                VIXCLS (CBOE Volatility Index)
                             </h3>
-                            <div className="h-full w-full">
+                            <div className="flex-grow relative w-full h-full">
                                 <TradingViewWidget
-                                    symbol="CBOE:VIX"
-                                    container_id="tv_chart_vix"
+                                    symbol="FRED:VIXCLS" // Changed to FRED:VIXCLS
                                     theme="dark"
-                                    style="1" // Candlesticks
-                                    interval="D"
+                                    style="1"
+                                    interval="D" // Must be 'D' for FRED data
                                     hide_top_toolbar={true}
                                     hide_legend={true}
                                     hide_side_toolbar={true}
@@ -138,17 +138,16 @@ const MarketDashboard = () => {
                         </div>
 
                         {/* BTC */}
-                        <div className="flex-1 bg-white/5 border border-white/10 rounded-xl overflow-hidden hover:border-gold/30 transition-colors p-4 relative">
-                            <h3 className="text-gold font-bold mb-2 flex items-center gap-2 absolute top-4 left-4 z-10 bg-black/50 px-2 rounded">
+                        <div className="flex-1 bg-white/5 border border-white/10 rounded-xl overflow-hidden hover:border-gold/30 transition-colors p-4 relative flex flex-col">
+                            <h3 className="text-gold font-bold mb-2 flex items-center gap-2 z-10 bg-black/50 px-2 rounded w-fit">
                                 <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
                                 Bitcoin (BTCUSD)
                             </h3>
-                            <div className="h-full w-full">
+                            <div className="flex-grow relative w-full h-full">
                                 <TradingViewWidget
                                     symbol="COINBASE:BTCUSD"
-                                    container_id="tv_chart_btc"
                                     theme="dark"
-                                    style="1" // Candlesticks
+                                    style="1"
                                     interval="60"
                                     hide_top_toolbar={true}
                                     hide_legend={true}

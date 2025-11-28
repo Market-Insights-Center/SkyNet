@@ -63,5 +63,41 @@
         "replies": [],
         "likes": 0,
         "dislikes": 0
+    },
+    {
+        "id": 8,
+        "article_id": null,
+        "idea_id": 1,
+        "user": "Verzogerung",
+        "email": "marketinsightscenter@gmail.com",
+        "text": "yep",
+        "date": "2025-11-27",
+        "replies": [],
+        "likes": 0,
+        "dislikes": 0
+    },
+    {
+        "id": 9,
+        "article_id": null,
+        "idea_id": 1,
+        "user": "Verzogerung",
+        "email": "marketinsightscenter@gmail.com",
+        "text": "for real",
+        "date": "2025-11-27",
+        "replies": [],
+        "likes": 0,
+        "dislikes": 0
+    },
+    {
+        "id": 10,
+        "article_id": null,
+        "idea_id": 2,
+        "user": "Verzogerung",
+        "email": "marketinsightscenter@gmail.com",
+        "text": "Sybau \ud83e\udd40",
+        "date": "2025-11-27",
+        "replies": [],
+        "likes": 0,
+        "dislikes": 0
     }
 ]
