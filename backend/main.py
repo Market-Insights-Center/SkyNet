@@ -1,4 +1,5 @@
-from fastapi import FastAPI, HTTPException, Depends
+from fastapi import FastAPI, HTTPException, Depends, UploadFile, File
+from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
@@ -18,12 +19,13 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from collections import Counter
 from firebase_admin import auth 
+import uuid
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 # Ensure database.py has read_user_profiles implemented as discussed
 from integration import invest_command, cultivate_command, custom_command, tracking_command
-from database import read_articles_from_csv, save_articles_to_csv, read_user_profiles
+from database import read_articles_from_csv, save_articles_to_csv, read_user_profiles, read_ideas_from_csv, save_ideas_to_csv
 
 # Configure Logging
 logging.basicConfig(level=logging.INFO)
@@ -39,6 +41,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Mount static directory for uploads
+STATIC_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static")
+if not os.path.exists(STATIC_DIR):
+    os.makedirs(STATIC_DIR)
+app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+
 # --- CONFIGURATION ---
 # Replace with your actual email credentials or use environment variables
 EMAIL_USER = os.environ.get("EMAIL_USER", "marketinsightscenter@gmail.com") 
@@ -50,6 +58,7 @@ YF_SEMAPHORE = asyncio.Semaphore(4)
 USERS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'users.json')
 MODS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'mods.csv')
 COMMENTS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'comments.json')
+CHATS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'chats.json')
 
 # --- Models ---
 
@@ -110,7 +119,8 @@ class UserSubscription(BaseModel):
 
 class Comment(BaseModel):
     id: int
-    article_id: int
+    article_id: Optional[int] = None
+    idea_id: Optional[int] = None
     user: str
     email: Optional[str] = None
     text: str
@@ -138,6 +148,25 @@ class Article(BaseModel):
     disliked_by: List[str] = []
     comments: List[Comment] = []
 
+class Idea(BaseModel):
+    id: Optional[int] = None
+    ticker: str
+    title: str
+    description: str
+    author: str
+    date: Optional[str] = None
+    hashtags: List[str] = []
+    cover_image: Optional[str] = None
+    likes: int = 0
+    dislikes: int = 0
+    liked_by: List[str] = []
+    disliked_by: List[str] = []
+    comments: List[Comment] = []
+
+class IdeaVoteRequest(BaseModel):
+    user_id: str
+    vote_type: str
+
 class MarketDataRequest(BaseModel):
     tickers: List[str]
 
@@ -149,6 +178,28 @@ class ModRequest(BaseModel):
 class ArticleVoteRequest(BaseModel):
     user_id: str
     vote_type: str 
+
+# --- Chat Models ---
+
+class ChatMessage(BaseModel):
+    id: str
+    sender: str
+    text: str
+    timestamp: str
+
+class CreateChatRequest(BaseModel):
+    type: str # 'direct' or 'admin_support'
+    participants: List[str] # Emails of participants
+    initial_message: Optional[str] = None
+    creator_email: str
+
+class SendMessageRequest(BaseModel):
+    sender: str
+    text: str
+
+class DeleteChatRequest(BaseModel):
+    chat_id: str
+    email: str
 
 # --- Helper Functions ---
 
@@ -215,7 +266,6 @@ def send_real_email(to_email, subject, body):
 
 # --- API Endpoints ---
 
-# ... [Invest, Cultivate, Custom, Tracking endpoints omitted for brevity] ...
 @app.post("/api/invest")
 async def invest_endpoint(request: InvestRequest):
     try:
@@ -650,6 +700,265 @@ def delete_comment(comment_id: int, requester_email: str):
     comments = [c for c in comments if c['id'] != comment_id]
     save_json(COMMENTS_FILE, comments)
     return {"status": "success"}
+
+# --- Ideas Endpoints ---
+
+@app.get("/api/ideas")
+def get_ideas(limit: int = 100):
+    ideas = read_ideas_from_csv()
+    ideas.sort(key=lambda x: x.get('date', ''), reverse=True)
+    
+    # Attach comments
+    all_comments = load_json(COMMENTS_FILE)
+    for i in ideas:
+        i['comments'] = [c for c in all_comments if c.get('idea_id') == int(i['id'])]
+        
+    return ideas[:limit]
+
+@app.post("/api/ideas")
+def create_idea(idea: Idea):
+    ideas = read_ideas_from_csv()
+    new_id = max([int(i.get('id', 0)) for i in ideas], default=0) + 1
+    idea.id = new_id
+    if not idea.date: idea.date = datetime.datetime.now().strftime("%Y-%m-%d")
+    ideas.insert(0, idea.model_dump())
+    save_ideas_to_csv(ideas)
+    return {"status": "success", "idea": idea}
+
+@app.post("/api/ideas/{idea_id}/vote")
+def vote_idea(idea_id: int, request: IdeaVoteRequest):
+    ideas = read_ideas_from_csv()
+    idea = next((i for i in ideas if int(i['id']) == idea_id), None)
+    if not idea: raise HTTPException(status_code=404)
+    
+    user_id = request.user_id
+    if not isinstance(idea.get('liked_by'), list): idea['liked_by'] = []
+    if not isinstance(idea.get('disliked_by'), list): idea['disliked_by'] = []
+
+    if user_id in idea['liked_by']:
+        idea['liked_by'].remove(user_id)
+        idea['likes'] = max(0, idea.get('likes', 0) - 1)
+    if user_id in idea['disliked_by']:
+        idea['disliked_by'].remove(user_id)
+        idea['dislikes'] = max(0, idea.get('dislikes', 0) - 1)
+        
+    if request.vote_type == 'up':
+        idea['liked_by'].append(user_id)
+        idea['likes'] += 1
+    elif request.vote_type == 'down':
+        idea['disliked_by'].append(user_id)
+        idea['dislikes'] += 1
+        
+    save_ideas_to_csv(ideas)
+    return {"status": "success", "likes": idea['likes'], "dislikes": idea['dislikes']}
+
+@app.post("/api/upload")
+async def upload_file(file: UploadFile = File(...)):
+    try:
+        file_location = os.path.join(STATIC_DIR, file.filename)
+        with open(file_location, "wb+") as file_object:
+            file_object.write(file.file.read())
+        # Return URL relative to server
+        return {"url": f"http://localhost:8000/static/{file.filename}"}
+    except Exception as e:
+        logger.error(f"Upload Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/chat/create")
+def create_chat(request: CreateChatRequest):
+    chats = load_json(CHATS_FILE)
+    
+    # Determine participants
+    participants = [request.creator_email]
+    
+    if request.type == 'admin_support':
+        mods = get_mod_list()
+        # Add all mods to participants if not already there
+        for m in mods:
+            if m not in participants:
+                participants.append(m)
+        subject = f"Support Ticket: {request.creator_email}"
+    else:
+        # Standard direct chat (can be multi-user)
+        for p in request.participants:
+            if p not in participants:
+                participants.append(p)
+        subject = ", ".join(participants)
+
+    # Check if a chat between these EXACT participants already exists
+    # Filter out chats that are not deleted for the creator
+    if request.type == 'direct':
+        # Sort for consistent comparison
+        target_participants = sorted(participants)
+        
+        existing = next((
+            c for c in chats 
+            if sorted(c['participants']) == target_participants 
+            and c.get('type') != 'admin_support'
+            and request.creator_email not in c.get('deleted_by', [])
+        ), None)
+        
+        if existing:
+            # OPTIMIZATION: Return lightweight version (no messages)
+            return {
+                "id": existing["id"],
+                "type": existing["type"],
+                "participants": existing["participants"],
+                "subject": existing["subject"],
+                "last_updated": existing["last_updated"],
+                "deleted_by": existing.get("deleted_by", []),
+                "last_message_preview": existing["messages"][-1]["text"] if existing["messages"] else ""
+            }
+
+    new_chat = {
+        "id": str(uuid.uuid4()),
+        "type": request.type,
+        "participants": participants,
+        "subject": subject,
+        "created_at": datetime.datetime.now().isoformat(),
+        "last_updated": datetime.datetime.now().isoformat(),
+        "deleted_by": [],
+        "messages": []
+    }
+
+    if request.initial_message:
+        msg = {
+            "id": str(uuid.uuid4()),
+            "sender": request.creator_email,
+            "text": request.initial_message,
+            "timestamp": datetime.datetime.now().isoformat()
+        }
+        new_chat["messages"].append(msg)
+
+    chats.append(new_chat)
+    save_json(CHATS_FILE, chats)
+    
+    # Return lightweight version
+    return {
+        "id": new_chat["id"],
+        "type": new_chat["type"],
+        "participants": new_chat["participants"],
+        "subject": new_chat["subject"],
+        "last_updated": new_chat["last_updated"],
+        "deleted_by": new_chat["deleted_by"],
+        "last_message_preview": request.initial_message or ""
+    }
+
+@app.get("/api/chat/list")
+def list_chats(email: str, all_chats: bool = False):
+    """
+    OPTIMIZATION: Returns lightweight chat objects (WITHOUT 'messages' array).
+    """
+    chats = load_json(CHATS_FILE)
+    
+    mods = get_mod_list()
+    is_admin = email in mods
+    
+    user_chats = []
+    
+    for c in chats:
+        # Check permissions with case-insensitivity safety
+        participants = [p.lower() for p in c.get('participants', [])]
+        user_email = email.lower()
+        
+        is_participant = user_email in participants
+        is_deleted = user_email in [d.lower() for d in c.get('deleted_by', [])]
+        
+        # Logic: 
+        # 1. If requesting "all_chats" (Admin Monitoring), allow if admin.
+        # 2. Otherwise, must be participant AND not deleted.
+        if (all_chats and is_admin) or (is_participant and not is_deleted):
+            # Create lightweight object
+            preview = ""
+            if c.get("messages") and len(c["messages"]) > 0:
+                preview = c["messages"][-1]["text"]
+            
+            user_chats.append({
+                "id": c["id"],
+                "type": c.get("type", "direct"),
+                "participants": c["participants"],
+                "subject": c.get("subject", "Conversation"),
+                "last_updated": c.get("last_updated", ""),
+                "last_message_preview": preview
+            })
+            
+    user_chats.sort(key=lambda x: x.get('last_updated', ''), reverse=True)
+    return user_chats
+
+@app.get("/api/chat/{chat_id}/messages")
+def get_chat_messages(chat_id: str, email: str):
+    """
+    OPTIMIZATION: Specific endpoint to load messages only when needed.
+    """
+    chats = load_json(CHATS_FILE)
+    chat = next((c for c in chats if c['id'] == chat_id), None)
+    
+    if not chat:
+        raise HTTPException(status_code=404, detail="Chat not found")
+    
+    mods = get_mod_list()
+    # Case-insensitive check
+    participants = [p.lower() for p in chat['participants']]
+    if email.lower() not in participants and email not in mods:
+        raise HTTPException(status_code=403, detail="Access denied")
+        
+    return chat.get("messages", [])
+
+@app.post("/api/chat/{chat_id}/message")
+def send_message(chat_id: str, request: SendMessageRequest):
+    chats = load_json(CHATS_FILE)
+    chat = next((c for c in chats if c['id'] == chat_id), None)
+    
+    if not chat:
+        raise HTTPException(status_code=404, detail="Chat not found")
+    
+    # If a user replies to a chat that others deleted, it should reappear for them?
+    # Common behavior: Yes.
+    chat['deleted_by'] = [] # Reset deleted status so everyone sees new message
+    
+    # Case insensitive participant check
+    participants = [p.lower() for p in chat['participants']]
+    if request.sender.lower() not in participants:
+        # Auto-add if it's an admin replying to a ticket they weren't original participant of?
+        # For now, stick to strict participation
+        raise HTTPException(status_code=403, detail="User not in chat")
+
+    msg = {
+        "id": str(uuid.uuid4()),
+        "sender": request.sender,
+        "text": request.text,
+        "timestamp": datetime.datetime.now().isoformat()
+    }
+    
+    if "messages" not in chat: chat["messages"] = []
+    chat['messages'].append(msg)
+    chat['last_updated'] = msg['timestamp']
+    
+    save_json(CHATS_FILE, chats)
+    return msg
+
+@app.post("/api/chat/delete")
+def delete_chat_for_user(request: DeleteChatRequest):
+    chats = load_json(CHATS_FILE)
+    chat = next((c for c in chats if c['id'] == request.chat_id), None)
+    
+    if not chat:
+        raise HTTPException(status_code=404, detail="Chat not found")
+        
+    # Case insensitive check
+    participants = [p.lower() for p in chat['participants']]
+    if request.email.lower() not in participants:
+         raise HTTPException(status_code=403, detail="Not a participant")
+
+    if "deleted_by" not in chat:
+        chat["deleted_by"] = []
+        
+    # Prevent duplicate entries
+    if request.email not in chat["deleted_by"]:
+        chat["deleted_by"].append(request.email)
+        
+    save_json(CHATS_FILE, chats)
+    return {"status": "success", "chat_id": request.chat_id}
 
 if __name__ == "__main__":
     import uvicorn

@@ -3,6 +3,7 @@
 import asyncio
 import os
 import csv
+import json
 from typing import List, Dict, Any, Optional
 import pandas as pd
 import numpy as np
@@ -25,18 +26,23 @@ from integration.execution_command import execute_portfolio_rebalance, get_robin
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CONFIG_FILE = os.path.join(BASE_DIR, 'config.ini')
 
+def floor_with_precision(value: float, precision: int) -> float:
+    """
+    Rounds a value DOWN to a specific number of decimal places.
+    """
+    if precision < 0: precision = 0
+    factor = 10 ** precision
+    return math.floor(value * factor) / factor
+
 async def _load_portfolio_run(portfolio_code: str, user_id: str = None) -> List[Dict[str, Any]]:
-    # STRICT OWNERSHIP: Only load file specific to this user
     filepath = _get_custom_portfolio_run_csv_filepath(portfolio_code, user_id)
     if not os.path.exists(filepath):
         return []
     try:
         with open(filepath, 'r', encoding='utf-8') as f:
             lines = f.readlines()
-        # Filter out comment lines
         data_lines = [line for line in lines if not line.startswith('#')]
         if not data_lines: return []
-        
         reader = csv.DictReader(data_lines)
         return list(reader)
     except Exception:
@@ -50,10 +56,8 @@ async def _load_portfolio_origin_data(portfolio_code: str, user_id: str = None) 
         with open(TRACKING_ORIGIN_FILE, 'r', newline='', encoding='utf-8') as f:
             reader = csv.DictReader(f)
             for row in reader:
-                # STRICT OWNERSHIP: Match PortfolioCode AND UserId exactly
                 row_user = row.get('UserId', '').strip()
                 target_user = user_id.strip() if user_id else ''
-                
                 if row.get('PortfolioCode') == portfolio_code and row_user == target_user:
                     try:
                         origin_data[row['Ticker']] = {
@@ -68,10 +72,8 @@ async def _load_portfolio_origin_data(portfolio_code: str, user_id: str = None) 
 
 async def generate_performance_data(portfolio_code: str, current_holdings: Dict[str, float], user_id: str = None) -> Dict[str, Any]:
     origin_data = await _load_portfolio_origin_data(portfolio_code, user_id)
-    
     all_tickers = list(set(origin_data.keys()) | set(current_holdings.keys()))
     
-    # Fetch live prices
     tasks = [calculate_ema_invest(ticker, 2, is_called_by_ai=True) for ticker in all_tickers]
     results = await asyncio.gather(*tasks, return_exceptions=True)
     
@@ -92,7 +94,6 @@ async def generate_performance_data(portfolio_code: str, current_holdings: Dict[
         
         if origin:
             origin_price = origin['price']
-            # PnL calculated on CURRENT holdings against ORIGIN price
             cost_basis = current_shares * origin_price
             current_val = current_shares * live_price
             pnl = current_val - cost_basis
@@ -120,7 +121,6 @@ async def generate_performance_data(portfolio_code: str, current_holdings: Dict[
     }
 
 async def _send_tracking_email_html(recipient_email: str, subject: str, portfolio_code: str, total_value: float, trade_recs: List[Dict], new_run_data: List[Dict], new_cash: float):
-    # (Email logic remains unchanged)
     try:
         config = configparser.ConfigParser()
         config.read(CONFIG_FILE)
@@ -130,7 +130,6 @@ async def _send_tracking_email_html(recipient_email: str, subject: str, portfoli
         sender_password = config.get('EMAIL_CONFIG', 'SENDER_PASSWORD', fallback=None)
 
         if not all([smtp_server, smtp_port, sender_email, sender_password, recipient_email]):
-            print("⚠️ Email config incomplete. Skipping email.")
             return False
 
         info_blocks_html = ""
@@ -168,10 +167,17 @@ async def _send_tracking_email_html(recipient_email: str, subject: str, portfoli
         await asyncio.to_thread(_send)
         return True
     except Exception as e:
-        print(f"Error sending email: {e}")
         return False
 
 async def handle_tracking_command(args: List[str], ai_params: Optional[Dict] = None, is_called_by_ai: bool = False):
+    # --- DEBUG INIT ---
+    debug_log = []
+    def log(msg):
+        print(f"[DEBUG] {msg}")
+        debug_log.append(msg)
+    
+    log("--- START TRACKING ANALYSIS ---")
+    
     if not ai_params: return "Error: AI Params required."
     action = ai_params.get("action", "run_analysis")
     portfolio_code = ai_params.get("portfolio_code")
@@ -181,33 +187,61 @@ async def handle_tracking_command(args: List[str], ai_params: Optional[Dict] = N
 
     if action == "run_analysis":
         portfolio_config = None
+        
+        # 1. Robustly parse the boolean flag from INPUT
+        raw_frac_param = ai_params.get("use_fractional_shares", False)
+        use_frac_input = False
+        if isinstance(raw_frac_param, str):
+            use_frac_input = raw_frac_param.lower() == 'true'
+        else:
+            use_frac_input = bool(raw_frac_param)
+            
+        log(f"Input 'use_fractional_shares': {use_frac_input}")
+        
         if os.path.exists(PORTFOLIO_DB_FILE):
             try:
                 with open(PORTFOLIO_DB_FILE, 'r', encoding='utf-8') as f:
                     reader = csv.DictReader(f)
                     for row in reader:
-                        # STRICT OWNERSHIP CHECK
                         row_code = row.get('portfolio_code', '').lower().strip()
                         row_user = row.get('user_id', '').strip()
                         target_user = user_id.strip() if user_id else ''
                         
                         if row_code == portfolio_code.lower() and row_user == target_user:
                             portfolio_config = row
+                            log(f"Loaded Config from CSV: {json.dumps(portfolio_config)}")
                             break
-            except Exception: pass
+            except Exception as e:
+                log(f"Error reading DB: {e}")
         
+        # 2. Determine Effective use_frac
+        # Logic: Use fractional if Input is True OR Config is True.
+        # This fixes the issue where frontend sends False but portfolio is inherently fractional.
+        config_frac = False
+        if portfolio_config:
+            for key in ['frac_shares', 'FracShares', 'use_fractional_shares']:
+                val = portfolio_config.get(key, 'false')
+                if str(val).lower() == 'true':
+                    config_frac = True
+                    break
+        
+        log(f"Config 'frac_shares': {config_frac}")
+        
+        use_frac = use_frac_input or config_frac
+        log(f"Effective 'use_frac' for calculation: {use_frac}")
+
         if not portfolio_config:
             sub_portfolios = ai_params.get("sub_portfolios")
             if sub_portfolios:
-                # Create new config tied to USER ID
+                log("Creating NEW config from sub_portfolios.")
                 new_config = {
                     'portfolio_code': portfolio_code,
                     'ema_sensitivity': str(ai_params.get('ema_sensitivity', 2)),
                     'amplification': str(ai_params.get('amplification', 1.0)),
                     'num_portfolios': str(len(sub_portfolios)),
-                    'frac_shares': 'true' if ai_params.get('use_fractional_shares') else 'false',
+                    'frac_shares': 'true' if use_frac else 'false', 
                     'risk_tolerance': '10', 'risk_type': 'stock', 'remove_amplification_cap': 'true',
-                    'user_id': user_id # Enforce ownership
+                    'user_id': user_id
                 }
                 for i, sp in enumerate(sub_portfolios, 1):
                     tickers = sp.get('tickers', [])
@@ -220,43 +254,97 @@ async def handle_tracking_command(args: List[str], ai_params: Optional[Dict] = N
             else:
                 return {"status": "not_found", "message": f"Portfolio '{portfolio_code}' not found."}
 
-        # LOAD OLD DATA (For "Since Last Save")
-        # This loads the state of the CSV *before* we overwrite it later
         old_run_data = await _load_portfolio_run(portfolio_code, user_id)
-        
         total_value = float(ai_params.get("total_value", 10000))
-        use_frac = ai_params.get("use_fractional_shares", False)
+        log(f"Total Value: {total_value}")
         
         # Run New Analysis
+        # [CRITICAL] Always pass frac_shares_singularity=True to get raw floats
+        log("Calling process_custom_portfolio with frac_shares_singularity=True")
         _, _, final_cash, new_run_data = await process_custom_portfolio(
             portfolio_data_config=portfolio_config,
             tailor_portfolio_requested=True,
-            frac_shares_singularity=use_frac,
+            frac_shares_singularity=True, 
             total_value_singularity=total_value,
             is_custom_command_simplified_output=True,
             is_called_by_ai=True
         )
+        
+        # Log raw output from engine
+        log("--- RAW ENGINE OUTPUT (First 3 items) ---")
+        for item in new_run_data[:3]:
+            log(f"Ticker: {item.get('ticker')} | Shares: {item.get('shares')} (Type: {type(item.get('shares'))})")
+
+        # --- START POST-PROCESSING FOR ROUNDING LOGIC ---
+        asset_items = [item for item in new_run_data if item.get('ticker') != 'Cash']
+        num_assets = len(asset_items)
+        
+        precision = 0
+        if use_frac:
+            avg_alloc = (total_value / num_assets) if num_assets > 0 else 0
+            log(f"Avg Allocation: {avg_alloc:.2f}")
+            
+            if total_value < 1000 or avg_alloc < 250:
+                precision = 2
+                log("Condition Met: Value < 1000 or Avg < 250. Precision set to 2 (Hundredths).")
+            else:
+                precision = 1
+                log("Condition Met: Standard Fractional. Precision set to 1 (Tenths).")
+        else:
+            precision = 0
+            log("Condition Met: Fractional Shares Disabled. Precision set to 0 (Integer).")
+        
+        total_invested_after_rounding = 0.0
+        
+        log("--- APPLYING ROUNDING ---")
+        for item in new_run_data:
+            if item.get('ticker') == 'Cash':
+                continue
+            
+            try:
+                raw_shares = float(item.get('shares', 0))
+                raw_alloc = float(item.get('actual_money_allocation', 0))
+                
+                price = float(item.get('price', 0))
+                if price == 0 and raw_shares > 0:
+                    price = raw_alloc / raw_shares
+                
+                new_shares = floor_with_precision(raw_shares, precision)
+                
+                log(f"{item.get('ticker')}: Raw {raw_shares} -> Rounded {new_shares} (Precision {precision})")
+                
+                item['shares'] = new_shares
+                new_val = new_shares * price
+                item['actual_money_allocation'] = new_val
+                item['value'] = new_val 
+                
+                total_invested_after_rounding += new_val
+                
+            except (ValueError, TypeError) as e:
+                log(f"Error processing item {item}: {e}")
+                continue
+
+        final_cash = total_value - total_invested_after_rounding
+        log(f"Final Cash Recalculated: {final_cash}")
+        # --- END POST-PROCESSING ---
 
         trades = []
         old_holdings_map = {}
         old_prices_at_save = {}
 
-        # Parse old run data safely
         if old_run_data:
             for row in old_run_data:
                 ticker = row.get('Ticker')
                 if ticker and ticker != 'Cash':
                     try:
                         shares = float(row.get('Shares', 0))
-                        # Correctly get price from previous save file to compare against current
                         price = float(row.get('LivePriceAtEval', 0))
-                        
                         old_holdings_map[ticker] = shares
                         old_prices_at_save[ticker] = price
                     except (ValueError, TypeError):
                         continue
 
-        new_holdings_map = {row['ticker']: float(row['shares']) for row in new_run_data}
+        new_holdings_map = {row['ticker']: float(row['shares']) for row in new_run_data if row['ticker'] != 'Cash'}
         all_tickers = sorted(list(set(old_holdings_map.keys()) | set(new_holdings_map.keys())))
         
         comparison_table = []
@@ -273,18 +361,12 @@ async def handle_tracking_command(args: List[str], ai_params: Optional[Dict] = N
                 })
                 trades.append({"ticker": ticker, "side": status.lower(), "quantity": abs(diff)})
 
-        # Fetch live prices for performance calculation
         perf_data = await generate_performance_data(portfolio_code, old_holdings_map, user_id)
         live_prices = perf_data.get("live_prices", {})
         
-        # Build "Since Last Save" Table
         since_last_save_table = []
-        
-        # We iterate over what was in the save file
         for ticker, old_price in old_prices_at_save.items():
             current_price = live_prices.get(ticker, 0.0)
-            # For PnL "Since Last Save", we use the shares we held *at that time* (or arguably current, but let's use current holding of that ticker to show gain/loss on current position)
-            # A pure "Since Last Save" usually implies: (Current Price - Last Save Price) * Current Shares
             shares_held = new_holdings_map.get(ticker, 0.0)
             
             if current_price > 0 and shares_held > 0:
@@ -312,7 +394,8 @@ async def handle_tracking_command(args: List[str], ai_params: Optional[Dict] = N
             "comparison": comparison_table,
             "performance": perf_data.get("rows", []),
             "since_last_save": since_last_save_table,
-            "raw_result": {"final_cash": final_cash, "trades": trades, "portfolio_code": portfolio_code}
+            "raw_result": {"final_cash": final_cash, "trades": trades, "portfolio_code": portfolio_code},
+            "debug_log": debug_log
         }
 
     elif action == "execute_trades":

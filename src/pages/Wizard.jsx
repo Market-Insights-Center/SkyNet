@@ -93,8 +93,8 @@ const Wizard = () => {
             return m[s] || 2;
         }
 
-        // Common base with User ID
-        let body = { user_id: currentUser?.uid };
+        // [FIX] Ensure user_id is a string, never undefined
+        let body = { user_id: currentUser?.uid || "" };
 
         switch (type) {
             case 'invest':
@@ -132,7 +132,21 @@ const Wizard = () => {
                     tailor_to_value: true,
                     total_value: parseFloat(inputs.capital) || 10000,
                     use_fractional_shares: inputs.use_fractional_shares || false,
-                    action: "run_analysis"
+                    action: "run_analysis",
+                    // [FIX] Populate defaults to prevent missing field errors
+                    sub_portfolios: [], 
+                    ema_sensitivity: 2, 
+                    amplification: 1.0,
+                    // [FIX] Use empty strings instead of null to prevent 422 Type Errors
+                    trades: [],
+                    rh_username: "", 
+                    rh_password: "", 
+                    email_to: "",
+                    // [FIX] Add fields explicitly requested by the 422 Errors
+                    email: currentUser?.email || "", 
+                    risk_tolerance: 10,
+                    vote_type: "stock", // [FIX] Added missing field from latest error
+                    overwrite: false
                 };
                 if (type === 'custom') body.action = "run_existing_portfolio";
 
@@ -153,6 +167,14 @@ const Wizard = () => {
 
     const executeAnalysis = async (body) => {
         setIsAnalyzing(true);
+        
+        // --- [DEBUG START] ---
+        console.group("🚀 EXECUTION DEBUG");
+        console.log("Target Endpoint:", `http://localhost:8001/api/${toolType}`);
+        console.log("Payload Sending:", JSON.stringify(body, null, 2));
+        console.groupEnd();
+        // --- [DEBUG END] ---
+
         try {
             const endpoint = `http://localhost:8001/api/${toolType}`;
 
@@ -162,12 +184,24 @@ const Wizard = () => {
                 body: JSON.stringify(body),
             });
 
+            const data = await response.json();
+
+            // [FIX] Enhanced Error Handling for 422
             if (!response.ok) {
-                const errText = await response.text();
-                throw new Error(`Server Error: ${response.status} - ${errText}`);
+                console.group("❌ SERVER ERROR DETECTED");
+                console.error("Status:", response.status);
+                console.error("Full Response:", data);
+                if (data.detail) {
+                    console.error("Validation Details (Why 422 happened):", data.detail);
+                }
+                console.groupEnd();
+                
+                throw new Error(`Server Error: ${response.status} - ${JSON.stringify(data.detail || data.message)}`);
             }
 
-            const data = await response.json();
+            if (data.status === 'error') {
+                throw new Error(data.message || "Unknown error occurred.");
+            }
 
             if ((toolType === 'custom' || toolType === 'tracking') && data.status === 'not_found') {
                 setMissingPortfolioCode(inputs.name);
@@ -179,7 +213,7 @@ const Wizard = () => {
             window.analysisResults = data;
             setShowResults(true);
         } catch (error) {
-            console.error(error);
+            console.error("Analysis Execution Failed:", error);
             alert(`Failed to run analysis: ${error.message}`);
         } finally {
             if (!showConfigModal) {
@@ -201,6 +235,7 @@ const Wizard = () => {
 
     const handleConfigSubmit = () => {
         setShowConfigModal(false);
+        setIsAnalyzing(true);
         const body = getRequestBody(toolType, newConfig);
         executeAnalysis(body);
     };

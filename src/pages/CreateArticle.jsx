@@ -1,200 +1,150 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { PenTool, Save, X, Layout, Type, Image as ImageIcon, Tag } from 'lucide-react';
+import { ArrowRight, TrendingUp, Users, Lightbulb } from 'lucide-react';
+import NewsFeed from '../components/NewsFeed';
+import IdeaCard from '../components/IdeaCard';
 import { useAuth } from '../contexts/AuthContext';
 
-const CreateArticle = () => {
-    const navigate = useNavigate();
+const Forum = () => {
     const { currentUser } = useAuth();
-    const [loading, setLoading] = useState(false);
-    const [formData, setFormData] = useState({
-        title: '',
-        subheading: '',
-        category: 'Market Analysis',
-        content: '',
-        hashtags: '',
-        cover_image: ''
+    const [stats, setStats] = useState({
+        total_users: 0,
+        active_users: 0,
+        total_posts: 0,
+        trending_topics: []
     });
+    const [recentIdeas, setRecentIdeas] = useState([]);
 
-    const categories = ['Market Analysis', 'AI & Tech', 'Global Economy', 'Crypto', 'Investment Strategy'];
+    useEffect(() => {
+        // Fetch Stats
+        fetch('http://localhost:8000/api/stats')
+            .then(res => res.json())
+            .then(data => setStats(data))
+            .catch(err => console.error("Error fetching stats:", err));
 
-    const handleSubmit = async (e) => {
-        e.preventDefault();
-        setLoading(true);
+        // Fetch Recent Ideas
+        fetch('http://localhost:8000/api/ideas?limit=6')
+            .then(res => res.json())
+            .then(data => setRecentIdeas(data))
+            .catch(err => console.error("Error fetching ideas:", err));
+    }, []);
 
+    const handleVote = async (ideaId, type) => {
+        if (!currentUser) {
+            alert("Please login to vote");
+            return;
+        }
         try {
-            const response = await fetch('http://localhost:8000/api/articles', {
+            const res = await fetch(`http://localhost:8000/api/ideas/${ideaId}/vote`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    title: formData.title,
-                    subheading: formData.subheading,
-                    content: formData.content,
-                    author: currentUser?.displayName || currentUser?.email?.split('@')[0] || 'Anonymous',
-                    date: new Date().toISOString().split('T')[0],
-                    category: formData.category,
-                    hashtags: formData.hashtags.split(',').map(tag => tag.trim()).filter(tag => tag),
-                    cover_image: formData.cover_image,
-                    likes: 0,
-                    dislikes: 0,
-                    shares: 0
-                })
+                body: JSON.stringify({ user_id: currentUser.email, vote_type: type })
             });
-
-            if (response.ok) {
-                const data = await response.json();
-                navigate(`/news/${data.id}`);
-            } else {
-                console.error("Failed to create article");
+            if (res.ok) {
+                // Refresh ideas to show new counts
+                fetch('http://localhost:8000/api/ideas?limit=6')
+                    .then(res => res.json())
+                    .then(data => setRecentIdeas(data));
             }
         } catch (error) {
-            console.error("Error creating article:", error);
-        } finally {
-            setLoading(false);
+            console.error("Error voting:", error);
         }
     };
 
     return (
-        <div className="min-h-screen pt-24 pb-12 px-4 sm:px-6 lg:px-8">
-            <div className="max-w-4xl mx-auto">
-                <div className="flex items-center justify-between mb-8">
-                    <div>
-                        <h1 className="text-3xl font-bold text-white flex items-center gap-3">
-                            <PenTool className="text-gold" /> Write Article
-                        </h1>
-                        <p className="text-gray-400 mt-2">Share your market insights with the community</p>
-                    </div>
-                    <button
-                        onClick={() => navigate('/news')}
-                        className="p-2 hover:bg-white/10 rounded-full transition-colors text-gray-400 hover:text-white"
+        <div className="min-h-screen bg-deep-black text-white pt-24 px-4">
+            <div className="max-w-7xl mx-auto">
+                <div className="text-center mb-16">
+                    <motion.h1
+                        initial={{ opacity: 0, y: -20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="text-5xl font-bold mb-4"
                     >
-                        <X size={24} />
-                    </button>
+                        M.I.C. <span className="text-gold">FORUM</span>
+                    </motion.h1>
+                    <p className="text-xl text-gray-400">Join the conversation and stay ahead of the market.</p>
                 </div>
 
-                <form onSubmit={handleSubmit} className="space-y-8">
-                    {/* Main Content Card */}
-                    <div className="bg-[#111] rounded-2xl border border-white/10 p-6 sm:p-8 space-y-6">
-                        {/* Title */}
-                        <div className="space-y-2">
-                            <label className="text-sm font-medium text-gray-300 flex items-center gap-2">
-                                <Type size={16} className="text-gold" /> Article Title
-                            </label>
-                            <input
-                                type="text"
-                                required
-                                value={formData.title}
-                                onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                                className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-white text-lg focus:border-gold focus:ring-1 focus:ring-gold outline-none transition-all placeholder-gray-600"
-                                placeholder="Enter a compelling title..."
-                            />
+                <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
+                    {/* Sidebar */}
+                    <div className="lg:col-span-1 space-y-8">
+                        <div className="bg-white/5 border border-white/10 rounded-xl p-6">
+                            <h3 className="text-gold font-bold mb-4 flex items-center">
+                                <TrendingUp size={20} className="mr-2" /> Trending Topics
+                            </h3>
+                            <ul className="space-y-3 text-gray-300">
+                                {stats.trending_topics && stats.trending_topics.length > 0 ? (
+                                    stats.trending_topics.map((tag, i) => (
+                                        <li key={i} className="hover:text-gold cursor-pointer transition-colors">#{tag}</li>
+                                    ))
+                                ) : (
+                                    <li className="text-gray-500 italic">No trending topics yet</li>
+                                )}
+                            </ul>
                         </div>
 
-                        {/* Subheading */}
-                        <div className="space-y-2">
-                            <label className="text-sm font-medium text-gray-300 flex items-center gap-2">
-                                <Layout size={16} className="text-gold" /> Subheading
-                            </label>
-                            <textarea
-                                required
-                                value={formData.subheading}
-                                onChange={(e) => setFormData({ ...formData, subheading: e.target.value })}
-                                className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-white focus:border-gold focus:ring-1 focus:ring-gold outline-none transition-all placeholder-gray-600 h-24 resize-none"
-                                placeholder="Brief summary or hook..."
-                            />
+                        <div className="bg-white/5 border border-white/10 rounded-xl p-6">
+                            <h3 className="text-gold font-bold mb-4 flex items-center">
+                                <Users size={20} className="mr-2" /> Community
+                            </h3>
+                            <div className="flex items-center justify-between mb-2">
+                                <span className="text-gray-400">Total Users</span>
+                                <span className="text-white font-bold">{stats.total_users}</span>
+                            </div>
+                            <div className="flex items-center justify-between mb-2">
+                                <span className="text-gray-400">Active Users</span>
+                                <span className="text-white font-bold">{stats.active_users}</span>
+                            </div>
+                            <div className="flex items-center justify-between">
+                                <span className="text-gray-400">Total Posts</span>
+                                <span className="text-white font-bold">{stats.total_posts}</span>
+                            </div>
                         </div>
+                    </div>
 
-                        {/* Category & Tags */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <div className="space-y-2">
-                                <label className="text-sm font-medium text-gray-300 flex items-center gap-2">
-                                    <Tag size={16} className="text-gold" /> Category
-                                </label>
-                                <select
-                                    value={formData.category}
-                                    onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                                    className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-white focus:border-gold focus:ring-1 focus:ring-gold outline-none transition-all appearance-none cursor-pointer"
-                                >
-                                    {categories.map(cat => (
-                                        <option key={cat} value={cat} className="bg-[#111]">{cat}</option>
+                    {/* Main Content */}
+                    <div className="lg:col-span-3 space-y-12">
+                        {/* News Feed (Knowledge Stream) - Wrapper removed, component handles display */}
+                        <NewsFeed />
+
+                        {/* Recent Ideas */}
+                        <section>
+                            <div className="flex justify-between items-center mb-6">
+                                <h2 className="text-2xl font-bold flex items-center gap-2">
+                                    <Lightbulb className="text-gold" size={24} /> Recent Ideas
+                                </h2>
+                                <Link to="/ideas" className="text-gold hover:text-white flex items-center gap-2 transition-colors">
+                                    View All Ideas <ArrowRight size={16} />
+                                </Link>
+                            </div>
+
+                            {recentIdeas.length > 0 ? (
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                    {recentIdeas.map(idea => (
+                                        <div key={idea.id} className="h-[420px]">
+                                            <IdeaCard
+                                                idea={idea}
+                                                currentUser={currentUser}
+                                                onVote={handleVote}
+                                            />
+                                        </div>
                                     ))}
-                                </select>
-                            </div>
-                            <div className="space-y-2">
-                                <label className="text-sm font-medium text-gray-300 flex items-center gap-2">
-                                    <ImageIcon size={16} className="text-gold" /> Cover Image URL (Optional)
-                                </label>
-                                <input
-                                    type="text"
-                                    value={formData.cover_image}
-                                    onChange={(e) => setFormData({ ...formData, cover_image: e.target.value })}
-                                    className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-white focus:border-gold focus:ring-1 focus:ring-gold outline-none transition-all placeholder-gray-600"
-                                    placeholder="https://..."
-                                />
-                            </div>
-                        </div>
-
-                        {/* Hashtags */}
-                        <div className="space-y-2">
-                            <label className="text-sm font-medium text-gray-300 flex items-center gap-2">
-                                <Tag size={16} className="text-gold" /> Hashtags (comma separated)
-                            </label>
-                            <input
-                                type="text"
-                                value={formData.hashtags}
-                                onChange={(e) => setFormData({ ...formData, hashtags: e.target.value })}
-                                className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-white focus:border-gold focus:ring-1 focus:ring-gold outline-none transition-all placeholder-gray-600"
-                                placeholder="AI, Tech, Finance..."
-                            />
-                        </div>
-
-                        {/* Content */}
-                        <div className="space-y-2">
-                            <label className="text-sm font-medium text-gray-300 flex items-center gap-2">
-                                <PenTool size={16} className="text-gold" /> Content
-                            </label>
-                            <textarea
-                                required
-                                value={formData.content}
-                                onChange={(e) => setFormData({ ...formData, content: e.target.value })}
-                                className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-white focus:border-gold focus:ring-1 focus:ring-gold outline-none transition-all placeholder-gray-600 h-96 font-mono text-sm leading-relaxed"
-                                placeholder="Write your article content here (HTML supported)..."
-                            />
-                            <p className="text-xs text-gray-500 text-right">Supports basic HTML tags</p>
-                        </div>
-                    </div>
-
-                    {/* Action Buttons */}
-                    <div className="flex justify-end gap-4">
-                        <button
-                            type="button"
-                            onClick={() => navigate('/news')}
-                            className="px-6 py-3 rounded-xl text-gray-300 hover:bg-white/5 transition-colors font-medium"
-                        >
-                            Cancel
-                        </button>
-                        <button
-                            type="submit"
-                            disabled={loading}
-                            className="bg-gold text-black px-8 py-3 rounded-xl font-bold hover:bg-yellow-400 transition-colors shadow-lg shadow-gold/10 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                            {loading ? (
-                                <>
-                                    <div className="w-4 h-4 border-2 border-black/30 border-t-black rounded-full animate-spin" />
-                                    Publishing...
-                                </>
+                                </div>
                             ) : (
-                                <>
-                                    <Save size={18} /> Publish Article
-                                </>
+                                <div className="text-center py-12 bg-white/5 rounded-xl border border-white/10">
+                                    <p className="text-gray-400 mb-4">No ideas posted yet.</p>
+                                    <Link to="/ideas" className="text-gold hover:underline">
+                                        Be the first to share an idea!
+                                    </Link>
+                                </div>
                             )}
-                        </button>
+                        </section>
                     </div>
-                </form>
+                </div>
             </div>
         </div>
     );
 };
 
-export default CreateArticle;
+export default Forum;
