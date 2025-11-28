@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ArrowRight, TrendingUp, Users, Lightbulb } from 'lucide-react';
+import { ArrowRight, TrendingUp, Users, Lightbulb, Newspaper } from 'lucide-react';
 import NewsFeed from '../components/NewsFeed';
 import IdeaCard from '../components/IdeaCard';
 import { useAuth } from '../contexts/AuthContext';
@@ -108,7 +108,15 @@ const Forum = () => {
                     <div className="lg:col-span-3 space-y-12">
                         {/* News Feed */}
                         <div className="relative">
-                            <NewsFeed limit={6} compact={true} showViewAll={true} />
+                            <div className="flex justify-between items-center mb-6">
+                                <h2 className="text-2xl font-bold flex items-center gap-2">
+                                    <Newspaper className="text-gold" size={24} /> Market <span className="text-gold">News</span>
+                                </h2>
+                                <Link to="/news" className="text-gold hover:text-white flex items-center gap-2 transition-colors">
+                                    View All Articles <ArrowRight size={16} />
+                                </Link>
+                            </div>
+                            <NewsFeed limit={6} compact={true} />
                         </div>
 
                         {/* Recent Ideas */}

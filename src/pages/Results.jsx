@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { ArrowLeft, Download, Share2, ArrowUp, ArrowDown, Activity } from 'lucide-react';
+import { ArrowLeft, Download, Share2, ArrowUp, ArrowDown, Activity, Layers } from 'lucide-react';
 
 // Chart Colors
 const CHART_COLORS = [
@@ -8,7 +8,8 @@ const CHART_COLORS = [
 ];
 
 const DonutChart = ({ data }) => {
-    const total = data.reduce((sum, item) => sum + (parseFloat(item.value) || 0), 0);
+    const safeData = Array.isArray(data) ? data : [];
+    const total = safeData.reduce((sum, item) => sum + (parseFloat(item?.value) || 0), 0);
     let currentAngle = 0;
 
     if (total === 0) return (
@@ -20,8 +21,8 @@ const DonutChart = ({ data }) => {
     return (
         <div className="relative w-64 h-64">
             <svg viewBox="0 0 100 100" className="w-full h-full transform -rotate-90">
-                {data.map((item, index) => {
-                    const value = parseFloat(item.value) || 0;
+                {safeData.map((item, index) => {
+                    const value = parseFloat(item?.value) || 0;
                     if (value <= 0) return null;
                     const percentage = value / total;
                     const angle = percentage * 360;
@@ -148,27 +149,77 @@ const ExecutionModal = ({ isOpen, onClose, onExecute }) => {
 };
 
 const Results = ({ toolType, onBack }) => {
-    const data = window.analysisResults || { summary: [], table: [] };
-    const { summary: summaryStats, table: rawTableData, raw_result, comparison, performance, since_last_save } = data;
+    // Robust Data Retrieval
+    const data = window.analysisResults || {};
+    const summaryStats = Array.isArray(data.summary) ? data.summary : [];
+    const rawTableData = Array.isArray(data.table) ? data.table : [];
+    const raw_result = data.raw_result || {};
+    const comparison = Array.isArray(data.comparison) ? data.comparison : [];
+    const performance = Array.isArray(data.performance) ? data.performance : [];
+    const since_last_save = Array.isArray(data.since_last_save) ? data.since_last_save : [];
 
     const [sortConfig, setSortConfig] = useState({ key: 'allocPercent', direction: 'desc' });
     const [showExecModal, setShowExecModal] = useState(false);
 
-    const cashValue = raw_result?.final_cash || 0;
-    const totalStockValue = rawTableData.reduce((sum, item) => sum + (parseFloat(item.value) || 0), 0);
+    const cashValue = parseFloat(raw_result?.final_cash) || 0;
+    
+    // Total Portfolio Value Calculation
+    const totalStockValue = rawTableData.reduce((sum, item) => {
+        const val = parseFloat(item?.value || item?.actual_money_allocation || item?.equity || 0);
+        return sum + val;
+    }, 0);
     const totalPortfolioValue = totalStockValue + cashValue;
 
+    // [NEW] Calculate Total Holdings Count
+    // We filter out 'Cash' if it accidentally appears in the table list
+    const holdingsCount = rawTableData.filter(item => item?.ticker !== 'Cash').length;
+
+    // Normalize Data Structure
     const enhancedTableData = useMemo(() => rawTableData.map(item => {
-        const val = parseFloat(item.value) || 0;
-        return { ...item, allocPercent: totalPortfolioValue > 0 ? (val / totalPortfolioValue) * 100 : 0 };
+        if (!item) return { ticker: "Unknown", value: 0, allocPercent: 0, price: 0, shares: 0 };
+        
+        const val = parseFloat(item.value || item.actual_money_allocation || item.equity || 0);
+        const shares = parseFloat(item.shares || 0);
+        
+        // Price Fallback
+        let price = parseFloat(item.price || item.live_price || item.Close || 0);
+        if (price === 0 && shares > 0) {
+            price = val / shares;
+        }
+
+        return { 
+            ...item,
+            value: val,
+            price: price,
+            shares: shares,
+            allocPercent: totalPortfolioValue > 0 ? (val / totalPortfolioValue) * 100 : 0 
+        };
     }), [rawTableData, totalPortfolioValue]);
 
     const chartData = useMemo(() => {
         const sorted = [...enhancedTableData].sort((a, b) => b.value - a.value);
-        let items = sorted.slice(0, 8).map((item, i) => ({ label: item.ticker, value: item.value, color: CHART_COLORS[i % 8] }));
+        let items = sorted.slice(0, 8).map((item, i) => ({ 
+            label: item.ticker || "N/A", 
+            value: item.value || 0, 
+            color: CHART_COLORS[i % 8] 
+        }));
+        
         const others = sorted.slice(8);
-        if (others.length > 0) items.push({ label: "Other Stocks", value: others.reduce((s, i) => s + i.value, 0), color: CHART_COLORS[8] });
-        if (cashValue > 0) items.push({ label: "Cash", value: cashValue, color: CHART_COLORS[9] });
+        if (others.length > 0) {
+            items.push({ 
+                label: "Other Stocks", 
+                value: others.reduce((s, i) => s + (i.value || 0), 0), 
+                color: CHART_COLORS[8] 
+            });
+        }
+        
+        if (cashValue > 0) {
+            items.push({ 
+                label: "Cash", 
+                value: cashValue, 
+                color: CHART_COLORS[9] 
+            });
+        }
         return items;
     }, [enhancedTableData, cashValue]);
 
@@ -227,14 +278,29 @@ const Results = ({ toolType, onBack }) => {
                 </div>
             </div>
 
+            {/* Summary Cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
-                {summaryStats.map((stat, i) => (
-                    <div key={i} className="bg-white/5 border border-white/10 rounded-xl p-6">
-                        <p className="text-gray-400 text-sm mb-1">{stat.label}</p>
-                        <h3 className="text-2xl font-bold text-gold">{stat.value}</h3>
-                        <span className="text-xs text-gray-500">{stat.change}</span>
+                {/* 1. API Provided Stats */}
+                {summaryStats.map((stat, i) => {
+                    if (!stat) return null;
+                    return (
+                        <div key={i} className="bg-white/5 border border-white/10 rounded-xl p-6">
+                            <p className="text-gray-400 text-sm mb-1">{stat.label || "Metric"}</p>
+                            <h3 className="text-2xl font-bold text-gold">{stat.value || "0"}</h3>
+                            <span className="text-xs text-gray-500">{stat.change || ""}</span>
+                        </div>
+                    );
+                })}
+                
+                {/* 2. [NEW] Total Holdings Card */}
+                <div className="bg-white/5 border border-white/10 rounded-xl p-6 relative overflow-hidden group">
+                    <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+                        <Layers size={60} />
                     </div>
-                ))}
+                    <p className="text-gray-400 text-sm mb-1">Total Holdings</p>
+                    <h3 className="text-2xl font-bold text-white">{holdingsCount}</h3>
+                    <span className="text-xs text-gray-500">Active Positions</span>
+                </div>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-10">
@@ -262,15 +328,24 @@ const Results = ({ toolType, onBack }) => {
                                 </tr>
                             </thead>
                             <tbody>
-                                {sortedTableData.map((row, i) => (
-                                    <tr key={i} className="border-b border-white/5 hover:bg-white/5">
-                                        <td className="p-4 font-bold text-white">{row.ticker}</td>
-                                        <td className="p-4 text-gray-300">{row.shares}</td>
-                                        <td className="p-4 text-gray-300">${row.price.toFixed(2)}</td>
-                                        <td className="p-4 text-gold">{(row.allocPercent).toFixed(2)}%</td>
-                                        <td className="p-4 font-bold text-white text-right">${row.value.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
-                                    </tr>
-                                ))}
+                                {sortedTableData.map((row, i) => {
+                                    if (!row) return null;
+                                    return (
+                                        <tr key={i} className="border-b border-white/5 hover:bg-white/5">
+                                            <td className="p-4 font-bold text-white">{row.ticker || "N/A"}</td>
+                                            {/* [FIX] Display Shares with up to 5 decimal places if fractional */}
+                                            <td className="p-4 text-gray-300">
+                                                {(row.shares || 0).toLocaleString(undefined, { maximumFractionDigits: 5 })}
+                                            </td>
+                                            <td className="p-4 text-gray-300">${(parseFloat(row.price) || 0).toFixed(2)}</td>
+                                            <td className="p-4 text-gold">{(row.allocPercent || 0).toFixed(2)}%</td>
+                                            <td className="p-4 font-bold text-white text-right">${(parseFloat(row.value) || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                                        </tr>
+                                    );
+                                })}
+                                {sortedTableData.length === 0 && (
+                                    <tr><td colSpan="5" className="p-4 text-center text-gray-500">No data available.</td></tr>
+                                )}
                             </tbody>
                         </table>
                     </div>
@@ -288,13 +363,16 @@ const Results = ({ toolType, onBack }) => {
                                 <table className="w-full text-left">
                                     <thead><tr className="text-xs text-gray-400 border-b border-white/10"><th className="p-3">Ticker</th><th className="p-3">Action</th><th className="p-3 text-right">Diff</th></tr></thead>
                                     <tbody>
-                                        {comparison && comparison.map((row, i) => (
-                                            <tr key={i} className="border-b border-white/5 hover:bg-white/5 text-sm">
-                                                <td className="p-3 font-bold text-white">{row.ticker}</td>
-                                                <td className={`p-3 font-bold ${row.action === 'Buy' ? 'text-green-400' : 'text-red-400'}`}>{row.action}</td>
-                                                <td className="p-3 text-right text-gray-300">{row.diff > 0 ? '+' : ''}{row.diff.toFixed(2)}</td>
-                                            </tr>
-                                        ))}
+                                        {comparison && comparison.map((row, i) => {
+                                            if (!row) return null;
+                                            return (
+                                                <tr key={i} className="border-b border-white/5 hover:bg-white/5 text-sm">
+                                                    <td className="p-3 font-bold text-white">{row.ticker || "N/A"}</td>
+                                                    <td className={`p-3 font-bold ${row.action === 'Buy' ? 'text-green-400' : 'text-red-400'}`}>{row.action || "-"}</td>
+                                                    <td className="p-3 text-right text-gray-300">{(row.diff || 0) > 0 ? '+' : ''}{(parseFloat(row.diff) || 0).toFixed(4)}</td>
+                                                </tr>
+                                            );
+                                        })}
                                         {(!comparison || comparison.length === 0) && <tr><td colSpan="3" className="p-4 text-center text-gray-500">No rebalancing needed.</td></tr>}
                                     </tbody>
                                 </table>
@@ -308,16 +386,20 @@ const Results = ({ toolType, onBack }) => {
                                 <table className="w-full text-left">
                                     <thead><tr className="text-xs text-gray-400 border-b border-white/10"><th className="p-3">Ticker</th><th className="p-3 text-right">Origin</th><th className="p-3 text-right">Current</th><th className="p-3 text-right">P&L</th></tr></thead>
                                     <tbody>
-                                        {performance && performance.map((row, i) => (
-                                            <tr key={i} className="border-b border-white/5 hover:bg-white/5 text-sm">
-                                                <td className="p-3 font-bold text-white">{row.ticker}</td>
-                                                <td className="p-3 text-right text-gray-400">${row.origin_price.toFixed(2)}</td>
-                                                <td className="p-3 text-right text-gray-300">${row.live_price.toFixed(2)}</td>
-                                                <td className={`p-3 text-right font-bold ${row.pnl >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                                                    {row.pnl >= 0 ? '+' : ''}{row.pnl.toFixed(2)} ({row.pnl_percent.toFixed(1)}%)
-                                                </td>
-                                            </tr>
-                                        ))}
+                                        {performance && performance.map((row, i) => {
+                                            if (!row) return null;
+                                            const pnl = parseFloat(row.pnl) || 0;
+                                            return (
+                                                <tr key={i} className="border-b border-white/5 hover:bg-white/5 text-sm">
+                                                    <td className="p-3 font-bold text-white">{row.ticker || "N/A"}</td>
+                                                    <td className="p-3 text-right text-gray-400">${(parseFloat(row.origin_price) || 0).toFixed(2)}</td>
+                                                    <td className="p-3 text-right text-gray-300">${(parseFloat(row.live_price) || 0).toFixed(2)}</td>
+                                                    <td className={`p-3 text-right font-bold ${pnl >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                                        {pnl >= 0 ? '+' : ''}{pnl.toFixed(2)} ({(parseFloat(row.pnl_percent) || 0).toFixed(1)}%)
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })}
                                         {(!performance || performance.length === 0) && <tr><td colSpan="4" className="p-4 text-center text-gray-500">No historical data found.</td></tr>}
                                     </tbody>
                                 </table>
@@ -325,24 +407,29 @@ const Results = ({ toolType, onBack }) => {
                         </div>
                     </div>
 
-                    {/* NEW: Since Last Save Performance */}
+                    {/* Performance Since Last Save */}
                     <div className="bg-white/5 border border-white/10 rounded-xl overflow-hidden">
                         <div className="p-4 bg-white/10 border-b border-white/10"><h3 className="font-bold text-white">Performance Since Last Save</h3></div>
                         <div className="overflow-x-auto">
                             <table className="w-full text-left">
                                 <thead><tr className="text-xs text-gray-400 border-b border-white/10"><th className="p-3">Ticker</th><th className="p-3 text-right">Held Shares</th><th className="p-3 text-right">Last Save Price</th><th className="p-3 text-right">Current Price</th><th className="p-3 text-right">P&L</th></tr></thead>
                                 <tbody>
-                                    {since_last_save && since_last_save.map((row, i) => (
-                                        <tr key={i} className="border-b border-white/5 hover:bg-white/5 text-sm">
-                                            <td className="p-3 font-bold text-white">{row.ticker}</td>
-                                            <td className="p-3 text-right text-gray-300">{row.shares.toFixed(2)}</td>
-                                            <td className="p-3 text-right text-gray-400">${row.last_save_price.toFixed(2)}</td>
-                                            <td className="p-3 text-right text-gray-300">${row.current_price.toFixed(2)}</td>
-                                            <td className={`p-3 text-right font-bold ${row.pnl >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                                                {row.pnl >= 0 ? '+' : ''}{row.pnl.toFixed(2)} ({row.pnl_percent.toFixed(1)}%)
-                                            </td>
-                                        </tr>
-                                    ))}
+                                    {since_last_save && since_last_save.map((row, i) => {
+                                        if (!row) return null;
+                                        const pnl = parseFloat(row.pnl) || 0;
+                                        return (
+                                            <tr key={i} className="border-b border-white/5 hover:bg-white/5 text-sm">
+                                                <td className="p-3 font-bold text-white">{row.ticker || "N/A"}</td>
+                                                {/* [FIX] Shares display updated to allow decimals */}
+                                                <td className="p-3 text-right text-gray-300">{(parseFloat(row.shares) || 0).toLocaleString(undefined, { maximumFractionDigits: 5 })}</td>
+                                                <td className="p-3 text-right text-gray-400">${(parseFloat(row.last_save_price) || 0).toFixed(2)}</td>
+                                                <td className="p-3 text-right text-gray-300">${(parseFloat(row.current_price) || 0).toFixed(2)}</td>
+                                                <td className={`p-3 text-right font-bold ${pnl >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                                    {pnl >= 0 ? '+' : ''}{pnl.toFixed(2)} ({(parseFloat(row.pnl_percent) || 0).toFixed(1)}%)
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
                                     {(!since_last_save || since_last_save.length === 0) && <tr><td colSpan="5" className="p-4 text-center text-gray-500">No previous run data available.</td></tr>}
                                 </tbody>
                             </table>

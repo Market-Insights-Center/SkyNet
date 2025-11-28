@@ -79,9 +79,6 @@ const parseValue = (val) => {
     return num;
 };
 
-// ... Sparkline, SortableHeader, SortableRow ...
-// (Re-declaring them here to ensure the file is complete)
-
 const Sparkline = ({ data, isPositive }) => {
     if (!data || !Array.isArray(data) || data.length < 2) {
         return <div className="w-[100px] h-[30px] opacity-20 bg-gray-700/10 rounded"></div>;
@@ -146,9 +143,17 @@ const SortableRow = ({ ticker, columns, onDelete, data, onSelect }) => {
 const Watchlist = () => {
     const { currentUser } = useAuth();
     const [mounted, setMounted] = useState(false);
+    
+    // State for Watchlist Data
     const [watchlistName, setWatchlistName] = useState("My Watchlist");
     const [tickers, setTickers] = useState(INITIAL_TICKERS);
     const [visibleColumns, setVisibleColumns] = useState(DEFAULT_COLUMNS);
+    const [sortConfig, setSortConfig] = useState({ key: null, direction: null });
+
+    // Loading & Saving States
+    const [isDataLoaded, setIsDataLoaded] = useState(false); // CRITICAL: Prevents overwriting DB with defaults on load
+    const [isSaving, setIsSaving] = useState(false);
+
     const [marketData, setMarketData] = useState({});
     const [isLoadingData, setIsLoadingData] = useState(false);
     const [isEditingName, setIsEditingName] = useState(false);
@@ -156,36 +161,86 @@ const Watchlist = () => {
     const [isEditingColumns, setIsEditingColumns] = useState(false);
     const [isAddOpen, setIsAddOpen] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
-    const [sortConfig, setSortConfig] = useState({ key: null, direction: null });
     const [selectedTicker, setSelectedTicker] = useState(null);
 
     const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }), useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }));
 
     useEffect(() => { setMounted(true); }, []);
-    const cleanColumns = (cols) => (!cols ? DEFAULT_COLUMNS : cols.filter(c => AVAILABLE_COLUMNS.some(ac => ac.id === c.id) && c.id !== '1m' && c.id !== 'change'));
+    
+    // Helper to ensure we only render valid columns that exist in our definition
+    const cleanColumns = (cols) => {
+        if (!cols || !Array.isArray(cols)) return DEFAULT_COLUMNS;
+        // Filter out any columns that don't exist in AVAILABLE_COLUMNS to prevent crashes
+        // but maintain the order from the saved 'cols' array.
+        return cols.filter(c => AVAILABLE_COLUMNS.some(ac => ac.id === c.id));
+    };
 
+    // 1. Fetch Watchlist on Load
     useEffect(() => {
-        if (!currentUser) return;
+        if (!currentUser) {
+            setIsDataLoaded(true); // If no user, we are "loaded" with defaults
+            return;
+        }
+        
         const fetchWatchlist = async () => {
             try {
                 const docRef = doc(db, "users", currentUser.uid, "watchlists", "default");
                 const snap = await getDoc(docRef);
+                
                 if (snap.exists()) {
                     const data = snap.data();
                     if (data.name) setWatchlistName(data.name);
+                    
                     if (data.tickers && Array.isArray(data.tickers)) {
                         const cleanTickers = data.tickers.map(t => typeof t === 'string' ? t : (t.id || t.symbol || '')).filter(Boolean);
                         setTickers([...new Set(cleanTickers)]);
                     }
-                    if (data.columns) setVisibleColumns(cleanColumns(data.columns));
+                    
+                    if (data.columns && Array.isArray(data.columns)) {
+                        setVisibleColumns(cleanColumns(data.columns));
+                    }
+                    
                     if (data.sortConfig) setSortConfig(data.sortConfig);
                 }
-            } catch (e) { console.error("Error loading watchlist:", e); }
+            } catch (e) { 
+                console.error("Error loading watchlist:", e); 
+            } finally {
+                // Mark as loaded so auto-save can begin listening to changes
+                setIsDataLoaded(true);
+            }
         };
         fetchWatchlist();
     }, [currentUser]);
 
-    // UPDATED FETCH PORT TO 8001
+    // 2. Auto-Save Watchlist on Change (Debounced)
+    useEffect(() => {
+        // Stop if not mounted, no user, or if we haven't finished loading the initial data yet
+        if (!currentUser || !mounted || !isDataLoaded) return;
+        
+        const saveData = async () => {
+            setIsSaving(true);
+            try {
+                const docRef = doc(db, "users", currentUser.uid, "watchlists", "default");
+                await setDoc(docRef, {
+                    name: watchlistName,
+                    tickers: tickers,
+                    columns: visibleColumns,
+                    sortConfig: sortConfig,
+                    lastUpdated: new Date()
+                }, { merge: true });
+            } catch (error) {
+                console.error("Error saving watchlist:", error);
+            } finally {
+                setIsSaving(false);
+            }
+        };
+
+        const timeoutId = setTimeout(saveData, 1000); // 1-second debounce to prevent spamming
+        return () => clearTimeout(timeoutId);
+
+    }, [tickers, watchlistName, visibleColumns, sortConfig, currentUser, mounted, isDataLoaded]);
+
+    // Market Data Fetching (Unchanged)
     const fetchMarketData = useCallback(async () => {
         if (tickers.length === 0) return;
         setIsLoadingData(true);
@@ -241,13 +296,13 @@ const Watchlist = () => {
         return () => clearInterval(interval);
     }, [fetchMarketData]);
 
-    // ... handleSort, sortedTickers, handleAddTicker, removeTicker, handleDragEnd, toggleColumn ...
     const handleSort = (columnId) => {
         setSortConfig(prev => {
             if (prev.key === columnId) return prev.direction === 'asc' ? { key: columnId, direction: 'desc' } : { key: null, direction: null };
             return { key: columnId, direction: 'asc' };
         });
     };
+
     const sortedTickers = useMemo(() => {
         if (!sortConfig.key || !sortConfig.direction) return tickers;
         return [...tickers].sort((a, b) => {
@@ -264,8 +319,8 @@ const Watchlist = () => {
         const symbol = searchQuery.toUpperCase().trim();
         if (!tickers.includes(symbol)) {
             setTickers(prev => [...prev, symbol]);
-            // Optimistic fetch for new ticker
             try {
+                // Optimistic fetch
                 const response = await fetch('http://localhost:8001/api/market-data', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -278,7 +333,9 @@ const Watchlist = () => {
         setSearchQuery('');
         setIsAddOpen(false);
     };
+    
     const removeTicker = (symbol) => setTickers(prev => prev.filter(t => t !== symbol));
+    
     const handleDragEnd = (event) => {
         const { active, over } = event;
         if (!over) return;
@@ -288,7 +345,16 @@ const Watchlist = () => {
             if (active.id !== over.id) setTickers((items) => arrayMove(items, items.indexOf(active.id), items.indexOf(over.id)));
         }
     };
-    const toggleColumn = (col) => visibleColumns.find(c => c.id === col.id) ? setVisibleColumns(prev => prev.filter(c => c.id !== col.id)) : setVisibleColumns(prev => [...prev, col]);
+    
+    const toggleColumn = (col) => {
+        // If column exists, remove it
+        if (visibleColumns.find(c => c.id === col.id)) {
+            setVisibleColumns(prev => prev.filter(c => c.id !== col.id));
+        } else {
+            // If adding, append to the end
+            setVisibleColumns(prev => [...prev, col]);
+        }
+    };
 
     if (!mounted) return <div className="p-12 text-center text-gray-500">Loading Watchlist...</div>;
 
@@ -314,7 +380,10 @@ const Watchlist = () => {
                                     <input autoFocus className="bg-transparent text-2xl font-bold text-gold border-b border-gold outline-none" value={watchlistName} onChange={(e) => setWatchlistName(e.target.value)} onBlur={() => setIsEditingName(false)} />
                                 </form>
                             ) : (
-                                <h2 className="text-2xl font-bold text-gold cursor-pointer" onDoubleClick={() => setIsEditingName(true)}>{watchlistName}</h2>
+                                <div className="flex items-center gap-2">
+                                    <h2 className="text-2xl font-bold text-gold cursor-pointer" onDoubleClick={() => setIsEditingName(true)}>{watchlistName}</h2>
+                                    {isSaving && <span className="text-xs text-gray-600 animate-pulse">Saving...</span>}
+                                </div>
                             )}
                             <button onClick={fetchMarketData} className={`p-2 rounded-full hover:bg-white/10 ${isLoadingData ? 'animate-spin text-gold' : 'text-gray-500'}`}><RefreshCw size={18} /></button>
                         </div>

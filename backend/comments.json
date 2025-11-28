@@ -99,5 +99,77 @@
         "replies": [],
         "likes": 0,
         "dislikes": 0
+    },
+    {
+        "id": 11,
+        "article_id": 4,
+        "idea_id": null,
+        "user": "Verzogerung",
+        "email": "marketinsightscenter@gmail.com",
+        "text": "y",
+        "date": "2025-11-28T04:34:47.390Z",
+        "replies": [],
+        "likes": 0,
+        "dislikes": 0
+    },
+    {
+        "id": 12,
+        "article_id": null,
+        "idea_id": 4,
+        "user": "Verzogerung",
+        "email": "marketinsightscenter@gmail.com",
+        "text": "...",
+        "date": "2025-11-28",
+        "replies": [],
+        "likes": 0,
+        "dislikes": 0
+    },
+    {
+        "id": 14,
+        "article_id": null,
+        "idea_id": 4,
+        "user": "Verzogerung",
+        "email": "marketinsightscenter@gmail.com",
+        "text": "....",
+        "date": "2025-11-28",
+        "replies": [],
+        "likes": 0,
+        "dislikes": 0
+    },
+    {
+        "id": 15,
+        "article_id": null,
+        "idea_id": 4,
+        "user": "Verzogerung",
+        "email": "marketinsightscenter@gmail.com",
+        "text": "ong",
+        "date": "2025-11-28",
+        "replies": [],
+        "likes": 0,
+        "dislikes": 0
+    },
+    {
+        "id": 16,
+        "article_id": null,
+        "idea_id": 4,
+        "user": "Verzogerung",
+        "email": "marketinsightscenter@gmail.com",
+        "text": "i",
+        "date": "2025-11-28",
+        "replies": [],
+        "likes": 0,
+        "dislikes": 0
+    },
+    {
+        "id": 17,
+        "article_id": null,
+        "idea_id": 4,
+        "user": "Verzogerung",
+        "email": "marketinsightscenter@gmail.com",
+        "text": "asdf",
+        "date": "2025-11-28",
+        "replies": [],
+        "likes": 0,
+        "dislikes": 0
     }
 ]

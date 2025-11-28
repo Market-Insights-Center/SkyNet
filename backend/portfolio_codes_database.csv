@@ -8,4 +8,5 @@ overvaluedpicks,2,2.0,1,yes,10,stock,true,,"USAR, RGTI, REMX, NNE, IONQ, RDDT, M
 quantumpro,2,1.0,2,yes,10,stock,true,,"quantumfix",81.00,"overvaluedpicks",19.00
 testingauto,2,1.0,1,yes,10,stock,true,,"RGTI, USAR, OKLO, REMX, IONQ, MU, NNE, SMR, HOOD",100.00
 whatev,2,1.5,2,true,10,stock,true,,"MU,REMX",75.0,"BRK.B,GOOG",25.0
-testing,2,1.5,2,true,10,stock,true,,"REMX,MU",75.0,"BRK.B,GOOG",25.0
+testing,2,1.5,2,true,10,stock,true,,"REMX,MU",75.0,"BRK.B,GOOG",25.0test,2,1.5,2,true,10,stock,true,jb8jHxIcJuNzZF4GWUm1Kfar4it1,"REMX,MU",75.0,"GOOG,BRK.B",25.0
+test,2,1.5,2,true,10,stock,true,jb8jHxIcJuNzZF4GWUm1Kfar4it1,"REMX,GOOG",100.0,"BRK.B,MU",25.0

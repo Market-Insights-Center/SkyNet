@@ -1,19 +1,27 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { TrendingUp, ThumbsUp, ThumbsDown, User, Calendar, MessageSquare, Send, Trash2 } from 'lucide-react';
+import { TrendingUp, ThumbsUp, ThumbsDown, User, Calendar, MessageSquare, Send, Trash2, ShieldCheck } from 'lucide-react';
 
 const IdeaCard = ({ idea, currentUser, onVote }) => {
     const [showComments, setShowComments] = useState(false);
-    const [comments, setComments] = useState(idea.comments || []);
+    
+    // UPDATED: Initialize comments sorted by date (Newest First)
+    const [comments, setComments] = useState(
+        (idea.comments || []).sort((a, b) => new Date(b.date) - new Date(a.date))
+    );
+    
     const [commentText, setCommentText] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isMod, setIsMod] = useState(false);
+    
+    // Hardcoded Admin Email for tagging
+    const ADMIN_EMAIL = 'marketinsightscenter@gmail.com';
 
     // Check if current user is a moderator
     useEffect(() => {
         if (currentUser) {
             // Immediate check for super admin
-            if (currentUser.email === 'marketinsightscenter@gmail.com') {
+            if (currentUser.email === ADMIN_EMAIL) {
                 setIsMod(true);
                 return;
             }
@@ -39,11 +47,17 @@ const IdeaCard = ({ idea, currentUser, onVote }) => {
         }
 
         if (!commentText.trim()) return;
+        if (!idea.id) {
+            console.error("Missing Idea ID");
+            return;
+        }
 
         setIsSubmitting(true);
 
         const newCommentPayload = {
-            idea_id: idea.id,
+            id: 0, // Dummy ID
+            idea_id: parseInt(idea.id),
+            user_id: currentUser.email,
             user: currentUser.displayName || currentUser.email.split('@')[0], 
             email: currentUser.email,
             text: commentText,
@@ -60,11 +74,29 @@ const IdeaCard = ({ idea, currentUser, onVote }) => {
             if (res.ok) {
                 const data = await res.json();
                 const addedComment = data.comment || data; 
-                setComments(prev => [...prev, addedComment]);
+                
+                // UPDATED: Prepend new comment to the top of the list
+                setComments(prev => [addedComment, ...prev]);
+                
                 setCommentText('');
             } else {
-                console.error("Failed to post comment. Status:", res.status);
-                alert("Could not post comment. Please try again.");
+                let errorData;
+                try {
+                    errorData = await res.json();
+                } catch (e) {
+                    errorData = { detail: "Unknown server error" };
+                }
+
+                console.error("Failed to post comment:", errorData);
+                
+                let errorMessage = `Server error ${res.status}`;
+                if (errorData.detail && Array.isArray(errorData.detail)) {
+                    errorMessage += ": " + errorData.detail.map(e => `${e.loc[1]}: ${e.msg}`).join(', ');
+                } else if (errorData.detail) {
+                    errorMessage += ": " + errorData.detail;
+                }
+
+                alert(`Could not post comment. ${errorMessage}`);
             }
         } catch (error) {
             console.error("Error posting comment:", error);
@@ -78,19 +110,47 @@ const IdeaCard = ({ idea, currentUser, onVote }) => {
         if (!commentId) return;
         if (!window.confirm("Are you sure you want to delete this comment?")) return;
 
+        if (!currentUser) {
+            alert("You must be logged in to delete comments.");
+            return;
+        }
+
         try {
-            const res = await fetch(`http://localhost:8001/api/comments/${commentId}`, {
+            const res = await fetch(`http://localhost:8001/api/comments/${commentId}?requester_email=${encodeURIComponent(currentUser.email)}`, {
                 method: 'DELETE'
             });
 
             if (res.ok) {
                 setComments(prev => prev.filter(c => c.id !== commentId));
             } else {
-                alert("Failed to delete comment.");
+                let errorData;
+                try {
+                    errorData = await res.json();
+                } catch (jsonError) {
+                    const text = await res.text();
+                    errorData = { detail: text || "Unknown server error" };
+                }
+
+                console.error("Delete failed:", res.status, errorData);
+                
+                let errorMessage = `Server error ${res.status}`;
+                if (errorData.detail && Array.isArray(errorData.detail)) {
+                     errorMessage += ": " + errorData.detail.map(e => `${e.loc[1]}: ${e.msg}`).join(', ');
+                } else if (errorData.detail) {
+                    errorMessage += ": " + errorData.detail;
+                }
+                
+                alert(`Failed to delete comment. ${errorMessage}`);
             }
         } catch (error) {
             console.error("Error deleting comment:", error);
+            alert("Network error: Could not delete comment.");
         }
+    };
+
+    // Helper to check if a specific comment is from an admin
+    const isCommentAdmin = (comment) => {
+        return comment.email === ADMIN_EMAIL || comment.isAdmin;
     };
 
     return (
@@ -99,7 +159,7 @@ const IdeaCard = ({ idea, currentUser, onVote }) => {
             animate={{ opacity: 1, y: 0 }}
             className="bg-white/5 border border-white/10 rounded-xl overflow-hidden hover:border-gold/50 transition-colors group h-full flex flex-col"
         >
-            {/* Cover Image - CHANGED to aspect-square to be squared and fit more chart */}
+            {/* Cover Image */}
             <div className="aspect-square bg-black/50 relative overflow-hidden shrink-0 border-b border-white/5">
                 {idea.cover_image ? (
                     <img
@@ -186,12 +246,19 @@ const IdeaCard = ({ idea, currentUser, onVote }) => {
                                 <div className="max-h-32 overflow-y-auto custom-scrollbar space-y-2">
                                     {comments.length > 0 ? (
                                         comments.map((comment, idx) => (
-                                            <div key={comment.id || idx} className="bg-white/5 p-2 rounded text-xs relative hover:bg-white/10 transition-colors">
+                                            <div key={comment.id || idx} className={`bg-white/5 p-2 rounded text-xs relative hover:bg-white/10 transition-colors ${isCommentAdmin(comment) ? 'border-l-2 border-gold pl-3' : ''}`}>
                                                 <div className="flex justify-between items-center mb-1">
-                                                    <span className="font-bold text-gold">{comment.user}</span>
+                                                    <div className="flex items-center gap-1.5">
+                                                        <span className="font-bold text-gold">{comment.user}</span>
+                                                        {isCommentAdmin(comment) && (
+                                                            <span className="bg-gold text-black text-[9px] font-bold px-1 rounded flex items-center gap-0.5">
+                                                                <ShieldCheck size={8} /> ADMIN
+                                                            </span>
+                                                        )}
+                                                    </div>
                                                     <div className="flex items-center gap-2">
                                                         <span className="text-[10px] text-gray-500">{comment.date}</span>
-                                                        {isMod && (
+                                                        {(isMod || (currentUser?.email === comment.email)) && (
                                                             <button 
                                                                 onClick={() => handleDeleteComment(comment.id)}
                                                                 className="text-gray-400 hover:text-red-500 transition-colors p-1"

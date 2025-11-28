@@ -10,7 +10,6 @@ import matplotlib
 matplotlib.use('Agg')
 import asyncio
 import matplotlib.pyplot as plt
-# FIX: Added Dict, List, Any to imports
 from typing import List, Dict, Any, Optional, Tuple
 import csv
 import traceback
@@ -235,6 +234,10 @@ async def process_custom_portfolio(
     return [], final_combined_portfolio_data_calc, final_cash, tailored_data
 
 async def handle_invest_command(args: List[str], ai_params: Optional[Dict] = None, is_called_by_ai: bool = False, return_structured_data: bool = False):
+    """
+    Handles the /invest command.
+    Returns structured JSON for the frontend (Results.jsx).
+    """
     if ai_params:
         config = {
             'portfolio_code': 'TEMP',
@@ -250,11 +253,41 @@ async def handle_invest_command(args: List[str], ai_params: Optional[Dict] = Non
             config[f'tickers_{i}'] = tickers
             config[f'weight_{i}'] = sp.get('weight', 0)
 
-        return await process_custom_portfolio(
+        # Run processing
+        _, _, final_cash, tailored_data = await process_custom_portfolio(
             portfolio_data_config=config,
             tailor_portfolio_requested=ai_params.get('tailor_to_value', False),
             frac_shares_singularity=ai_params.get('use_fractional_shares', False),
             total_value_singularity=ai_params.get('total_value', 0.0),
             is_called_by_ai=True
         )
+
+        # --- FIX: Format data for Results.jsx ---
+        formatted_table_data = []
+        for item in tailored_data:
+            formatted_table_data.append({
+                "ticker": item.get('ticker'),
+                "shares": item.get('shares'),
+                "price": item.get('live_price_at_eval'),
+                "value": item.get('actual_money_allocation'), # Mapped for frontend chart/table
+                "allocPercent": item.get('actual_percent_allocation'),
+                "rawInvestScore": item.get('raw_invest_score')
+            })
+
+        total_value_calc = sum(h['actual_money_allocation'] for h in tailored_data) + final_cash
+
+        return {
+            "status": "success",
+            "summary": [
+                {"label": "Portfolio Value", "value": f"${total_value_calc:,.2f}", "change": "Total"},
+                {"label": "Cash", "value": f"${final_cash:,.2f}", "change": "Unallocated"},
+                {"label": "Holdings", "value": str(len(formatted_table_data)), "change": "Count"}
+            ],
+            "table": formatted_table_data,
+            "raw_result": {
+                "final_cash": final_cash,
+                "trades": [] # Invest command doesn't generate trade diffs
+            }
+        }
+
     return "CLI not supported in this mode"

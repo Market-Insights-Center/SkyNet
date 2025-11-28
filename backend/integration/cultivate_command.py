@@ -1,3 +1,5 @@
+# backend/integration/cultivate_command.py
+
 # --- Imports for cultivate_command ---
 import asyncio
 import csv
@@ -440,15 +442,41 @@ async def handle_cultivate_command(args: List[str], ai_params: Optional[Dict] = 
         
         elif action_type == "run_analysis":
             if is_called_by_ai:
-                return tailored_entries, final_cash
-            # For CLI, detailed printout already happened in run_cultivate_analysis_singularity
+                # --- FIX: Structured Return for React Frontend ---
+                formatted_table_data = []
+                for item in tailored_entries:
+                    formatted_table_data.append({
+                        "ticker": item.get('ticker'),
+                        "shares": item.get('shares'),
+                        "price": item.get('live_price'),
+                        "value": item.get('actual_money_allocation'), 
+                        "allocPercent": item.get('actual_percent_allocation_total_epsilon'),
+                        "rawInvestScore": item.get('raw_invest_score')
+                    })
+
+                total_calc = sum(h['actual_money_allocation'] for h in tailored_entries) + final_cash
+
+                return {
+                    "status": "success",
+                    "summary": [
+                        {"label": "Code", "value": cult_code, "change": "Strategy"},
+                        {"label": "Total Value", "value": f"${total_calc:,.2f}", "change": "Asset+Cash"},
+                        {"label": "Cash", "value": f"${final_cash:,.2f}", "change": "Unallocated"},
+                        # --- ADDED: Holdings Counter ---
+                        {"label": "Holdings", "value": str(len(formatted_table_data)), "change": "Count"}
+                    ],
+                    "table": formatted_table_data,
+                    "raw_result": {
+                        "final_cash": final_cash
+                    }
+                }
         
         return # Success for CLI
 
     except Exception as e:
         error_message = f"Error in /cultivate command: {e}"
         if is_called_by_ai:
-            return error_message
+            return {"status": "error", "message": error_message}
         else:
             print(error_message)
             traceback.print_exc()
