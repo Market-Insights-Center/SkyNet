@@ -17,13 +17,13 @@ const Forum = () => {
     const [recentIdeas, setRecentIdeas] = useState([]);
 
     useEffect(() => {
-        // Fetch Stats - PORT 8001
+        // Fetch Stats - PORT 8000
         fetch('/api/stats')
             .then(res => res.json())
             .then(data => setStats(data))
             .catch(err => console.error("Error fetching stats:", err));
 
-        // Fetch Recent Ideas - PORT 8001
+        // Fetch Recent Ideas - PORT 8000
         fetch('/api/ideas?limit=6')
             .then(res => res.json())
             .then(data => setRecentIdeas(data))
@@ -36,14 +36,14 @@ const Forum = () => {
             return;
         }
         try {
-            // PORT 8001
+            // PORT 8000
             const res = await fetch(`/api/ideas/${ideaId}/vote`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ user_id: currentUser.email, vote_type: type })
             });
             if (res.ok) {
-                // Refresh ideas to show new counts - PORT 8001
+                // Refresh ideas to show new counts - PORT 8000
                 fetch('/api/ideas?limit=6')
                     .then(res => res.json())
                     .then(data => setRecentIdeas(data));

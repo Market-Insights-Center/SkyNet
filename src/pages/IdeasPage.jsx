@@ -13,7 +13,7 @@ const IdeasPage = () => {
 
     const fetchIdeas = async () => {
         try {
-            // UPDATED PORT: 8001
+            // UPDATED PORT: 8000
             const res = await fetch('/api/ideas');
             const data = await res.json();
             setIdeas(data);
@@ -34,7 +34,7 @@ const IdeasPage = () => {
             return;
         }
         try {
-            // UPDATED PORT: 8001
+            // UPDATED PORT: 8000
             const res = await fetch(`/api/ideas/${ideaId}/vote`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },

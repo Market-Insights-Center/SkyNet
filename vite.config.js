@@ -6,7 +6,7 @@ export default defineConfig({
   server: {
     proxy: {
       '/api': {
-        target: 'http://127.0.0.1:8001', // Your local Python backend port
+        target: 'http://127.0.0.1:8000', // Points to local Python backend
         changeOrigin: true,
         secure: false,
       },

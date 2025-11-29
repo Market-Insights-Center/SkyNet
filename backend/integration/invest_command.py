@@ -1,5 +1,3 @@
-# backend/integration/invest_command.py
-
 import yfinance as yf
 import pandas as pd
 import math
@@ -21,6 +19,8 @@ RISK_CSV_FILE = os.path.join(BASE_DIR, 'market_data.csv')
 PORTFOLIO_DB_FILE = os.path.join(BASE_DIR, 'portfolio_codes_database.csv')
 YFINANCE_API_SEMAPHORE = asyncio.Semaphore(5)
 
+# --- Shared Helper Functions (Required by other modules) ---
+
 def safe_score(value) -> float:
     try:
         if pd.isna(value) or value is None: return 0.0
@@ -31,8 +31,6 @@ def safe_score(value) -> float:
 def get_allocation_score(is_called_by_ai: bool = False) -> Tuple[float, float, float]:
     avg_s, gen_s, mkt_inv_s = 50.0, 50.0, 50.0 
     if not os.path.exists(RISK_CSV_FILE):
-        if not is_called_by_ai:
-            print(f"Warning: Market data file '{RISK_CSV_FILE}' not found. Using defaults (50.0).")
         return avg_s, gen_s, mkt_inv_s
 
     try:
@@ -45,7 +43,6 @@ def get_allocation_score(is_called_by_ai: bool = False) -> Tuple[float, float, f
                     last_line = line
         
         if not last_line:
-            if not is_called_by_ai: print(f"Warning: '{RISK_CSV_FILE}' is empty. Using defaults (50.0).")
             return avg_s, gen_s, mkt_inv_s
 
         latest_data = dict(zip(header, last_line))
@@ -66,7 +63,7 @@ def get_allocation_score(is_called_by_ai: bool = False) -> Tuple[float, float, f
         return avg_s, gen_s, mkt_inv_s
 
     except Exception as e:
-        if not is_called_by_ai: print(f"Error in get_allocation_score: {e}. Using defaults.")
+        if not is_called_by_ai: print(f"Error in get_allocation_score: {e}")
         return avg_s, gen_s, mkt_inv_s
 
 async def _load_all_portfolio_configs(is_called_by_ai: bool = False, user_id: str = None) -> Dict[str, Dict[str, Any]]:
@@ -81,7 +78,8 @@ async def _load_all_portfolio_configs(is_called_by_ai: bool = False, user_id: st
                 row_user = row.get('user_id', '').strip()
                 target_user = user_id.strip() if user_id else ''
 
-                if code and row_user == target_user:
+                # Only load public portfolios OR portfolios owned by this user
+                if code and (row_user == target_user or not row_user):
                     configs[code.lower().strip()] = {k.strip(): v for k, v in row.items()}
         return configs
     except Exception as e:
@@ -99,22 +97,19 @@ async def calculate_ema_invest(ticker: str, ema_interval: int, is_called_by_ai: 
             else:
                 period = "1mo"; interval = "1h"
             
-            # Reduced sleep to speed up processing
-            await asyncio.sleep(np.random.uniform(0.05, 0.1))
+            await asyncio.sleep(np.random.uniform(0.01, 0.05)) # Reduced sleep
             data = await asyncio.to_thread(stock.history, period=period, interval=interval)
             
+            # Fallback if no history
             if data.empty or 'Close' not in data.columns: 
-                # Fallback try to get current price if history fails
                 try:
                     price = stock.fast_info.last_price
-                    return float(price), 50.0
+                    return float(price), 50.0 # Return neutral score on partial data
                 except:
                     return None, None
             
             data['EMA_8'] = data['Close'].ewm(span=8, adjust=False).mean()
             data['EMA_55'] = data['Close'].ewm(span=55, adjust=False).mean()
-            
-            if data.empty: return None, None
             
             latest = data.iloc[-1]
             live_price = float(latest['Close'])
@@ -122,7 +117,7 @@ async def calculate_ema_invest(ticker: str, ema_interval: int, is_called_by_ai: 
             ema_55 = float(latest['EMA_55'])
             
             if pd.isna(live_price) or pd.isna(ema_8) or pd.isna(ema_55) or ema_55 == 0:
-                return (live_price if not pd.isna(live_price) else None), None
+                return (live_price if not pd.isna(live_price) else None), 50.0
                 
             ema_invest_score = (((ema_8 - ema_55) / ema_55) * 4 + 0.5) * 100
             return live_price, ema_invest_score
@@ -131,6 +126,7 @@ async def calculate_ema_invest(ticker: str, ema_interval: int, is_called_by_ai: 
             if not is_called_by_ai: print(f"DEBUG: Error in calculate_ema_invest for {ticker}: {e}")
             return None, None
 
+# --- Main Logic Function (Restored so custom_command.py can import it) ---
 async def process_custom_portfolio(
     portfolio_data_config: Dict[str, Any],
     tailor_portfolio_requested: bool,
@@ -143,151 +139,162 @@ async def process_custom_portfolio(
     parent_path: Optional[List[str]] = None
 ) -> Tuple[List[str], List[Dict[str, Any]], float, List[Dict[str, Any]]]:
     
-    is_top_level_call = all_portfolio_configs_passed is None
-    suppress_prints = (is_custom_command_simplified_output or is_called_by_ai) and is_top_level_call
+    try:
+        is_top_level_call = all_portfolio_configs_passed is None
+        suppress_prints = (is_custom_command_simplified_output or is_called_by_ai) and is_top_level_call
 
-    user_id = portfolio_data_config.get('user_id')
+        user_id = portfolio_data_config.get('user_id')
 
-    if is_top_level_call:
-        all_portfolio_configs = await _load_all_portfolio_configs(is_called_by_ai=suppress_prints, user_id=user_id)
-    else:
-        all_portfolio_configs = all_portfolio_configs_passed or {}
+        if is_top_level_call:
+            all_portfolio_configs = await _load_all_portfolio_configs(is_called_by_ai=suppress_prints, user_id=user_id)
+        else:
+            all_portfolio_configs = all_portfolio_configs_passed or {}
 
-    sell_to_cash_active = False
-    if is_top_level_call:
-        avg_score, _, _ = get_allocation_score(is_called_by_ai=suppress_prints)
-        if avg_score < 50.0:
-            sell_to_cash_active = True
+        sell_to_cash_active = False
+        if is_top_level_call:
+            avg_score, _, _ = get_allocation_score(is_called_by_ai=suppress_prints)
+            if avg_score < 50.0:
+                sell_to_cash_active = True
 
-    cleaned_config = {str(k).strip(): v for k, v in portfolio_data_config.items()}
-    ema_sensitivity = int(safe_score(cleaned_config.get('ema_sensitivity', 3)))
-    amplification = float(safe_score(cleaned_config.get('amplification', 1.0)))
-    num_portfolios = int(safe_score(cleaned_config.get('num_portfolios', 0)))
+        cleaned_config = {str(k).strip(): v for k, v in portfolio_data_config.items()}
+        ema_sensitivity = int(safe_score(cleaned_config.get('ema_sensitivity', 3)))
+        amplification = float(safe_score(cleaned_config.get('amplification', 1.0)))
+        num_portfolios = int(safe_score(cleaned_config.get('num_portfolios', 0)))
 
-    final_combined_portfolio_data_calc = []
-    
-    for i in range(num_portfolios):
-        portfolio_index = i + 1
-        weight = safe_score(cleaned_config.get(f'weight_{portfolio_index}', '0'))
-        if weight <= 0: continue
-
-        tickers_str = cleaned_config.get(f'tickers_{portfolio_index}', '')
-        items_in_sub = [item.strip().upper() for item in tickers_str.split(',') if item.strip()]
+        final_combined_portfolio_data_calc = []
         
-        tasks = [calculate_ema_invest(ticker, ema_sensitivity, is_called_by_ai=True) for ticker in items_in_sub]
-        results = await asyncio.gather(*tasks)
-        
-        for ticker, res in zip(items_in_sub, results):
-            if not res or not isinstance(res, tuple) or len(res) < 2: continue
-            live_price, ema_invest = res
-            
-            if live_price is None and ema_invest is None: continue
-            
-            raw_score = safe_score(ema_invest) if ema_invest is not None else 50.0
-            live_price_val = live_price if live_price is not None else 0.0
-            
-            score_for_alloc = 0.0 if (sell_to_cash_active and raw_score < 50.0) else raw_score
-            amplified_score = max(0, safe_score((score_for_alloc * amplification) - (amplification - 1) * 50))
-            
-            final_combined_portfolio_data_calc.append({
-                'ticker': ticker, 
-                'live_price': live_price_val, 
-                'raw_invest_score': raw_score,
-                'amplified_score_adjusted': amplified_score,
-                'sub_portfolio_id': f"Sub-Portfolio {portfolio_index}",
-                'path': [ticker]
-            })
+        for i in range(num_portfolios):
+            portfolio_index = i + 1
+            weight = safe_score(cleaned_config.get(f'weight_{portfolio_index}', '0'))
+            if weight <= 0: continue
 
-    total_amp = sum(e['amplified_score_adjusted'] for e in final_combined_portfolio_data_calc)
-    for entry in final_combined_portfolio_data_calc:
-        entry['combined_percent_allocation'] = (entry['amplified_score_adjusted'] / total_amp * 100) if total_amp > 0 else 0
-
-    tailored_data = []
-    final_cash = 0.0
-    
-    if tailor_portfolio_requested and total_value_singularity:
-        total_val = float(total_value_singularity)
-        total_spent = 0.0
-        for entry in final_combined_portfolio_data_calc:
-            alloc_pct = entry.get('combined_percent_allocation', 0.0)
-            price = entry.get('live_price', 0.0)
-            if alloc_pct > 0 and price > 0:
-                target_amt = total_val * (alloc_pct / 100.0)
-                shares = target_amt / price
-                final_shares = round(shares, 2) if frac_shares_singularity else math.floor(shares)
-                cost = final_shares * price
+            tickers_str = cleaned_config.get(f'tickers_{portfolio_index}', '')
+            items_in_sub = [item.strip().upper() for item in tickers_str.split(',') if item.strip()]
+            
+            # Use asyncio gather for parallel processing
+            tasks = [calculate_ema_invest(ticker, ema_sensitivity, is_called_by_ai=True) for ticker in items_in_sub]
+            results = await asyncio.gather(*tasks)
+            
+            for ticker, res in zip(items_in_sub, results):
+                if not res or not isinstance(res, tuple) or len(res) < 2: continue
+                live_price, ema_invest = res
                 
-                if cost > 0:
-                    tailored_data.append({
-                        'ticker': entry['ticker'],
-                        'shares': final_shares,
-                        'live_price_at_eval': price,
-                        'actual_money_allocation': cost,
-                        'actual_percent_allocation': (cost / total_val) * 100,
-                        'raw_invest_score': entry.get('raw_invest_score', 'N/A'),
-                        'sub_portfolio_id': entry.get('sub_portfolio_id', 'N/A'),
-                        'path': entry.get('path', [])
-                    })
-                    total_spent += cost
-        final_cash = total_val - total_spent
+                # Treat N/A as neutral 50
+                raw_score = safe_score(ema_invest) if ema_invest is not None else 50.0
+                live_price_val = live_price if live_price is not None else 0.0
+                
+                score_for_alloc = 0.0 if (sell_to_cash_active and raw_score < 50.0) else raw_score
+                amplified_score = max(0, safe_score((score_for_alloc * amplification) - (amplification - 1) * 50))
+                
+                final_combined_portfolio_data_calc.append({
+                    'ticker': ticker, 
+                    'live_price': live_price_val, 
+                    'raw_invest_score': raw_score,
+                    'amplified_score_adjusted': amplified_score,
+                    'sub_portfolio_id': f"Sub-Portfolio {portfolio_index}",
+                    'path': [ticker]
+                })
 
-    return [], final_combined_portfolio_data_calc, final_cash, tailored_data
+        total_amp = sum(e['amplified_score_adjusted'] for e in final_combined_portfolio_data_calc)
+        for entry in final_combined_portfolio_data_calc:
+            entry['combined_percent_allocation'] = (entry['amplified_score_adjusted'] / total_amp * 100) if total_amp > 0 else 0
 
+        tailored_data = []
+        final_cash = 0.0
+        
+        if tailor_portfolio_requested and total_value_singularity is not None:
+            total_val = float(total_value_singularity)
+            total_spent = 0.0
+            for entry in final_combined_portfolio_data_calc:
+                alloc_pct = entry.get('combined_percent_allocation', 0.0)
+                price = entry.get('live_price', 0.0)
+                if alloc_pct > 0 and price > 0:
+                    target_amt = total_val * (alloc_pct / 100.0)
+                    shares = target_amt / price
+                    final_shares = round(shares, 2) if frac_shares_singularity else math.floor(shares)
+                    cost = final_shares * price
+                    
+                    if cost > 0:
+                        tailored_data.append({
+                            'ticker': entry['ticker'],
+                            'shares': final_shares,
+                            'live_price_at_eval': price,
+                            'actual_money_allocation': cost,
+                            'actual_percent_allocation': (cost / total_val) * 100,
+                            'raw_invest_score': entry.get('raw_invest_score', 'N/A'),
+                            'sub_portfolio_id': entry.get('sub_portfolio_id', 'N/A'),
+                            'path': entry.get('path', [])
+                        })
+                        total_spent += cost
+            final_cash = max(0, total_val - total_spent)
+
+        return [], final_combined_portfolio_data_calc, final_cash, tailored_data
+
+    except Exception as e:
+        print(f"Error in process_custom_portfolio: {e}")
+        # Return safe empty values to prevent crashes
+        return [], [], 0.0, []
+
+# --- Endpoint Handler (Anti-Crash Wrapped) ---
 async def handle_invest_command(args: List[str], ai_params: Optional[Dict] = None, is_called_by_ai: bool = False, return_structured_data: bool = False):
     """
-    Handles the /invest command.
-    Returns structured JSON for the frontend (Results.jsx).
+    Handles the /invest command with full crash protection.
     """
-    if ai_params:
-        config = {
-            'portfolio_code': 'TEMP',
-            'ema_sensitivity': ai_params.get('ema_sensitivity', 2),
-            'amplification': ai_params.get('amplification', 1.0),
-            'num_portfolios': len(ai_params.get('sub_portfolios', [])),
-            'user_id': ai_params.get('user_id')
-        }
-        for i, sp in enumerate(ai_params.get('sub_portfolios', []), 1):
-            tickers = sp.get('tickers', [])
-            if isinstance(tickers, list):
-                tickers = ",".join(tickers)
-            config[f'tickers_{i}'] = tickers
-            config[f'weight_{i}'] = sp.get('weight', 0)
-
-        # Run processing
-        _, _, final_cash, tailored_data = await process_custom_portfolio(
-            portfolio_data_config=config,
-            tailor_portfolio_requested=ai_params.get('tailor_to_value', False),
-            frac_shares_singularity=ai_params.get('use_fractional_shares', False),
-            total_value_singularity=ai_params.get('total_value', 0.0),
-            is_called_by_ai=True
-        )
-
-        # --- FIX: Format data for Results.jsx ---
-        formatted_table_data = []
-        for item in tailored_data:
-            formatted_table_data.append({
-                "ticker": item.get('ticker'),
-                "shares": item.get('shares'),
-                "price": item.get('live_price_at_eval'),
-                "value": item.get('actual_money_allocation'), # Mapped for frontend chart/table
-                "allocPercent": item.get('actual_percent_allocation'),
-                "rawInvestScore": item.get('raw_invest_score')
-            })
-
-        total_value_calc = sum(h['actual_money_allocation'] for h in tailored_data) + final_cash
-
-        return {
-            "status": "success",
-            "summary": [
-                {"label": "Portfolio Value", "value": f"${total_value_calc:,.2f}", "change": "Total"},
-                {"label": "Cash", "value": f"${final_cash:,.2f}", "change": "Unallocated"},
-                {"label": "Holdings", "value": str(len(formatted_table_data)), "change": "Count"}
-            ],
-            "table": formatted_table_data,
-            "raw_result": {
-                "final_cash": final_cash,
-                "trades": [] # Invest command doesn't generate trade diffs
+    try:
+        if ai_params:
+            config = {
+                'portfolio_code': 'TEMP',
+                'ema_sensitivity': ai_params.get('ema_sensitivity', 2),
+                'amplification': ai_params.get('amplification', 1.0),
+                'num_portfolios': len(ai_params.get('sub_portfolios', [])),
+                'user_id': ai_params.get('user_id')
             }
-        }
+            for i, sp in enumerate(ai_params.get('sub_portfolios', []), 1):
+                tickers = sp.get('tickers', [])
+                if isinstance(tickers, list):
+                    tickers = ",".join(tickers)
+                config[f'tickers_{i}'] = tickers
+                config[f'weight_{i}'] = sp.get('weight', 0)
 
-    return "CLI not supported in this mode"
+            # Run processing
+            _, _, final_cash, tailored_data = await process_custom_portfolio(
+                portfolio_data_config=config,
+                tailor_portfolio_requested=ai_params.get('tailor_to_value', False),
+                frac_shares_singularity=ai_params.get('use_fractional_shares', False),
+                total_value_singularity=ai_params.get('total_value', 0.0),
+                is_called_by_ai=True
+            )
+
+            # Format data for Results.jsx
+            formatted_table_data = []
+            for item in tailored_data:
+                formatted_table_data.append({
+                    "ticker": item.get('ticker'),
+                    "shares": item.get('shares'),
+                    "price": item.get('live_price_at_eval'),
+                    "value": item.get('actual_money_allocation'),
+                    "allocPercent": item.get('actual_percent_allocation'),
+                    "rawInvestScore": item.get('raw_invest_score')
+                })
+
+            total_value_calc = sum(h['actual_money_allocation'] for h in tailored_data) + final_cash
+
+            return {
+                "status": "success",
+                "summary": [
+                    {"label": "Portfolio Value", "value": f"${total_value_calc:,.2f}", "change": "Total"},
+                    {"label": "Cash", "value": f"${final_cash:,.2f}", "change": "Unallocated"},
+                    {"label": "Holdings", "value": str(len(formatted_table_data)), "change": "Count"}
+                ],
+                "table": formatted_table_data,
+                "raw_result": {
+                    "final_cash": final_cash,
+                    "trades": []
+                }
+            }
+
+        return {"status": "error", "message": "CLI not supported"}
+
+    except Exception as e:
+        traceback.print_exc()
+        return {"status": "error", "message": f"Critical Error in Invest Command: {str(e)}"}

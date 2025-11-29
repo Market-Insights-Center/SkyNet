@@ -24,15 +24,11 @@ import { TradingViewWidget } from './MarketDashboard';
 
 const INITIAL_TICKERS = ['AAPL', 'MSFT', 'GOOG', 'AMZN', 'NVDA', 'META', 'TSLA'];
 
+// Mapping for full names
 const TICKER_NAMES = {
-    'AAPL': 'Apple Inc.',
-    'MSFT': 'Microsoft Corp.',
-    'GOOG': 'Alphabet Inc.',
-    'AMZN': 'Amazon.com Inc.',
-    'NVDA': 'NVIDIA Corp.',
-    'META': 'Meta Platforms',
-    'TSLA': 'Tesla Inc.',
-    'SPY': 'SPDR S&P 500 ETF',
+    'AAPL': 'Apple Inc.', 'MSFT': 'Microsoft Corp.', 'GOOG': 'Alphabet Inc.',
+    'AMZN': 'Amazon.com Inc.', 'NVDA': 'NVIDIA Corp.', 'META': 'Meta Platforms',
+    'TSLA': 'Tesla Inc.', 'SPY': 'SPDR S&P 500 ETF',
 };
 
 const AVAILABLE_COLUMNS = [
@@ -59,7 +55,7 @@ const DEFAULT_COLUMNS = [
 ];
 
 const formatNumber = (num) => {
-    if (num === null || num === undefined || isNaN(num)) return '-';
+    if (num === null || num === undefined || isNaN(num) || num === 0) return '-';
     if (Math.abs(num) >= 1.0e+12) return (Math.abs(num) / 1.0e+12).toFixed(2) + "T";
     if (Math.abs(num) >= 1.0e+9) return (Math.abs(num) / 1.0e+9).toFixed(2) + "B";
     if (Math.abs(num) >= 1.0e+6) return (Math.abs(num) / 1.0e+6).toFixed(2) + "M";
@@ -113,10 +109,11 @@ const SortableRow = ({ ticker, columns, onDelete, data, onSelect }) => {
     const tickerId = typeof ticker === 'string' ? ticker : (ticker?.symbol || 'UNKNOWN');
     const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: tickerId });
     const style = { transform: CSS.Transform.toString(transform), transition, zIndex: isDragging ? 10 : 1, opacity: isDragging ? 0.5 : 1 };
+    
     const rowData = data[tickerId] || {};
     const change = rowData.change !== undefined ? rowData.change : 0;
     const isPositive = parseFloat(change) >= 0;
-    const name = rowData.companyName || rowData.name || TICKER_NAMES[tickerId] || '';
+    const name = rowData.companyName || TICKER_NAMES[tickerId] || '';
 
     return (
         <div ref={setNodeRef} style={{ ...style, gridTemplateColumns: `40px 140px ${columns.map(() => '1fr').join(' ')} 40px` }} className="grid items-center gap-4 p-4 bg-white/5 border-b border-white/5 hover:bg-white/10 transition-colors group">
@@ -127,12 +124,30 @@ const SortableRow = ({ ticker, columns, onDelete, data, onSelect }) => {
             </div>
             {columns.map((col) => {
                 if (col.id === 'trend') return <div key={col.id} className="flex items-center justify-start h-full"><Sparkline data={rowData.sparkline} isPositive={isPositive} /></div>;
+                
                 const val = rowData[col.id];
                 let displayVal = val !== undefined ? val : '-';
                 let colorClass = 'text-gray-300';
-                if (col.id === 'price') { const numVal = parseFloat(val); if (!isNaN(numVal)) displayVal = `$${numVal.toFixed(2)}`; colorClass = isPositive ? 'text-green-400' : 'text-red-400'; }
-                else if (col.id.includes('change')) { const numVal = parseFloat(val); if (!isNaN(numVal)) { displayVal = `${numVal > 0 ? '+' : ''}${numVal.toFixed(2)}%`; colorClass = numVal > 0 ? 'text-green-400' : (numVal < 0 ? 'text-red-400' : 'text-gray-300'); } }
-                else if (col.id === 'marketCap' || col.id === 'volume') displayVal = formatNumber(val);
+
+                if (col.id === 'price') { 
+                    const numVal = parseFloat(val); 
+                    if (!isNaN(numVal)) displayVal = `$${numVal.toFixed(2)}`; 
+                    colorClass = isPositive ? 'text-green-400' : 'text-red-400'; 
+                }
+                else if (['change', 'change1W', 'change1M', 'change1Y'].includes(col.id)) { 
+                    const numVal = parseFloat(val); 
+                    if (!isNaN(numVal)) { 
+                        displayVal = `${numVal > 0 ? '+' : ''}${numVal.toFixed(2)}%`; 
+                        colorClass = numVal > 0 ? 'text-green-400' : (numVal < 0 ? 'text-red-400' : 'text-gray-300'); 
+                    } 
+                }
+                else if (col.id === 'marketCap' || col.id === 'volume') {
+                    displayVal = formatNumber(val);
+                }
+                else if (col.id === 'peRatio') {
+                    displayVal = val ? val.toFixed(2) : '-';
+                }
+
                 return <div key={col.id} className={`text-sm font-medium truncate ${colorClass}`}>{displayVal}</div>;
             })}
             <button onClick={(e) => { e.stopPropagation(); onDelete(tickerId); }} className="opacity-0 group-hover:opacity-100 text-gray-500 hover:text-red-500 transition-all p-2 rounded-full hover:bg-red-500/10"><Trash2 size={18} /></button>
@@ -144,14 +159,12 @@ const Watchlist = () => {
     const { currentUser } = useAuth();
     const [mounted, setMounted] = useState(false);
     
-    // State for Watchlist Data
     const [watchlistName, setWatchlistName] = useState("My Watchlist");
     const [tickers, setTickers] = useState(INITIAL_TICKERS);
     const [visibleColumns, setVisibleColumns] = useState(DEFAULT_COLUMNS);
     const [sortConfig, setSortConfig] = useState({ key: null, direction: null });
 
-    // Loading & Saving States
-    const [isDataLoaded, setIsDataLoaded] = useState(false); // CRITICAL: Prevents overwriting DB with defaults on load
+    const [isDataLoaded, setIsDataLoaded] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
 
     const [marketData, setMarketData] = useState({});
@@ -167,21 +180,17 @@ const Watchlist = () => {
 
     useEffect(() => { setMounted(true); }, []);
     
-    // Helper to ensure we only render valid columns that exist in our definition
     const cleanColumns = (cols) => {
         if (!cols || !Array.isArray(cols)) return DEFAULT_COLUMNS;
-        // Filter out any columns that don't exist in AVAILABLE_COLUMNS to prevent crashes
-        // but maintain the order from the saved 'cols' array.
         return cols.filter(c => AVAILABLE_COLUMNS.some(ac => ac.id === c.id));
     };
 
-    // 1. Fetch Watchlist on Load
+    // Load from Firebase
     useEffect(() => {
         if (!currentUser) {
-            setIsDataLoaded(true); // If no user, we are "loaded" with defaults
+            setIsDataLoaded(true);
             return;
         }
-        
         const fetchWatchlist = async () => {
             try {
                 const docRef = doc(db, "users", currentUser.uid, "watchlists", "default");
@@ -190,65 +199,47 @@ const Watchlist = () => {
                 if (snap.exists()) {
                     const data = snap.data();
                     if (data.name) setWatchlistName(data.name);
-                    
                     if (data.tickers && Array.isArray(data.tickers)) {
                         const cleanTickers = data.tickers.map(t => typeof t === 'string' ? t : (t.id || t.symbol || '')).filter(Boolean);
                         setTickers([...new Set(cleanTickers)]);
                     }
-                    
-                    if (data.columns && Array.isArray(data.columns)) {
-                        setVisibleColumns(cleanColumns(data.columns));
-                    }
-                    
+                    if (data.columns && Array.isArray(data.columns)) setVisibleColumns(cleanColumns(data.columns));
                     if (data.sortConfig) setSortConfig(data.sortConfig);
                 }
-            } catch (e) { 
-                console.error("Error loading watchlist:", e); 
-            } finally {
-                // Mark as loaded so auto-save can begin listening to changes
-                setIsDataLoaded(true);
-            }
+            } catch (e) { console.error("Error loading watchlist:", e); } 
+            finally { setIsDataLoaded(true); }
         };
         fetchWatchlist();
     }, [currentUser]);
 
-    // 2. Auto-Save Watchlist on Change (Debounced)
+    // Save to Firebase
     useEffect(() => {
-        // Stop if not mounted, no user, or if we haven't finished loading the initial data yet
         if (!currentUser || !mounted || !isDataLoaded) return;
-        
         const saveData = async () => {
             setIsSaving(true);
             try {
                 const docRef = doc(db, "users", currentUser.uid, "watchlists", "default");
                 await setDoc(docRef, {
-                    name: watchlistName,
-                    tickers: tickers,
-                    columns: visibleColumns,
-                    sortConfig: sortConfig,
-                    lastUpdated: new Date()
+                    name: watchlistName, tickers: tickers, columns: visibleColumns, sortConfig: sortConfig, lastUpdated: new Date()
                 }, { merge: true });
-            } catch (error) {
-                console.error("Error saving watchlist:", error);
-            } finally {
-                setIsSaving(false);
-            }
+            } catch (error) { console.error("Error saving watchlist:", error); } 
+            finally { setIsSaving(false); }
         };
-
-        const timeoutId = setTimeout(saveData, 1000); // 1-second debounce to prevent spamming
+        const timeoutId = setTimeout(saveData, 1000);
         return () => clearTimeout(timeoutId);
-
     }, [tickers, watchlistName, visibleColumns, sortConfig, currentUser, mounted, isDataLoaded]);
 
-    // Market Data Fetching (Unchanged)
+    // --- SEQUENTIAL CHUNKING LOGIC ---
     const fetchMarketData = useCallback(async () => {
         if (tickers.length === 0) return;
         setIsLoadingData(true);
+        
         const chunkSize = 3;
         const chunks = [];
         for (let i = 0; i < tickers.length; i += chunkSize) chunks.push(tickers.slice(i, i + chunkSize));
 
         for (const chunk of chunks) {
+            // 1. Fetch Basic Data for the Chunk
             try {
                 const response = await fetch('/api/market-data', {
                     method: 'POST',
@@ -260,6 +251,8 @@ const Watchlist = () => {
                     if (Array.isArray(data)) {
                         const newMarketData = {};
                         data.forEach(item => { newMarketData[item.ticker] = item; });
+                        
+                        // Update state immediately for these 3 tickers
                         setMarketData(prev => {
                             const updated = { ...prev };
                             Object.keys(newMarketData).forEach(k => { updated[k] = { ...(updated[k] || {}), ...newMarketData[k] }; });
@@ -267,8 +260,9 @@ const Watchlist = () => {
                         });
                     }
                 }
-            } catch (error) { console.error("Failed to fetch basic data", error); }
+            } catch (error) { console.error("Failed to fetch basic data for chunk", chunk, error); }
 
+            // 2. Fetch Details (Earnings/IV) for the SAME Chunk
             try {
                 const response = await fetch('/api/market-data/details', {
                     method: 'POST',
@@ -285,16 +279,21 @@ const Watchlist = () => {
                         });
                     }
                 }
-            } catch (error) { console.error("Failed to fetch details", error); }
+            } catch (error) { console.error("Failed to fetch details for chunk", chunk, error); }
+
+            // 3. Small Delay to be nice to the API/Server
+            await new Promise(resolve => setTimeout(resolve, 500));
         }
         setIsLoadingData(false);
     }, [tickers]);
 
     useEffect(() => {
-        fetchMarketData();
-        const interval = setInterval(fetchMarketData, 60000);
-        return () => clearInterval(interval);
-    }, [fetchMarketData]);
+        if (isDataLoaded && tickers.length > 0) {
+            fetchMarketData();
+            const interval = setInterval(fetchMarketData, 60000);
+            return () => clearInterval(interval);
+        }
+    }, [fetchMarketData, isDataLoaded, tickers.length]);
 
     const handleSort = (columnId) => {
         setSortConfig(prev => {
@@ -319,12 +318,10 @@ const Watchlist = () => {
         const symbol = searchQuery.toUpperCase().trim();
         if (!tickers.includes(symbol)) {
             setTickers(prev => [...prev, symbol]);
+            // Optimistic fetch for the single new ticker
             try {
-                // Optimistic fetch
                 const response = await fetch('/api/market-data', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ tickers: [symbol] })
+                    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ tickers: [symbol] })
                 });
                 const data = await response.json();
                 if (Array.isArray(data) && data.length > 0) setMarketData(prev => ({ ...prev, [symbol]: data[0] }));
@@ -347,11 +344,9 @@ const Watchlist = () => {
     };
     
     const toggleColumn = (col) => {
-        // If column exists, remove it
         if (visibleColumns.find(c => c.id === col.id)) {
             setVisibleColumns(prev => prev.filter(c => c.id !== col.id));
         } else {
-            // If adding, append to the end
             setVisibleColumns(prev => [...prev, col]);
         }
     };
@@ -399,7 +394,7 @@ const Watchlist = () => {
                     </div>
                     <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
                         <div className="overflow-x-auto custom-scrollbar">
-                            <div className="min-w-[800px]">
+                            <div className="min-w-[1200px]"> {/* Increased width for more columns */}
                                 <div className="grid gap-4 p-4 bg-white/5 border-b border-white/10 text-xs font-bold text-gray-500 uppercase tracking-wider" style={{ gridTemplateColumns: `40px 140px ${visibleColumns.map(() => '1fr').join(' ')} 40px` }}>
                                     <div></div><div>Ticker</div>
                                     <SortableContext items={visibleColumns.map(c => c.id)} strategy={horizontalListSortingStrategy}>{visibleColumns.map(col => (<SortableHeader key={col.id} column={col} isEditing={isEditingColumns} onToggle={toggleColumn} sortConfig={sortConfig} onSort={handleSort} />))}</SortableContext>

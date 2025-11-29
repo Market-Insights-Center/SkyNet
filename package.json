@@ -10,6 +10,7 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.1.17",
+    "@vitejs/plugin-react": "^5.1.1",
     "autoprefixer": "^10.4.22",
     "postcss": "^8.5.6",
     "tailwindcss": "^4.1.17",
@@ -24,6 +25,8 @@
     "firebase": "^12.6.0",
     "framer-motion": "^12.23.24",
     "lucide-react": "^0.554.0",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
     "react-router-dom": "^7.9.6",
     "tailwind-merge": "^3.4.0"
   }

@@ -1,5 +1,3 @@
-# tracking_command.py
-
 import asyncio
 import os
 import csv
@@ -12,24 +10,26 @@ import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 import configparser
+import traceback
 
-from integration.custom_command import (
-    _get_custom_portfolio_run_csv_filepath, 
-    _save_custom_portfolio_run_to_csv, 
-    TRACKING_ORIGIN_FILE, 
-    PORTFOLIO_DB_FILE,
-    save_portfolio_to_csv
-)
+# --- Key Imports ---
 from integration.invest_command import process_custom_portfolio, calculate_ema_invest
 from integration.execution_command import execute_portfolio_rebalance, get_robinhood_equity
 
+# --- Constants ---
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CONFIG_FILE = os.path.join(BASE_DIR, 'config.ini')
+TRACKING_ORIGIN_FILE = os.path.join(BASE_DIR, 'tracking_origin.csv')
+PORTFOLIO_DB_FILE = os.path.join(BASE_DIR, 'portfolio_codes_database.csv')
+PORTFOLIO_OUTPUT_DIR = os.path.join(BASE_DIR, 'saved_runs')
+
+# --- Helper Functions ---
+def _get_custom_portfolio_run_csv_filepath(portfolio_code: str, user_id: str = None) -> str:
+    uid_suffix = f"_{user_id}" if user_id else ""
+    safe_code = str(portfolio_code).lower().replace(' ', '_')
+    return os.path.join(PORTFOLIO_OUTPUT_DIR, f"run_data_portfolio_{safe_code}{uid_suffix}.csv")
 
 def floor_with_precision(value: float, precision: int) -> float:
-    """
-    Rounds a value DOWN to a specific number of decimal places.
-    """
     if precision < 0: precision = 0
     factor = 10 ** precision
     return math.floor(value * factor) / factor
@@ -58,6 +58,7 @@ async def _load_portfolio_origin_data(portfolio_code: str, user_id: str = None) 
             for row in reader:
                 row_user = row.get('UserId', '').strip()
                 target_user = user_id.strip() if user_id else ''
+                # Match code and user ownership
                 if row.get('PortfolioCode') == portfolio_code and row_user == target_user:
                     try:
                         origin_data[row['Ticker']] = {
@@ -74,6 +75,12 @@ async def generate_performance_data(portfolio_code: str, current_holdings: Dict[
     origin_data = await _load_portfolio_origin_data(portfolio_code, user_id)
     all_tickers = list(set(origin_data.keys()) | set(current_holdings.keys()))
     
+    if not all_tickers:
+        return {
+            "status": "success", "rows": [], "live_prices": {}, 
+            "total_pnl": 0.0, "total_pnl_percent": 0.0, "total_current_value": 0.0
+        }
+
     tasks = [calculate_ema_invest(ticker, 2, is_called_by_ai=True) for ticker in all_tickers]
     results = await asyncio.gather(*tasks, return_exceptions=True)
     
@@ -169,267 +176,209 @@ async def _send_tracking_email_html(recipient_email: str, subject: str, portfoli
     except Exception as e:
         return False
 
+# --- Main Handler ---
 async def handle_tracking_command(args: List[str], ai_params: Optional[Dict] = None, is_called_by_ai: bool = False):
-    # --- DEBUG INIT ---
-    debug_log = []
-    def log(msg):
-        print(f"[DEBUG] {msg}")
-        debug_log.append(msg)
-    
-    log("--- START TRACKING ANALYSIS ---")
-    
-    if not ai_params: return "Error: AI Params required."
-    action = ai_params.get("action", "run_analysis")
-    portfolio_code = ai_params.get("portfolio_code")
-    user_id = ai_params.get("user_id")
-    
-    if not portfolio_code: return {"status": "error", "message": "Portfolio code is required."}
+    try:
+        # Lazy Import to avoid circularity - This now works because custom_command has the function
+        from integration.custom_command import save_portfolio_to_csv, _save_custom_portfolio_run_to_csv
 
-    if action == "run_analysis":
-        portfolio_config = None
+        if not ai_params: return "Error: AI Params required."
+        action = ai_params.get("action", "run_analysis")
+        portfolio_code = ai_params.get("portfolio_code")
+        user_id = ai_params.get("user_id")
         
-        # 1. Robustly parse the boolean flag from INPUT
-        raw_frac_param = ai_params.get("use_fractional_shares", False)
-        use_frac_input = False
-        if isinstance(raw_frac_param, str):
-            use_frac_input = raw_frac_param.lower() == 'true'
-        else:
-            use_frac_input = bool(raw_frac_param)
+        if not portfolio_code: return {"status": "error", "message": "Portfolio code is required."}
+
+        if action in ["run_analysis", "create_and_run"]:
+            portfolio_config = None
             
-        log(f"Input 'use_fractional_shares': {use_frac_input}")
-        
-        if os.path.exists(PORTFOLIO_DB_FILE):
-            try:
-                with open(PORTFOLIO_DB_FILE, 'r', encoding='utf-8') as f:
-                    reader = csv.DictReader(f)
-                    for row in reader:
-                        row_code = row.get('portfolio_code', '').lower().strip()
-                        row_user = row.get('user_id', '').strip()
-                        target_user = user_id.strip() if user_id else ''
-                        
-                        if row_code == portfolio_code.lower() and row_user == target_user:
-                            portfolio_config = row
-                            log(f"Loaded Config from CSV: {json.dumps(portfolio_config)}")
-                            break
-            except Exception as e:
-                log(f"Error reading DB: {e}")
-        
-        # 2. Determine Effective use_frac
-        # Logic: Use fractional if Input is True OR Config is True.
-        # This fixes the issue where frontend sends False but portfolio is inherently fractional.
-        config_frac = False
-        if portfolio_config:
-            for key in ['frac_shares', 'FracShares', 'use_fractional_shares']:
-                val = portfolio_config.get(key, 'false')
-                if str(val).lower() == 'true':
-                    config_frac = True
-                    break
-        
-        log(f"Config 'frac_shares': {config_frac}")
-        
-        use_frac = use_frac_input or config_frac
-        log(f"Effective 'use_frac' for calculation: {use_frac}")
-
-        if not portfolio_config:
-            sub_portfolios = ai_params.get("sub_portfolios")
-            if sub_portfolios:
-                log("Creating NEW config from sub_portfolios.")
-                new_config = {
-                    'portfolio_code': portfolio_code,
-                    'ema_sensitivity': str(ai_params.get('ema_sensitivity', 2)),
-                    'amplification': str(ai_params.get('amplification', 1.0)),
-                    'num_portfolios': str(len(sub_portfolios)),
-                    'frac_shares': 'true' if use_frac else 'false', 
-                    'risk_tolerance': '10', 'risk_type': 'stock', 'remove_amplification_cap': 'true',
-                    'user_id': user_id
-                }
-                for i, sp in enumerate(sub_portfolios, 1):
-                    tickers = sp.get('tickers', [])
-                    if isinstance(tickers, list): tickers = ",".join(tickers)
-                    new_config[f'tickers_{i}'] = tickers.upper()
-                    new_config[f'weight_{i}'] = str(sp.get('weight', 0))
-                
-                await save_portfolio_to_csv(PORTFOLIO_DB_FILE, new_config, is_called_by_ai=True)
-                portfolio_config = new_config
-            else:
-                return {"status": "not_found", "message": f"Portfolio '{portfolio_code}' not found."}
-
-        old_run_data = await _load_portfolio_run(portfolio_code, user_id)
-        total_value = float(ai_params.get("total_value", 10000))
-        log(f"Total Value: {total_value}")
-        
-        # Run New Analysis
-        # [CRITICAL] Always pass frac_shares_singularity=True to get raw floats
-        log("Calling process_custom_portfolio with frac_shares_singularity=True")
-        _, _, final_cash, new_run_data = await process_custom_portfolio(
-            portfolio_data_config=portfolio_config,
-            tailor_portfolio_requested=True,
-            frac_shares_singularity=True, 
-            total_value_singularity=total_value,
-            is_custom_command_simplified_output=True,
-            is_called_by_ai=True
-        )
-        
-        # Log raw output from engine
-        log("--- RAW ENGINE OUTPUT (First 3 items) ---")
-        for item in new_run_data[:3]:
-            log(f"Ticker: {item.get('ticker')} | Shares: {item.get('shares')} (Type: {type(item.get('shares'))})")
-
-        # --- START POST-PROCESSING FOR ROUNDING LOGIC ---
-        asset_items = [item for item in new_run_data if item.get('ticker') != 'Cash']
-        num_assets = len(asset_items)
-        
-        precision = 0
-        if use_frac:
-            avg_alloc = (total_value / num_assets) if num_assets > 0 else 0
-            log(f"Avg Allocation: {avg_alloc:.2f}")
+            # 1. Determine Fractional Shares Setting
+            raw_frac_param = ai_params.get("use_fractional_shares", False)
+            use_frac_input = str(raw_frac_param).lower() == 'true' if isinstance(raw_frac_param, str) else bool(raw_frac_param)
             
-            if total_value < 1000 or avg_alloc < 250:
-                precision = 2
-                log("Condition Met: Value < 1000 or Avg < 250. Precision set to 2 (Hundredths).")
-            else:
-                precision = 1
-                log("Condition Met: Standard Fractional. Precision set to 1 (Tenths).")
-        else:
-            precision = 0
-            log("Condition Met: Fractional Shares Disabled. Precision set to 0 (Integer).")
-        
-        total_invested_after_rounding = 0.0
-        
-        log("--- APPLYING ROUNDING ---")
-        for item in new_run_data:
-            if item.get('ticker') == 'Cash':
-                continue
+            # 2. Load Config from DB
+            if os.path.exists(PORTFOLIO_DB_FILE):
+                try:
+                    with open(PORTFOLIO_DB_FILE, 'r', encoding='utf-8') as f:
+                        reader = csv.DictReader(f)
+                        for row in reader:
+                            row_code = row.get('portfolio_code', '').lower().strip()
+                            row_user = row.get('user_id', '').strip()
+                            target_user = user_id.strip() if user_id else ''
+                            
+                            if row_code == portfolio_code.lower():
+                                if not row_user or (row_user == target_user):
+                                    portfolio_config = row
+                                    break
+                except Exception: pass
             
-            try:
-                raw_shares = float(item.get('shares', 0))
-                raw_alloc = float(item.get('actual_money_allocation', 0))
-                
-                price = float(item.get('price', 0))
-                if price == 0 and raw_shares > 0:
-                    price = raw_alloc / raw_shares
-                
-                new_shares = floor_with_precision(raw_shares, precision)
-                
-                log(f"{item.get('ticker')}: Raw {raw_shares} -> Rounded {new_shares} (Precision {precision})")
-                
-                item['shares'] = new_shares
-                new_val = new_shares * price
-                item['actual_money_allocation'] = new_val
-                item['value'] = new_val 
-                
-                total_invested_after_rounding += new_val
-                
-            except (ValueError, TypeError) as e:
-                log(f"Error processing item {item}: {e}")
-                continue
-
-        final_cash = total_value - total_invested_after_rounding
-        log(f"Final Cash Recalculated: {final_cash}")
-        # --- END POST-PROCESSING ---
-
-        trades = []
-        old_holdings_map = {}
-        old_prices_at_save = {}
-
-        if old_run_data:
-            for row in old_run_data:
-                ticker = row.get('Ticker')
-                if ticker and ticker != 'Cash':
-                    try:
-                        shares = float(row.get('Shares', 0))
-                        price = float(row.get('LivePriceAtEval', 0))
-                        old_holdings_map[ticker] = shares
-                        old_prices_at_save[ticker] = price
-                    except (ValueError, TypeError):
-                        continue
-
-        new_holdings_map = {row['ticker']: float(row['shares']) for row in new_run_data if row['ticker'] != 'Cash'}
-        all_tickers = sorted(list(set(old_holdings_map.keys()) | set(new_holdings_map.keys())))
-        
-        comparison_table = []
-        for ticker in all_tickers:
-            old_s = old_holdings_map.get(ticker, 0.0)
-            new_s = new_holdings_map.get(ticker, 0.0)
-            diff = new_s - old_s
+            config_frac = False
+            if portfolio_config:
+                for key in ['frac_shares', 'FracShares', 'use_fractional_shares']:
+                    if str(portfolio_config.get(key, 'false')).lower() == 'true':
+                        config_frac = True
+                        break
             
-            if not math.isclose(diff, 0, abs_tol=0.001):
-                status = "Buy" if diff > 0 else "Sell"
-                comparison_table.append({
-                    "ticker": ticker, "old_shares": old_s, "new_shares": new_s,
-                    "diff": diff, "action": status
-                })
-                trades.append({"ticker": ticker, "side": status.lower(), "quantity": abs(diff)})
+            use_frac = use_frac_input or config_frac
 
-        perf_data = await generate_performance_data(portfolio_code, old_holdings_map, user_id)
-        live_prices = perf_data.get("live_prices", {})
-        
-        since_last_save_table = []
-        for ticker, old_price in old_prices_at_save.items():
-            current_price = live_prices.get(ticker, 0.0)
-            shares_held = new_holdings_map.get(ticker, 0.0)
+            # 3. Create Config if Not Found (Auto-Create logic)
+            if not portfolio_config:
+                sub_portfolios = ai_params.get("sub_portfolios")
+                if sub_portfolios:
+                    new_config = {
+                        'portfolio_code': portfolio_code,
+                        'ema_sensitivity': str(ai_params.get('ema_sensitivity', 2)),
+                        'amplification': str(ai_params.get('amplification', 1.0)),
+                        'num_portfolios': str(len(sub_portfolios)),
+                        'frac_shares': 'true' if use_frac else 'false', 
+                        'risk_tolerance': '10', 'risk_type': 'stock', 'remove_amplification_cap': 'true',
+                        'user_id': user_id
+                    }
+                    for i, sp in enumerate(sub_portfolios, 1):
+                        tickers = sp.get('tickers', [])
+                        if isinstance(tickers, list): tickers = ",".join(tickers)
+                        new_config[f'tickers_{i}'] = tickers.upper()
+                        new_config[f'weight_{i}'] = str(sp.get('weight', 0))
+                    
+                    await save_portfolio_to_csv(PORTFOLIO_DB_FILE, new_config, is_called_by_ai=True)
+                    portfolio_config = new_config
+                else:
+                    return {"status": "not_found", "message": f"Portfolio '{portfolio_code}' not found.", "code": portfolio_code}
+
+            # 4. Load Previous Run & Execute Analysis
+            old_run_data = await _load_portfolio_run(portfolio_code, user_id)
+            total_value = float(ai_params.get("total_value", 10000))
             
-            if current_price > 0 and shares_held > 0:
-                price_diff = current_price - old_price
-                pnl = price_diff * shares_held
-                pct = (price_diff / old_price * 100) if old_price > 0 else 0
-                
-                since_last_save_table.append({
-                    "ticker": ticker,
-                    "shares": shares_held,
-                    "last_save_price": old_price,
-                    "current_price": current_price,
-                    "pnl": pnl,
-                    "pnl_percent": pct
-                })
-
-        return {
-            "status": "success",
-            "summary": [
-                {"label": "Target Value", "value": f"${total_value:,.2f}", "change": "Input"},
-                {"label": "Est. Cash", "value": f"${final_cash:,.2f}", "change": "Allocated"},
-                {"label": "All-Time P&L", "value": f"${perf_data.get('total_pnl', 0):,.2f}", "change": f"{perf_data.get('total_pnl_percent', 0):.2f}%"}
-            ],
-            "table": new_run_data,
-            "comparison": comparison_table,
-            "performance": perf_data.get("rows", []),
-            "since_last_save": since_last_save_table,
-            "raw_result": {"final_cash": final_cash, "trades": trades, "portfolio_code": portfolio_code},
-            "debug_log": debug_log
-        }
-
-    elif action == "execute_trades":
-        trades = ai_params.get("trades", [])
-        rh_username = ai_params.get("rh_username")
-        rh_password = ai_params.get("rh_password")
-        email_to = ai_params.get("email_to")
-        overwrite = ai_params.get("overwrite", False)
-        new_run_data = ai_params.get("new_run_data", [])
-        final_cash = ai_params.get("final_cash", 0.0)
-        total_value = ai_params.get("total_value", 0.0)
-
-        execution_log = []
-
-        if rh_username and rh_password and trades:
-            success = await asyncio.to_thread(execute_portfolio_rebalance, trades, rh_username, rh_password)
-            execution_log.append("Trades executed on Robinhood." if success else "Robinhood execution failed.")
-
-        if email_to:
-            subject = f"Tracking Update: {portfolio_code}"
-            await _send_tracking_email_html(email_to, subject, portfolio_code, total_value, trades, new_run_data, final_cash)
-            execution_log.append(f"HTML Email sent to {email_to}.")
-
-        if overwrite and new_run_data:
-            await _save_custom_portfolio_run_to_csv(
-                portfolio_code=portfolio_code,
-                tailored_stock_holdings=new_run_data,
-                final_cash=final_cash,
-                total_portfolio_value_for_percent_calc=total_value,
-                is_called_by_ai=True,
-                user_id=user_id
+            _, _, final_cash, new_run_data = await process_custom_portfolio(
+                portfolio_data_config=portfolio_config,
+                tailor_portfolio_requested=True,
+                frac_shares_singularity=True, 
+                total_value_singularity=total_value,
+                is_custom_command_simplified_output=True,
+                is_called_by_ai=True
             )
-            execution_log.append("Save file overwritten.")
+            
+            # 5. Rounding Logic
+            asset_items = [item for item in new_run_data if item.get('ticker') != 'Cash']
+            num_assets = len(asset_items)
+            precision = 0
+            if use_frac:
+                avg_alloc = (total_value / num_assets) if num_assets > 0 else 0
+                precision = 2 if (total_value < 1000 or avg_alloc < 250) else 1
+            
+            total_invested_after_rounding = 0.0
+            
+            for item in new_run_data:
+                if item.get('ticker') == 'Cash': continue
+                try:
+                    raw_shares = float(item.get('shares', 0))
+                    price = float(item.get('price', 0)) or float(item.get('live_price_at_eval', 0))
+                    if price == 0 and raw_shares > 0: price = float(item.get('actual_money_allocation', 0)) / raw_shares
+                    
+                    new_shares = floor_with_precision(raw_shares, precision)
+                    item['shares'] = new_shares
+                    new_val = new_shares * price
+                    item['actual_money_allocation'] = new_val
+                    item['value'] = new_val 
+                    total_invested_after_rounding += new_val
+                except: continue
 
-        return {"status": "success", "message": "Execution complete.", "log": execution_log}
+            final_cash = total_value - total_invested_after_rounding
 
-    return {"status": "error", "message": "Unknown action."}
+            # 6. Trades Calculation
+            trades = []
+            old_holdings_map = {}
+            old_prices_at_save = {}
+
+            if old_run_data:
+                for row in old_run_data:
+                    ticker = row.get('Ticker')
+                    if ticker and ticker != 'Cash':
+                        try:
+                            old_holdings_map[ticker] = float(row.get('Shares', 0))
+                            old_prices_at_save[ticker] = float(row.get('LivePriceAtEval', 0))
+                        except: continue
+
+            new_holdings_map = {row['ticker']: float(row['shares']) for row in new_run_data if row['ticker'] != 'Cash'}
+            all_tickers = sorted(list(set(old_holdings_map.keys()) | set(new_holdings_map.keys())))
+            
+            comparison_table = []
+            for ticker in all_tickers:
+                old_s = old_holdings_map.get(ticker, 0.0)
+                new_s = new_holdings_map.get(ticker, 0.0)
+                diff = new_s - old_s
+                
+                if not math.isclose(diff, 0, abs_tol=0.001):
+                    status = "Buy" if diff > 0 else "Sell"
+                    comparison_table.append({
+                        "ticker": ticker, "old_shares": old_s, "new_shares": new_s,
+                        "diff": diff, "action": status
+                    })
+                    trades.append({"ticker": ticker, "side": status.lower(), "quantity": abs(diff)})
+
+            perf_data = await generate_performance_data(portfolio_code, old_holdings_map, user_id)
+            
+            live_prices = perf_data.get("live_prices", {})
+            since_last_save_table = []
+            for ticker, old_price in old_prices_at_save.items():
+                current_price = live_prices.get(ticker, 0.0)
+                shares_held = new_holdings_map.get(ticker, 0.0)
+                if current_price > 0 and shares_held > 0:
+                    pnl = (current_price - old_price) * shares_held
+                    pct = ((current_price - old_price) / old_price * 100) if old_price > 0 else 0
+                    since_last_save_table.append({
+                        "ticker": ticker, "shares": shares_held, "last_save_price": old_price,
+                        "current_price": current_price, "pnl": pnl, "pnl_percent": pct
+                    })
+
+            return {
+                "status": "success",
+                "summary": [
+                    {"label": "Target Value", "value": f"${total_value:,.2f}", "change": "Input"},
+                    {"label": "Est. Cash", "value": f"${final_cash:,.2f}", "change": "Allocated"},
+                    {"label": "All-Time P&L", "value": f"${perf_data.get('total_pnl', 0):,.2f}", "change": f"{perf_data.get('total_pnl_percent', 0):.2f}%"}
+                ],
+                "table": new_run_data,
+                "comparison": comparison_table,
+                "performance": perf_data.get("rows", []),
+                "since_last_save": since_last_save_table,
+                "raw_result": {"final_cash": final_cash, "trades": trades, "portfolio_code": portfolio_code},
+            }
+
+        elif action == "execute_trades":
+            trades = ai_params.get("trades", [])
+            email_to = ai_params.get("email_to")
+            overwrite = ai_params.get("overwrite", False)
+            new_run_data = ai_params.get("new_run_data", [])
+            final_cash = ai_params.get("final_cash", 0.0)
+            total_value = ai_params.get("total_value", 0.0)
+
+            execution_log = []
+            
+            if ai_params.get("rh_username"):
+                success = await asyncio.to_thread(execute_portfolio_rebalance, trades, ai_params["rh_username"], ai_params["rh_password"])
+                execution_log.append("Trades executed on Robinhood." if success else "Robinhood execution failed.")
+
+            if email_to:
+                subject = f"Tracking Update: {portfolio_code}"
+                await _send_tracking_email_html(email_to, subject, portfolio_code, total_value, trades, new_run_data, final_cash)
+                execution_log.append(f"HTML Email sent to {email_to}.")
+
+            if overwrite and new_run_data:
+                await _save_custom_portfolio_run_to_csv(
+                    portfolio_code=portfolio_code,
+                    tailored_stock_holdings=new_run_data,
+                    final_cash=final_cash,
+                    total_portfolio_value_for_percent_calc=total_value,
+                    is_called_by_ai=True,
+                    user_id=user_id
+                )
+                execution_log.append("Save file overwritten.")
+
+            return {"status": "success", "message": "Execution complete.", "log": execution_log}
+
+        return {"status": "error", "message": f"Unknown action: {action}"}
+
+    except Exception as e:
+        traceback.print_exc()
+        return {"status": "error", "message": f"Critical Tracking Error: {str(e)}"}
