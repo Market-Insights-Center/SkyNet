@@ -13,13 +13,15 @@ import yfinance as yf
 import pandas as pd
 import numpy as np
 from datetime import datetime
+import uuid
 
 # Ensure we can import from local folders
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 # Import your command modules
 from integration import invest_command, cultivate_command, custom_command, tracking_command
-from database import read_articles_from_csv, save_articles_to_csv, read_ideas_from_csv, save_ideas_to_csv
+# Updated import to include chat helpers
+from database import read_articles_from_csv, save_articles_to_csv, read_ideas_from_csv, save_ideas_to_csv, read_chats, save_chats
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("uvicorn")
@@ -83,6 +85,9 @@ class GenericAlgoRequest(BaseModel):
     strategy_code: Optional[str] = "A" 
     cultivate_code: Optional[str] = "A"
     portfolio_value: Optional[float] = 10000.0
+    # Added to accept new_run_data passed back from UI
+    new_run_data: Optional[List[Dict]] = []
+    final_cash: Optional[float] = 0.0
 
 class MarketDataRequest(BaseModel):
     tickers: List[str]
@@ -91,6 +96,21 @@ class ModRequest(BaseModel):
     email: str
     action: str 
     requester_email: str
+
+# --- Chat Models ---
+class ChatCreateRequest(BaseModel):
+    type: str
+    participants: List[str]
+    creator_email: str
+    initial_message: Optional[str] = None
+
+class ChatMessageRequest(BaseModel):
+    sender: str
+    text: str
+
+class ChatDeleteRequest(BaseModel):
+    chat_id: str
+    email: str
 
 # --- Helper Functions ---
 def get_mod_list():
@@ -151,6 +171,101 @@ async def cultivate_endpoint(request: GenericAlgoRequest):
         return await cultivate_command.handle_cultivate_command([], ai_params=ai_params, is_called_by_ai=True)
     except Exception as e:
         return {"status": "error", "message": str(e)}
+
+# --- CHAT ENDPOINTS (Added) ---
+
+@app.get("/api/chat/list")
+def get_chats(email: str, all_chats: bool = False):
+    chats = read_chats()
+    if all_chats:
+        # Check mod status ideally, but returning all for admin view
+        return chats
+    
+    # Filter for user
+    user_chats = [c for c in chats if email in c.get('participants', [])]
+    user_chats.sort(key=lambda x: x.get('last_updated', ''), reverse=True)
+    return user_chats
+
+@app.post("/api/chat/create")
+def create_chat(req: ChatCreateRequest):
+    chats = read_chats()
+    
+    # Optional: Logic to prevent duplicate direct chats could go here
+    
+    new_chat = {
+        "id": str(uuid.uuid4()),
+        "type": req.type,
+        "participants": list(set(req.participants + [req.creator_email])),
+        "messages": [],
+        "last_updated": datetime.utcnow().isoformat(),
+        "last_message_preview": req.initial_message or "New conversation"
+    }
+    
+    if req.initial_message:
+        new_chat["messages"].append({
+            "sender": req.creator_email,
+            "text": req.initial_message,
+            "timestamp": new_chat["last_updated"]
+        })
+        
+    chats.append(new_chat)
+    save_chats(chats)
+    return new_chat
+
+@app.get("/api/chat/{chat_id}/messages")
+def get_messages(chat_id: str, email: str):
+    chats = read_chats()
+    chat = next((c for c in chats if c["id"] == chat_id), None)
+    if not chat: 
+        raise HTTPException(status_code=404, detail="Chat not found")
+    
+    if email not in chat["participants"]: 
+        raise HTTPException(status_code=403, detail="Access denied")
+        
+    return chat.get("messages", [])
+
+@app.post("/api/chat/{chat_id}/message")
+def send_message(chat_id: str, req: ChatMessageRequest):
+    chats = read_chats()
+    for chat in chats:
+        if chat["id"] == chat_id:
+            msg = {
+                "sender": req.sender,
+                "text": req.text,
+                "timestamp": datetime.utcnow().isoformat()
+            }
+            chat.setdefault("messages", []).append(msg)
+            chat["last_updated"] = msg["timestamp"]
+            chat["last_message_preview"] = req.text
+            save_chats(chats)
+            return {"status": "success"}
+    raise HTTPException(status_code=404, detail="Chat not found")
+
+@app.post("/api/chat/delete")
+def delete_chat(req: ChatDeleteRequest):
+    chats = read_chats()
+    updated_chats = []
+    found = False
+    
+    for chat in chats:
+        if chat["id"] == req.chat_id:
+            found = True
+            # Remove user from participants (Soft delete for user)
+            if req.email in chat["participants"]:
+                chat["participants"].remove(req.email)
+            
+            # If anyone is left, keep the chat, otherwise it drops out (Hard delete)
+            if len(chat["participants"]) > 0:
+                updated_chats.append(chat)
+        else:
+            updated_chats.append(chat)
+            
+    if found:
+        save_chats(updated_chats)
+        return {"status": "success"}
+        
+    raise HTTPException(status_code=404, detail="Chat not found")
+
 
 # --- MARKET DATA ---
 

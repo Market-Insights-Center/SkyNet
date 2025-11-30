@@ -45,7 +45,6 @@ export const TradingViewWidget = memo(({
         let widget = null;
 
         loadTradingViewScript().then(() => {
-            // Render delay to ensure DOM is painted
             setTimeout(() => {
                 const containerElement = document.getElementById(uniqueId);
                 
@@ -101,9 +100,11 @@ const MarketDashboard = () => {
                     <div className="h-px flex-grow bg-gradient-to-r from-transparent via-gold/50 to-transparent" />
                 </div>
 
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-[600px]">
+                {/* UPDATED: Flex-col for mobile (stacked), Grid for Desktop */}
+                <div className="flex flex-col lg:grid lg:grid-cols-3 gap-6 lg:h-[600px]">
+                    
                     {/* Primary Chart - SPY */}
-                    <div className="lg:col-span-2 bg-white/5 border border-gold/20 rounded-xl overflow-hidden shadow-[0_0_30px_rgba(0,0,0,0.5)] flex flex-col">
+                    <div className="lg:col-span-2 bg-white/5 border border-gold/20 rounded-xl overflow-hidden shadow-[0_0_30px_rgba(0,0,0,0.5)] flex flex-col h-[500px] lg:h-auto">
                         <div className="flex-grow relative w-full h-full">
                             <TradingViewWidget
                                 symbol="AMEX:SPY"
@@ -113,20 +114,20 @@ const MarketDashboard = () => {
                         </div>
                     </div>
 
-                    {/* Secondary Charts */}
-                    <div className="flex flex-col gap-6 h-full">
+                    {/* Secondary Charts Container */}
+                    <div className="flex flex-col gap-6 h-auto lg:h-full">
                         {/* VIXCLS */}
-                        <div className="flex-1 bg-white/5 border border-white/10 rounded-xl overflow-hidden hover:border-gold/30 transition-colors p-4 relative flex flex-col">
+                        <div className="flex-1 bg-white/5 border border-white/10 rounded-xl overflow-hidden hover:border-gold/30 transition-colors p-4 relative flex flex-col h-[400px] lg:h-auto">
                             <h3 className="text-gold font-bold mb-2 flex items-center gap-2 z-10 bg-black/50 px-2 rounded w-fit">
                                 <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
-                                VIXCLS (CBOE Volatility Index)
+                                VIXCLS (Volatility)
                             </h3>
                             <div className="flex-grow relative w-full h-full">
                                 <TradingViewWidget
-                                    symbol="FRED:VIXCLS" // Changed to FRED:VIXCLS
+                                    symbol="FRED:VIXCLS"
                                     theme="dark"
                                     style="1"
-                                    interval="D" // Must be 'D' for FRED data
+                                    interval="D"
                                     hide_top_toolbar={true}
                                     hide_legend={true}
                                     hide_side_toolbar={true}
@@ -138,7 +139,7 @@ const MarketDashboard = () => {
                         </div>
 
                         {/* BTC */}
-                        <div className="flex-1 bg-white/5 border border-white/10 rounded-xl overflow-hidden hover:border-gold/30 transition-colors p-4 relative flex flex-col">
+                        <div className="flex-1 bg-white/5 border border-white/10 rounded-xl overflow-hidden hover:border-gold/30 transition-colors p-4 relative flex flex-col h-[400px] lg:h-auto">
                             <h3 className="text-gold font-bold mb-2 flex items-center gap-2 z-10 bg-black/50 px-2 rounded w-fit">
                                 <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
                                 Bitcoin (BTCUSD)

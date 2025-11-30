@@ -1,6 +1,10 @@
 import csv
 import os
 import json
+from firebase_admin import firestore
+# Import the setup functions from your existing setup file
+from firebase_admin_setup import get_db, get_auth
+
 # --- Firebase Helpers ---
 
 # Paths
@@ -8,6 +12,7 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.path.join(BASE_DIR, 'data')
 ARTICLES_CSV = os.path.join(DATA_DIR, 'articles.csv')
 IDEAS_CSV = os.path.join(DATA_DIR, 'ideas.csv')
+CHATS_FILE = os.path.join(BASE_DIR, 'chats.json') 
 USER_PROFILES_CSV = os.path.join(BASE_DIR, 'user_profiles.csv')
 
 # Ensure data dir exists
@@ -16,7 +21,8 @@ if not os.path.exists(DATA_DIR):
 
 def get_all_users_count():
     try:
-        page = auth.list_users()
+        # Corrected: use get_auth() to access the auth instance
+        page = get_auth().list_users()
         count = 0
         while page:
             count += len(page.users)
@@ -28,13 +34,14 @@ def get_all_users_count():
 
 def save_subscription(email, plan, cost):
     try:
+        # Corrected: get_db() is now imported
         db = get_db()
         doc_ref = db.collection('subscriptions').document(email)
         doc_ref.set({
             'email': email,
             'plan': plan,
             'cost': cost,
-            'updated_at': firestore.SERVER_TIMESTAMP
+            'updated_at': firestore.SERVER_TIMESTAMP # Corrected: firestore is imported
         }, merge=True)
         return True
     except Exception as e:
@@ -203,3 +210,21 @@ def read_user_profiles():
     except Exception as e:
         print(f"Error reading profiles: {e}")
     return profiles
+
+# --- Chat Helpers ---
+def read_chats():
+    if not os.path.exists(CHATS_FILE):
+        return []
+    try:
+        with open(CHATS_FILE, 'r') as f:
+            return json.load(f)
+    except:
+        return []
+
+def save_chats(chats):
+    try:
+        with open(CHATS_FILE, 'w') as f:
+            json.dump(chats, f, indent=4)
+        return True
+    except:
+        return False

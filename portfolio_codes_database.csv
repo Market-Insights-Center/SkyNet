@@ -1,0 +1,2 @@
+portfolio_code,ema_sensitivity,amplification,num_portfolios,frac_shares,risk_tolerance,risk_type,remove_amplification_cap,user_id,tickers_1,weight_1
+test,2,1.0,1,true,10,stock,true,jb8jHxIcJuNzZF4GWUm1Kfar4it1,"REMX,MU",100

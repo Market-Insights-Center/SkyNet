@@ -174,5 +174,26 @@
                 "timestamp": "2025-11-26T22:34:50.836904"
             }
         ]
+    },
+    {
+        "id": "ce815dd0-aec1-4e87-b4c6-e5a3f0aa0858",
+        "type": "admin_support",
+        "participants": [
+            "marketinsightscenter@gmail.com"
+        ],
+        "messages": [
+            {
+                "sender": "marketinsightscenter@gmail.com",
+                "text": "Started a new support ticket.",
+                "timestamp": "2025-11-30T04:14:31.831280"
+            },
+            {
+                "sender": "marketinsightscenter@gmail.com",
+                "text": "55",
+                "timestamp": "2025-11-30T04:14:35.333170"
+            }
+        ],
+        "last_updated": "2025-11-30T04:14:35.333170",
+        "last_message_preview": "55"
     }
 ]

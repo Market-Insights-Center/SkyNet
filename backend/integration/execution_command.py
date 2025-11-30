@@ -9,18 +9,22 @@ from typing import List, Dict, Any
 config = configparser.ConfigParser()
 config.read('config.ini')
 
-def login_to_robinhood():
-    """Logs into Robinhood using credentials and auto-generates 2FA token."""
+def login_to_robinhood(username=None, password=None):
+    """Logs into Robinhood using provided credentials or falls back to config."""
     try:
-        username = config.get('ROBINHOOD', 'RH_USERNAME', fallback=None)
-        password = config.get('ROBINHOOD', 'RH_PASSWORD', fallback=None)
+        # Fallback to config if not provided
+        if not username:
+            username = config.get('ROBINHOOD', 'RH_USERNAME', fallback=None)
+        if not password:
+            password = config.get('ROBINHOOD', 'RH_PASSWORD', fallback=None)
+            
         mfa_secret = config.get('ROBINHOOD', 'RH_MFA_CODE', fallback=None)
 
         if not username or not password:
             print("❌ Error: Robinhood credentials missing.")
             return False
 
-        print("🔐 Logging into Robinhood...")
+        print(f"🔐 Logging into Robinhood as {username}...")
         
         # Generate the token automatically if a secret is provided
         totp_code = None
@@ -55,10 +59,9 @@ def get_robinhood_equity() -> float:
     
     return 0.0
 
-def execute_portfolio_rebalance(trades: List[Dict[str, Any]]):
+def execute_portfolio_rebalance(trades: List[Dict[str, Any]], rh_username: str = None, rh_password: str = None, manual_confirmation: bool = False):
     """
     Takes a list of calculated trades and executes them sequentially.
-    Format: [{'ticker': 'AAPL', 'side': 'buy', 'quantity': 1.5}, ...]
     """
     if not trades:
         print("No trades to execute.")
@@ -66,12 +69,17 @@ def execute_portfolio_rebalance(trades: List[Dict[str, Any]]):
 
     print(f"\n--- 🏹 Robinhood Trade Execution ({len(trades)} orders) ---")
     
-    confirm = input(f"⚠️  Are you sure you want to execute these {len(trades)} trades on Robinhood REAL MONEY account? (yes/no): ").lower().strip()
-    if confirm != 'yes':
-        print("🚫 Execution cancelled.")
-        return
+    # Only ask for input if manual_confirmation is explicitly True (CLI usage)
+    if manual_confirmation:
+        confirm = input(f"⚠️  Are you sure you want to execute these {len(trades)} trades on Robinhood REAL MONEY account? (yes/no): ").lower().strip()
+        if confirm != 'yes':
+            print("🚫 Execution cancelled.")
+            return
+    else:
+        print("⚡ Automated Execution Mode: Skipping manual confirmation.")
 
-    if not login_to_robinhood():
+    # Login with passed credentials or fallback
+    if not login_to_robinhood(rh_username, rh_password):
         return
 
     print("\n🚀 Executing orders...")
@@ -87,8 +95,6 @@ def execute_portfolio_rebalance(trades: List[Dict[str, Any]]):
         side = trade['side']
         
         # --- FIX: ROUNDING TO 6 DECIMAL PLACES ---
-        # Robinhood API rejects orders with >8 decimal places. 
-        # Python floats can often result in 0.20000000000000004.
         qty = round(raw_qty, 6) 
 
         if qty <= 0: continue
@@ -109,11 +115,9 @@ def execute_portfolio_rebalance(trades: List[Dict[str, Any]]):
                 print(f"❌ Failed: {order['detail']}")
                 failed_trades += 1
             elif order and 'non_field_errors' in order:
-                # Catch generic non-field errors often returned by RH
                 print(f"❌ Failed: {order['non_field_errors']}")
                 failed_trades += 1
             else:
-                # Fallback for unknown error structures
                 print(f"⚠️  Unknown response: {order}")
                 failed_trades += 1
                 

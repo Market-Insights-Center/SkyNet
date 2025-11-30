@@ -11,7 +11,7 @@ const Chatbox = () => {
     const [newMessage, setNewMessage] = useState('');
     const [isLoading, setIsLoading] = useState(true);
     const [showNewChatModal, setShowNewChatModal] = useState(false);
-    const [modalStep, setModalStep] = useState('initial'); // initial, users
+    const [modalStep, setModalStep] = useState('initial'); 
     
     // Multi-user selection
     const [allUsers, setAllUsers] = useState([]);
@@ -19,7 +19,7 @@ const Chatbox = () => {
     const [searchUserQuery, setSearchUserQuery] = useState('');
     
     const [isMod, setIsMod] = useState(false);
-    const [adminViewAll, setAdminViewAll] = useState(false); // Toggle for Admin Monitoring
+    const [adminViewAll, setAdminViewAll] = useState(false); 
     
     const messagesEndRef = useRef(null);
 
@@ -27,16 +27,15 @@ const Chatbox = () => {
     useEffect(() => {
         if (!currentUser) return;
 
-        // Check if mod
         fetch('/api/mods')
             .then(res => res.json())
             .then(data => {
-                if (data.mods.includes(currentUser.email)) setIsMod(true);
-            });
+                if (data.mods && data.mods.includes(currentUser.email)) setIsMod(true);
+            })
+            .catch(err => console.log("Mod check skipped"));
 
         fetchConversations();
         
-        // Poll for new conversations list every 2 seconds (Optimized for speed)
         const interval = setInterval(fetchConversations, 2000);
         return () => clearInterval(interval);
     }, [currentUser, adminViewAll]);
@@ -45,15 +44,11 @@ const Chatbox = () => {
     useEffect(() => {
         if (!selectedChat) return;
         
-        // Initial fetch
         fetchChatMessages(selectedChat.id);
-
-        // Polling
         const interval = setInterval(() => fetchChatMessages(selectedChat.id), 2000);
         return () => clearInterval(interval);
     }, [selectedChat]);
 
-    // Scroll to bottom when messages change
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [messages]);
@@ -67,7 +62,6 @@ const Chatbox = () => {
             const res = await fetch(url);
             if (res.ok) {
                 const data = await res.json();
-                // Only update state if data actually changed to prevent unnecessary re-renders
                 setConversations(prev => {
                     if (JSON.stringify(prev) !== JSON.stringify(data)) return data;
                     return prev;
@@ -111,7 +105,7 @@ const Chatbox = () => {
             
             if (res.ok) {
                 setNewMessage('');
-                fetchChatMessages(selectedChat.id); // Immediate refresh
+                fetchChatMessages(selectedChat.id); 
             }
         } catch (err) {
             console.error("Error sending message:", err);
@@ -119,13 +113,11 @@ const Chatbox = () => {
     };
 
     const deleteConversation = async (e, chatId) => {
-        // Critical: Stop propagation to prevent the chat from opening
         e.stopPropagation(); 
         
-        if (!window.confirm("Are you sure you want to delete this conversation? It will be hidden from your list.")) return;
+        if (!window.confirm("Are you sure you want to delete this conversation?")) return;
 
         try {
-            console.log("Deleting chat:", chatId);
             const res = await fetch('/api/chat/delete', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -136,21 +128,12 @@ const Chatbox = () => {
             });
             
             if (res.ok) {
-                // Optimistically remove from UI
                 setConversations(prev => prev.filter(c => c.id !== chatId));
-                
-                // If the deleted chat was open, close it
                 if (selectedChat?.id === chatId) {
                     setSelectedChat(null);
                     setMessages([]);
                 }
-                
-                // Trigger fetch to sync with backend
                 fetchConversations();
-            } else {
-                const errData = await res.json();
-                console.error("Failed to delete chat:", errData);
-                alert("Failed to delete conversation.");
             }
         } catch (err) {
             console.error("Error deleting chat:", err);
@@ -158,31 +141,56 @@ const Chatbox = () => {
     };
 
     const startAdminChat = async () => {
+        console.log("DEBUG: Attempting to create Admin Chat");
+        const payload = {
+            type: 'admin_support',
+            participants: [currentUser.email], 
+            creator_email: currentUser.email,
+            initial_message: "Started a new support ticket."
+        };
+
         try {
             const res = await fetch('/api/chat/create', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    type: 'admin_support',
-                    participants: [], 
-                    creator_email: currentUser.email,
-                    initial_message: "Started a new support ticket."
-                })
+                body: JSON.stringify(payload)
             });
-            const chat = await res.json();
-            setSelectedChat(chat);
-            setShowNewChatModal(false);
-            fetchConversations();
+            
+            if (res.ok) {
+                const chat = await res.json();
+                console.log("DEBUG: Chat Created Successfully", chat);
+                
+                if (chat && (chat.id || chat._id)) {
+                    if (!chat.id) chat.id = chat._id;
+                    setSelectedChat(chat);
+                    setShowNewChatModal(false);
+                    fetchConversations();
+                } else {
+                    console.error("Server returned success but invalid chat object:", chat);
+                    alert("Chat created, but returned invalid data. Check console.");
+                }
+            } else {
+                console.error(`DEBUG: Failed to create chat. Status: ${res.status}`);
+                // 404 means the backend route doesn't exist
+                if (res.status === 404) {
+                    alert("Error 404: Chat backend service unreachable. Please ensure the server is running and routes are mapped.");
+                } else {
+                    alert(`Failed to reach support. Server Status: ${res.status}`);
+                }
+            }
         } catch (err) {
-            console.error("Error creating admin chat:", err);
+            console.error("DEBUG: Network Error creating admin chat:", err);
+            alert("Network error. Please check your connection.");
         }
     };
 
     const fetchUsers = async () => {
         try {
             const res = await fetch('/api/users');
-            const data = await res.json();
-            setAllUsers(data.filter(u => u.email !== currentUser.email));
+            if (res.ok) {
+                const data = await res.json();
+                setAllUsers(data.filter(u => u.email !== currentUser.email));
+            }
         } catch (err) {
             console.error(err);
         }
@@ -200,23 +208,37 @@ const Chatbox = () => {
         if (selectedUsers.length === 0) return;
 
         try {
+            const allParticipants = [...new Set([...selectedUsers, currentUser.email])];
+
             const res = await fetch('/api/chat/create', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     type: 'direct',
-                    participants: selectedUsers,
+                    participants: allParticipants,
                     creator_email: currentUser.email
                 })
             });
-            const chat = await res.json();
-            setSelectedChat(chat);
-            setShowNewChatModal(false);
-            setModalStep('initial');
-            setSelectedUsers([]);
-            fetchConversations();
+            
+            if (res.ok) {
+                const chat = await res.json();
+                if (chat && (chat.id || chat._id)) {
+                    if (!chat.id) chat.id = chat._id;
+                    setSelectedChat(chat);
+                    setShowNewChatModal(false);
+                    setModalStep('initial');
+                    setSelectedUsers([]);
+                    fetchConversations();
+                } else {
+                    alert("Error: Server returned invalid chat data.");
+                }
+            } else {
+                const errData = await res.json();
+                alert(`Failed to create chat: ${errData.message || res.statusText}`);
+            }
         } catch (err) {
             console.error("Error creating chat:", err);
+            alert("Network error while creating chat.");
         }
     };
 
@@ -227,10 +249,11 @@ const Chatbox = () => {
     };
 
     const getChatName = (chat) => {
+        if (!chat) return "Unknown";
         if (chat.type === 'admin_support') return "Admin Support Team";
         
-        // Filter out current user to show others
-        const otherParticipants = chat.participants.filter(p => p !== currentUser.email);
+        const participants = chat.participants || [];
+        const otherParticipants = participants.filter(p => p !== currentUser.email);
         
         if (otherParticipants.length === 0) return "Me (Draft)";
         if (otherParticipants.length === 1) return otherParticipants[0];
@@ -283,7 +306,7 @@ const Chatbox = () => {
                                 <div className="flex items-center gap-3">
                                     <div className={`w-10 h-10 rounded-full flex items-center justify-center ${chat.type === 'admin_support' ? 'bg-gold/20 text-gold' : 'bg-purple-500/20 text-purple-400'}`}>
                                         {chat.type === 'admin_support' ? <Shield size={18} /> : 
-                                         chat.participants.length > 2 ? <Users size={18} /> : <User size={18} />}
+                                         (chat.participants || []).length > 2 ? <Users size={18} /> : <User size={18} />}
                                     </div>
                                     <div className="flex-1 min-w-0 pr-8">
                                         <div className="font-medium text-gray-200 truncate">{getChatName(chat)}</div>
@@ -298,7 +321,6 @@ const Chatbox = () => {
                                     )}
                                 </div>
                                 
-                                {/* Delete Button - FIX: Added z-20, type="button", and better visibility */}
                                 {!adminViewAll && (
                                     <button
                                         type="button"
@@ -328,7 +350,7 @@ const Chatbox = () => {
                                 <div>
                                     <div className="font-bold text-gray-200">{getChatName(selectedChat)}</div>
                                     <div className="text-xs text-gray-500">
-                                        {selectedChat.participants.join(', ')}
+                                        {(selectedChat.participants || []).join(', ')}
                                     </div>
                                 </div>
                             </div>

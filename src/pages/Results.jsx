@@ -2,7 +2,6 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { ArrowLeft, Download, Share2, ArrowUp, ArrowDown, Activity, Layers } from 'lucide-react';
 
-// Chart Colors
 const CHART_COLORS = [
     '#D4AF37', '#6A0DAD', '#FFFFFF', '#9370DB', '#B8860B', '#4B0082', '#FFD700', '#8A2BE2', '#6B7280', '#10B981'
 ];
@@ -58,9 +57,11 @@ const ExecutionModal = ({ isOpen, onClose, onExecute }) => {
     const [sendEmail, setSendEmail] = useState(false);
     const [execRh, setExecRh] = useState(false);
     const [overwrite, setOverwrite] = useState(false);
+    const [isProcessing, setIsProcessing] = useState(false);
 
     useEffect(() => {
         if (isOpen) {
+            setIsProcessing(false);
             const savedEmail = localStorage.getItem('mic_email');
             const savedUser = localStorage.getItem('mic_rh_user');
             const savedPass = localStorage.getItem('mic_rh_pass');
@@ -80,6 +81,9 @@ const ExecutionModal = ({ isOpen, onClose, onExecute }) => {
     }, [isOpen]);
 
     const handleConfirm = () => {
+        if (isProcessing) return;
+        setIsProcessing(true);
+        
         if (sendEmail && email) localStorage.setItem('mic_email', email);
         if (execRh && rhUser) localStorage.setItem('mic_rh_user', rhUser);
         if (execRh && rhPass) localStorage.setItem('mic_rh_pass', rhPass);
@@ -123,7 +127,9 @@ const ExecutionModal = ({ isOpen, onClose, onExecute }) => {
                             <div className="space-y-2 mt-2">
                                 <input type="text" placeholder="Robinhood Username" value={rhUser} onChange={(e) => setRhUser(e.target.value)} className="w-full bg-black border border-gray-700 rounded p-2 text-white outline-none" />
                                 <input type="password" placeholder="Robinhood Password" value={rhPass} onChange={(e) => setRhPass(e.target.value)} className="w-full bg-black border border-gray-700 rounded p-2 text-white outline-none" />
-                                <p className="text-xs text-red-400 mt-1">Credentials stored locally for convenience.</p>
+                                <div className="mt-3 p-3 bg-yellow-900/30 border border-yellow-700/50 rounded text-xs text-yellow-200">
+                                    <strong>Important:</strong> If you have 2FA enabled, please check your mobile device immediately after clicking "Confirm".
+                                </div>
                             </div>
                         )}
                     </div>
@@ -135,12 +141,13 @@ const ExecutionModal = ({ isOpen, onClose, onExecute }) => {
                 </div>
 
                 <div className="mt-8 flex justify-end gap-4">
-                    <button onClick={onClose} className="text-gray-400 hover:text-white">Cancel</button>
+                    <button onClick={onClose} disabled={isProcessing} className="text-gray-400 hover:text-white disabled:opacity-50">Cancel</button>
                     <button
                         onClick={handleConfirm}
-                        className="bg-gold text-black font-bold px-6 py-2 rounded-lg hover:bg-yellow-500 transition-colors"
+                        disabled={isProcessing}
+                        className="bg-gold text-black font-bold px-6 py-2 rounded-lg hover:bg-yellow-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                     >
-                        Confirm & Execute
+                        {isProcessing ? 'Processing...' : 'Confirm & Execute'}
                     </button>
                 </div>
             </motion.div>
@@ -149,43 +156,40 @@ const ExecutionModal = ({ isOpen, onClose, onExecute }) => {
 };
 
 const Results = ({ toolType, onBack }) => {
-    // Robust Data Retrieval
-    const data = window.analysisResults || {};
-    const summaryStats = Array.isArray(data.summary) ? data.summary : [];
-    const rawTableData = Array.isArray(data.table) ? data.table : [];
-    const raw_result = data.raw_result || {};
-    const comparison = Array.isArray(data.comparison) ? data.comparison : [];
-    const performance = Array.isArray(data.performance) ? data.performance : [];
-    const since_last_save = Array.isArray(data.since_last_save) ? data.since_last_save : [];
+    // [FIX] Use State to capture window data *once* on mount to ensure stability
+    const [stableData, setStableData] = useState(() => {
+        const winData = window.analysisResults || {};
+        return {
+            summary: Array.isArray(winData.summary) ? winData.summary : [],
+            table: Array.isArray(winData.table) ? winData.table : [],
+            raw_result: winData.raw_result || {},
+            comparison: Array.isArray(winData.comparison) ? winData.comparison : [],
+            performance: Array.isArray(winData.performance) ? winData.performance : [],
+            since_last_save: Array.isArray(winData.since_last_save) ? winData.since_last_save : []
+        };
+    });
 
     const [sortConfig, setSortConfig] = useState({ key: 'allocPercent', direction: 'desc' });
     const [showExecModal, setShowExecModal] = useState(false);
 
+    // Destructure stable state
+    const { summary: summaryStats, table: rawTableData, raw_result, comparison, performance, since_last_save } = stableData;
     const cashValue = parseFloat(raw_result?.final_cash) || 0;
     
-    // Total Portfolio Value Calculation
     const totalStockValue = rawTableData.reduce((sum, item) => {
         const val = parseFloat(item?.value || item?.actual_money_allocation || item?.equity || 0);
         return sum + val;
     }, 0);
     const totalPortfolioValue = totalStockValue + cashValue;
-
-    // [NEW] Calculate Total Holdings Count
-    // We filter out 'Cash' if it accidentally appears in the table list
     const holdingsCount = rawTableData.filter(item => item?.ticker !== 'Cash').length;
 
     // Normalize Data Structure
     const enhancedTableData = useMemo(() => rawTableData.map(item => {
         if (!item) return { ticker: "Unknown", value: 0, allocPercent: 0, price: 0, shares: 0 };
-        
         const val = parseFloat(item.value || item.actual_money_allocation || item.equity || 0);
         const shares = parseFloat(item.shares || 0);
-        
-        // Price Fallback
         let price = parseFloat(item.price || item.live_price || item.Close || 0);
-        if (price === 0 && shares > 0) {
-            price = val / shares;
-        }
+        if (price === 0 && shares > 0) price = val / shares;
 
         return { 
             ...item,
@@ -199,26 +203,14 @@ const Results = ({ toolType, onBack }) => {
     const chartData = useMemo(() => {
         const sorted = [...enhancedTableData].sort((a, b) => b.value - a.value);
         let items = sorted.slice(0, 8).map((item, i) => ({ 
-            label: item.ticker || "N/A", 
-            value: item.value || 0, 
-            color: CHART_COLORS[i % 8] 
+            label: item.ticker || "N/A", value: item.value || 0, color: CHART_COLORS[i % 8] 
         }));
-        
         const others = sorted.slice(8);
         if (others.length > 0) {
-            items.push({ 
-                label: "Other Stocks", 
-                value: others.reduce((s, i) => s + (i.value || 0), 0), 
-                color: CHART_COLORS[8] 
-            });
+            items.push({ label: "Other Stocks", value: others.reduce((s, i) => s + (i.value || 0), 0), color: CHART_COLORS[8] });
         }
-        
         if (cashValue > 0) {
-            items.push({ 
-                label: "Cash", 
-                value: cashValue, 
-                color: CHART_COLORS[9] 
-            });
+            items.push({ label: "Cash", value: cashValue, color: CHART_COLORS[9] });
         }
         return items;
     }, [enhancedTableData, cashValue]);
@@ -236,14 +228,24 @@ const Results = ({ toolType, onBack }) => {
     }, [enhancedTableData, sortConfig]);
 
     const handleExecution = async (options) => {
-        setShowExecModal(false);
+        // NOTE: Modal closes only AFTER fetch or error to keep UI state consistent
+        // We handle logic here.
+        
+        const payloadData = enhancedTableData.length > 0 ? enhancedTableData : rawTableData;
+
+        if (payloadData.length === 0) {
+            alert("Error: No portfolio data found. Please re-run the analysis.");
+            setShowExecModal(false);
+            return;
+        }
+
         const body = {
             action: "execute_trades",
             portfolio_code: raw_result?.portfolio_code || "Unknown",
             trades: raw_result?.trades || [],
             final_cash: cashValue,
             total_value: totalPortfolioValue,
-            new_run_data: rawTableData,
+            new_run_data: payloadData, 
             rh_username: options.execRh ? options.rhUser : null,
             rh_password: options.execRh ? options.rhPass : null,
             email_to: options.sendEmail ? options.email : null,
@@ -257,9 +259,16 @@ const Results = ({ toolType, onBack }) => {
                 body: JSON.stringify(body)
             });
             const result = await response.json();
-            alert(result.message || "Execution processed.");
+            
+            if (result.log && Array.isArray(result.log)) {
+                alert(result.log.join("\n"));
+            } else {
+                alert(result.message || "Execution processed.");
+            }
         } catch (e) {
             alert("Execution failed: " + e.message);
+        } finally {
+            setShowExecModal(false);
         }
     };
 
@@ -280,7 +289,6 @@ const Results = ({ toolType, onBack }) => {
 
             {/* Summary Cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
-                {/* 1. API Provided Stats */}
                 {summaryStats.map((stat, i) => {
                     if (!stat) return null;
                     return (
@@ -292,7 +300,6 @@ const Results = ({ toolType, onBack }) => {
                     );
                 })}
                 
-                {/* 2. [NEW] Total Holdings Card */}
                 <div className="bg-white/5 border border-white/10 rounded-xl p-6 relative overflow-hidden group">
                     <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
                         <Layers size={60} />
@@ -333,7 +340,6 @@ const Results = ({ toolType, onBack }) => {
                                     return (
                                         <tr key={i} className="border-b border-white/5 hover:bg-white/5">
                                             <td className="p-4 font-bold text-white">{row.ticker || "N/A"}</td>
-                                            {/* [FIX] Display Shares with up to 5 decimal places if fractional */}
                                             <td className="p-4 text-gray-300">
                                                 {(row.shares || 0).toLocaleString(undefined, { maximumFractionDigits: 5 })}
                                             </td>
@@ -356,7 +362,6 @@ const Results = ({ toolType, onBack }) => {
             {toolType === 'tracking' && (
                 <div className="space-y-8">
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                        {/* Trade Recommendations */}
                         <div className="bg-white/5 border border-white/10 rounded-xl overflow-hidden">
                             <div className="p-4 bg-white/10 border-b border-white/10"><h3 className="font-bold text-white">Trade Recommendations</h3></div>
                             <div className="overflow-x-auto">
@@ -379,7 +384,6 @@ const Results = ({ toolType, onBack }) => {
                             </div>
                         </div>
 
-                        {/* All-Time Performance */}
                         <div className="bg-white/5 border border-white/10 rounded-xl overflow-hidden">
                             <div className="p-4 bg-white/10 border-b border-white/10"><h3 className="font-bold text-white">All-Time Performance</h3></div>
                             <div className="overflow-x-auto">
@@ -407,7 +411,6 @@ const Results = ({ toolType, onBack }) => {
                         </div>
                     </div>
 
-                    {/* Performance Since Last Save */}
                     <div className="bg-white/5 border border-white/10 rounded-xl overflow-hidden">
                         <div className="p-4 bg-white/10 border-b border-white/10"><h3 className="font-bold text-white">Performance Since Last Save</h3></div>
                         <div className="overflow-x-auto">
@@ -420,7 +423,6 @@ const Results = ({ toolType, onBack }) => {
                                         return (
                                             <tr key={i} className="border-b border-white/5 hover:bg-white/5 text-sm">
                                                 <td className="p-3 font-bold text-white">{row.ticker || "N/A"}</td>
-                                                {/* [FIX] Shares display updated to allow decimals */}
                                                 <td className="p-3 text-right text-gray-300">{(parseFloat(row.shares) || 0).toLocaleString(undefined, { maximumFractionDigits: 5 })}</td>
                                                 <td className="p-3 text-right text-gray-400">${(parseFloat(row.last_save_price) || 0).toFixed(2)}</td>
                                                 <td className="p-3 text-right text-gray-300">${(parseFloat(row.current_price) || 0).toFixed(2)}</td>

@@ -1,0 +1,34 @@
+{
+    "new_run_data": [
+        {
+            "ticker": "REMX",
+            "shares": 57.5,
+            "live_price_at_eval": 74.80999755859375,
+            "actual_money_allocation": 4301.574859619141,
+            "actual_percent_allocation": 43.02322959594727,
+            "raw_invest_score": 74.87934716977664,
+            "sub_portfolio_id": "Sub-Portfolio 1",
+            "path": [
+                "REMX"
+            ],
+            "value": 4301.574859619141
+        },
+        {
+            "ticker": "MU",
+            "shares": 24.0,
+            "live_price_at_eval": 236.47999572753906,
+            "actual_money_allocation": 5675.5198974609375,
+            "actual_percent_allocation": 56.96803097076416,
+            "raw_invest_score": 99.15433411882752,
+            "sub_portfolio_id": "Sub-Portfolio 1",
+            "path": [
+                "MU"
+            ],
+            "value": 5675.5198974609375
+        }
+    ],
+    "final_cash": 22.905242919921875,
+    "total_value": 10000.0,
+    "user_id": "jb8jHxIcJuNzZF4GWUm1Kfar4it1",
+    "timestamp": "2025-11-30 00:29:40.605959"
+}

@@ -11,6 +11,8 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 import configparser
 import traceback
+import glob
+import datetime
 
 # --- Key Imports ---
 from integration.invest_command import process_custom_portfolio, calculate_ema_invest
@@ -29,6 +31,13 @@ def _get_custom_portfolio_run_csv_filepath(portfolio_code: str, user_id: str = N
     safe_code = str(portfolio_code).lower().replace(' ', '_')
     return os.path.join(PORTFOLIO_OUTPUT_DIR, f"run_data_portfolio_{safe_code}{uid_suffix}.csv")
 
+def _get_temp_run_filepath(portfolio_code: str, user_id: str = None) -> str:
+    uid_suffix = f"_{user_id}" if user_id else ""
+    safe_code = str(portfolio_code).lower().replace(' ', '_')
+    if not os.path.exists(PORTFOLIO_OUTPUT_DIR):
+        os.makedirs(PORTFOLIO_OUTPUT_DIR)
+    return os.path.join(PORTFOLIO_OUTPUT_DIR, f"temp_latest_{safe_code}{uid_suffix}.json")
+
 def floor_with_precision(value: float, precision: int) -> float:
     if precision < 0: precision = 0
     factor = 10 ** precision
@@ -36,7 +45,9 @@ def floor_with_precision(value: float, precision: int) -> float:
 
 async def _load_portfolio_run(portfolio_code: str, user_id: str = None) -> List[Dict[str, Any]]:
     filepath = _get_custom_portfolio_run_csv_filepath(portfolio_code, user_id)
+    print(f"DEBUG: Loading portfolio run from: {filepath}")
     if not os.path.exists(filepath):
+        print("DEBUG: File does not exist.")
         return []
     try:
         with open(filepath, 'r', encoding='utf-8') as f:
@@ -45,31 +56,140 @@ async def _load_portfolio_run(portfolio_code: str, user_id: str = None) -> List[
         if not data_lines: return []
         reader = csv.DictReader(data_lines)
         return list(reader)
-    except Exception:
+    except Exception as e:
+        print(f"DEBUG: Error loading run: {e}")
         return []
 
 async def _load_portfolio_origin_data(portfolio_code: str, user_id: str = None) -> Dict[str, Dict[str, float]]:
     origin_data = {}
     if not os.path.exists(TRACKING_ORIGIN_FILE):
+        print(f"[DEBUG] Origin file not found at {TRACKING_ORIGIN_FILE}")
         return origin_data
+        
+    print(f"[DEBUG] Scanning Origin Data for Code: {portfolio_code} | Target User: {user_id}")
+    
     try:
-        with open(TRACKING_ORIGIN_FILE, 'r', newline='', encoding='utf-8') as f:
+        with open(TRACKING_ORIGIN_FILE, 'r', newline='', encoding='utf-8-sig') as f:
             reader = csv.DictReader(f)
+            
+            # Create a map to handle case-insensitivity
+            key_map = {}
+            if reader.fieldnames:
+                for field in reader.fieldnames:
+                    # Clean key: remove BOM, whitespace, lowercase
+                    clean = field.encode('utf-8').decode('utf-8-sig').strip().lower()
+                    key_map[clean] = field
+            
+            p_code_key = key_map.get('portfoliocode')
+            if not p_code_key:
+                print(f"[CRITICAL] 'PortfolioCode' header missing. Found: {reader.fieldnames}")
+                return {} 
+
+            count = 0
             for row in reader:
-                row_user = row.get('UserId', '').strip()
+                # 1. Get Code
+                row_code = row.get(p_code_key, '').strip().lower()
+                
+                # 2. Get User
+                user_key = key_map.get('userid')
+                row_user = row.get(user_key, '').strip() if user_key else ''
+                
                 target_user = user_id.strip() if user_id else ''
-                # Match code and user ownership
-                if row.get('PortfolioCode') == portfolio_code and row_user == target_user:
-                    try:
-                        origin_data[row['Ticker']] = {
-                            'shares': float(row['Shares']),
-                            'price': float(row['Price'])
-                        }
-                    except (ValueError, TypeError):
-                        continue
-    except Exception:
-        pass
+
+                if row_code == portfolio_code.lower():
+                    # Logic: Match specific user OR legacy global entry (empty user)
+                    if row_user == target_user or row_user == "":
+                        try:
+                            # 3. Get Data (Robustly)
+                            t_key = key_map.get('ticker')
+                            s_key = key_map.get('shares')
+                            p_key = key_map.get('price')
+
+                            if t_key and s_key and p_key:
+                                ticker = row.get(t_key)
+                                shares = float(row.get(s_key, 0))
+                                price = float(row.get(p_key, 0))
+                                
+                                origin_data[ticker] = {'shares': shares, 'price': price}
+                                count += 1
+                        except (ValueError, TypeError):
+                            # This catches rows where Price/Shares are strings (e.g. from previous bad writes)
+                            continue
+            print(f"[DEBUG] Found {count} origin rows for {portfolio_code}.")
+    except Exception as e:
+        print(f"[DEBUG] Error reading origin data: {e}")
+        traceback.print_exc()
     return origin_data
+
+async def _ensure_origin_data_exists(portfolio_code: str, run_data: List[Dict], user_id: str):
+    print(f"[DEBUG] Ensuring origin data exists for {portfolio_code}...")
+    
+    # Check if we already have valid data
+    existing = await _load_portfolio_origin_data(portfolio_code, user_id)
+    if existing:
+        print(f"[DEBUG] Origin data found ({len(existing)} records). No action needed.")
+        return
+
+    print(f"[DEBUG] No origin data found (or corrupt). Creating baseline...")
+
+    # --- CRITICAL FIX: DETECT HEADER ORDER FROM FILE ---
+    # Default headers if file is new
+    detected_headers = ['PortfolioCode', 'Ticker', 'Shares', 'Price', 'UserId']
+    file_exists = os.path.exists(TRACKING_ORIGIN_FILE)
+    is_new_file = True
+
+    if file_exists and os.stat(TRACKING_ORIGIN_FILE).st_size > 0:
+        is_new_file = False
+        try:
+            with open(TRACKING_ORIGIN_FILE, 'r', encoding='utf-8-sig') as f:
+                reader = csv.reader(f)
+                first_row = next(reader, None)
+                if first_row:
+                    # Use the actual headers from the file to ensure column alignment
+                    detected_headers = [h.strip() for h in first_row]
+                    print(f"[DEBUG] Detected existing file headers: {detected_headers}")
+        except Exception as e:
+            print(f"[DEBUG] Could not read existing headers, using default. Error: {e}")
+
+    rows_to_append = []
+    
+    for item in run_data:
+        ticker = item.get('ticker') or item.get('Ticker')
+        if not ticker or ticker == 'Cash': continue
+        
+        price = float(item.get('price') or item.get('live_price') or item.get('Price') or item.get('LivePriceAtEval') or 0.0)
+        shares = float(item.get('shares') or item.get('Shares') or 0.0)
+        
+        if shares > 0:
+            # We construct a dict. DictWriter will map these keys to the Detected Headers positions.
+            rows_to_append.append({
+                'PortfolioCode': portfolio_code,
+                'Ticker': ticker,
+                'Shares': shares,
+                'Price': price,
+                'UserId': user_id or ""
+            })
+
+    if rows_to_append:
+        try:
+            mode = 'w' if is_new_file else 'a'
+            
+            with open(TRACKING_ORIGIN_FILE, mode, newline='', encoding='utf-8-sig') as f:
+                # Initialize DictWriter with the HEADERS WE DETECTED ON DISK
+                writer = csv.DictWriter(f, fieldnames=detected_headers)
+                
+                if mode == 'w':
+                    print("[DEBUG] Writing fresh CSV Headers.")
+                    writer.writeheader()
+                
+                # DictWriter automatically handles the re-ordering of columns based on fieldnames
+                writer.writerows(rows_to_append)
+                f.flush()
+                os.fsync(f.fileno())
+                
+            print(f"[DEBUG] Successfully wrote {len(rows_to_append)} rows to tracking_origin.csv")
+        except Exception as e:
+            print(f"[ERROR] Failed to write origin file: {e}")
 
 async def generate_performance_data(portfolio_code: str, current_holdings: Dict[str, float], user_id: str = None) -> Dict[str, Any]:
     origin_data = await _load_portfolio_origin_data(portfolio_code, user_id)
@@ -101,15 +221,18 @@ async def generate_performance_data(portfolio_code: str, current_holdings: Dict[
         
         if origin:
             origin_price = origin['price']
-            cost_basis = current_shares * origin_price
-            current_val = current_shares * live_price
+            origin_shares = origin['shares']
+            
+            cost_basis = origin_shares * origin_price
+            current_val = origin_shares * live_price
+            
             pnl = current_val - cost_basis
             
             table_rows.append({
                 "ticker": ticker,
                 "origin_price": origin_price,
                 "live_price": live_price,
-                "origin_shares": origin['shares'],
+                "origin_shares": origin_shares,
                 "current_shares": current_shares,
                 "pnl": pnl,
                 "pnl_percent": ((live_price - origin_price) / origin_price * 100) if origin_price > 0 else 0
@@ -128,6 +251,9 @@ async def generate_performance_data(portfolio_code: str, current_holdings: Dict[
     }
 
 async def _send_tracking_email_html(recipient_email: str, subject: str, portfolio_code: str, total_value: float, trade_recs: List[Dict], new_run_data: List[Dict], new_cash: float):
+    # (Email logic remains unchanged)
+    print(f"DEBUG: Initiating Email Send to {recipient_email} for {portfolio_code}")
+    if not os.path.exists(CONFIG_FILE): return False
     try:
         config = configparser.ConfigParser()
         config.read(CONFIG_FILE)
@@ -136,8 +262,7 @@ async def _send_tracking_email_html(recipient_email: str, subject: str, portfoli
         sender_email = config.get('EMAIL_CONFIG', 'SENDER_EMAIL', fallback=None)
         sender_password = config.get('EMAIL_CONFIG', 'SENDER_PASSWORD', fallback=None)
 
-        if not all([smtp_server, smtp_port, sender_email, sender_password, recipient_email]):
-            return False
+        if not all([smtp_server, smtp_port, sender_email, sender_password, recipient_email]): return False
 
         info_blocks_html = ""
         if trade_recs:
@@ -160,26 +285,21 @@ async def _send_tracking_email_html(recipient_email: str, subject: str, portfoli
 
         email_body = f"<html><body style='font-family: Arial, sans-serif; background-color: #1e1f22; color: #f0f0f0; padding: 20px;'><div style='background-color: #2c2f33; padding: 30px; border-radius: 8px;'><h1 style='color: #9400D3;'>Tracking Update: {portfolio_code}</h1><p>Total Portfolio Value: <strong>${total_value:,.2f}</strong></p>{info_blocks_html}<br>{full_table_html}</div></body></html>"
 
-        msg = MIMEMultipart()
-        msg['From'] = sender_email
-        msg['To'] = recipient_email
-        msg['Subject'] = subject
+        msg = MIMEMultipart(); msg['From'] = sender_email; msg['To'] = recipient_email; msg['Subject'] = subject
         msg.attach(MIMEText(email_body, 'html'))
 
         def _send():
             with smtplib.SMTP(smtp_server, smtp_port) as server:
-                server.starttls()
-                server.login(sender_email, sender_password)
-                server.send_message(msg)
+                server.starttls(); server.login(sender_email, sender_password); server.send_message(msg)
         await asyncio.to_thread(_send)
         return True
     except Exception as e:
+        print(f"DEBUG: Email Send Failed: {e}")
         return False
 
 # --- Main Handler ---
 async def handle_tracking_command(args: List[str], ai_params: Optional[Dict] = None, is_called_by_ai: bool = False):
     try:
-        # Lazy Import to avoid circularity - This now works because custom_command has the function
         from integration.custom_command import save_portfolio_to_csv, _save_custom_portfolio_run_to_csv
 
         if not ai_params: return "Error: AI Params required."
@@ -187,15 +307,22 @@ async def handle_tracking_command(args: List[str], ai_params: Optional[Dict] = N
         portfolio_code = ai_params.get("portfolio_code")
         user_id = ai_params.get("user_id")
         
+        print(f"\n--- TRACKING COMMAND START ---\nAction: {action} | Code: {portfolio_code} | UserID: {user_id}")
+        
         if not portfolio_code: return {"status": "error", "message": "Portfolio code is required."}
 
         if action in ["run_analysis", "create_and_run"]:
             portfolio_config = None
             
-            # 1. Determine Fractional Shares Setting
+            # --- FRACTIONAL SHARES LOGIC ---
             raw_frac_param = ai_params.get("use_fractional_shares", False)
-            use_frac_input = str(raw_frac_param).lower() == 'true' if isinstance(raw_frac_param, str) else bool(raw_frac_param)
+            if isinstance(raw_frac_param, str):
+                use_frac = raw_frac_param.lower() == 'true'
+            else:
+                use_frac = bool(raw_frac_param)
             
+            print(f"[DEBUG] Fractional Shares Request: {raw_frac_param} -> Resolving to: {use_frac}")
+
             # 2. Load Config from DB
             if os.path.exists(PORTFOLIO_DB_FILE):
                 try:
@@ -212,16 +339,7 @@ async def handle_tracking_command(args: List[str], ai_params: Optional[Dict] = N
                                     break
                 except Exception: pass
             
-            config_frac = False
-            if portfolio_config:
-                for key in ['frac_shares', 'FracShares', 'use_fractional_shares']:
-                    if str(portfolio_config.get(key, 'false')).lower() == 'true':
-                        config_frac = True
-                        break
-            
-            use_frac = use_frac_input or config_frac
-
-            # 3. Create Config if Not Found (Auto-Create logic)
+            # 3. Create Config if Not Found
             if not portfolio_config:
                 sub_portfolios = ai_params.get("sub_portfolios")
                 if sub_portfolios:
@@ -245,26 +363,34 @@ async def handle_tracking_command(args: List[str], ai_params: Optional[Dict] = N
                 else:
                     return {"status": "not_found", "message": f"Portfolio '{portfolio_code}' not found.", "code": portfolio_code}
 
-            # 4. Load Previous Run & Execute Analysis
+            if portfolio_config:
+                str_bool = 'true' if use_frac else 'false'
+                portfolio_config['frac_shares'] = str_bool
+                portfolio_config['FracShares'] = str_bool
+                portfolio_config['use_fractional_shares'] = str_bool
+
+            # 4. Load Previous Run
             old_run_data = await _load_portfolio_run(portfolio_code, user_id)
+            
+            # [CRITICAL] Self-Heal Origin Data
+            if old_run_data:
+                 await _ensure_origin_data_exists(portfolio_code, old_run_data, user_id)
+
+            # 5. Execute Analysis
             total_value = float(ai_params.get("total_value", 10000))
             
             _, _, final_cash, new_run_data = await process_custom_portfolio(
                 portfolio_data_config=portfolio_config,
                 tailor_portfolio_requested=True,
-                frac_shares_singularity=True, 
+                frac_shares_singularity=use_frac,
                 total_value_singularity=total_value,
                 is_custom_command_simplified_output=True,
                 is_called_by_ai=True
             )
             
-            # 5. Rounding Logic
+            # 6. Rounding Logic
             asset_items = [item for item in new_run_data if item.get('ticker') != 'Cash']
             num_assets = len(asset_items)
-            precision = 0
-            if use_frac:
-                avg_alloc = (total_value / num_assets) if num_assets > 0 else 0
-                precision = 2 if (total_value < 1000 or avg_alloc < 250) else 1
             
             total_invested_after_rounding = 0.0
             
@@ -275,7 +401,12 @@ async def handle_tracking_command(args: List[str], ai_params: Optional[Dict] = N
                     price = float(item.get('price', 0)) or float(item.get('live_price_at_eval', 0))
                     if price == 0 and raw_shares > 0: price = float(item.get('actual_money_allocation', 0)) / raw_shares
                     
-                    new_shares = floor_with_precision(raw_shares, precision)
+                    if not use_frac:
+                        new_shares = math.floor(raw_shares)
+                    else:
+                        precision = 2 if (total_value < 1000 or (total_value/num_assets) < 250) else 1
+                        new_shares = floor_with_precision(raw_shares, precision)
+                        
                     item['shares'] = new_shares
                     new_val = new_shares * price
                     item['actual_money_allocation'] = new_val
@@ -285,7 +416,22 @@ async def handle_tracking_command(args: List[str], ai_params: Optional[Dict] = N
 
             final_cash = total_value - total_invested_after_rounding
 
-            # 6. Trades Calculation
+            # --- SAVE TEMP STATE ---
+            try:
+                temp_path = _get_temp_run_filepath(portfolio_code, user_id)
+                temp_state = {
+                    "new_run_data": new_run_data,
+                    "final_cash": final_cash,
+                    "total_value": total_value,
+                    "user_id": user_id,
+                    "timestamp": str(datetime.datetime.now())
+                }
+                with open(temp_path, 'w') as f:
+                    json.dump(temp_state, f, indent=4)
+            except Exception as e:
+                print(f"[ERROR] Could not save temp run state: {e}")
+
+            # 7. Trades Calculation
             trades = []
             old_holdings_map = {}
             old_prices_at_save = {}
@@ -322,7 +468,7 @@ async def handle_tracking_command(args: List[str], ai_params: Optional[Dict] = N
             since_last_save_table = []
             for ticker, old_price in old_prices_at_save.items():
                 current_price = live_prices.get(ticker, 0.0)
-                shares_held = new_holdings_map.get(ticker, 0.0)
+                shares_held = old_holdings_map.get(ticker, 0.0)
                 if current_price > 0 and shares_held > 0:
                     pnl = (current_price - old_price) * shares_held
                     pct = ((current_price - old_price) / old_price * 100) if old_price > 0 else 0
@@ -342,7 +488,7 @@ async def handle_tracking_command(args: List[str], ai_params: Optional[Dict] = N
                 "comparison": comparison_table,
                 "performance": perf_data.get("rows", []),
                 "since_last_save": since_last_save_table,
-                "raw_result": {"final_cash": final_cash, "trades": trades, "portfolio_code": portfolio_code},
+                "raw_result": {"final_cash": final_cash, "trades": trades, "portfolio_code": portfolio_code, "new_run_data": new_run_data},
             }
 
         elif action == "execute_trades":
@@ -353,8 +499,23 @@ async def handle_tracking_command(args: List[str], ai_params: Optional[Dict] = N
             final_cash = ai_params.get("final_cash", 0.0)
             total_value = ai_params.get("total_value", 0.0)
 
-            execution_log = []
+            if not user_id:
+                safe_code = str(portfolio_code).lower().replace(' ', '_')
+                search_pattern = os.path.join(PORTFOLIO_OUTPUT_DIR, f"temp_latest_{safe_code}_*.json")
+                files = glob.glob(search_pattern)
+                if files:
+                    files.sort(key=os.path.getmtime, reverse=True)
+                    best_file = files[0]
+                    try:
+                        with open(best_file, 'r') as f:
+                            temp_state = json.load(f)
+                            if temp_state.get("user_id"): user_id = temp_state.get("user_id")
+                            if not new_run_data: new_run_data = temp_state.get("new_run_data", [])
+                            if not final_cash: final_cash = temp_state.get("final_cash", 0.0)
+                            if not total_value: total_value = temp_state.get("total_value", 0.0)
+                    except: pass
             
+            execution_log = []
             if ai_params.get("rh_username"):
                 success = await asyncio.to_thread(execute_portfolio_rebalance, trades, ai_params["rh_username"], ai_params["rh_password"])
                 execution_log.append("Trades executed on Robinhood." if success else "Robinhood execution failed.")
@@ -363,6 +524,10 @@ async def handle_tracking_command(args: List[str], ai_params: Optional[Dict] = N
                 subject = f"Tracking Update: {portfolio_code}"
                 await _send_tracking_email_html(email_to, subject, portfolio_code, total_value, trades, new_run_data, final_cash)
                 execution_log.append(f"HTML Email sent to {email_to}.")
+
+            # Ensure Origin Data exists
+            if new_run_data:
+                await _ensure_origin_data_exists(portfolio_code, new_run_data, user_id)
 
             if overwrite and new_run_data:
                 await _save_custom_portfolio_run_to_csv(
@@ -373,8 +538,8 @@ async def handle_tracking_command(args: List[str], ai_params: Optional[Dict] = N
                     is_called_by_ai=True,
                     user_id=user_id
                 )
-                execution_log.append("Save file overwritten.")
-
+                execution_log.append("Save file overwritten successfully.")
+            
             return {"status": "success", "message": "Execution complete.", "log": execution_log}
 
         return {"status": "error", "message": f"Unknown action: {action}"}
