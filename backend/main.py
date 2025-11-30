@@ -163,8 +163,8 @@ async def get_market_data(request: MarketDataRequest):
         tickers = [t.upper().strip() for t in request.tickers if t]
         if not tickers: return []
         
-        # 1. Download 1 Year of data to calculate all timeframes
-        # FIXED: Added auto_adjust=True to resolve FutureWarning
+        # 1. Download 1 Year of data
+        # auto_adjust=True fixes the FutureWarnings regarding price adjustments
         df = yf.download(tickers, period="1y", interval="1d", progress=False, auto_adjust=True)
         
         results = []
@@ -179,28 +179,37 @@ async def get_market_data(request: MarketDataRequest):
 
                 if hist_close.empty: continue
 
+                # Helper to safely get float value (Fixes FutureWarning)
+                def get_val(series, idx):
+                    try:
+                        # .item() converts numpy types to native python floats cleanly
+                        return float(series.iloc[idx].item())
+                    except:
+                        return float(series.iloc[idx])
+
                 # Get Prices
-                current_price = float(hist_close.iloc[-1])
+                current_price = get_val(hist_close, -1)
                 
                 # Calculate Changes
-                # 1 Day
-                price_1d = float(hist_close.iloc[-2]) if len(hist_close) > 1 else current_price
+                price_1d = get_val(hist_close, -2) if len(hist_close) > 1 else current_price
                 change_1d = ((current_price - price_1d) / price_1d) * 100 if price_1d != 0 else 0
                 
-                # 1 Week (approx 5 trading days)
-                price_1w = float(hist_close.iloc[-6]) if len(hist_close) > 6 else float(hist_close.iloc[0])
+                price_1w = get_val(hist_close, -6) if len(hist_close) > 6 else get_val(hist_close, 0)
                 change_1w = ((current_price - price_1w) / price_1w) * 100 if price_1w != 0 else 0
 
-                # 1 Month (approx 21 trading days)
-                price_1m = float(hist_close.iloc[-22]) if len(hist_close) > 22 else float(hist_close.iloc[0])
+                price_1m = get_val(hist_close, -22) if len(hist_close) > 22 else get_val(hist_close, 0)
                 change_1m = ((current_price - price_1m) / price_1m) * 100 if price_1m != 0 else 0
 
-                # 1 Year (start of data)
-                price_1y = float(hist_close.iloc[0])
+                price_1y = get_val(hist_close, 0)
                 change_1y = ((current_price - price_1y) / price_1y) * 100 if price_1y != 0 else 0
 
-                # Sparkline (Last 30 days)
-                sparkline = hist_close.tail(30).tolist()
+                # Sparkline (Fixes 'DataFrame has no attribute tolist')
+                # We ensure we are working with a flat list of values
+                subset = hist_close.tail(30)
+                if isinstance(subset, pd.DataFrame):
+                    sparkline = subset.values.flatten().tolist()
+                else:
+                    sparkline = subset.tolist()
 
                 # Get Metadata (PE, Vol, Cap)
                 mkt_cap = 0
@@ -209,30 +218,29 @@ async def get_market_data(request: MarketDataRequest):
                 
                 try:
                     t = yf.Ticker(ticker)
-                    # Attempt fast info first
                     mkt_cap = t.fast_info.market_cap
                     volume = t.fast_info.last_volume
-                    # PE is usually in .info
                     info = t.info
                     pe_ratio = info.get('trailingPE', 0)
                     if not volume: volume = info.get('volume', 0)
                     if not mkt_cap: mkt_cap = info.get('marketCap', 0)
                 except: 
-                    pass # Keep defaults if fails
+                    pass 
 
                 results.append({
                     "ticker": ticker,
                     "price": current_price,
-                    "change": change_1d,    # 1D
-                    "change1W": change_1w,  # 1W
-                    "change1M": change_1m,  # 1M
-                    "change1Y": change_1y,  # 1Y
+                    "change": change_1d,
+                    "change1W": change_1w,
+                    "change1M": change_1m,
+                    "change1Y": change_1y,
                     "marketCap": mkt_cap,
                     "volume": volume,
                     "peRatio": pe_ratio,
                     "sparkline": sparkline
                 })
             except Exception as e: 
+                # This log helps identify which specific ticker is failing
                 print(f"Error processing {ticker}: {e}")
                 continue
                 
@@ -240,7 +248,7 @@ async def get_market_data(request: MarketDataRequest):
     except Exception as e:
         print(f"Global Market Data Error: {e}")
         return []
-
+    
 @app.post("/api/market-data/details")
 async def get_market_data_details(request: MarketDataRequest):
     """
