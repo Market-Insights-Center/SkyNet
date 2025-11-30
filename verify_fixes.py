@@ -2,7 +2,7 @@ import requests
 import json
 import time
 
-BASE_URL = "http://localhost:8000/api"
+BASE_URL = "/api"
 
 def test_stats():
     print("Testing /api/stats...")

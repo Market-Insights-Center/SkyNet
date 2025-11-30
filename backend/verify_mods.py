@@ -1,7 +1,7 @@
 import requests
 import json
 
-BASE_URL = "http://localhost:8000"
+BASE_URL = ""
 SUPER_ADMIN = "marketinsightscenter@gmail.com"
 
 def test_get_mods():

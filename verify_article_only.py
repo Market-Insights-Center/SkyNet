@@ -1,7 +1,7 @@
 import requests
 import json
 
-BASE_URL = "http://localhost:8000/api"
+BASE_URL = "/api"
 
 def test_get_article():
     print("\nTesting Get Single Article...")

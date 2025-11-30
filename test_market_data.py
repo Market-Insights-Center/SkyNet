@@ -3,7 +3,7 @@ import json
 
 try:
     response = requests.post(
-        "http://localhost:8000/api/market-data",
+        "/api/market-data",
         json={"tickers": ["AAPL"]},
         headers={"Content-Type": "application/json"}
     )

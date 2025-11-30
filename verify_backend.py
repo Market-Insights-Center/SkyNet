@@ -2,7 +2,7 @@ import requests
 import json
 
 def test_invest():
-    url = "http://localhost:8000/api/invest"
+    url = "/api/invest"
     payload = {
         "ema_sensitivity": 2,
         "amplification": 1.0,
