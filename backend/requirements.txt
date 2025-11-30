@@ -1,8 +1,23 @@
+# Core API Framework
 fastapi
 uvicorn
 pydantic
+python-multipart
+
+# Data Handling & Analysis
 pandas
 numpy
-firebase-admin
 yfinance
-python-multipart
+pytz
+lxml
+requests
+
+# Visualization & Formatting
+matplotlib
+tabulate
+
+# Trading & External Services
+firebase-admin
+robin_stocks
+pyotp
+tradingview-screener
