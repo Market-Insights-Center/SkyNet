@@ -1,372 +1,179 @@
 import React, { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { 
+    Users, TrendingUp, Shield, Activity, Search, Edit2, 
+    Save, X, Check, Trash2, Tag, Plus, FileText, Lightbulb 
+} from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import { Shield, FileText, Users, Trash2, Edit, Plus, Save, X, Eye, Lightbulb, MessageSquare, ChevronDown, ChevronUp } from 'lucide-react';
 
 const AdminDashboard = () => {
     const { currentUser } = useAuth();
     const navigate = useNavigate();
-    const [activeTab, setActiveTab] = useState('articles');
-    const [articles, setArticles] = useState([]);
-    const [users, setUsers] = useState([]);
-    const [mods, setMods] = useState([]);
-    const [ideas, setIdeas] = useState([]);
-    const [loading, setLoading] = useState(true);
-    const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+    const [activeTab, setActiveTab] = useState('overview');
     
-    // State for toggling comment views in Ideas tab
-    const [expandedIdeaId, setExpandedIdeaId] = useState(null);
-
-    // Article Form State
-    const [editingArticle, setEditingArticle] = useState(null);
-    const [newArticle, setNewArticle] = useState({ title: '', subheading: '', content: '', category: 'Market', author: 'M.I.C. Team', cover_image: '', hashtags: '' });
-    const [showArticleForm, setShowArticleForm] = useState(false);
-
-    // User Edit State
-    const [editingUser, setEditingUser] = useState(null);
-    const [viewingProfile, setViewingProfile] = useState(null);
-
-    // Mod Form State
+    const [users, setUsers] = useState([]);
+    const [coupons, setCoupons] = useState([]);
+    const [articles, setArticles] = useState([]);
+    const [ideas, setIdeas] = useState([]);
+    const [mods, setMods] = useState([]);
+    const [stats, setStats] = useState({ totalUsers: 0, proUsers: 0, activeTrials: 0 });
+    const [searchTerm, setSearchTerm] = useState('');
     const [newModEmail, setNewModEmail] = useState('');
 
+    const [editingUser, setEditingUser] = useState(null);
+    const [newTier, setNewTier] = useState('');
+    const [showCouponModal, setShowCouponModal] = useState(false);
+    const [newCoupon, setNewCoupon] = useState({ code: '', plan_id: '', tier: 'Visionary', discount_label: '20% OFF' });
+
+    // --- SECURITY CHECK ---
     useEffect(() => {
-        if (currentUser) {
-            setIsSuperAdmin(currentUser.email === 'marketinsightscenter@gmail.com');
-            fetchData();
-        } else {
-            navigate('/login');
-        }
+        if (!currentUser) { navigate('/'); return; }
+        fetch('/api/mods')
+            .then(res => res.json())
+            .then(data => {
+                const myEmail = currentUser.email.toLowerCase();
+                const allowed = data.mods.map(m => m.toLowerCase());
+                if (!allowed.includes(myEmail)) navigate('/');
+            })
+            .catch(() => navigate('/'));
     }, [currentUser, navigate]);
 
-    const fetchData = async () => {
-        setLoading(true);
-        try {
-            const [articlesRes, usersRes, modsRes, ideasRes] = await Promise.all([
-                fetch('/api/articles?limit=100'),
-                fetch('/api/users'),
-                fetch('/api/mods'),
-                fetch('/api/ideas?limit=100')
-            ]);
+    useEffect(() => {
+        if (!currentUser) return;
+        fetch('/api/users').then(res => res.json()).then(data => {
+            if (Array.isArray(data)) {
+                setUsers(data);
+                setStats({
+                    totalUsers: data.length,
+                    proUsers: data.filter(u => u.tier === 'Visionary' || u.tier === 'Institutional').length,
+                    activeTrials: data.filter(u => u.subscription_status === 'trialling').length
+                });
+            }
+        });
+        
+        if (currentUser) {
+            fetch(`/api/admin/coupons?email=${currentUser.email}`).then(res => res.json()).then(data => setCoupons(Array.isArray(data) ? data : [])).catch(() => setCoupons([]));
+            fetch('/api/articles').then(res => res.json()).then(data => setArticles(Array.isArray(data) ? data : [])).catch(() => setArticles([]));
+            fetch('/api/ideas').then(res => res.json()).then(data => setIdeas(Array.isArray(data) ? data : [])).catch(() => setIdeas([]));
+            fetch('/api/mods').then(res => res.json()).then(data => setMods(Array.isArray(data.mods) ? data.mods : [])).catch(() => setMods([]));
+        }
+    }, [currentUser]);
 
-            const articlesData = await articlesRes.json();
-            const usersData = await usersRes.json();
-            const modsData = await modsRes.json();
-            const ideasData = await ideasRes.json();
-
-            setArticles(articlesData);
-            setUsers(usersData);
-            setMods(modsData.mods || []);
-            setIdeas(ideasData || []);
-        } catch (error) {
-            console.error("Error fetching admin data:", error);
-        } finally {
-            setLoading(false);
+    const handleUpdateTier = async () => {
+        const res = await fetch('/api/admin/users/update', {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ target_email: editingUser.email, new_tier: newTier, requester_email: currentUser.email })
+        });
+        if (res.ok) {
+            setUsers(users.map(u => u.email === editingUser.email ? { ...u, tier: newTier } : u));
+            setEditingUser(null);
         }
     };
 
-    // --- Article Management ---
-
-    const handleArticleSubmit = async (e) => {
-        e.preventDefault();
-        const articleData = editingArticle || newArticle;
-        if (!articleData.title || !articleData.content) return;
-
-        let processedData = { ...articleData };
-        if (typeof processedData.hashtags === 'string') {
-            processedData.hashtags = processedData.hashtags.split(',').map(tag => tag.trim());
+    const handleDeleteUser = async (email) => {
+        if (!window.confirm(`Are you sure you want to PERMANENTLY delete ${email}?`)) return;
+        const res = await fetch('/api/admin/users/delete', {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ target_email: email, requester_email: currentUser.email })
+        });
+        if (res.ok) {
+            setUsers(users.filter(u => u.email !== email));
+        } else {
+            alert("Failed to delete user. Ensure you have permission.");
         }
+    };
 
+    const handleCreateCoupon = async () => {
         try {
-            const response = await fetch('/api/articles', {
+            const res = await fetch('/api/admin/coupons/create', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(processedData)
-            });
-
-            if (response.ok) {
-                fetchData();
-                setShowArticleForm(false);
-                setEditingArticle(null);
-                setNewArticle({ title: '', subheading: '', content: '', category: 'Market', author: 'M.I.C. Team', cover_image: '', hashtags: '' });
-            }
-        } catch (error) {
-            console.error("Error saving article:", error);
-        }
-    };
-
-    const handleDeleteArticle = async (id) => {
-        if (!window.confirm("Are you sure you want to delete this article?")) return;
-        try {
-            await fetch(`/api/articles/${id}`, { method: 'DELETE' });
-            fetchData();
-        } catch (error) {
-            console.error("Error deleting article:", error);
-        }
-    };
-
-    // --- User Management ---
-
-    const handleUserUpdate = async (e) => {
-        e.preventDefault();
-        try {
-            const response = await fetch('/api/users', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    email: editingUser.email,
-                    subscription_plan: editingUser.subscription_plan,
-                    cost: parseFloat(editingUser.subscription_cost || editingUser.cost)
-                })
-            });
-            if (response.ok) {
-                setEditingUser(null);
-                fetchData();
-            }
-        } catch (error) {
-            console.error("Error updating user:", error);
-        }
-    };
-
-    // --- Ideas & Comments Management ---
-
-    const handleDeleteIdea = async (id) => {
-        if (!window.confirm("Are you sure you want to delete this idea? This cannot be undone.")) return;
-        try {
-            const res = await fetch(`/api/ideas/${id}`, {
-                method: 'DELETE'
+                body: JSON.stringify({ ...newCoupon, requester_email: currentUser.email })
             });
             if (res.ok) {
-                fetchData();
-            } else {
-                alert("Failed to delete idea");
-            }
-        } catch (error) {
-            console.error("Error deleting idea:", error);
-        }
+                setCoupons([...coupons, { ...newCoupon, active: true }]);
+                setShowCouponModal(false);
+            } else alert("Failed to create coupon");
+        } catch (error) { console.error(error); }
     };
 
-    const handleDeleteComment = async (commentId) => {
-        if (!window.confirm("Delete this comment permanently?")) return;
+    const handleModAction = async (email, action) => {
         try {
-            const res = await fetch(`/api/comments/${commentId}`, {
-                method: 'DELETE'
-            });
-            if (res.ok) {
-                // Refresh data to update the comment list
-                fetchData();
-            } else {
-                alert("Failed to delete comment");
-            }
-        } catch (error) {
-            console.error("Error deleting comment:", error);
-        }
-    };
-
-    // --- Mod Management ---
-
-    const handleAddMod = async (e) => {
-        e.preventDefault();
-        if (!newModEmail) return;
-        try {
-            await fetch('/api/mods', {
+            const res = await fetch('/api/mods', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ email: newModEmail, action: 'add', requester_email: currentUser.email })
+                body: JSON.stringify({ email, action, requester_email: currentUser.email })
             });
-            setNewModEmail('');
-            fetchData();
-        } catch (error) {
-            console.error("Error adding mod:", error);
-        }
+            const data = await res.json();
+            if (data.status === 'success') {
+                setMods(data.mods);
+                setNewModEmail('');
+            } else alert(data.detail);
+        } catch (error) { alert("Action failed"); }
     };
 
-    const handleRemoveMod = async (email) => {
-        if (!window.confirm(`Remove ${email} as moderator?`)) return;
-        try {
-            await fetch('/api/mods', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ email: email, action: 'remove', requester_email: currentUser.email })
-            });
-            fetchData();
-        } catch (error) {
-            console.error("Error removing mod:", error);
-        }
-    };
+    const filteredUsers = users.filter(u => u.email.toLowerCase().includes(searchTerm.toLowerCase()));
 
-    if (loading) return <div className="min-h-screen bg-deep-black flex items-center justify-center text-white">Loading...</div>;
+    const TabButton = ({ id, label, icon: Icon }) => (
+        <button onClick={() => setActiveTab(id)} className={`px-4 py-2 rounded-lg font-bold flex items-center gap-2 ${activeTab === id ? 'bg-gold text-black' : 'bg-white/10 text-gray-300'}`}>
+            <Icon size={16} /> {label}
+        </button>
+    );
 
     return (
-        <div className="min-h-screen bg-deep-black text-white pt-24 px-4 pb-20">
+        <div className="min-h-screen bg-black text-white p-8 pt-24">
             <div className="max-w-7xl mx-auto">
-                <div className="flex items-center justify-between mb-8">
-                    <h1 className="text-3xl font-bold flex items-center gap-3">
-                        <Shield className="text-gold" /> Admin Dashboard
-                    </h1>
-                    <div className="flex gap-4">
-                        <button onClick={() => setActiveTab('articles')} className={`px-4 py-2 rounded-lg transition-colors ${activeTab === 'articles' ? 'bg-gold text-black font-bold' : 'bg-white/5 hover:bg-white/10'}`}>Articles</button>
-                        <button onClick={() => setActiveTab('ideas')} className={`px-4 py-2 rounded-lg transition-colors ${activeTab === 'ideas' ? 'bg-gold text-black font-bold' : 'bg-white/5 hover:bg-white/10'}`}>Ideas</button>
-                        <button onClick={() => setActiveTab('users')} className={`px-4 py-2 rounded-lg transition-colors ${activeTab === 'users' ? 'bg-gold text-black font-bold' : 'bg-white/5 hover:bg-white/10'}`}>Users</button>
-                        {isSuperAdmin && (
-                            <button onClick={() => setActiveTab('mods')} className={`px-4 py-2 rounded-lg transition-colors ${activeTab === 'mods' ? 'bg-gold text-black font-bold' : 'bg-white/5 hover:bg-white/10'}`}>Moderators</button>
-                        )}
+                <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
+                    <div>
+                        <h1 className="text-3xl font-bold text-gold mb-2">Admin Command Center</h1>
+                        <p className="text-gray-400">Manage users, subscriptions, and platform content.</p>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                        <TabButton id="overview" label="Overview" icon={Activity} />
+                        <TabButton id="users" label="Users" icon={Users} />
+                        <TabButton id="coupons" label="Coupons" icon={Tag} />
+                        <TabButton id="articles" label="Articles" icon={FileText} />
+                        <TabButton id="ideas" label="Ideas" icon={Lightbulb} />
+                        <TabButton id="mods" label="Moderators" icon={Shield} />
                     </div>
                 </div>
 
-                {/* Articles Tab */}
-                {activeTab === 'articles' && (
-                    <div>
-                        <div className="flex justify-between items-center mb-6">
-                            <h2 className="text-xl font-bold">Manage Articles</h2>
-                            <button onClick={() => { setEditingArticle(null); setShowArticleForm(true); }} className="flex items-center gap-2 bg-purple-600 hover:bg-purple-500 px-4 py-2 rounded-lg transition-colors">
-                                <Plus size={18} /> New Article
-                            </button>
+                {activeTab === 'overview' && (
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
+                        <div className="bg-white/5 p-6 rounded-xl border border-white/10">
+                            <div className="flex items-center gap-4 mb-2"><Users className="text-gold" /><span className="text-gray-400">Total Users</span></div>
+                            <p className="text-3xl font-bold">{stats.totalUsers}</p>
                         </div>
-
-                        {showArticleForm && (
-                            <div className="bg-white/5 border border-white/10 rounded-xl p-6 mb-8">
-                                <h3 className="text-lg font-bold mb-4">{editingArticle ? 'Edit Article' : 'Create New Article'}</h3>
-                                <form onSubmit={handleArticleSubmit} className="space-y-4">
-                                    <div><label className="block text-sm text-gray-400 mb-1">Title</label><input type="text" value={editingArticle ? editingArticle.title : newArticle.title} onChange={(e) => editingArticle ? setEditingArticle({ ...editingArticle, title: e.target.value }) : setNewArticle({ ...newArticle, title: e.target.value })} className="w-full bg-black/50 border border-white/10 rounded px-3 py-2 text-white focus:border-gold outline-none" required /></div>
-                                    <div><label className="block text-sm text-gray-400 mb-1">Subheading</label><input type="text" value={editingArticle ? editingArticle.subheading : newArticle.subheading} onChange={(e) => editingArticle ? setEditingArticle({ ...editingArticle, subheading: e.target.value }) : setNewArticle({ ...newArticle, subheading: e.target.value })} className="w-full bg-black/50 border border-white/10 rounded px-3 py-2 text-white focus:border-gold outline-none" /></div>
-                                    <div><label className="block text-sm text-gray-400 mb-1">Content</label><textarea value={editingArticle ? editingArticle.content : newArticle.content} onChange={(e) => editingArticle ? setEditingArticle({ ...editingArticle, content: e.target.value }) : setNewArticle({ ...newArticle, content: e.target.value })} className="w-full bg-black/50 border border-white/10 rounded px-3 py-2 text-white focus:border-gold outline-none min-h-[200px]" required /></div>
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <div><label className="block text-sm text-gray-400 mb-1">Category</label><input type="text" value={editingArticle ? editingArticle.category : newArticle.category} onChange={(e) => editingArticle ? setEditingArticle({ ...editingArticle, category: e.target.value }) : setNewArticle({ ...newArticle, category: e.target.value })} className="w-full bg-black/50 border border-white/10 rounded px-3 py-2 text-white focus:border-gold outline-none" /></div>
-                                        <div><label className="block text-sm text-gray-400 mb-1">Cover Image URL</label><input type="text" value={editingArticle ? editingArticle.cover_image : newArticle.cover_image} onChange={(e) => editingArticle ? setEditingArticle({ ...editingArticle, cover_image: e.target.value }) : setNewArticle({ ...newArticle, cover_image: e.target.value })} className="w-full bg-black/50 border border-white/10 rounded px-3 py-2 text-white focus:border-gold outline-none" /></div>
-                                    </div>
-                                    <div><label className="block text-sm text-gray-400 mb-1">Hashtags</label><input type="text" value={editingArticle ? (Array.isArray(editingArticle.hashtags) ? editingArticle.hashtags.join(', ') : editingArticle.hashtags) : newArticle.hashtags} onChange={(e) => editingArticle ? setEditingArticle({ ...editingArticle, hashtags: e.target.value }) : setNewArticle({ ...newArticle, hashtags: e.target.value })} className="w-full bg-black/50 border border-white/10 rounded px-3 py-2 text-white focus:border-gold outline-none" placeholder="e.g., AI, Crypto" /></div>
-                                    <div className="flex justify-end gap-4 pt-4">
-                                        <button type="button" onClick={() => setShowArticleForm(false)} className="px-4 py-2 text-gray-400 hover:text-white">Cancel</button>
-                                        <button type="submit" className="bg-gold text-black font-bold px-6 py-2 rounded hover:bg-yellow-500">Save Article</button>
-                                    </div>
-                                </form>
-                            </div>
-                        )}
-                        <div className="grid gap-4">
-                            {articles.map(article => (
-                                <div key={article.id} className="bg-white/5 border border-white/10 p-4 rounded-lg flex justify-between items-center">
-                                    <div><h3 className="font-bold text-lg">{article.title}</h3><p className="text-sm text-gray-400">{article.date} • {article.author}</p></div>
-                                    <div className="flex gap-2">
-                                        <button onClick={() => { setEditingArticle(article); setShowArticleForm(true); }} className="p-2 text-blue-400 hover:bg-blue-500/10 rounded"><Edit size={18} /></button>
-                                        <button onClick={() => handleDeleteArticle(article.id)} className="p-2 text-red-400 hover:bg-red-500/10 rounded"><Trash2 size={18} /></button>
-                                    </div>
-                                </div>
-                            ))}
+                        <div className="bg-white/5 p-6 rounded-xl border border-white/10">
+                            <div className="flex items-center gap-4 mb-2"><Shield className="text-gold" /><span className="text-gray-400">Paid Subscribers</span></div>
+                            <p className="text-3xl font-bold">{stats.proUsers}</p>
+                        </div>
+                        <div className="bg-white/5 p-6 rounded-xl border border-white/10">
+                            <div className="flex items-center gap-4 mb-2"><Activity className="text-gold" /><span className="text-gray-400">Active Trials</span></div>
+                            <p className="text-3xl font-bold">{stats.activeTrials}</p>
                         </div>
                     </div>
                 )}
 
-                {/* Ideas Tab */}
-                {activeTab === 'ideas' && (
-                    <div>
-                        <h2 className="text-xl font-bold mb-6">Manage Community Ideas</h2>
-                        <div className="grid gap-4">
-                            {ideas.length > 0 ? (
-                                ideas.map(idea => (
-                                    <div key={idea.id} className="bg-white/5 border border-white/10 rounded-lg overflow-hidden">
-                                        <div className="p-4 flex justify-between items-center bg-white/5">
-                                            <div className="flex items-center gap-4">
-                                                <div className="w-12 h-12 bg-white/10 rounded flex items-center justify-center text-gold font-bold">
-                                                    {idea.ticker || 'N/A'}
-                                                </div>
-                                                <div>
-                                                    <h3 className="font-bold text-lg">{idea.title}</h3>
-                                                    <p className="text-sm text-gray-400">By {idea.author} • {idea.date}</p>
-                                                </div>
-                                            </div>
-                                            <div className="flex items-center gap-4">
-                                                <div className="text-sm text-gray-400 hidden md:flex gap-4">
-                                                    <span>Likes: {idea.likes || 0}</span>
-                                                    <span>Dislikes: {idea.dislikes || 0}</span>
-                                                </div>
-                                                <div className="flex items-center gap-2">
-                                                    <button 
-                                                        onClick={() => setExpandedIdeaId(expandedIdeaId === idea.id ? null : idea.id)}
-                                                        className={`flex items-center gap-1 text-xs px-3 py-1.5 rounded transition-colors ${expandedIdeaId === idea.id ? 'bg-gold text-black font-bold' : 'bg-white/10 hover:bg-white/20 text-gray-300'}`}
-                                                    >
-                                                        <MessageSquare size={14} /> 
-                                                        {idea.comments ? idea.comments.length : 0} Comments
-                                                        {expandedIdeaId === idea.id ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-                                                    </button>
-                                                    <button
-                                                        onClick={() => handleDeleteIdea(idea.id)}
-                                                        className="p-2 text-red-400 hover:bg-red-500/10 rounded border border-red-500/30"
-                                                        title="Delete Idea"
-                                                    >
-                                                        <Trash2 size={18} />
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                        {/* Comments Section */}
-                                        {expandedIdeaId === idea.id && (
-                                            <div className="bg-black/20 p-4 border-t border-white/10">
-                                                <h4 className="text-sm font-bold text-gray-400 mb-3 uppercase tracking-wider">Comments</h4>
-                                                {idea.comments && idea.comments.length > 0 ? (
-                                                    <div className="space-y-2">
-                                                        {idea.comments.map((comment, index) => (
-                                                            <div key={comment.id || index} className="flex justify-between items-start bg-white/5 p-3 rounded border border-white/5 hover:border-white/10 transition-colors">
-                                                                <div>
-                                                                    <div className="flex items-center gap-2 mb-1">
-                                                                        <span className="text-gold font-bold text-sm">{comment.user}</span>
-                                                                        <span className="text-xs text-gray-500">{comment.date}</span>
-                                                                    </div>
-                                                                    <p className="text-gray-300 text-sm">{comment.text}</p>
-                                                                </div>
-                                                                <button
-                                                                    onClick={() => handleDeleteComment(comment.id)}
-                                                                    className="text-gray-500 hover:text-red-400 p-1 rounded hover:bg-red-500/10 transition-colors"
-                                                                    title="Delete Comment"
-                                                                >
-                                                                    <Trash2 size={16} />
-                                                                </button>
-                                                            </div>
-                                                        ))}
-                                                    </div>
-                                                ) : (
-                                                    <p className="text-gray-500 text-sm italic">No comments on this idea yet.</p>
-                                                )}
-                                            </div>
-                                        )}
-                                    </div>
-                                ))
-                            ) : (
-                                <div className="text-gray-500 text-center py-8">No ideas found.</div>
-                            )}
-                        </div>
-                    </div>
-                )}
-
-                {/* Users Tab */}
                 {activeTab === 'users' && (
-                    <div>
-                        <h2 className="text-xl font-bold mb-6">User Management</h2>
-                        {viewingProfile && (
-                            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4">
-                                <div className="bg-[#1a1a1a] p-8 rounded-xl max-w-2xl w-full border border-gold/30 relative">
-                                    <button onClick={() => setViewingProfile(null)} className="absolute top-4 right-4 text-gray-400 hover:text-white"><X size={24} /></button>
-                                    <h3 className="text-2xl font-bold text-gold mb-6">User Profile: {viewingProfile.email}</h3>
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-gray-300 max-h-[60vh] overflow-y-auto custom-scrollbar">
-                                        {Object.entries(viewingProfile).map(([key, val]) => (
-                                            key !== 'email' && (<div key={key} className="border-b border-white/10 pb-2"><span className="text-gray-500 block text-xs uppercase tracking-wider mb-1">{key.replace(/_/g, ' ')}</span><span className="font-bold text-white">{val}</span></div>)
-                                        ))}
-                                    </div>
-                                </div>
-                            </div>
-                        )}
+                    <div className="bg-white/5 rounded-xl border border-white/10 overflow-hidden">
+                        <div className="p-4 border-b border-white/10 flex items-center gap-4">
+                            <Search className="text-gray-400" size={20} />
+                            <input type="text" placeholder="Search users by email..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="bg-transparent border-none outline-none text-white w-full" />
+                        </div>
                         <div className="overflow-x-auto">
-                            <table className="w-full text-left border-collapse">
-                                <thead><tr className="border-b border-white/10 text-gray-400"><th className="p-4">Email</th><th className="p-4">Tier</th><th className="p-4">Cost</th><th className="p-4">Actions</th></tr></thead>
-                                <tbody>
-                                    {users.map((user, i) => (
-                                        <tr key={i} className="border-b border-white/5 hover:bg-white/5">
+                            <table className="w-full text-left">
+                                <thead className="bg-white/5 text-gray-400 text-sm"><tr><th className="p-4">Email</th><th className="p-4">Tier</th><th className="p-4">Status</th><th className="p-4">Actions</th></tr></thead>
+                                <tbody className="divide-y divide-white/5">
+                                    {filteredUsers.map(user => (
+                                        <tr key={user.email} className="hover:bg-white/5 transition-colors">
                                             <td className="p-4">{user.email}</td>
-                                            <td className="p-4">{editingUser?.email === user.email ? <input value={editingUser.subscription_plan} onChange={(e) => setEditingUser({ ...editingUser, subscription_plan: e.target.value })} className="bg-black/50 border border-white/10 rounded px-2 py-1 text-white w-full" /> : <span className={`px-2 py-1 rounded text-xs font-bold ${user.subscription_plan === 'Institutional' ? 'bg-purple-500/20 text-purple-400' : 'bg-gray-500/20 text-gray-400'}`}>{user.subscription_plan || 'Free'}</span>}</td>
-                                            <td className="p-4">{editingUser?.email === user.email ? <input type="number" value={editingUser.subscription_cost || editingUser.cost} onChange={(e) => setEditingUser({ ...editingUser, cost: e.target.value })} className="bg-black/50 border border-white/10 rounded px-2 py-1 text-white w-24" /> : `$${user.subscription_cost || user.cost || 0}`}</td>
+                                            <td className="p-4"><span className={`px-2 py-1 rounded text-xs font-bold ${user.tier === 'Singularity' ? 'bg-purple-900 text-purple-200' : user.tier === 'Visionary' ? 'bg-gold/20 text-gold' : 'bg-gray-700 text-gray-300'}`}>{user.tier}</span></td>
+                                            <td className="p-4 text-sm text-gray-400">{user.subscription_status || 'none'}</td>
                                             <td className="p-4 flex gap-2">
-                                                {editingUser?.email === user.email ? <button onClick={handleUserUpdate} className="p-2 text-green-400 hover:bg-green-500/10 rounded"><Save size={18} /></button> : <button onClick={() => setEditingUser(user)} className="p-2 text-blue-400 hover:bg-blue-500/10 rounded"><Edit size={18} /></button>}
-                                                {user.profile && <button onClick={() => setViewingProfile(user.profile)} className="p-2 text-gold hover:bg-gold/10 rounded"><Eye size={18} /></button>}
+                                                <button onClick={() => { setEditingUser(user); setNewTier(user.tier); }} className="p-2 hover:bg-white/10 rounded-lg text-gold"><Edit2 size={16} /></button>
+                                                <button onClick={() => handleDeleteUser(user.email)} className="p-2 hover:bg-white/10 rounded-lg text-red-500"><Trash2 size={16} /></button>
                                             </td>
                                         </tr>
                                     ))}
@@ -376,18 +183,109 @@ const AdminDashboard = () => {
                     </div>
                 )}
 
-                {/* Mods Tab */}
-                {activeTab === 'mods' && isSuperAdmin && (
+                {/* Other Tabs (Same as before) */}
+                {activeTab === 'coupons' && (
                     <div>
+                        <div className="flex justify-end mb-4"><button onClick={() => setShowCouponModal(true)} className="bg-gold text-black px-4 py-2 rounded-lg font-bold flex items-center gap-2 hover:bg-yellow-500"><Plus size={18} /> Create Coupon</button></div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                            {coupons.map(c => (
+                                <div key={c.code} className="bg-white/5 p-6 rounded-xl border border-white/10 relative">
+                                    <div className="absolute top-4 right-4"><Tag className="text-gold/20" size={40} /></div>
+                                    <h3 className="text-xl font-bold text-white mb-1">{c.code}</h3>
+                                    <p className="text-gold font-bold mb-4">{c.discount_label}</p>
+                                    <div className="text-sm text-gray-400"><p>Tier: {c.applicable_tier}</p><p title={c.plan_id} className="truncate">ID: {c.plan_id}</p></div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
+                {activeTab === 'articles' && (
+                    <div className="bg-white/5 rounded-xl border border-white/10 p-6">
+                        <h2 className="text-xl font-bold mb-4">Published Articles</h2>
+                        <div className="space-y-2">
+                            {articles.map(a => (
+                                <div key={a.id} className="p-4 bg-black/40 rounded border border-white/5 flex justify-between items-center">
+                                    <div><h3 className="font-bold">{a.title}</h3><p className="text-sm text-gray-400">By {a.author} • {a.date}</p></div>
+                                    <div className="text-sm text-gray-500">ID: {a.id}</div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
+                {activeTab === 'ideas' && (
+                    <div className="bg-white/5 rounded-xl border border-white/10 p-6">
+                        <h2 className="text-xl font-bold mb-4">Community Ideas</h2>
+                        <div className="space-y-2">
+                            {ideas.map(i => (
+                                <div key={i.id} className="p-4 bg-black/40 rounded border border-white/5 flex justify-between items-center">
+                                    <div><h3 className="font-bold">{i.title} <span className="text-gold">({i.ticker})</span></h3><p className="text-sm text-gray-400">By {i.author}</p></div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
+                {activeTab === 'mods' && (
+                    <div className="bg-white/5 rounded-xl border border-white/10 p-6 max-w-2xl">
                         <h2 className="text-xl font-bold mb-6">Moderator Management</h2>
-                        <form onSubmit={handleAddMod} className="flex gap-4 mb-8">
-                            <input type="email" value={newModEmail} onChange={(e) => setNewModEmail(e.target.value)} placeholder="Enter email" className="flex-1 bg-black/50 border border-white/10 rounded px-4 py-2 text-white focus:border-gold outline-none" required />
-                            <button type="submit" className="bg-gold text-black font-bold px-6 py-2 rounded hover:bg-yellow-500">Add Moderator</button>
-                        </form>
-                        <div className="space-y-2">{mods.map((mod, i) => (<div key={i} className="bg-white/5 border border-white/10 p-4 rounded-lg flex justify-between items-center"><span className="font-mono">{mod}</span>{mod !== 'marketinsightscenter@gmail.com' && <button onClick={() => handleRemoveMod(mod)} className="text-red-400 hover:text-red-300 text-sm font-bold">Remove</button>}</div>))}</div>
+                        <div className="flex gap-4 mb-8">
+                            <input value={newModEmail} onChange={e => setNewModEmail(e.target.value)} placeholder="Enter email to add as moderator" className="flex-1 bg-black border border-white/10 rounded px-4 py-2 text-white" />
+                            <button onClick={() => handleModAction(newModEmail, 'add')} className="bg-gold text-black px-4 py-2 rounded font-bold">Add Mod</button>
+                        </div>
+                        <div className="space-y-2">
+                            {mods.map(email => (
+                                <div key={email} className="flex justify-between items-center p-3 bg-black/40 rounded border border-white/5">
+                                    <span>{email}</span>
+                                    {email !== 'marketinsightscenter@gmail.com' && (
+                                        <button onClick={() => handleModAction(email, 'remove')} className="text-red-500 hover:text-red-400"><Trash2 size={18} /></button>
+                                    )}
+                                </div>
+                            ))}
+                        </div>
                     </div>
                 )}
             </div>
+
+            {/* Edit User Modal */}
+            <AnimatePresence>
+                {editingUser && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
+                        <div className="bg-gray-900 border border-white/10 p-8 rounded-xl w-full max-w-md">
+                            <h3 className="text-xl font-bold mb-6">Edit User Subscription</h3>
+                            <div className="space-y-4 mb-8">
+                                <div><label className="block text-sm text-gray-400 mb-1">Email</label><input disabled value={editingUser.email} className="w-full bg-white/5 border border-white/10 rounded px-3 py-2 text-gray-500" /></div>
+                                <div>
+                                    <label className="block text-sm text-gray-400 mb-1">Tier</label>
+                                    <select value={newTier} onChange={(e) => setNewTier(e.target.value)} className="w-full bg-black border border-white/10 rounded px-3 py-2 text-white">
+                                        <option value="Free">Free</option><option value="Visionary">Visionary</option><option value="Institutional">Institutional</option><option value="Singularity">Singularity</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div className="flex justify-end gap-3"><button onClick={() => setEditingUser(null)} className="px-4 py-2 text-gray-400">Cancel</button><button onClick={handleUpdateTier} className="px-4 py-2 bg-gold text-black rounded font-bold">Save Changes</button></div>
+                        </div>
+                    </div>
+                )}
+            </AnimatePresence>
+
+            {/* Create Coupon Modal */}
+            <AnimatePresence>
+                {showCouponModal && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
+                        <div className="bg-gray-900 border border-white/10 p-8 rounded-xl w-full max-w-md">
+                            <h3 className="text-xl font-bold mb-6">Create Coupon</h3>
+                            <div className="space-y-4 mb-8">
+                                <div><label className="block text-sm text-gray-400 mb-1">Code</label><input value={newCoupon.code} onChange={e => setNewCoupon({...newCoupon, code: e.target.value.toUpperCase()})} className="w-full bg-black border border-white/10 rounded px-3 py-2 text-white" placeholder="e.g. SAVE20" /></div>
+                                <div><label className="block text-sm text-gray-400 mb-1">Label</label><input value={newCoupon.discount_label} onChange={e => setNewCoupon({...newCoupon, discount_label: e.target.value})} className="w-full bg-black border border-white/10 rounded px-3 py-2 text-white" placeholder="e.g. 20% OFF" /></div>
+                                <div><label className="block text-sm text-gray-400 mb-1">Tier</label><select value={newCoupon.tier} onChange={e => setNewCoupon({...newCoupon, tier: e.target.value})} className="w-full bg-black border border-white/10 rounded px-3 py-2 text-white"><option value="Visionary">Visionary</option><option value="Institutional">Institutional</option></select></div>
+                                <div><label className="block text-sm text-gray-400 mb-1">Plan ID</label><input value={newCoupon.plan_id} onChange={e => setNewCoupon({...newCoupon, plan_id: e.target.value})} className="w-full bg-black border border-white/10 rounded px-3 py-2 text-white" placeholder="Hidden PayPal Plan ID" /></div>
+                            </div>
+                            <div className="flex justify-end gap-3"><button onClick={() => setShowCouponModal(false)} className="px-4 py-2 text-gray-400">Cancel</button><button onClick={handleCreateCoupon} className="px-4 py-2 bg-gold text-black rounded font-bold">Create</button></div>
+                        </div>
+                    </div>
+                )}
+            </AnimatePresence>
         </div>
     );
 };

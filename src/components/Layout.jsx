@@ -10,22 +10,32 @@ const Layout = ({ children }) => {
     const { currentUser } = useAuth();
     const [searchQuery, setSearchQuery] = useState('');
     const [showSuggestions, setShowSuggestions] = useState(false);
-    const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false); // NEW: Mobile State
+    const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
     const searchRef = useRef(null);
 
     const [isMod, setIsMod] = useState(false);
 
+    // --- SECURITY FIX: Robust Admin Check ---
     useEffect(() => {
-        if (currentUser) {
-            // FIXED: Changed '/api/mods' to '/api/mods'
+        if (currentUser && currentUser.email) {
             fetch('/api/mods') 
                 .then(res => res.json())
                 .then(data => {
-                    if (data.mods.includes(currentUser.email)) {
+                    const userEmail = currentUser.email.toLowerCase();
+                    const modsList = data.mods.map(m => m.toLowerCase());
+                    
+                    if (modsList.includes(userEmail)) {
                         setIsMod(true);
+                    } else {
+                        setIsMod(false); // CRITICAL: Reset to false if not a mod
                     }
                 })
-                .catch(err => console.error("Error checking mods:", err));
+                .catch(err => {
+                    console.error("Error checking mods:", err);
+                    setIsMod(false); // Safety fallback
+                });
+        } else {
+            setIsMod(false); // CRITICAL: Reset to false on logout
         }
     }, [currentUser]);
 
@@ -35,6 +45,7 @@ const Layout = ({ children }) => {
         { name: 'Forum', path: '/forum', icon: Users },
         { name: 'Chatbox', path: '/chat', icon: MessageSquare },
         { name: 'Profile', path: '/profile', icon: User },
+        // Only render Admin tab if explicitly authorized
         ...(isMod ? [{ name: 'Admin', path: '/admin', icon: Shield }] : [])
     ];
 
@@ -48,6 +59,7 @@ const Layout = ({ children }) => {
         { name: 'Tracking', path: '/tracking', type: 'Command' },
         { name: 'Profile', path: '/profile', type: 'Page' },
         { name: 'Chatbox', path: '/chat', type: 'Page' },
+        // Hide from search results too
         ...(isMod ? [{ name: 'Admin Dashboard', path: '/admin', type: 'Page' }] : []),
         { name: 'Login', path: '/login', type: 'Auth' },
         { name: 'Sign Up', path: '/signup', type: 'Auth' },
@@ -95,7 +107,7 @@ const Layout = ({ children }) => {
                             </Link>
                         </div>
 
-                        {/* --- DESKTOP MENU (Hidden on Mobile) --- */}
+                        {/* --- DESKTOP MENU --- */}
                         <div className="hidden md:flex items-center gap-6">
                             {/* Search Bar */}
                             <div className="relative group" ref={searchRef}>
@@ -184,7 +196,7 @@ const Layout = ({ children }) => {
                             </div>
                         </div>
 
-                        {/* --- MOBILE MENU BUTTON (Visible only on mobile) --- */}
+                        {/* --- MOBILE MENU BUTTON --- */}
                         <div className="md:hidden flex items-center">
                             <button onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} className="text-gray-300 hover:text-white p-2">
                                 {isMobileMenuOpen ? <X size={24} /> : <Menu size={24} />}

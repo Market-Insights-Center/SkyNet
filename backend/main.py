@@ -8,20 +8,36 @@ import os
 import csv
 import json
 import logging
-import asyncio
-import yfinance as yf
-import pandas as pd
-import numpy as np
+import requests 
 from datetime import datetime
 import uuid
+import yfinance as yf
+import pandas as pd
 
 # Ensure we can import from local folders
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 # Import your command modules
 from integration import invest_command, cultivate_command, custom_command, tracking_command
-# Updated import to include chat helpers
-from database import read_articles_from_csv, save_articles_to_csv, read_ideas_from_csv, save_ideas_to_csv, read_chats, save_chats
+
+# Updated database imports
+from database import (
+    read_articles_from_csv, 
+    save_articles_to_csv, 
+    read_ideas_from_csv, 
+    save_ideas_to_csv, 
+    read_chats, 
+    save_chats,
+    get_all_users_from_db,
+    update_user_tier,     
+    get_user_profile,
+    create_coupon,     
+    get_all_coupons,   
+    validate_coupon,   
+    delete_coupon,
+    check_and_increment_limit,
+    delete_user_full
+)
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("uvicorn")
@@ -31,12 +47,7 @@ app = FastAPI()
 # --- CORS ---
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",
-        "http://localhost:3000",
-        "https://marketinsightscenter.cloud",
-        "https://www.marketinsightscenter.cloud"
-    ],
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -50,7 +61,19 @@ app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 MODS_FILE = os.path.join(BASE_DIR, 'mods.csv')
-USERS_FILE = os.path.join(BASE_DIR, 'users.json')
+
+# --- PAYPAL CONFIGURATION ---
+PAYPAL_MODE = os.getenv("PAYPAL_MODE", "sandbox")
+PAYPAL_CLIENT_ID = os.getenv("PAYPAL_CLIENT_ID", "your_sandbox_client_id")
+PAYPAL_SECRET = os.getenv("PAYPAL_SECRET", "your_sandbox_secret")
+PAYPAL_API_BASE = "https://api-m.sandbox.paypal.com" if PAYPAL_MODE == "sandbox" else "https://api-m.paypal.com"
+
+# PLAN MAP
+PLAN_TIER_MAP = {
+    "P-EXPLORER-ID": "Explorer",    
+    "P-1EE89936BP540274LNEWASQI": "Visionary",  
+    "P-8EG71614L88223945NEWAUBI": "Institutional"
+}
 
 # --- Models ---
 class SubPortfolio(BaseModel):
@@ -65,6 +88,7 @@ class InvestRequest(BaseModel):
     total_value: Optional[float] = None
     use_fractional_shares: bool = False
     user_id: Optional[str] = None
+    email: Optional[str] = "" 
 
 class GenericAlgoRequest(BaseModel):
     user_id: Optional[str] = ""
@@ -78,14 +102,13 @@ class GenericAlgoRequest(BaseModel):
     trades: Optional[List] = []
     rh_username: Optional[str] = ""
     rh_password: Optional[str] = ""
-    email_to: Optional[str] = ""
+    email_to: Optional[str] = "" 
     risk_tolerance: Optional[int] = 10
     vote_type: Optional[str] = "stock"
     overwrite: Optional[bool] = False
     strategy_code: Optional[str] = "A" 
     cultivate_code: Optional[str] = "A"
     portfolio_value: Optional[float] = 10000.0
-    # Added to accept new_run_data passed back from UI
     new_run_data: Optional[List[Dict]] = []
     final_cash: Optional[float] = 0.0
 
@@ -95,6 +118,31 @@ class MarketDataRequest(BaseModel):
 class ModRequest(BaseModel):
     email: str
     action: str 
+    requester_email: str
+
+class SubscriptionVerifyRequest(BaseModel):
+    subscriptionId: str
+    email: str
+
+# --- ADMIN MODELS ---
+class AdminUpdateUserRequest(BaseModel):
+    target_email: str
+    new_tier: str
+    requester_email: str
+
+class AdminDeleteUserRequest(BaseModel):
+    target_email: str
+    requester_email: str
+
+class CreateCouponRequest(BaseModel):
+    code: str
+    plan_id: str
+    tier: str
+    discount_label: str
+    requester_email: str
+
+class DeleteCouponRequest(BaseModel):
+    code: str
     requester_email: str
 
 # --- Chat Models ---
@@ -113,31 +161,57 @@ class ChatDeleteRequest(BaseModel):
     email: str
 
 # --- Helper Functions ---
+SUPER_ADMIN_EMAIL = "marketinsightscenter@gmail.com"
+
 def get_mod_list():
-    super_admin = "marketinsightscenter@gmail.com"
-    if not os.path.exists(MODS_FILE):
-        return [super_admin]
-    mods = []
-    try:
-        with open(MODS_FILE, 'r') as f:
-            reader = csv.DictReader(f)
-            for row in reader:
-                if row and row.get("email"):
-                    mods.append(row["email"].strip().lower())
-    except Exception: pass
-    if super_admin not in mods: mods.append(super_admin)
+    mods = [SUPER_ADMIN_EMAIL]
+    if os.path.exists(MODS_FILE):
+        try:
+            with open(MODS_FILE, 'r') as f:
+                reader = csv.DictReader(f)
+                for row in reader:
+                    if row and row.get("email"):
+                        email = row["email"].strip().lower()
+                        if email not in mods:
+                            mods.append(email)
+        except Exception: pass
     return mods
 
-def load_json(filepath):
-    if not os.path.exists(filepath): return []
+def is_admin(email):
+    if not email: return False
+    clean_email = email.strip().lower()
+    return clean_email in get_mod_list()
+
+def get_paypal_access_token():
     try:
-        with open(filepath, 'r') as f: return json.load(f)
-    except: return []
+        url = f"{PAYPAL_API_BASE}/v1/oauth2/token"
+        headers = {"Accept": "application/json", "Accept-Language": "en_US"}
+        data = {"grant_type": "client_credentials"}
+        response = requests.post(url, headers=headers, data=data, auth=(PAYPAL_CLIENT_ID, PAYPAL_SECRET))
+        if response.status_code == 200:
+            return response.json().get("access_token")
+        return None
+    except Exception as e:
+        print(f"PayPal Token Error: {e}")
+        return None
 
 # --- ENDPOINTS ---
 
+# 1. NEW ENDPOINT: User Profile Fetch
+@app.get("/api/user/profile")
+def api_get_user_profile(email: str):
+    profile = get_user_profile(email)
+    if profile:
+        return profile
+    # Return default empty profile if not found in DB yet
+    return {"email": email, "tier": "Free", "subscription_status": "none"}
+
 @app.post("/api/invest")
 async def invest_endpoint(request: InvestRequest):
+    allowed = check_and_increment_limit(request.email, "portfolio_lab")
+    if not allowed:
+        raise HTTPException(status_code=403, detail="Monthly Usage Limit Reached. Upgrade your subscription for more access.")
+
     try:
         ai_params = request.model_dump()
         result = await invest_command.handle_invest_command([], ai_params=ai_params, is_called_by_ai=True)
@@ -150,6 +224,10 @@ async def invest_endpoint(request: InvestRequest):
 
 @app.post("/api/custom")
 async def custom_endpoint(request: GenericAlgoRequest):
+    allowed = check_and_increment_limit(request.email_to, "portfolio_lab")
+    if not allowed:
+        raise HTTPException(status_code=403, detail="Monthly Usage Limit Reached. Upgrade your subscription for more access.")
+
     try:
         ai_params = request.model_dump()
         return await custom_command.handle_custom_command([], ai_params=ai_params, is_called_by_ai=True)
@@ -158,6 +236,10 @@ async def custom_endpoint(request: GenericAlgoRequest):
 
 @app.post("/api/tracking")
 async def tracking_endpoint(request: GenericAlgoRequest):
+    allowed = check_and_increment_limit(request.email_to, "portfolio_lab")
+    if not allowed:
+        raise HTTPException(status_code=403, detail="Monthly Usage Limit Reached. Upgrade your subscription for more access.")
+
     try:
         ai_params = request.model_dump()
         return await tracking_command.handle_tracking_command([], ai_params=ai_params, is_called_by_ai=True)
@@ -166,22 +248,91 @@ async def tracking_endpoint(request: GenericAlgoRequest):
 
 @app.post("/api/cultivate")
 async def cultivate_endpoint(request: GenericAlgoRequest):
+    allowed = check_and_increment_limit(request.email_to, "cultivate")
+    if not allowed:
+        raise HTTPException(status_code=403, detail="Monthly Cultivate Limit Reached. Upgrade your subscription for more access.")
+
     try:
         ai_params = request.model_dump()
         return await cultivate_command.handle_cultivate_command([], ai_params=ai_params, is_called_by_ai=True)
     except Exception as e:
         return {"status": "error", "message": str(e)}
 
-# --- CHAT ENDPOINTS (Added) ---
+# --- ADMIN ENDPOINTS ---
+
+@app.post("/api/admin/users/update")
+def admin_update_user(req: AdminUpdateUserRequest):
+    if not is_admin(req.requester_email):
+        raise HTTPException(status_code=403, detail="Not authorized")
+    success = update_user_tier(req.target_email, req.new_tier, status="admin_override")
+    if success: return {"status": "success"}
+    raise HTTPException(status_code=500, detail="Failed to update user")
+
+@app.post("/api/admin/users/delete")
+def admin_delete_user(req: AdminDeleteUserRequest):
+    if not is_admin(req.requester_email):
+        raise HTTPException(status_code=403, detail="Not authorized")
+    
+    success = delete_user_full(req.target_email)
+    if success:
+        return {"status": "success"}
+    raise HTTPException(status_code=500, detail="Failed to delete user")
+
+@app.get("/api/admin/coupons")
+def list_coupons(email: str):
+    if not is_admin(email): raise HTTPException(status_code=403, detail="Not authorized")
+    return get_all_coupons()
+
+@app.post("/api/admin/coupons/create")
+def admin_create_coupon(req: CreateCouponRequest):
+    if not is_admin(req.requester_email): raise HTTPException(status_code=403, detail="Not authorized")
+    success = create_coupon(req.code, req.plan_id, req.tier, req.discount_label)
+    if success: return {"status": "success"}
+    raise HTTPException(status_code=500, detail="Failed to create coupon")
+
+@app.post("/api/admin/coupons/delete")
+def admin_delete_coupon(req: DeleteCouponRequest):
+    if not is_admin(req.requester_email): raise HTTPException(status_code=403, detail="Not authorized")
+    success = delete_coupon(req.code)
+    if success: return {"status": "success"}
+    raise HTTPException(status_code=500, detail="Failed to delete coupon")
+
+@app.get("/api/coupons/validate")
+def check_coupon(code: str):
+    coupon = validate_coupon(code)
+    if coupon: return {"valid": True, "plan_id": coupon['plan_id'], "label": coupon.get('discount_label', 'Discount')}
+    return {"valid": False}
+
+# --- SUBSCRIPTION ENDPOINTS ---
+
+@app.post("/api/subscriptions/verify")
+async def verify_subscription(req: SubscriptionVerifyRequest):
+    token = get_paypal_access_token()
+    if not token: raise HTTPException(status_code=500, detail="Could not connect to payment provider")
+    try:
+        url = f"{PAYPAL_API_BASE}/v1/billing/subscriptions/{req.subscriptionId}"
+        headers = {"Authorization": f"Bearer {token}"}
+        response = requests.get(url, headers=headers)
+        if response.status_code != 200: raise HTTPException(status_code=400, detail="Invalid Subscription ID")
+        sub_data = response.json()
+        status = sub_data.get("status")
+        plan_id = sub_data.get("plan_id")
+        tier = PLAN_TIER_MAP.get(plan_id, "Visionary") 
+        if status in ["ACTIVE", "TRIALLING"]:
+            success = update_user_tier(req.email, tier, req.subscriptionId, status.lower())
+            if success: return {"status": "success", "tier": tier}
+            else: raise HTTPException(status_code=500, detail="Database update failed")
+        else: return {"status": "failed", "message": f"Subscription status is {status}"}
+    except Exception as e:
+        logger.error(f"Verify Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+# --- CHAT & MARKET DATA ---
 
 @app.get("/api/chat/list")
 def get_chats(email: str, all_chats: bool = False):
     chats = read_chats()
-    if all_chats:
-        # Check mod status ideally, but returning all for admin view
-        return chats
-    
-    # Filter for user
+    if all_chats: return chats
     user_chats = [c for c in chats if email in c.get('participants', [])]
     user_chats.sort(key=lambda x: x.get('last_updated', ''), reverse=True)
     return user_chats
@@ -189,25 +340,14 @@ def get_chats(email: str, all_chats: bool = False):
 @app.post("/api/chat/create")
 def create_chat(req: ChatCreateRequest):
     chats = read_chats()
-    
-    # Optional: Logic to prevent duplicate direct chats could go here
-    
     new_chat = {
-        "id": str(uuid.uuid4()),
-        "type": req.type,
+        "id": str(uuid.uuid4()), "type": req.type,
         "participants": list(set(req.participants + [req.creator_email])),
-        "messages": [],
-        "last_updated": datetime.utcnow().isoformat(),
+        "messages": [], "last_updated": datetime.utcnow().isoformat(),
         "last_message_preview": req.initial_message or "New conversation"
     }
-    
     if req.initial_message:
-        new_chat["messages"].append({
-            "sender": req.creator_email,
-            "text": req.initial_message,
-            "timestamp": new_chat["last_updated"]
-        })
-        
+        new_chat["messages"].append({"sender": req.creator_email, "text": req.initial_message, "timestamp": new_chat["last_updated"]})
     chats.append(new_chat)
     save_chats(chats)
     return new_chat
@@ -216,12 +356,8 @@ def create_chat(req: ChatCreateRequest):
 def get_messages(chat_id: str, email: str):
     chats = read_chats()
     chat = next((c for c in chats if c["id"] == chat_id), None)
-    if not chat: 
-        raise HTTPException(status_code=404, detail="Chat not found")
-    
-    if email not in chat["participants"]: 
-        raise HTTPException(status_code=403, detail="Access denied")
-        
+    if not chat: raise HTTPException(status_code=404, detail="Chat not found")
+    if email not in chat["participants"]: raise HTTPException(status_code=403, detail="Access denied")
     return chat.get("messages", [])
 
 @app.post("/api/chat/{chat_id}/message")
@@ -229,11 +365,7 @@ def send_message(chat_id: str, req: ChatMessageRequest):
     chats = read_chats()
     for chat in chats:
         if chat["id"] == chat_id:
-            msg = {
-                "sender": req.sender,
-                "text": req.text,
-                "timestamp": datetime.utcnow().isoformat()
-            }
+            msg = {"sender": req.sender, "text": req.text, "timestamp": datetime.utcnow().isoformat()}
             chat.setdefault("messages", []).append(msg)
             chat["last_updated"] = msg["timestamp"]
             chat["last_message_preview"] = req.text
@@ -246,91 +378,45 @@ def delete_chat(req: ChatDeleteRequest):
     chats = read_chats()
     updated_chats = []
     found = False
-    
     for chat in chats:
         if chat["id"] == req.chat_id:
             found = True
-            # Remove user from participants (Soft delete for user)
-            if req.email in chat["participants"]:
-                chat["participants"].remove(req.email)
-            
-            # If anyone is left, keep the chat, otherwise it drops out (Hard delete)
-            if len(chat["participants"]) > 0:
-                updated_chats.append(chat)
-        else:
-            updated_chats.append(chat)
-            
+            if req.email in chat["participants"]: chat["participants"].remove(req.email)
+            if len(chat["participants"]) > 0: updated_chats.append(chat)
+        else: updated_chats.append(chat)
     if found:
         save_chats(updated_chats)
         return {"status": "success"}
-        
     raise HTTPException(status_code=404, detail="Chat not found")
-
-
-# --- MARKET DATA ---
 
 @app.post("/api/market-data")
 async def get_market_data(request: MarketDataRequest):
-    """
-    Fetches Price, Sparkline, Market Cap, Volume, PE, and calculates 1D, 1W, 1M, 1Y changes.
-    """
     try:
         tickers = [t.upper().strip() for t in request.tickers if t]
         if not tickers: return []
-        
-        # 1. Download 1 Year of data
-        # auto_adjust=True fixes the FutureWarnings regarding price adjustments
         df = yf.download(tickers, period="1y", interval="1d", progress=False, auto_adjust=True)
-        
         results = []
         for ticker in tickers:
             try:
-                # Handle MultiIndex vs Single Index
                 if len(tickers) > 1:
                     if ticker not in df['Close'].columns: continue
                     hist_close = df['Close'][ticker].dropna()
-                else:
-                    hist_close = df['Close'].dropna()
-
+                else: hist_close = df['Close'].dropna()
                 if hist_close.empty: continue
-
-                # Helper to safely get float value (Fixes FutureWarning)
-                def get_val(series, idx):
-                    try:
-                        # .item() converts numpy types to native python floats cleanly
-                        return float(series.iloc[idx].item())
-                    except:
-                        return float(series.iloc[idx])
-
-                # Get Prices
-                current_price = get_val(hist_close, -1)
                 
-                # Calculate Changes
+                def get_val(series, idx):
+                    try: return float(series.iloc[idx].item())
+                    except: return float(series.iloc[idx])
+
+                current_price = get_val(hist_close, -1)
                 price_1d = get_val(hist_close, -2) if len(hist_close) > 1 else current_price
                 change_1d = ((current_price - price_1d) / price_1d) * 100 if price_1d != 0 else 0
-                
-                price_1w = get_val(hist_close, -6) if len(hist_close) > 6 else get_val(hist_close, 0)
-                change_1w = ((current_price - price_1w) / price_1w) * 100 if price_1w != 0 else 0
-
-                price_1m = get_val(hist_close, -22) if len(hist_close) > 22 else get_val(hist_close, 0)
-                change_1m = ((current_price - price_1m) / price_1m) * 100 if price_1m != 0 else 0
-
-                price_1y = get_val(hist_close, 0)
-                change_1y = ((current_price - price_1y) / price_1y) * 100 if price_1y != 0 else 0
-
-                # Sparkline (Fixes 'DataFrame has no attribute tolist')
-                # We ensure we are working with a flat list of values
                 subset = hist_close.tail(30)
-                if isinstance(subset, pd.DataFrame):
-                    sparkline = subset.values.flatten().tolist()
-                else:
-                    sparkline = subset.tolist()
+                sparkline = subset.values.flatten().tolist() if isinstance(subset, pd.DataFrame) else subset.tolist()
 
-                # Get Metadata (PE, Vol, Cap)
                 mkt_cap = 0
                 volume = 0
                 pe_ratio = 0
-                
                 try:
                     t = yf.Ticker(ticker)
                     mkt_cap = t.fast_info.market_cap
@@ -339,99 +425,42 @@ async def get_market_data(request: MarketDataRequest):
                     pe_ratio = info.get('trailingPE', 0)
                     if not volume: volume = info.get('volume', 0)
                     if not mkt_cap: mkt_cap = info.get('marketCap', 0)
-                except: 
-                    pass 
+                except: pass 
 
-                results.append({
-                    "ticker": ticker,
-                    "price": current_price,
-                    "change": change_1d,
-                    "change1W": change_1w,
-                    "change1M": change_1m,
-                    "change1Y": change_1y,
-                    "marketCap": mkt_cap,
-                    "volume": volume,
-                    "peRatio": pe_ratio,
-                    "sparkline": sparkline
-                })
-            except Exception as e: 
-                # This log helps identify which specific ticker is failing
-                print(f"Error processing {ticker}: {e}")
-                continue
-                
+                results.append({"ticker": ticker, "price": current_price, "change": change_1d, "marketCap": mkt_cap, "volume": volume, "peRatio": pe_ratio, "sparkline": sparkline})
+            except: continue
         return results
-    except Exception as e:
-        print(f"Global Market Data Error: {e}")
-        return []
-    
+    except: return []
+
 @app.post("/api/market-data/details")
 async def get_market_data_details(request: MarketDataRequest):
-    """
-    Fetches heavy data: Earnings Date and Implied Volatility (IV).
-    """
     results = {}
     tickers = [t.upper().strip() for t in request.tickers if t]
-    
     for ticker in tickers:
         try:
             t = yf.Ticker(ticker)
-            
-            # 1. Earnings Date
             earnings_date = "-"
             try:
                 cal = t.calendar
-                # 'cal' can be a Dictionary or DataFrame depending on yfinance version
-                if isinstance(cal, dict):
-                     # Look for Earnings Date
-                     if 'Earnings Date' in cal:
-                         dates = cal['Earnings Date']
-                         if dates: earnings_date = str(dates[0].date())
-                elif isinstance(cal, pd.DataFrame):
-                    # Transpose sometimes needed
-                    if not cal.empty:
-                        # Common keys: 'Earnings Date' or 0
-                        vals = cal.iloc[0]
-                        earnings_date = str(vals.values[0])
-            except: 
-                # Fallback to info
-                try:
-                    ts = t.info.get('earningsTimestamp')
-                    if ts: earnings_date = datetime.fromtimestamp(ts).strftime('%Y-%m-%d')
-                except: pass
-
-            # 2. Implied Volatility (IV)
+                if isinstance(cal, dict) and 'Earnings Date' in cal:
+                     dates = cal['Earnings Date']
+                     if dates: earnings_date = str(dates[0].date())
+            except: pass
             iv = "-"
             try:
-                # Try getting it from info first (fastest)
-                if t.info.get('impliedVolatility'):
-                     iv = f"{t.info['impliedVolatility'] * 100:.2f}%"
-                else:
-                    # Fallback: Approximate from options (slower, but accurate)
-                    dates = t.options
-                    if dates:
-                        chain = t.option_chain(dates[0])
-                        valid_ivs = chain.calls[chain.calls['impliedVolatility'] > 0]['impliedVolatility']
-                        if not valid_ivs.empty:
-                            iv = f"{valid_ivs.mean() * 100:.2f}%"
+                if t.info.get('impliedVolatility'): iv = f"{t.info['impliedVolatility'] * 100:.2f}%"
             except: pass
-
-            results[ticker] = {
-                "earnings": earnings_date,
-                "iv": iv
-            }
-        except:
-            results[ticker] = {"earnings": "-", "iv": "-"}
-            
+            results[ticker] = {"earnings": earnings_date, "iv": iv}
+        except: results[ticker] = {"earnings": "-", "iv": "-"}
     return {"results": results}
 
 @app.get("/api/mods")
-def get_mods():
-    return {"mods": get_mod_list()}
+def get_mods(): return {"mods": get_mod_list()}
 
 @app.post("/api/mods")
 def manage_mods(request: ModRequest):
     mods = get_mod_list()
-    if request.requester_email.lower() != "marketinsightscenter@gmail.com":
+    if request.requester_email.lower() != SUPER_ADMIN_EMAIL:
          raise HTTPException(status_code=403, detail="Only Super Admin can manage moderators")
     target = request.email.lower().strip()
     if request.action == "add":
@@ -441,7 +470,7 @@ def manage_mods(request: ModRequest):
                 writer = csv.writer(f)
                 writer.writerow([target])
     elif request.action == "remove":
-        if target == "marketinsightscenter@gmail.com": raise HTTPException(status_code=400, detail="Cannot remove super admin")
+        if target == SUPER_ADMIN_EMAIL: raise HTTPException(status_code=400, detail="Cannot remove super admin")
         if target in mods:
             mods.remove(target)
             with open(MODS_FILE, 'w', newline='') as f:
@@ -451,17 +480,13 @@ def manage_mods(request: ModRequest):
     return {"status": "success", "mods": mods}
 
 @app.get("/api/articles")
-def get_articles(limit: int = 100):
-    try: return read_articles_from_csv()[:limit]
-    except: return []
+def get_articles(limit: int = 100): return read_articles_from_csv()[:limit]
 
 @app.get("/api/users")
-def get_users():
-    return load_json(USERS_FILE)
+def get_users(): return get_all_users_from_db()
 
 @app.get("/api/ideas")
-def get_ideas(limit: int = 100):
-    return read_ideas_from_csv()[:limit]
+def get_ideas(limit: int = 100): return read_ideas_from_csv()[:limit]
 
 if __name__ == "__main__":
     import uvicorn

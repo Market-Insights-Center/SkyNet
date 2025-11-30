@@ -2,12 +2,13 @@ import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Link } from 'react-router-dom';
-import { ArrowRight, Play, Check, ChevronDown, ChevronUp, TrendingUp, Shield, Zap, Globe, BarChart2, Lock, Users, FileText, Lightbulb, HelpCircle, X, Cpu, Layers, Radio, Eye, EyeOff } from 'lucide-react';
+import { ArrowRight, Check, ChevronDown, ChevronUp, Shield, Zap, Globe, BarChart2, Users, Lightbulb, HelpCircle, X, Cpu, Eye, EyeOff } from 'lucide-react';
 import MarketDashboard from '../components/MarketDashboard';
 import Watchlist from '../components/Watchlist';
 import NewsFeed from '../components/NewsFeed';
 import IdeaCard from '../components/IdeaCard';
 import Footer from '../components/Footer';
+import SubscriptionCard from '../components/SubscriptionCard'; // <--- NEW IMPORT
 import { useAuth } from '../contexts/AuthContext';
 
 class ErrorBoundary extends React.Component {
@@ -460,40 +461,6 @@ const FAQItem = ({ question, answer }) => {
     );
 };
 
-const PricingCard = ({ title, price, period, features, isPopular, delay }) => {
-    return (
-        <motion.div
-            initial={{ opacity: 0, y: 50 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.5, delay: delay }}
-            className={`relative p-8 rounded-2xl border ${isPopular ? 'border-gold bg-gold/5' : 'border-white/10 bg-white/5'} flex flex-col h-full hover:transform hover:-translate-y-2 transition-all duration-300`}
-        >
-            {isPopular && (
-                <div className="absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-gold text-black px-4 py-1 rounded-full text-sm font-bold">
-                    Most Popular
-                </div>
-            )}
-            <h3 className={`text-2xl font-bold mb-2 ${isPopular ? 'text-gold' : 'text-white'}`}>{title}</h3>
-            <div className="flex items-baseline mb-6">
-                <span className="text-4xl font-bold text-white">{price}</span>
-                <span className="text-gray-400 ml-1">{period}</span>
-            </div>
-            <ul className="space-y-4 mb-8 flex-grow">
-                {features.map((feature, index) => (
-                    <li key={index} className="flex items-center text-gray-300">
-                        <Check size={18} className="text-gold mr-3 flex-shrink-0" />
-                        {feature}
-                    </li>
-                ))}
-            </ul>
-            <button className={`w-full py-3 rounded-lg font-bold transition-colors ${isPopular ? 'bg-gold text-black hover:bg-yellow-500' : 'bg-white/10 text-white hover:bg-white/20'}`}>
-                {price === "$0" ? "Get Started" : "Start Free Trial"}
-            </button>
-        </motion.div>
-    );
-};
-
 const LandingPage = () => {
     const { currentUser } = useAuth();
     const [recentIdeas, setRecentIdeas] = useState([]);
@@ -692,34 +659,37 @@ const LandingPage = () => {
                 </section>
             </ErrorBoundary>
 
-            {/* Pricing Section */}
+            {/* Pricing Section (REPLACED) */}
             <ErrorBoundary>
                 <section className="py-24 px-4 bg-deep-black">
                     <div className="max-w-7xl mx-auto">
                         <div className="text-center mb-16">
-                            <h2 className="text-4xl font-bold mb-6">Choose Your <span className="text-gold">Tier</span></h2>
+                            <h2 className="text-4xl font-bold mb-6">Choose Your <span className="text-gold">Subscription</span></h2>
                             <p className="text-xl text-gray-400">Unlock the full potential of M.I.C. Singularity.</p>
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                            <PricingCard
+                            <SubscriptionCard
                                 title="Explorer"
                                 price="$0"
                                 period="/month"
+                                planId="FREE_TIER"
                                 features={["Basic Market Data", "Daily Newsletter", "Community Access"]}
                                 delay={0.1}
                             />
-                            <PricingCard
+                            <SubscriptionCard
                                 title="Visionary"
                                 price="$49"
                                 period="/month"
+                                planId="P-1EE89936BP540274LNEWASQI" // <--- REPLACE THIS WITH REAL ID
                                 features={["Real-time AI Signals", "Advanced Portfolio Lab", "Priority Support", "Unlimited Backtesting"]}
                                 isPopular={true}
                                 delay={0.2}
                             />
-                            <PricingCard
+                            <SubscriptionCard
                                 title="Institutional"
                                 price="$199"
                                 period="/month"
+                                planId="P-8EG71614L88223945NEWAUBI" // <--- REPLACE THIS WITH REAL ID
                                 features={["API Access", "Dedicated Account Manager", "Custom Strategy Development", "White-label Reports"]}
                                 delay={0.3}
                             />

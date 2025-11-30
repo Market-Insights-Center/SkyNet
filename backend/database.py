@@ -1,66 +1,216 @@
 import csv
 import os
 import json
-from firebase_admin import firestore
-# Import the setup functions from your existing setup file
+import time
+from datetime import datetime
+from firebase_admin import firestore, auth
 from firebase_admin_setup import get_db, get_auth
 
-# --- Firebase Helpers ---
-
-# Paths
+# --- Paths ---
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.path.join(BASE_DIR, 'data')
 ARTICLES_CSV = os.path.join(DATA_DIR, 'articles.csv')
 IDEAS_CSV = os.path.join(DATA_DIR, 'ideas.csv')
-CHATS_FILE = os.path.join(BASE_DIR, 'chats.json') 
+CHATS_FILE = os.path.join(BASE_DIR, 'chats.json')
 USER_PROFILES_CSV = os.path.join(BASE_DIR, 'user_profiles.csv')
 
 # Ensure data dir exists
 if not os.path.exists(DATA_DIR):
     os.makedirs(DATA_DIR)
 
-def get_all_users_count():
-    try:
-        # Corrected: use get_auth() to access the auth instance
-        page = get_auth().list_users()
-        count = 0
-        while page:
-            count += len(page.users)
-            page = page.get_next_page()
-        return count
-    except Exception as e:
-        print(f"Error fetching user count: {e}")
-        return 0
+# --- TIER CONFIGURATION ---
+TIER_LIMITS = {
+    "Free": {"portfolio_lab": 1, "cultivate": 0, "news_depth": 5},
+    "Basic": {"portfolio_lab": 10, "cultivate": 5, "news_depth": 50},
+    "Pro": {"portfolio_lab": 50, "cultivate": 20, "news_depth": 200},
+    "Visionary": {"portfolio_lab": 50, "cultivate": 20, "news_depth": 200}, 
+    "Institutional": {"portfolio_lab": 500, "cultivate": 100, "news_depth": 1000},
+    "Enterprise": {"portfolio_lab": 500, "cultivate": 100, "news_depth": 1000},
+    "Singularity": {"portfolio_lab": float('inf'), "cultivate": float('inf'), "news_depth": float('inf')}
+}
 
-def save_subscription(email, plan, cost):
-    try:
-        # Corrected: get_db() is now imported
-        db = get_db()
-        doc_ref = db.collection('subscriptions').document(email)
-        doc_ref.set({
-            'email': email,
-            'plan': plan,
-            'cost': cost,
-            'updated_at': firestore.SERVER_TIMESTAMP # Corrected: firestore is imported
-        }, merge=True)
-        return True
-    except Exception as e:
-        print(f"Error saving subscription: {e}")
-        return False
+# --- FIRESTORE USER HELPERS ---
 
-def get_subscription(email):
+def get_user_profile(email):
+    """Fetches full user profile including tier and subscription status."""
     try:
         db = get_db()
-        doc_ref = db.collection('subscriptions').document(email)
-        doc = doc_ref.get()
+        doc = db.collection('users').document(email).get()
         if doc.exists:
             return doc.to_dict()
         return None
     except Exception as e:
-        print(f"Error getting subscription: {e}")
+        print(f"Error fetching user profile: {e}")
         return None
 
-# --- CSV Helpers ---
+def update_user_tier(email, tier, subscription_id=None, status="active"):
+    """Updates a user's subscription tier."""
+    try:
+        db = get_db()
+        data = {
+            'tier': tier,
+            'subscription_status': status,
+            'updated_at': firestore.SERVER_TIMESTAMP
+        }
+        if subscription_id:
+            data['subscription_id'] = subscription_id
+            
+        db.collection('users').document(email).set(data, merge=True)
+        return True
+    except Exception as e:
+        print(f"Error updating tier: {e}")
+        return False
+
+def get_all_users_from_db():
+    """Fetches ALL users from Auth and merges with Firestore Tier data."""
+    try:
+        # 1. Get all Auth users (Source of Truth)
+        auth_users = []
+        page = get_auth().list_users()
+        while page:
+            auth_users.extend(page.users)
+            page = page.get_next_page()
+            
+        # 2. Get all Firestore profiles (Tiers)
+        db = get_db()
+        docs = db.collection('users').stream()
+        db_data = {doc.id: doc.to_dict() for doc in docs}
+        
+        # 3. Merge
+        final_list = []
+        for user in auth_users:
+            email = user.email
+            if not email: continue
+            
+            profile = db_data.get(email, {})
+            final_list.append({
+                'email': email,
+                'uid': user.uid,
+                'tier': profile.get('tier', 'Free'), # Default to Free if no doc
+                'subscription_status': profile.get('subscription_status', 'none')
+            })
+        return final_list
+    except Exception as e:
+        print(f"Error fetching users: {e}")
+        return []
+
+def delete_user_full(email):
+    """Deletes user from Auth and Firestore."""
+    try:
+        # 1. Find UID from email
+        user = get_auth().get_user_by_email(email)
+        uid = user.uid
+        
+        # 2. Delete from Auth
+        get_auth().delete_user(uid)
+        
+        # 3. Delete from Firestore
+        db = get_db()
+        db.collection('users').document(email).delete()
+        
+        return True
+    except Exception as e:
+        print(f"Delete Error: {e}")
+        return False
+
+# --- USAGE LIMIT ENFORCEMENT ---
+
+def check_and_increment_limit(email, feature_key):
+    """
+    Checks if a user has quota left for a specific feature.
+    If yes, increments the counter and returns True.
+    If no, returns False.
+    """
+    try:
+        db = get_db()
+        user_ref = db.collection('users').document(email)
+        user_doc = user_ref.get()
+        
+        # Default to Free if document doesn't exist
+        if user_doc.exists:
+            user_data = user_doc.to_dict()
+            tier = user_data.get('tier', 'Free')
+        else:
+            tier = 'Free'
+        
+        # 1. Check for Singularity (Infinite Access)
+        if tier == 'Singularity':
+            return True
+            
+        # 2. Determine Limits
+        limit = TIER_LIMITS.get(tier, TIER_LIMITS['Free']).get(feature_key, 0)
+        
+        # 3. Get Current Usage for this Month
+        current_month = datetime.now().strftime('%Y-%m')
+        usage_ref = user_ref.collection('usage_logs').document(current_month)
+        
+        # Run inside a transaction to prevent race conditions
+        @firestore.transactional
+        def update_in_transaction(transaction, usage_ref):
+            snapshot = transaction.get(usage_ref)
+            current_count = 0
+            if snapshot.exists:
+                current_count = snapshot.get(feature_key) or 0
+            
+            if current_count < limit:
+                transaction.set(usage_ref, {feature_key: current_count + 1}, merge=True)
+                return True
+            else:
+                return False
+
+        transaction = db.transaction()
+        return update_in_transaction(transaction, usage_ref)
+
+    except Exception as e:
+        print(f"Usage Check Error: {e}")
+        # Fail safe: if DB is down, don't block heavily unless critical
+        return False 
+
+# --- COUPONS ---
+
+def create_coupon(code, plan_id, applicable_tier, discount_label):
+    try:
+        db = get_db()
+        db.collection('coupons').document(code).set({
+            'code': code,
+            'plan_id': plan_id, # The hidden PayPal Plan ID
+            'applicable_tier': applicable_tier,
+            'discount_label': discount_label, # e.g. "20% OFF"
+            'active': True,
+            'created_at': firestore.SERVER_TIMESTAMP
+        })
+        return True
+    except Exception as e:
+        print(f"Error creating coupon: {e}")
+        return False
+
+def get_all_coupons():
+    try:
+        db = get_db()
+        docs = db.collection('coupons').stream()
+        return [doc.to_dict() for doc in docs]
+    except:
+        return []
+
+def validate_coupon(code):
+    try:
+        db = get_db()
+        doc = db.collection('coupons').document(code).get()
+        if doc.exists and doc.get('active'):
+            return doc.to_dict()
+        return None
+    except Exception as e:
+        return None
+
+def delete_coupon(code):
+    try:
+        db = get_db()
+        db.collection('coupons').document(code).delete()
+        return True
+    except:
+        return False
+
+# --- CSV HELPERS (ARTICLES) ---
 
 def init_articles_csv():
     if not os.path.exists(ARTICLES_CSV):
@@ -130,7 +280,7 @@ def save_articles_to_csv(articles):
         print(f"Error saving to CSV: {e}")
         return False
 
-# --- Ideas CSV Helpers ---
+# --- CSV HELPERS (IDEAS) ---
 
 def init_ideas_csv():
     if not os.path.exists(IDEAS_CSV):
@@ -195,21 +345,6 @@ def save_ideas_to_csv(ideas):
     except Exception as e:
         print(f"Error saving to Ideas CSV: {e}")
         return False
-
-def read_user_profiles():
-    """Reads questionnaire data from CSV."""
-    profiles = {}
-    if not os.path.exists(USER_PROFILES_CSV):
-        return profiles
-    try:
-        with open(USER_PROFILES_CSV, 'r', encoding='utf-8') as f:
-            reader = csv.DictReader(f)
-            for row in reader:
-                if row.get('email'):
-                    profiles[row['email']] = row
-    except Exception as e:
-        print(f"Error reading profiles: {e}")
-    return profiles
 
 # --- Chat Helpers ---
 def read_chats():

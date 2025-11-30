@@ -44,7 +44,7 @@ const Wizard = () => {
 
                     const newProgress = Math.min(prev + increment, 99);
                     if (newProgress < 15) setProgressText('Initializing secure connection...');
-                    else if (newProgress < 30) setProgressText('Fetching live market data (Yahoo Finance)...');
+                    else if (newProgress < 30) setProgressText('Checking Subscription Limits...');
                     else if (newProgress < 45) setProgressText('Analyzing 10y Historical Volatility & Beta...');
                     else if (newProgress < 60) setProgressText('Calculating EMA Sensitivity & Trends...');
                     else if (newProgress < 70) setProgressText('Computing Asset Correlations...');
@@ -93,8 +93,11 @@ const Wizard = () => {
             return m[s] || 2;
         }
 
-        // [FIX] Ensure user_id is a string, never undefined
-        let body = { user_id: currentUser?.uid || "" };
+        // [FIX] Ensure user_id is a string
+        let body = { 
+            user_id: currentUser?.uid || "",
+            email: currentUser?.email || "" // <--- CRITICAL: Send email for limit checks
+        };
 
         switch (type) {
             case 'invest':
@@ -117,6 +120,7 @@ const Wizard = () => {
                 const cleanCode = rawCode.includes("Code B") ? "B" : "A";
                 body = {
                     ...body,
+                    email_to: currentUser?.email || "", // Cultivate uses email_to
                     cultivate_code: cleanCode,
                     portfolio_value: parseFloat(inputs.capital) || 10000,
                     use_fractional_shares: inputs.use_fractional_shares || false,
@@ -133,19 +137,15 @@ const Wizard = () => {
                     total_value: parseFloat(inputs.capital) || 10000,
                     use_fractional_shares: inputs.use_fractional_shares || false,
                     action: "run_analysis",
-                    // [FIX] Populate defaults to prevent missing field errors
                     sub_portfolios: [], 
                     ema_sensitivity: 2, 
                     amplification: 1.0,
-                    // [FIX] Use empty strings instead of null to prevent 422 Type Errors
                     trades: [],
                     rh_username: "", 
                     rh_password: "", 
-                    email_to: "",
-                    // [FIX] Add fields explicitly requested by the 422 Errors
-                    email: currentUser?.email || "", 
+                    email_to: currentUser?.email || "", // Custom/Tracking uses email_to
                     risk_tolerance: 10,
-                    vote_type: "stock", // [FIX] Added missing field from latest error
+                    vote_type: "stock",
                     overwrite: false
                 };
                 if (type === 'custom') body.action = "run_existing_portfolio";
@@ -168,13 +168,6 @@ const Wizard = () => {
     const executeAnalysis = async (body) => {
         setIsAnalyzing(true);
         
-        // --- [DEBUG START] ---
-        console.group("🚀 EXECUTION DEBUG");
-        console.log("Target Endpoint:", `/api/${toolType}`);
-        console.log("Payload Sending:", JSON.stringify(body, null, 2));
-        console.groupEnd();
-        // --- [DEBUG END] ---
-
         try {
             const endpoint = `/api/${toolType}`;
 
@@ -186,16 +179,13 @@ const Wizard = () => {
 
             const data = await response.json();
 
-            // [FIX] Enhanced Error Handling for 422
             if (!response.ok) {
-                console.group("❌ SERVER ERROR DETECTED");
-                console.error("Status:", response.status);
-                console.error("Full Response:", data);
-                if (data.detail) {
-                    console.error("Validation Details (Why 422 happened):", data.detail);
+                // Handle 403 specifically
+                if (response.status === 403) {
+                    alert(data.detail || "Usage limit reached. Please upgrade.");
+                    setIsAnalyzing(false);
+                    return;
                 }
-                console.groupEnd();
-                
                 throw new Error(`Server Error: ${response.status} - ${JSON.stringify(data.detail || data.message)}`);
             }
 

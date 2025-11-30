@@ -58,10 +58,31 @@ export function AuthProvider({ children }) {
         });
     }
 
+    // NEW: Fetch user profile (Tier) from backend
+    async function refreshUserProfile(user) {
+        if (!user || !user.email) return;
+        try {
+            const res = await fetch(`/api/user/profile?email=${user.email}`);
+            const profile = await res.json();
+            // Merge profile data (tier) into the user object
+            const mergedUser = { ...user, ...profile };
+            setCurrentUser(mergedUser);
+        } catch (err) {
+            console.error("Failed to fetch user profile", err);
+            // Even if fetch fails, set the auth user so app doesn't hang
+            setCurrentUser(user);
+        }
+    }
+
     useEffect(() => {
         const unsubscribe = onAuthStateChanged(auth, (user) => {
-            setCurrentUser(user);
-            setLoading(false);
+            if (user) {
+                // Fetch extra data (Tier) when user logs in
+                refreshUserProfile(user).then(() => setLoading(false));
+            } else {
+                setCurrentUser(null);
+                setLoading(false);
+            }
         });
 
         return unsubscribe;
@@ -76,7 +97,8 @@ export function AuthProvider({ children }) {
         resetPassword,
         updateUserEmail,
         updateUserPassword,
-        updateUsername
+        updateUsername,
+        refreshUserProfile // Exported so we can call it after payment
     };
 
     return (
