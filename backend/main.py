@@ -391,32 +391,66 @@ def delete_chat(req: ChatDeleteRequest):
 
 @app.post("/api/market-data")
 async def get_market_data(request: MarketDataRequest):
+    """
+    Fetches Price, Sparkline, Market Cap, Volume, PE, and calculates 1D, 1W, 1M, 1Y changes.
+    """
     try:
         tickers = [t.upper().strip() for t in request.tickers if t]
         if not tickers: return []
+        
+        # 1. Download 1 Year of data
+        # auto_adjust=True fixes the FutureWarnings regarding price adjustments
         df = yf.download(tickers, period="1y", interval="1d", progress=False, auto_adjust=True)
+        
         results = []
         for ticker in tickers:
             try:
+                # Handle MultiIndex vs Single Index
                 if len(tickers) > 1:
                     if ticker not in df['Close'].columns: continue
                     hist_close = df['Close'][ticker].dropna()
-                else: hist_close = df['Close'].dropna()
-                if hist_close.empty: continue
-                
-                def get_val(series, idx):
-                    try: return float(series.iloc[idx].item())
-                    except: return float(series.iloc[idx])
+                else:
+                    hist_close = df['Close'].dropna()
 
+                if hist_close.empty: continue
+
+                # Helper to safely get float value (Fixes FutureWarning)
+                def get_val(series, idx):
+                    try:
+                        # .item() converts numpy types to native python floats cleanly
+                        return float(series.iloc[idx].item())
+                    except:
+                        return float(series.iloc[idx])
+
+                # Get Prices
                 current_price = get_val(hist_close, -1)
+                
+                # Calculate Changes
                 price_1d = get_val(hist_close, -2) if len(hist_close) > 1 else current_price
                 change_1d = ((current_price - price_1d) / price_1d) * 100 if price_1d != 0 else 0
-                subset = hist_close.tail(30)
-                sparkline = subset.values.flatten().tolist() if isinstance(subset, pd.DataFrame) else subset.tolist()
+                
+                price_1w = get_val(hist_close, -6) if len(hist_close) > 6 else get_val(hist_close, 0)
+                change_1w = ((current_price - price_1w) / price_1w) * 100 if price_1w != 0 else 0
 
+                price_1m = get_val(hist_close, -22) if len(hist_close) > 22 else get_val(hist_close, 0)
+                change_1m = ((current_price - price_1m) / price_1m) * 100 if price_1m != 0 else 0
+
+                price_1y = get_val(hist_close, 0)
+                change_1y = ((current_price - price_1y) / price_1y) * 100 if price_1y != 0 else 0
+
+                # Sparkline (Fixes 'DataFrame has no attribute tolist')
+                # We ensure we are working with a flat list of values
+                subset = hist_close.tail(30)
+                if isinstance(subset, pd.DataFrame):
+                    sparkline = subset.values.flatten().tolist()
+                else:
+                    sparkline = subset.tolist()
+
+                # Get Metadata (PE, Vol, Cap)
                 mkt_cap = 0
                 volume = 0
                 pe_ratio = 0
+                
                 try:
                     t = yf.Ticker(ticker)
                     mkt_cap = t.fast_info.market_cap
@@ -425,33 +459,89 @@ async def get_market_data(request: MarketDataRequest):
                     pe_ratio = info.get('trailingPE', 0)
                     if not volume: volume = info.get('volume', 0)
                     if not mkt_cap: mkt_cap = info.get('marketCap', 0)
-                except: pass 
+                except: 
+                    pass 
 
-                results.append({"ticker": ticker, "price": current_price, "change": change_1d, "marketCap": mkt_cap, "volume": volume, "peRatio": pe_ratio, "sparkline": sparkline})
-            except: continue
+                results.append({
+                    "ticker": ticker,
+                    "price": current_price,
+                    "change": change_1d,
+                    "change1W": change_1w,
+                    "change1M": change_1m,
+                    "change1Y": change_1y,
+                    "marketCap": mkt_cap,
+                    "volume": volume,
+                    "peRatio": pe_ratio,
+                    "sparkline": sparkline
+                })
+            except Exception as e: 
+                # This log helps identify which specific ticker is failing
+                print(f"Error processing {ticker}: {e}")
+                continue
+                
         return results
-    except: return []
-
+    except Exception as e:
+        print(f"Global Market Data Error: {e}")
+        return []
+    
 @app.post("/api/market-data/details")
 async def get_market_data_details(request: MarketDataRequest):
+    """
+    Fetches heavy data: Earnings Date and Implied Volatility (IV).
+    """
     results = {}
     tickers = [t.upper().strip() for t in request.tickers if t]
+    
     for ticker in tickers:
         try:
             t = yf.Ticker(ticker)
+            
+            # 1. Earnings Date
             earnings_date = "-"
             try:
                 cal = t.calendar
-                if isinstance(cal, dict) and 'Earnings Date' in cal:
-                     dates = cal['Earnings Date']
-                     if dates: earnings_date = str(dates[0].date())
-            except: pass
+                # 'cal' can be a Dictionary or DataFrame depending on yfinance version
+                if isinstance(cal, dict):
+                     # Look for Earnings Date
+                     if 'Earnings Date' in cal:
+                         dates = cal['Earnings Date']
+                         if dates: earnings_date = str(dates[0].date())
+                elif isinstance(cal, pd.DataFrame):
+                    # Transpose sometimes needed
+                    if not cal.empty:
+                        # Common keys: 'Earnings Date' or 0
+                        vals = cal.iloc[0]
+                        earnings_date = str(vals.values[0])
+            except: 
+                # Fallback to info
+                try:
+                    ts = t.info.get('earningsTimestamp')
+                    if ts: earnings_date = datetime.fromtimestamp(ts).strftime('%Y-%m-%d')
+                except: pass
+
+            # 2. Implied Volatility (IV)
             iv = "-"
             try:
-                if t.info.get('impliedVolatility'): iv = f"{t.info['impliedVolatility'] * 100:.2f}%"
+                # Try getting it from info first (fastest)
+                if t.info.get('impliedVolatility'):
+                     iv = f"{t.info['impliedVolatility'] * 100:.2f}%"
+                else:
+                    # Fallback: Approximate from options (slower, but accurate)
+                    dates = t.options
+                    if dates:
+                        chain = t.option_chain(dates[0])
+                        valid_ivs = chain.calls[chain.calls['impliedVolatility'] > 0]['impliedVolatility']
+                        if not valid_ivs.empty:
+                            iv = f"{valid_ivs.mean() * 100:.2f}%"
             except: pass
-            results[ticker] = {"earnings": earnings_date, "iv": iv}
-        except: results[ticker] = {"earnings": "-", "iv": "-"}
+
+            results[ticker] = {
+                "earnings": earnings_date,
+                "iv": iv
+            }
+        except:
+            results[ticker] = {"earnings": "-", "iv": "-"}
+            
     return {"results": results}
 
 @app.get("/api/mods")
