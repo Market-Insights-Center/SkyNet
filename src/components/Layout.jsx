@@ -103,7 +103,7 @@ const Layout = ({ children }) => {
                         {/* Logo */}
                         <div className="flex-shrink-0 flex items-center">
                             <Link to="/" className="text-xl font-bold tracking-wider text-white flex items-center gap-2">
-                                M.I.C. <span className="text-gold">SINGULARITY</span>
+                                M.I.C.
                             </Link>
                         </div>
 

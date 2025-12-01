@@ -10,7 +10,7 @@ import {
     updatePassword,
     updateProfile,
     GoogleAuthProvider,
-    signInWithPopup
+    signInWithRedirect
 } from "firebase/auth";
 
 const AuthContext = React.createContext();
@@ -33,7 +33,7 @@ export function AuthProvider({ children }) {
 
     function loginWithGoogle() {
         const provider = new GoogleAuthProvider();
-        return signInWithPopup(auth, provider);
+        return signInWithRedirect(auth, provider);
     }
 
     function logout() {

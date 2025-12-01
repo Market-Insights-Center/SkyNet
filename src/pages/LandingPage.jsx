@@ -495,7 +495,7 @@ const LandingPage = () => {
                             transition={{ duration: 0.8 }}
                         >
                             <h1 className="text-6xl md:text-8xl font-bold mb-6 tracking-tight">
-                                M.I.C. <span className="text-gold">SINGULARITY</span>
+                                M.I.C.
                             </h1>
                             <p className="text-xl md:text-2xl text-gray-300 mb-10 max-w-3xl mx-auto leading-relaxed">
                                 The next evolution in wealth management. AI-driven insights, institutional-grade strategies, and automated portfolio optimization.
