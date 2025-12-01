@@ -490,6 +490,49 @@ def api_delete_idea(req: IdeaDeleteRequest):
         return {"status": "success"}
     raise HTTPException(status_code=404, detail="Idea not found")
 
+# --- COMMAND ENDPOINTS ---
+
+@app.post("/api/invest")
+async def api_invest(request: Request):
+    try:
+        data = await request.json()
+        # The frontend sends the body directly, which maps to ai_params in the handler
+        result = await invest_command.handle_invest_command([], ai_params=data, is_called_by_ai=True)
+        return result
+    except Exception as e:
+        logger.error(f"Error in /api/invest: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/cultivate")
+async def api_cultivate(request: Request):
+    try:
+        data = await request.json()
+        result = await cultivate_command.handle_cultivate_command([], ai_params=data, is_called_by_ai=True)
+        return result
+    except Exception as e:
+        logger.error(f"Error in /api/cultivate: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/custom")
+async def api_custom(request: Request):
+    try:
+        data = await request.json()
+        result = await custom_command.handle_custom_command([], ai_params=data, is_called_by_ai=True)
+        return result
+    except Exception as e:
+        logger.error(f"Error in /api/custom: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/tracking")
+async def api_tracking(request: Request):
+    try:
+        data = await request.json()
+        result = await tracking_command.handle_tracking_command([], ai_params=data, is_called_by_ai=True)
+        return result
+    except Exception as e:
+        logger.error(f"Error in /api/tracking: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)

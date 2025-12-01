@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { ArrowLeft, Download, Share2, ArrowUp, ArrowDown, Activity, Layers } from 'lucide-react';
+import { ArrowLeft, ArrowUp, ArrowDown, Activity, Layers } from 'lucide-react';
 
 const CHART_COLORS = [
     '#D4AF37', '#6A0DAD', '#FFFFFF', '#9370DB', '#B8860B', '#4B0082', '#FFD700', '#8A2BE2', '#6B7280', '#10B981'
@@ -83,7 +83,7 @@ const ExecutionModal = ({ isOpen, onClose, onExecute }) => {
     const handleConfirm = () => {
         if (isProcessing) return;
         setIsProcessing(true);
-        
+
         if (sendEmail && email) localStorage.setItem('mic_email', email);
         if (execRh && rhUser) localStorage.setItem('mic_rh_user', rhUser);
         if (execRh && rhPass) localStorage.setItem('mic_rh_pass', rhPass);
@@ -175,7 +175,7 @@ const Results = ({ toolType, onBack }) => {
     // Destructure stable state
     const { summary: summaryStats, table: rawTableData, raw_result, comparison, performance, since_last_save } = stableData;
     const cashValue = parseFloat(raw_result?.final_cash) || 0;
-    
+
     const totalStockValue = rawTableData.reduce((sum, item) => {
         const val = parseFloat(item?.value || item?.actual_money_allocation || item?.equity || 0);
         return sum + val;
@@ -191,19 +191,19 @@ const Results = ({ toolType, onBack }) => {
         let price = parseFloat(item.price || item.live_price || item.Close || 0);
         if (price === 0 && shares > 0) price = val / shares;
 
-        return { 
+        return {
             ...item,
             value: val,
             price: price,
             shares: shares,
-            allocPercent: totalPortfolioValue > 0 ? (val / totalPortfolioValue) * 100 : 0 
+            allocPercent: totalPortfolioValue > 0 ? (val / totalPortfolioValue) * 100 : 0
         };
     }), [rawTableData, totalPortfolioValue]);
 
     const chartData = useMemo(() => {
         const sorted = [...enhancedTableData].sort((a, b) => b.value - a.value);
-        let items = sorted.slice(0, 8).map((item, i) => ({ 
-            label: item.ticker || "N/A", value: item.value || 0, color: CHART_COLORS[i % 8] 
+        let items = sorted.slice(0, 8).map((item, i) => ({
+            label: item.ticker || "N/A", value: item.value || 0, color: CHART_COLORS[i % 8]
         }));
         const others = sorted.slice(8);
         if (others.length > 0) {
@@ -230,7 +230,7 @@ const Results = ({ toolType, onBack }) => {
     const handleExecution = async (options) => {
         // NOTE: Modal closes only AFTER fetch or error to keep UI state consistent
         // We handle logic here.
-        
+
         const payloadData = enhancedTableData.length > 0 ? enhancedTableData : rawTableData;
 
         if (payloadData.length === 0) {
@@ -245,7 +245,7 @@ const Results = ({ toolType, onBack }) => {
             trades: raw_result?.trades || [],
             final_cash: cashValue,
             total_value: totalPortfolioValue,
-            new_run_data: payloadData, 
+            new_run_data: payloadData,
             rh_username: options.execRh ? options.rhUser : null,
             rh_password: options.execRh ? options.rhPass : null,
             email_to: options.sendEmail ? options.email : null,
@@ -259,7 +259,7 @@ const Results = ({ toolType, onBack }) => {
                 body: JSON.stringify(body)
             });
             const result = await response.json();
-            
+
             if (result.log && Array.isArray(result.log)) {
                 alert(result.log.join("\n"));
             } else {
@@ -282,8 +282,6 @@ const Results = ({ toolType, onBack }) => {
                             <Activity size={20} /> Execute Actions
                         </button>
                     )}
-                    <button className="p-2 bg-white/5 rounded-lg hover:bg-white/10 text-white"><Share2 size={20} /></button>
-                    <button className="flex items-center gap-2 px-4 py-2 bg-gold text-black font-bold rounded-lg hover:bg-yellow-500"><Download size={20} /> Export</button>
                 </div>
             </div>
 
@@ -299,15 +297,6 @@ const Results = ({ toolType, onBack }) => {
                         </div>
                     );
                 })}
-                
-                <div className="bg-white/5 border border-white/10 rounded-xl p-6 relative overflow-hidden group">
-                    <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-                        <Layers size={60} />
-                    </div>
-                    <p className="text-gray-400 text-sm mb-1">Total Holdings</p>
-                    <h3 className="text-2xl font-bold text-white">{holdingsCount}</h3>
-                    <span className="text-xs text-gray-500">Active Positions</span>
-                </div>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-10">
@@ -366,7 +355,7 @@ const Results = ({ toolType, onBack }) => {
                             <div className="p-4 bg-white/10 border-b border-white/10"><h3 className="font-bold text-white">Trade Recommendations</h3></div>
                             <div className="overflow-x-auto">
                                 <table className="w-full text-left">
-                                    <thead><tr className="text-xs text-gray-400 border-b border-white/10"><th className="p-3">Ticker</th><th className="p-3">Action</th><th className="p-3 text-right">Diff</th></tr></thead>
+                                    <thead><tr className="text-xs text-gray-400 border-b border-white/10"><th className="p-3">Ticker</th><th className="p-3 text-right">Diff</th></tr></thead>
                                     <tbody>
                                         {comparison && comparison.map((row, i) => {
                                             if (!row) return null;
