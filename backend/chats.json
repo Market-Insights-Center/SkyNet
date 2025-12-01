@@ -127,24 +127,6 @@
         ]
     },
     {
-        "id": "d7ed0bba-e339-439e-9360-330177e8eabe",
-        "type": "admin_support",
-        "participants": [
-            "marketinsightscenter@gmail.com"
-        ],
-        "subject": "Support Ticket: marketinsightscenter@gmail.com",
-        "created_at": "2025-11-26T22:28:21.816666",
-        "last_updated": "2025-11-26T22:28:21.816672",
-        "messages": [
-            {
-                "id": "6c4b603a-0cbf-48fa-9481-a35620f57690",
-                "sender": "marketinsightscenter@gmail.com",
-                "text": "Started a new support ticket.",
-                "timestamp": "2025-11-26T22:28:21.816677"
-            }
-        ]
-    },
-    {
         "id": "4b16e7c2-8a4c-472d-8439-72e78263cede",
         "type": "admin_support",
         "participants": [
@@ -207,9 +189,82 @@
                 "sender": "marketinsightscenter@gmail.com",
                 "text": "Hello Verzogerung, \n\nYou have requested a Custom Portfolio Build. Here are the details we have on file:\n\n**User Questionnaire Responses:**\n- **Risk Tolerance:** 10\n- **Trading Frequency:** Daily\n- **Portfolio Types:** All\n\nPlease review these details. If you want to change anything, please let us know. \nIf everything looks correct, please reply with \"Confirm\" to proceed with the custom portfolio build.\n",
                 "timestamp": "2025-12-01T03:15:27.264780"
+            },
+            {
+                "sender": "marketinsightscenter@gmail.com",
+                "text": "asdf",
+                "timestamp": "2025-12-01T08:03:10.403367"
+            },
+            {
+                "sender": "marketinsightscenter@gmail.com",
+                "text": "asdf",
+                "timestamp": "2025-12-01T08:03:10.431324"
+            },
+            {
+                "sender": "marketinsightscenter@gmail.com",
+                "text": "asdf",
+                "timestamp": "2025-12-01T08:03:10.447226"
+            },
+            {
+                "sender": "marketinsightscenter@gmail.com",
+                "text": "asdf",
+                "timestamp": "2025-12-01T08:03:10.468253"
+            },
+            {
+                "sender": "marketinsightscenter@gmail.com",
+                "text": "asdf",
+                "timestamp": "2025-12-01T08:03:14.758641"
             }
         ],
-        "last_updated": "2025-12-01T03:15:27.264780",
-        "last_message_preview": "Hello Verzogerung, \n\nYou have requested a Custom Portfolio Build. Here are the details we have on file:\n\n**User Questionnaire Responses:**\n- **Risk Tolerance:** 10\n- **Trading Frequency:** Daily\n- **Portfolio Types:** All\n\nPlease review these details. If you want to change anything, please let us know. \nIf everything looks correct, please reply with \"Confirm\" to proceed with the custom portfolio build.\n"
+        "last_updated": "2025-12-01T08:03:14.758641",
+        "last_message_preview": "asdf"
+    },
+    {
+        "id": "2120e50e-393a-4cf5-b4de-17303f31320a",
+        "type": "admin_support",
+        "participants": [
+            "marketinsightscenter@gmail.com"
+        ],
+        "messages": [
+            {
+                "sender": "marketinsightscenter@gmail.com",
+                "text": "Started a new support ticket.",
+                "timestamp": "2025-12-01T07:57:28.174675"
+            }
+        ],
+        "last_updated": "2025-12-01T07:57:28.174675",
+        "last_message_preview": "Started a new support ticket."
+    },
+    {
+        "id": "6bbc67fc-76a5-48e2-886e-21cfac768354",
+        "type": "admin_support",
+        "participants": [
+            "marketinsightscenter@gmail.com"
+        ],
+        "messages": [
+            {
+                "sender": "marketinsightscenter@gmail.com",
+                "text": "Started a new support ticket.",
+                "timestamp": "2025-12-01T08:00:19.265613"
+            }
+        ],
+        "last_updated": "2025-12-01T08:00:19.265613",
+        "last_message_preview": "Started a new support ticket."
+    },
+    {
+        "id": "ef427c85-4585-4fd5-bf9b-96a772bb604f",
+        "type": "admin_support",
+        "participants": [
+            "marketinsightscenter@gmail.com"
+        ],
+        "messages": [
+            {
+                "sender": "marketinsightscenter@gmail.com",
+                "text": "Started a new support ticket.",
+                "timestamp": "2025-12-01T08:00:57.302326"
+            }
+        ],
+        "last_updated": "2025-12-01T08:00:57.302326",
+        "last_message_preview": "Started a new support ticket."
     }
 ]

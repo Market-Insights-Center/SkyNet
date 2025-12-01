@@ -126,6 +126,10 @@ def get_chats(email: str, all_chats: bool = False):
     user_chats.sort(key=lambda x: x.get('last_updated', ''), reverse=True)
     return user_chats
 
+# -----------------------------
+# CHAT ENDPOINTS (Fixed & Complete)
+# -----------------------------
+
 @app.post("/api/chat/create")
 def create_chat(req: ChatCreateRequest):
     chats = read_chats()
@@ -141,6 +145,10 @@ def create_chat(req: ChatCreateRequest):
     save_chats(chats)
     return new_chat
 
+@app.get("/api/chat/list")
+def list_user_chats(email: str):
+    return get_chats(email)
+
 @app.get("/api/chat/{chat_id}/messages")
 def get_messages(chat_id: str, email: str):
     chats = read_chats()
@@ -154,6 +162,7 @@ def get_messages(chat_id: str, email: str):
         
     return chat.get("messages", [])
 
+# --- THIS WAS MISSING, CAUSING MESSAGES NOT TO SEND ---
 @app.post("/api/chat/{chat_id}/message")
 def send_message(chat_id: str, req: ChatMessageRequest):
     chats = read_chats()
@@ -193,10 +202,7 @@ def delete_chat(req: ChatDeleteRequest):
     if not chat_exists:
         raise HTTPException(status_code=404, detail="Chat not found")
         
-    if not found:
-         raise HTTPException(status_code=403, detail="Not authorized to delete this chat")
-
-    return {"status": "success"}
+    raise HTTPException(status_code=403, detail="Not authorized to delete this chat")
 
 @app.post("/api/market-data")
 async def get_market_data(request: MarketDataRequest):
@@ -376,24 +382,23 @@ def manage_mods(request: ModRequest):
                 writer = csv.writer(f)
                 writer.writerow(["email"])
                 for m in mods: writer.writerow([m])
-    return {"status": "success", "mods": mods}
-
-@app.get("/api/articles")
-def get_articles(limit: int = 100): return read_articles_from_csv()[:limit]
+    return {"status": "success"}
 
 @app.get("/api/users")
 def get_users(): 
     users = get_all_users_from_db()
     # Ensure Super Admin has Singularity tier
     for user in users:
-        if user['email'] == SUPER_ADMIN_EMAIL:
+        if user.get('email', '').lower() == SUPER_ADMIN_EMAIL:
             user['tier'] = 'Singularity'
     return users
 
 @app.get("/api/user/profile")
 def api_get_user_profile(email: str):
+    print(f"HIT PROFILE ENDPOINT: {email}")
     # Special override for Super Admin
-    if email == SUPER_ADMIN_EMAIL:
+    if email.lower() == SUPER_ADMIN_EMAIL:
+        print("MATCHED SUPER ADMIN")
         return {"email": email, "tier": "Singularity", "subscription_status": "active", "risk_tolerance": 10, "trading_frequency": "Daily", "portfolio_types": ["All"]}
         
     profile = get_user_profile(email)
@@ -402,9 +407,6 @@ def api_get_user_profile(email: str):
     # Return default empty profile if not found in DB yet
     return {"email": email, "tier": "Basic", "subscription_status": "none"}
 
-@app.get("/api/ideas")
-def get_ideas(limit: int = 100): return read_ideas_from_csv()[:limit]
-
 # --- ADMIN ROUTES ---
 @app.get("/api/admin/coupons")
 def api_get_coupons(email: str):
@@ -412,9 +414,7 @@ def api_get_coupons(email: str):
     if email not in mods: raise HTTPException(status_code=403, detail="Not authorized")
     return get_all_coupons()
 
-@app.post("/api/admin/coupons/create")
-def api_create_coupon(req: Request, payload: Dict[str, Any] = None):
-    pass 
+# DELETE THE "pass" FUNCTION THAT WAS HERE
 
 class CouponCreateRequest(BaseModel):
     code: str
@@ -423,8 +423,9 @@ class CouponCreateRequest(BaseModel):
     discount_label: str
     requester_email: str
 
+# Keep this one (The actual implementation)
 @app.post("/api/admin/coupons/create")
-def api_create_coupon_impl(req: CouponCreateRequest):
+def api_create_coupon(req: CouponCreateRequest):
     mods = get_mod_list()
     if req.requester_email.lower() not in mods: raise HTTPException(status_code=403, detail="Not authorized")
     create_coupon(req.code, req.plan_id, req.tier, req.discount_label)

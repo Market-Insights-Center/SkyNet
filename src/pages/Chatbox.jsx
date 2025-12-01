@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Send, Plus, Search, User, Shield, MessageSquare, MoreVertical, X, Trash2, Check, Users, Briefcase } from 'lucide-react';
+import { Send, Plus, Search, User, Shield, MessageSquare, MoreVertical, X, Trash2, Check, Users, Briefcase, Paperclip, Bot } from 'lucide-react';
 
 const Chatbox = () => {
     const { currentUser } = useAuth();
@@ -330,11 +330,11 @@ If everything looks correct, please reply with "Confirm" to proceed with the cus
                                                 )}
                                             </div>
 
-                                            {/* Trash Icon for Deletion */}
+                                            {/* Trash Icon for Deletion - VISIBILITY FIXED */}
                                             <button
                                                 type="button"
                                                 onClick={(e) => deleteConversation(e, chat.id)}
-                                                className="absolute right-2 top-1/2 -translate-y-1/2 p-2 bg-red-500/10 text-red-500 rounded-full opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity hover:bg-red-500/20 z-20"
+                                                className="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-gray-500 hover:text-red-500 hover:bg-white/10 rounded-full transition-all z-20"
                                                 title="Delete Conversation"
                                             >
                                                 <Trash2 size={16} />

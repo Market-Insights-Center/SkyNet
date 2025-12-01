@@ -1,0 +1,45 @@
+# --------------------------------------------------------
+# BLOCK 1: REDIRECT OLD (.cloud) -> NEW (.com)
+# --------------------------------------------------------
+server {
+    listen 80;
+    server_name marketinsightscenter.cloud www.marketinsightscenter.cloud;
+
+    # 301 Permanent Redirect to the .com version
+    return 301 https://marketinsightscenter.com$request_uri;
+}
+
+# --------------------------------------------------------
+# BLOCK 2: MAIN SITE (.com)
+# --------------------------------------------------------
+server {
+    listen 80;
+    server_name marketinsightscenter.com www.marketinsightscenter.com;
+
+    # Point to the DIST folder containing the built React app
+    root /var/www/marketinsightscenter/dist;
+    index index.html;
+
+    # 1. Frontend Routing
+    # Serves index.html for any unknown paths (Required for React Router)
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+
+    # 2. Backend API Proxy
+    # Sends any request starting with /api to the Python backend running on port 8000
+    location /api {
+        proxy_pass http://127.0.0.1:8000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_cache_bypass $http_upgrade;
+    }
+
+    # 3. Serve Static Files from Backend
+    # Matches the mount path in your main.py
+    location /static {
+        alias /var/www/marketinsightscenter/backend/static;
+    }
+}

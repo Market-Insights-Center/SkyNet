@@ -3,6 +3,8 @@ fastapi
 uvicorn
 pydantic
 python-multipart
+uvicorn
+gunicorn
 
 # Data Handling & Analysis
 pandas
