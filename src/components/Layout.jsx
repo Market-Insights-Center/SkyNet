@@ -102,6 +102,7 @@ const Layout = ({ children }) => {
                     <div className="flex items-center justify-between h-20">
                         {/* Logo */}
                         <div className="flex-shrink-0 flex items-center">
+                            {/* UPDATED: Removed Singularity text */}
                             <Link to="/" className="text-xl font-bold tracking-wider text-white flex items-center gap-2">
                                 M.I.C.
                             </Link>

@@ -494,6 +494,7 @@ const LandingPage = () => {
                             animate={{ opacity: 1, y: 0 }}
                             transition={{ duration: 0.8 }}
                         >
+                            {/* UPDATED: Removed Singularity text */}
                             <h1 className="text-6xl md:text-8xl font-bold mb-6 tracking-tight">
                                 M.I.C.
                             </h1>

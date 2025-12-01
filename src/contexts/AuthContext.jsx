@@ -33,6 +33,7 @@ export function AuthProvider({ children }) {
 
     function loginWithGoogle() {
         const provider = new GoogleAuthProvider();
+        // Changed to redirect to avoid popup blockers/new window issues
         return signInWithRedirect(auth, provider);
     }
 
