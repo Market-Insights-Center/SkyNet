@@ -1,4 +1,4 @@
-import React, { useRef, useState } from "react";
+import React, { useRef, useState, useEffect } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import { Link, useNavigate } from "react-router-dom";
 import { AlertCircle, Loader2 } from "lucide-react";
@@ -7,10 +7,18 @@ import WaveBackground from "../components/WaveBackground";
 export default function Login() {
     const emailRef = useRef();
     const passwordRef = useRef();
-    const { login, loginWithGoogle } = useAuth();
+    // Get currentUser and global loading state
+    const { login, loginWithGoogle, currentUser, loading: authLoading } = useAuth();
     const [error, setError] = useState(null);
     const [loading, setLoading] = useState(false);
     const navigate = useNavigate();
+
+    // Redirect if already logged in (e.g. returning from Google Redirect)
+    useEffect(() => {
+        if (currentUser) {
+            navigate("/profile");
+        }
+    }, [currentUser, navigate]);
 
     async function handleSubmit(e) {
         e.preventDefault();
@@ -49,16 +57,25 @@ export default function Login() {
         try {
             setError(null);
             setLoading(true);
+            // This initiates the redirect. 
             await loginWithGoogle();
-            navigate("/profile");
         } catch (err) {
             if (err.code === 'auth/configuration-not-found') {
                 setError("Google Sign-In is disabled in the Firebase Console.");
             } else {
                 setError("Failed to log in with Google: " + err.message);
             }
+            setLoading(false);
         }
-        setLoading(false);
+    }
+
+    // If global auth is loading (checking session), show spinner
+    if (authLoading) {
+        return (
+            <div className="min-h-screen bg-black flex items-center justify-center">
+                <Loader2 className="animate-spin text-purple-500" size={48} />
+            </div>
+        );
     }
 
     return (

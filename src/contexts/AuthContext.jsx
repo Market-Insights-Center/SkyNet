@@ -10,7 +10,7 @@ import {
     updatePassword,
     updateProfile,
     GoogleAuthProvider,
-    signInWithRedirect
+    signInWithPopup
 } from "firebase/auth";
 
 const AuthContext = React.createContext();
@@ -33,8 +33,8 @@ export function AuthProvider({ children }) {
 
     function loginWithGoogle() {
         const provider = new GoogleAuthProvider();
-        // Changed to redirect to avoid popup blockers/new window issues
-        return signInWithRedirect(auth, provider);
+        // Use popup for Google Auth to avoid redirect loops
+        return signInWithPopup(auth, provider);
     }
 
     function logout() {
@@ -63,23 +63,33 @@ export function AuthProvider({ children }) {
     async function refreshUserProfile(user) {
         if (!user || !user.email) return;
         try {
-            const res = await fetch(`/api/user/profile?email=${user.email}`);
+            // Pass uid to allow auto-creation if missing
+            const res = await fetch(`/api/user/profile?email=${user.email}&uid=${user.uid}`);
             const profile = await res.json();
-            // Merge profile data (tier) into the user object
-            const mergedUser = { ...user, ...profile };
-            setCurrentUser(mergedUser);
+
+            // CRITICAL FIX: Do NOT spread the user object ({...user}).
+            // It destroys Firebase User prototype methods (like getIdToken, delete, etc.).
+            // Instead, attach profile data directly to the user object.
+            Object.assign(user, profile);
+
+            // Force update with new properties
+            setCurrentUser({ ...user });
         } catch (err) {
             console.error("Failed to fetch user profile", err);
             // Even if fetch fails, set the auth user so app doesn't hang
-            setCurrentUser(user);
+            // setCurrentUser(user); // Already set in onAuthStateChanged
         }
     }
 
     useEffect(() => {
-        const unsubscribe = onAuthStateChanged(auth, (user) => {
+        const unsubscribe = onAuthStateChanged(auth, async (user) => {
             if (user) {
-                // Fetch extra data (Tier) when user logs in
-                refreshUserProfile(user).then(() => setLoading(false));
+                // OPTIMIZATION: Set user immediately to unblock UI
+                setCurrentUser(user);
+                setLoading(false);
+
+                // Fetch extra data (Tier) in background
+                await refreshUserProfile(user);
             } else {
                 setCurrentUser(null);
                 setLoading(false);
@@ -99,7 +109,8 @@ export function AuthProvider({ children }) {
         updateUserEmail,
         updateUserPassword,
         updateUsername,
-        refreshUserProfile // Exported so we can call it after payment
+        refreshUserProfile,
+        loading // Expose loading state
     };
 
     return (

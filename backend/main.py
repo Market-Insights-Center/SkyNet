@@ -49,7 +49,8 @@ from database import (
     delete_user_full,
     delete_article,
     delete_idea,
-    delete_comment  # Added this import
+    delete_comment,
+    create_user_profile
 )
 
 logging.basicConfig(level=logging.INFO)
@@ -437,11 +438,17 @@ def get_users():
     return users
 
 @app.get("/api/user/profile")
-def api_get_user_profile(email: str):
+def api_get_user_profile(email: str, uid: Optional[str] = None):
     if email.lower() == SUPER_ADMIN_EMAIL:
         return {"email": email, "tier": "Singularity", "subscription_status": "active", "risk_tolerance": 10, "trading_frequency": "Daily", "portfolio_types": ["All"]}
         
     profile = get_user_profile(email)
+    
+    # Auto-signup logic
+    if not profile and uid:
+        if create_user_profile(email, uid):
+             profile = get_user_profile(email)
+             
     if profile:
         return profile
     return {"email": email, "tier": "Basic", "subscription_status": "none"}

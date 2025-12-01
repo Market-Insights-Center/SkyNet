@@ -62,6 +62,32 @@ def update_user_tier(email, tier, subscription_id=None, status="active"):
         print(f"Error updating tier: {e}")
         return False
 
+def create_user_profile(email, uid):
+    """Creates a new user profile in Firestore."""
+    try:
+        db = get_db()
+        # Check if exists first to avoid overwriting
+        doc_ref = db.collection('users').document(email)
+        doc = doc_ref.get()
+        
+        if not doc.exists:
+            data = {
+                'email': email,
+                'uid': uid,
+                'tier': 'Free',
+                'subscription_status': 'none',
+                'created_at': firestore.SERVER_TIMESTAMP,
+                'risk_tolerance': 5, # Default
+                'trading_frequency': 'Once A Week', # Default
+                'portfolio_types': ['Stocks'] # Default
+            }
+            doc_ref.set(data)
+            return True
+        return False
+    except Exception as e:
+        print(f"Error creating user profile: {e}")
+        return False
+
 def get_all_users_from_db():
     """Fetches ALL users from Auth and merges with Firestore Tier data."""
     try:
