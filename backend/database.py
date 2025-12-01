@@ -11,6 +11,7 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.path.join(BASE_DIR, 'data')
 ARTICLES_CSV = os.path.join(DATA_DIR, 'articles.csv')
 IDEAS_CSV = os.path.join(DATA_DIR, 'ideas.csv')
+COMMENTS_CSV = os.path.join(DATA_DIR, 'comments.csv') 
 CHATS_FILE = os.path.join(BASE_DIR, 'chats.json')
 USER_PROFILES_CSV = os.path.join(BASE_DIR, 'user_profiles.csv')
 
@@ -116,35 +117,24 @@ def delete_user_full(email):
 # --- USAGE LIMIT ENFORCEMENT ---
 
 def check_and_increment_limit(email, feature_key):
-    """
-    Checks if a user has quota left for a specific feature.
-    If yes, increments the counter and returns True.
-    If no, returns False.
-    """
     try:
         db = get_db()
         user_ref = db.collection('users').document(email)
         user_doc = user_ref.get()
         
-        # Default to Free if document doesn't exist
         if user_doc.exists:
             user_data = user_doc.to_dict()
             tier = user_data.get('tier', 'Free')
         else:
             tier = 'Free'
         
-        # 1. Check for Singularity (Infinite Access)
         if tier == 'Singularity':
             return True
             
-        # 2. Determine Limits
         limit = TIER_LIMITS.get(tier, TIER_LIMITS['Free']).get(feature_key, 0)
-        
-        # 3. Get Current Usage for this Month
         current_month = datetime.now().strftime('%Y-%m')
         usage_ref = user_ref.collection('usage_logs').document(current_month)
         
-        # Run inside a transaction to prevent race conditions
         @firestore.transactional
         def update_in_transaction(transaction, usage_ref):
             snapshot = transaction.get(usage_ref)
@@ -163,7 +153,6 @@ def check_and_increment_limit(email, feature_key):
 
     except Exception as e:
         print(f"Usage Check Error: {e}")
-        # Fail safe: if DB is down, don't block heavily unless critical
         return False 
 
 # --- COUPONS ---
@@ -173,9 +162,9 @@ def create_coupon(code, plan_id, applicable_tier, discount_label):
         db = get_db()
         db.collection('coupons').document(code).set({
             'code': code,
-            'plan_id': plan_id, # The hidden PayPal Plan ID
+            'plan_id': plan_id,
             'applicable_tier': applicable_tier,
-            'discount_label': discount_label, # e.g. "20% OFF"
+            'discount_label': discount_label,
             'active': True,
             'created_at': firestore.SERVER_TIMESTAMP
         })
@@ -230,11 +219,20 @@ def read_articles_from_csv():
             for row in reader:
                 try:
                     row['id'] = int(row['id']) if row.get('id') else 0
-                    row['likes'] = int(row['likes']) if row.get('likes') else 0
-                    row['dislikes'] = int(row['dislikes']) if row.get('dislikes') else 0
-                    # Ensure shares are read correctly
-                    row['shares'] = int(row['shares']) if row.get('shares') and row.get('shares') != '' else 0
                     
+                    def safe_int(val):
+                        try:
+                            return int(val) if val and val.lower() != 'nan' else 0
+                        except:
+                            return 0
+
+                    row['likes'] = safe_int(row.get('likes'))
+                    row['dislikes'] = safe_int(row.get('dislikes'))
+                    row['shares'] = safe_int(row.get('shares'))
+                    
+                    if not row.get('date'):
+                        row['date'] = datetime.utcnow().strftime('%Y-%m-%d')
+
                     try: row['hashtags'] = json.loads(row['hashtags']) if row.get('hashtags') else []
                     except: row['hashtags'] = []
                     
@@ -246,7 +244,7 @@ def read_articles_from_csv():
                     
                     articles.append(row)
                 except Exception as e:
-                    print(f"Error parsing row {row.get('id')}: {e}")
+                    print(f"Error parsing article row {row.get('id')}: {e}")
                     continue
     except Exception as e:
         print(f"Error reading CSV: {e}")
@@ -271,7 +269,7 @@ def save_articles_to_csv(articles):
                     a.get('cover_image'),
                     a.get('likes', 0),
                     a.get('dislikes', 0),
-                    a.get('shares', 0), # Save shares
+                    a.get('shares', 0),
                     json.dumps(a.get('liked_by', [])),
                     json.dumps(a.get('disliked_by', []))
                 ])
@@ -307,8 +305,16 @@ def read_ideas_from_csv():
             for row in reader:
                 try:
                     row['id'] = int(row['id']) if row.get('id') else 0
-                    row['likes'] = int(row['likes']) if row.get('likes') else 0
-                    row['dislikes'] = int(row['dislikes']) if row.get('dislikes') else 0
+                    
+                    def safe_int(val):
+                        try: return int(val) if val and val.lower() != 'nan' else 0
+                        except: return 0
+
+                    row['likes'] = safe_int(row.get('likes'))
+                    row['dislikes'] = safe_int(row.get('dislikes'))
+                    
+                    if not row.get('date'):
+                        row['date'] = datetime.utcnow().strftime('%Y-%m-%d')
                     
                     try: row['hashtags'] = json.loads(row['hashtags']) if row.get('hashtags') else []
                     except: row['hashtags'] = []
@@ -359,6 +365,81 @@ def delete_idea(idea_id):
     if len(ideas) == len(new_ideas):
         return False
     return save_ideas_to_csv(new_ideas)
+
+# --- CSV HELPERS (COMMENTS) ---
+
+def init_comments_csv():
+    # UPDATED: Added article_id to headers
+    if not os.path.exists(COMMENTS_CSV):
+        with open(COMMENTS_CSV, 'w', newline='', encoding='utf-8') as f:
+            writer = csv.writer(f)
+            writer.writerow(['id', 'idea_id', 'article_id', 'user_id', 'user', 'email', 'text', 'date', 'isAdmin'])
+
+def read_comments_from_csv():
+    comments = []
+    if not os.path.exists(COMMENTS_CSV):
+        init_comments_csv()
+        return []
+    
+    try:
+        with open(COMMENTS_CSV, 'r', encoding='utf-8') as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                try:
+                    row['id'] = int(row['id']) if row.get('id') else 0
+                    
+                    # UPDATED: Handle both idea_id and article_id safely
+                    def safe_id(val):
+                        try: return int(val) if val and val != '' else 0
+                        except: return 0
+
+                    row['idea_id'] = safe_id(row.get('idea_id'))
+                    row['article_id'] = safe_id(row.get('article_id'))
+                    
+                    row['isAdmin'] = True if row.get('isAdmin') == 'True' else False
+                    comments.append(row)
+                except Exception as e:
+                    print(f"Error parsing comment row: {e}")
+                    continue
+    except Exception as e:
+        print(f"Error reading Comments CSV: {e}")
+        return []
+    return comments
+
+def save_comments_to_csv(comments):
+    try:
+        with open(COMMENTS_CSV, 'w', newline='', encoding='utf-8') as f:
+            writer = csv.writer(f)
+            # UPDATED: Write article_id
+            writer.writerow(['id', 'idea_id', 'article_id', 'user_id', 'user', 'email', 'text', 'date', 'isAdmin'])
+            for c in comments:
+                writer.writerow([
+                    c.get('id'),
+                    c.get('idea_id', 0),
+                    c.get('article_id', 0), # Ensure we write article_id
+                    c.get('user_id'),
+                    c.get('user'),
+                    c.get('email'),
+                    c.get('text'),
+                    c.get('date'),
+                    c.get('isAdmin', False)
+                ])
+        return True
+    except Exception as e:
+        print(f"Error saving to Comments CSV: {e}")
+        return False
+
+def delete_comment(comment_id):
+    """Deletes a comment by ID."""
+    comments = read_comments_from_csv()
+    # Filter out the comment with the matching ID
+    new_comments = [c for c in comments if str(c['id']) != str(comment_id)]
+    
+    # If lengths are same, nothing was deleted
+    if len(comments) == len(new_comments):
+        return False
+        
+    return save_comments_to_csv(new_comments)
 
 # --- Chat Helpers ---
 def read_chats():

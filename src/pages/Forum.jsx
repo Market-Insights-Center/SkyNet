@@ -15,6 +15,7 @@ const Forum = () => {
         trending_topics: []
     });
     const [recentIdeas, setRecentIdeas] = useState([]);
+    const [recentArticles, setRecentArticles] = useState([]);
 
     useEffect(() => {
         // Fetch Stats - PORT 8000
@@ -26,8 +27,20 @@ const Forum = () => {
         // Fetch Recent Ideas - PORT 8000
         fetch('/api/ideas?limit=6')
             .then(res => res.json())
-            .then(data => setRecentIdeas(data))
+            .then(data => {
+                if (Array.isArray(data)) setRecentIdeas(data);
+                else setRecentIdeas([]);
+            })
             .catch(err => console.error("Error fetching ideas:", err));
+
+        // Fetch Recent Articles - PORT 8000
+        fetch('/api/articles?limit=6')
+            .then(res => res.json())
+            .then(data => {
+                if (Array.isArray(data)) setRecentArticles(data);
+                else setRecentArticles([]);
+            })
+            .catch(err => console.error("Error fetching articles:", err));
     }, []);
 
     const handleVote = async (ideaId, type) => {
@@ -116,7 +129,18 @@ const Forum = () => {
                                     View All Articles <ArrowRight size={16} />
                                 </Link>
                             </div>
-                            <NewsFeed limit={6} compact={true} />
+                            
+                            {/* Logic to show NewsFeed or Empty Box */}
+                            {recentArticles.length > 0 ? (
+                                <NewsFeed limit={6} compact={true} articles={recentArticles} />
+                            ) : (
+                                <div className="text-center py-12 bg-white/5 rounded-xl border border-white/10">
+                                    <p className="text-gray-400 mb-4">No recent articles.</p>
+                                    <Link to="/news" className="text-gold hover:underline">
+                                        Check back later for updates.
+                                    </Link>
+                                </div>
+                            )}
                         </div>
 
                         {/* Recent Ideas */}

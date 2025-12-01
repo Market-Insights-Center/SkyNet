@@ -3,11 +3,17 @@ import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { ArrowRight, Clock, ThumbsUp } from 'lucide-react';
 
-const NewsFeed = ({ limit = 3, compact = false }) => {
-    const [articles, setArticles] = useState([]);
-    const [loading, setLoading] = useState(true);
+const NewsFeed = ({ limit = 3, compact = false, articles: providedArticles }) => {
+    const [articles, setArticles] = useState(providedArticles || []);
+    const [loading, setLoading] = useState(!providedArticles);
 
     useEffect(() => {
+        if (providedArticles) {
+            setArticles(providedArticles);
+            setLoading(false);
+            return;
+        }
+
         // Fetch using the limit prop so it's dynamic
         fetch(`/api/articles?limit=${limit}`)
             .then(res => res.json())
@@ -24,7 +30,7 @@ const NewsFeed = ({ limit = 3, compact = false }) => {
                 console.error("Error fetching articles:", err);
                 setLoading(false);
             });
-    }, [limit]);
+    }, [limit, providedArticles]);
 
     if (loading) {
         return (
@@ -56,9 +62,6 @@ const NewsFeed = ({ limit = 3, compact = false }) => {
                             </h2>
                             <p className="text-gray-400">Market Insights Center Knowledge Stream</p>
                         </div>
-                        {/* We hide the View All button here if we are already on the News Page, 
-                            but since this component is reused, we can control this via props or CSS 
-                            if needed. For now, the landing page uses this link. */}
                     </div>
                 )}
 

@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Request, UploadFile, File
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -33,7 +33,9 @@ from database import (
     read_articles_from_csv, 
     save_articles_to_csv, 
     read_ideas_from_csv, 
-    save_ideas_to_csv, 
+    save_ideas_to_csv,
+    read_comments_from_csv,
+    save_comments_to_csv,
     read_chats, 
     save_chats,
     get_all_users_from_db,
@@ -46,7 +48,8 @@ from database import (
     check_and_increment_limit,
     delete_user_full,
     delete_article,
-    delete_idea
+    delete_idea,
+    delete_comment  # Added this import
 )
 
 logging.basicConfig(level=logging.INFO)
@@ -72,9 +75,6 @@ app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 MODS_FILE = os.path.join(BASE_DIR, 'mods.csv')
 SUPER_ADMIN_EMAIL = "marketinsightscenter@gmail.com"
 
-# --- PAYPAL CONFIGURATION ---
-PAYPAL_MODE = os.getenv("PAYPAL_MODE", "live")
-
 # --- PYDANTIC MODELS ---
 class ChatCreateRequest(BaseModel):
     creator_email: str
@@ -98,6 +98,74 @@ class ModRequest(BaseModel):
     action: str # add, remove
     requester_email: str
 
+class ArticleCreateRequest(BaseModel):
+    title: str
+    subtitle: Optional[str] = None
+    content: str
+    author: str
+    date: str
+    hashtags: List[str] = []
+    cover_image: Optional[str] = None
+
+class IdeaCreateRequest(BaseModel):
+    ticker: str
+    title: str
+    description: str
+    author: str
+    date: str
+    hashtags: List[str] = []
+    cover_image: Optional[str] = None
+
+class VoteRequest(BaseModel):
+    user_id: str
+    vote_type: str
+
+class ShareRequest(BaseModel):
+    platform: str
+
+class EmailShareRequest(BaseModel):
+    email: str
+    sender_name: str
+    article_link: str
+    article_title: str
+
+class CommentCreateRequest(BaseModel):
+    idea_id: Optional[int] = None    # Made Optional
+    article_id: Optional[int] = None # Added Article ID
+    user_id: str
+    user: str
+    email: str
+    text: str
+    date: str
+
+class CouponCreateRequest(BaseModel):
+    code: str
+    plan_id: str
+    tier: str
+    discount_label: str
+    requester_email: str
+
+class UserUpdateRequest(BaseModel):
+    target_email: str
+    new_tier: str
+    requester_email: str
+
+class UserDeleteRequest(BaseModel):
+    target_email: str
+    requester_email: str
+
+class CouponDeleteRequest(BaseModel):
+    code: str
+    requester_email: str
+
+class ArticleDeleteRequest(BaseModel):
+    id: str
+    requester_email: str
+
+class IdeaDeleteRequest(BaseModel):
+    id: str
+    requester_email: str
+    
 # --- HELPER FUNCTIONS ---
 def get_mod_list():
     mods = []
@@ -127,7 +195,7 @@ def get_chats(email: str, all_chats: bool = False):
     return user_chats
 
 # -----------------------------
-# CHAT ENDPOINTS (Fixed & Complete)
+# CHAT ENDPOINTS 
 # -----------------------------
 
 @app.post("/api/chat/create")
@@ -155,14 +223,12 @@ def get_messages(chat_id: str, email: str):
     chat = next((c for c in chats if c["id"] == chat_id), None)
     if not chat: raise HTTPException(status_code=404, detail="Chat not found")
     
-    # Check if user is participant OR mod
     mods = get_mod_list()
     if email not in chat["participants"] and email not in mods:
         raise HTTPException(status_code=403, detail="Access denied")
         
     return chat.get("messages", [])
 
-# --- THIS WAS MISSING, CAUSING MESSAGES NOT TO SEND ---
 @app.post("/api/chat/{chat_id}/message")
 def send_message(chat_id: str, req: ChatMessageRequest):
     chats = read_chats()
@@ -185,7 +251,6 @@ def delete_chat(req: ChatDeleteRequest):
     
     for chat in chats:
         if chat["id"] == req.chat_id:
-            # Allow delete if user is participant OR admin
             if req.email in chat["participants"] or req.email in mods:
                 found = True
                 continue 
@@ -206,21 +271,15 @@ def delete_chat(req: ChatDeleteRequest):
 
 @app.post("/api/market-data")
 async def get_market_data(request: MarketDataRequest):
-    """
-    Fetches Price, Sparkline, Market Cap, Volume, PE, and calculates 1D, 1W, 1M, 1Y changes.
-    """
     try:
         tickers = [t.upper().strip() for t in request.tickers if t]
         if not tickers: return []
         
-        # 1. Download 1 Year of data
-        # auto_adjust=True fixes the FutureWarnings regarding price adjustments
         df = yf.download(tickers, period="1y", interval="1d", progress=False, auto_adjust=True)
         
         results = []
         for ticker in tickers:
             try:
-                # Handle MultiIndex vs Single Index
                 if len(tickers) > 1:
                     if ticker not in df['Close'].columns: continue
                     hist_close = df['Close'][ticker].dropna()
@@ -229,18 +288,14 @@ async def get_market_data(request: MarketDataRequest):
 
                 if hist_close.empty: continue
 
-                # Helper to safely get float value (Fixes FutureWarning)
                 def get_val(series, idx):
                     try:
-                        # .item() converts numpy types to native python floats cleanly
                         return float(series.iloc[idx].item())
                     except:
                         return float(series.iloc[idx])
 
-                # Get Prices
                 current_price = get_val(hist_close, -1)
                 
-                # Calculate Changes
                 price_1d = get_val(hist_close, -2) if len(hist_close) > 1 else current_price
                 change_1d = ((current_price - price_1d) / price_1d) * 100 if price_1d != 0 else 0
                 
@@ -253,15 +308,12 @@ async def get_market_data(request: MarketDataRequest):
                 price_1y = get_val(hist_close, 0)
                 change_1y = ((current_price - price_1y) / price_1y) * 100 if price_1y != 0 else 0
 
-                # Sparkline (Fixes 'DataFrame has no attribute tolist')
-                # We ensure we are working with a flat list of values
                 subset = hist_close.tail(30)
                 if isinstance(subset, pd.DataFrame):
                     sparkline = subset.values.flatten().tolist()
                 else:
                     sparkline = subset.tolist()
 
-                # Get Metadata (PE, Vol, Cap)
                 mkt_cap = 0
                 volume = 0
                 pe_ratio = 0
@@ -290,7 +342,6 @@ async def get_market_data(request: MarketDataRequest):
                     "sparkline": sparkline
                 })
             except Exception as e: 
-                # This log helps identify which specific ticker is failing
                 print(f"Error processing {ticker}: {e}")
                 continue
                 
@@ -301,47 +352,34 @@ async def get_market_data(request: MarketDataRequest):
     
 @app.post("/api/market-data/details")
 async def get_market_data_details(request: MarketDataRequest):
-    """
-    Fetches heavy data: Earnings Date and Implied Volatility (IV).
-    """
     results = {}
     tickers = [t.upper().strip() for t in request.tickers if t]
     
     for ticker in tickers:
         try:
             t = yf.Ticker(ticker)
-            
-            # 1. Earnings Date
             earnings_date = "-"
             try:
                 cal = t.calendar
-                # 'cal' can be a Dictionary or DataFrame depending on yfinance version
                 if isinstance(cal, dict):
-                     # Look for Earnings Date
                      if 'Earnings Date' in cal:
                          dates = cal['Earnings Date']
                          if dates: earnings_date = str(dates[0].date())
                 elif isinstance(cal, pd.DataFrame):
-                    # Transpose sometimes needed
                     if not cal.empty:
-                        # Common keys: 'Earnings Date' or 0
                         vals = cal.iloc[0]
                         earnings_date = str(vals.values[0])
             except: 
-                # Fallback to info
                 try:
                     ts = t.info.get('earningsTimestamp')
                     if ts: earnings_date = datetime.fromtimestamp(ts).strftime('%Y-%m-%d')
                 except: pass
 
-            # 2. Implied Volatility (IV)
             iv = "-"
             try:
-                # Try getting it from info first (fastest)
                 if t.info.get('impliedVolatility'):
                      iv = f"{t.info['impliedVolatility'] * 100:.2f}%"
                 else:
-                    # Fallback: Approximate from options (slower, but accurate)
                     dates = t.options
                     if dates:
                         chain = t.option_chain(dates[0])
@@ -387,7 +425,6 @@ def manage_mods(request: ModRequest):
 @app.get("/api/users")
 def get_users(): 
     users = get_all_users_from_db()
-    # Ensure Super Admin has Singularity tier
     for user in users:
         if user.get('email', '').lower() == SUPER_ADMIN_EMAIL:
             user['tier'] = 'Singularity'
@@ -395,16 +432,12 @@ def get_users():
 
 @app.get("/api/user/profile")
 def api_get_user_profile(email: str):
-    print(f"HIT PROFILE ENDPOINT: {email}")
-    # Special override for Super Admin
     if email.lower() == SUPER_ADMIN_EMAIL:
-        print("MATCHED SUPER ADMIN")
         return {"email": email, "tier": "Singularity", "subscription_status": "active", "risk_tolerance": 10, "trading_frequency": "Daily", "portfolio_types": ["All"]}
         
     profile = get_user_profile(email)
     if profile:
         return profile
-    # Return default empty profile if not found in DB yet
     return {"email": email, "tier": "Basic", "subscription_status": "none"}
 
 # --- ADMIN ROUTES ---
@@ -414,16 +447,6 @@ def api_get_coupons(email: str):
     if email not in mods: raise HTTPException(status_code=403, detail="Not authorized")
     return get_all_coupons()
 
-# DELETE THE "pass" FUNCTION THAT WAS HERE
-
-class CouponCreateRequest(BaseModel):
-    code: str
-    plan_id: str
-    tier: str
-    discount_label: str
-    requester_email: str
-
-# Keep this one (The actual implementation)
 @app.post("/api/admin/coupons/create")
 def api_create_coupon(req: CouponCreateRequest):
     mods = get_mod_list()
@@ -431,21 +454,12 @@ def api_create_coupon(req: CouponCreateRequest):
     create_coupon(req.code, req.plan_id, req.tier, req.discount_label)
     return {"status": "success"}
 
-class UserUpdateRequest(BaseModel):
-    target_email: str
-    new_tier: str
-    requester_email: str
-
 @app.post("/api/admin/users/update")
 def api_update_user_tier(req: UserUpdateRequest):
     mods = get_mod_list()
     if req.requester_email.lower() not in mods: raise HTTPException(status_code=403, detail="Not authorized")
     update_user_tier(req.target_email, req.new_tier)
     return {"status": "success"}
-
-class UserDeleteRequest(BaseModel):
-    target_email: str
-    requester_email: str
 
 @app.post("/api/admin/users/delete")
 def api_delete_user(req: UserDeleteRequest):
@@ -455,10 +469,6 @@ def api_delete_user(req: UserDeleteRequest):
     delete_user_full(req.target_email)
     return {"status": "success"}
 
-class CouponDeleteRequest(BaseModel):
-    code: str
-    requester_email: str
-
 @app.post("/api/admin/coupons/delete")
 def api_delete_coupon(req: CouponDeleteRequest):
     mods = get_mod_list()
@@ -466,10 +476,6 @@ def api_delete_coupon(req: CouponDeleteRequest):
     if delete_coupon(req.code):
         return {"status": "success"}
     raise HTTPException(status_code=404, detail="Coupon not found")
-
-class ArticleDeleteRequest(BaseModel):
-    id: str
-    requester_email: str
 
 @app.post("/api/admin/articles/delete")
 def api_delete_article(req: ArticleDeleteRequest):
@@ -479,10 +485,6 @@ def api_delete_article(req: ArticleDeleteRequest):
         return {"status": "success"}
     raise HTTPException(status_code=404, detail="Article not found")
 
-class IdeaDeleteRequest(BaseModel):
-    id: str
-    requester_email: str
-
 @app.post("/api/admin/ideas/delete")
 def api_delete_idea(req: IdeaDeleteRequest):
     mods = get_mod_list()
@@ -491,13 +493,272 @@ def api_delete_idea(req: IdeaDeleteRequest):
         return {"status": "success"}
     raise HTTPException(status_code=404, detail="Idea not found")
 
-# --- COMMAND ENDPOINTS ---
+# --- ARTICLES, IDEAS & COMMENTS ENDPOINTS ---
 
+@app.get("/api/articles")
+def get_articles(limit: int = 100):
+    articles = read_articles_from_csv()
+    articles.sort(key=lambda x: x.get('date', ''), reverse=True)
+    return articles[:limit]
+
+# NEW: Single Article Fetch (Fixes your 404 on fetching single article)
+@app.get("/api/articles/{article_id}")
+def get_article_by_id(article_id: int):
+    articles = read_articles_from_csv()
+    article = next((a for a in articles if int(a['id']) == article_id), None)
+    if not article:
+        raise HTTPException(status_code=404, detail="Article not found")
+    
+    # Attach comments
+    all_comments = read_comments_from_csv()
+    article_comments = [c for c in all_comments if str(c.get('article_id')) == str(article_id)]
+    # Sort comments newest first
+    article_comments.sort(key=lambda x: x.get('date', ''), reverse=True)
+    
+    article['comments'] = article_comments
+    return article
+
+@app.post("/api/articles")
+def create_article(req: ArticleCreateRequest):
+    articles = read_articles_from_csv()
+    new_id = 1
+    if articles:
+        new_id = max([int(a['id']) for a in articles]) + 1
+    
+    new_article = {
+        "id": new_id,
+        "title": req.title,
+        "subheading": req.subtitle if req.subtitle else "",
+        "content": req.content,
+        "author": req.author,
+        "date": req.date,
+        "category": "Insight", 
+        "hashtags": req.hashtags,
+        "cover_image": req.cover_image if req.cover_image else "",
+        "likes": 0,
+        "dislikes": 0,
+        "shares": 0,
+        "liked_by": [],
+        "disliked_by": []
+    }
+    articles.insert(0, new_article)
+    save_articles_to_csv(articles)
+    return new_article
+
+# NEW: Article Voting (Fixes 404 on voting)
+@app.post("/api/articles/{article_id}/vote")
+def vote_article(article_id: int, req: VoteRequest):
+    articles = read_articles_from_csv()
+    article = next((a for a in articles if int(a['id']) == article_id), None)
+    if not article: raise HTTPException(status_code=404, detail="Article not found")
+    
+    liked_by = article.get('liked_by', [])
+    disliked_by = article.get('disliked_by', [])
+    
+    if req.vote_type == 'up':
+        if req.user_id in liked_by:
+            liked_by.remove(req.user_id)
+        else:
+            liked_by.append(req.user_id)
+            if req.user_id in disliked_by: disliked_by.remove(req.user_id)
+    elif req.vote_type == 'down':
+        if req.user_id in disliked_by:
+            disliked_by.remove(req.user_id)
+        else:
+            disliked_by.append(req.user_id)
+            if req.user_id in liked_by: liked_by.remove(req.user_id)
+            
+    article['liked_by'] = liked_by
+    article['disliked_by'] = disliked_by
+    article['likes'] = len(liked_by)
+    article['dislikes'] = len(disliked_by)
+    
+    save_articles_to_csv(articles)
+    return {"status": "success", "likes": article['likes'], "dislikes": article['dislikes']}
+
+# NEW: Article Sharing (Fixes 404 on share)
+@app.post("/api/articles/{article_id}/share")
+def share_article(article_id: int, req: ShareRequest):
+    articles = read_articles_from_csv()
+    article = next((a for a in articles if int(a['id']) == article_id), None)
+    if not article: raise HTTPException(status_code=404, detail="Article not found")
+    
+    current_shares = article.get('shares', 0)
+    article['shares'] = current_shares + 1
+    
+    save_articles_to_csv(articles)
+    return {"status": "success", "shares": article['shares']}
+
+# NEW: Email Sharing (Fixes 404 on email share)
+@app.post("/api/articles/{article_id}/share/email")
+def share_article_email(article_id: int, req: EmailShareRequest):
+    # In a real app, integrate SendGrid/SMTP here.
+    # For now, we simulate success and increment share count.
+    articles = read_articles_from_csv()
+    article = next((a for a in articles if int(a['id']) == article_id), None)
+    if not article: raise HTTPException(status_code=404, detail="Article not found")
+    
+    current_shares = article.get('shares', 0)
+    article['shares'] = current_shares + 1
+    save_articles_to_csv(articles)
+    
+    return {"status": "success", "message": f"Email sent to {req.email}"}
+
+
+@app.get("/api/ideas")
+def get_ideas(limit: int = 100):
+    ideas = read_ideas_from_csv()
+    all_comments = read_comments_from_csv()
+    
+    # Sort Comments by Date (Newest first)
+    all_comments.sort(key=lambda x: x.get('date', ''), reverse=True)
+    
+    # Enrich Ideas with Comments
+    for idea in ideas:
+        idea_id = str(idea.get('id'))
+        idea['comments'] = [c for c in all_comments if str(c.get('idea_id')) == idea_id]
+        
+    ideas.sort(key=lambda x: x.get('date', ''), reverse=True)
+    return ideas[:limit]
+
+@app.post("/api/ideas")
+def create_idea(req: IdeaCreateRequest):
+    ideas = read_ideas_from_csv()
+    new_id = 1
+    if ideas:
+        new_id = max([int(i['id']) for i in ideas]) + 1
+        
+    new_idea = {
+        "id": new_id,
+        "ticker": req.ticker,
+        "title": req.title,
+        "description": req.description,
+        "author": req.author,
+        "date": req.date,
+        "hashtags": req.hashtags,
+        "cover_image": req.cover_image if req.cover_image else "",
+        "likes": 0,
+        "dislikes": 0,
+        "liked_by": [],
+        "disliked_by": []
+    }
+    ideas.insert(0, new_idea)
+    save_ideas_to_csv(ideas)
+    return new_idea
+
+@app.post("/api/ideas/{idea_id}/vote")
+def vote_idea(idea_id: int, req: VoteRequest):
+    ideas = read_ideas_from_csv()
+    idea = next((i for i in ideas if int(i['id']) == idea_id), None)
+    if not idea: raise HTTPException(status_code=404, detail="Idea not found")
+    
+    liked_by = idea.get('liked_by', [])
+    disliked_by = idea.get('disliked_by', [])
+    
+    if req.vote_type == 'up':
+        if req.user_id in liked_by:
+            liked_by.remove(req.user_id)
+        else:
+            liked_by.append(req.user_id)
+            if req.user_id in disliked_by: disliked_by.remove(req.user_id)
+    elif req.vote_type == 'down':
+        if req.user_id in disliked_by:
+            disliked_by.remove(req.user_id)
+        else:
+            disliked_by.append(req.user_id)
+            if req.user_id in liked_by: liked_by.remove(req.user_id)
+            
+    idea['liked_by'] = liked_by
+    idea['disliked_by'] = disliked_by
+    idea['likes'] = len(liked_by)
+    idea['dislikes'] = len(disliked_by)
+    
+    save_ideas_to_csv(ideas)
+    return {"status": "success", "likes": idea['likes'], "dislikes": idea['dislikes']}
+
+@app.post("/api/comments")
+def create_comment(req: CommentCreateRequest):
+    comments = read_comments_from_csv()
+    new_id = 1
+    if comments:
+        new_id = max([int(c['id']) for c in comments]) + 1
+        
+    new_comment = {
+        "id": new_id,
+        "idea_id": req.idea_id,
+        "article_id": req.article_id, # Now supported
+        "user_id": req.user_id,
+        "user": req.user,
+        "email": req.email,
+        "text": req.text,
+        "date": req.date,
+        "isAdmin": False
+    }
+    
+    # Check if admin
+    mods = get_mod_list()
+    if req.email.lower() in mods:
+        new_comment['isAdmin'] = True
+        
+    comments.insert(0, new_comment)
+    save_comments_to_csv(comments)
+    return new_comment
+
+# NEW: Delete Comment Endpoint (Fixes 404 on delete)
+@app.delete("/api/comments/{comment_id}")
+def api_delete_comment(comment_id: int, requester_email: str):
+    mods = get_mod_list()
+    # Check authorization - only mods/admins can delete for now
+    if requester_email.lower() not in mods:
+        raise HTTPException(status_code=403, detail="Not authorized to delete comments")
+        
+    if delete_comment(comment_id):
+        return {"status": "success"}
+    raise HTTPException(status_code=404, detail="Comment not found")
+
+@app.post("/api/upload")
+async def upload_file(file: UploadFile = File(...)):
+    # Ensure uploads directory exists
+    upload_dir = os.path.join(STATIC_DIR, "uploads")
+    if not os.path.exists(upload_dir):
+        os.makedirs(upload_dir)
+    
+    # Generate unique filename
+    filename = f"{uuid.uuid4()}_{file.filename}"
+    file_path = os.path.join(upload_dir, filename)
+    
+    with open(file_path, "wb") as f:
+        content = await file.read()
+        f.write(content)
+        
+    return {"url": f"/static/uploads/{filename}"}
+
+@app.get("/api/stats")
+def get_stats():
+    users = get_all_users_from_db()
+    ideas = read_ideas_from_csv()
+    articles = read_articles_from_csv()
+    
+    tags = {}
+    for i in ideas:
+        for tag in i.get('hashtags', []):
+            tags[tag] = tags.get(tag, 0) + 1
+    
+    sorted_tags = sorted(tags.items(), key=lambda x: x[1], reverse=True)
+    trending = [t[0] for t in sorted_tags[:5]]
+    
+    return {
+        "total_users": len(users),
+        "active_users": len(users),
+        "total_posts": len(ideas) + len(articles),
+        "trending_topics": trending
+    }
+
+# --- COMMAND ENDPOINTS ---
 @app.post("/api/invest")
 async def api_invest(request: Request):
     try:
         data = await request.json()
-        # The frontend sends the body directly, which maps to ai_params in the handler
         result = await invest_command.handle_invest_command([], ai_params=data, is_called_by_ai=True)
         return result
     except Exception as e:

@@ -134,16 +134,28 @@ const PerformanceModal = ({ isOpen, onClose }) => {
                 initial={{ opacity: 0, scale: 0.9 }}
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.9 }}
-                className="bg-[#0a0a0a] border border-gold/30 rounded-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto shadow-2xl relative"
+                // UPDATED: Added max-h-[85vh] and flex-col to ensure it doesn't get cut off, and scrolls properly
+                className="bg-[#0a0a0a] border border-gold/30 rounded-2xl w-full max-w-4xl max-h-[85vh] flex flex-col shadow-2xl relative"
             >
-                <button
-                    onClick={onClose}
-                    className="absolute top-4 right-4 text-gray-400 hover:text-white transition-colors p-2 hover:bg-white/10 rounded-full"
-                >
-                    <X size={24} />
-                </button>
+                <div className="p-4 border-b border-white/10 flex justify-end shrink-0">
+                    <button
+                        onClick={onClose}
+                        className="text-gray-400 hover:text-white transition-colors p-2 hover:bg-white/10 rounded-full"
+                    >
+                        <X size={24} />
+                    </button>
+                </div>
 
-                <div className="p-8">
+                <div className="p-8 overflow-y-auto custom-scrollbar">
+                    {/* UPDATED: Added Image at the top */}
+                    <div className="mb-8 rounded-xl overflow-hidden border border-white/10 shadow-lg">
+                        <img 
+                            src="/cultivatebacktest.png" 
+                            alt="Performance Visualization" 
+                            className="w-full h-auto object-cover"
+                        />
+                    </div>
+
                     <div className="text-center mb-8">
                         <h3 className="text-3xl font-bold mb-2">Detailed <span className="text-gold">Performance Metrics</span></h3>
                         <p className="text-gray-400">Cultivate vs. SPY Benchmark (Nov 2015 - Nov 2025)</p>
@@ -435,13 +447,27 @@ const FAQItem = ({ question, answer }) => {
 const LandingPage = () => {
     const { currentUser } = useAuth();
     const [recentIdeas, setRecentIdeas] = useState([]);
+    const [recentArticles, setRecentArticles] = useState([]);
     const [showCommunityStream, setShowCommunityStream] = useState(false);
 
     useEffect(() => {
+        // Fetch Recent Ideas
         fetch('/api/ideas?limit=3')
             .then(res => res.json())
-            .then(data => setRecentIdeas(data))
+            .then(data => {
+                if (Array.isArray(data)) setRecentIdeas(data);
+                else setRecentIdeas([]);
+            })
             .catch(err => console.error("Error fetching ideas:", err));
+
+        // Fetch Recent Articles
+        fetch('/api/articles?limit=3')
+            .then(res => res.json())
+            .then(data => {
+                if (Array.isArray(data)) setRecentArticles(data);
+                else setRecentArticles([]);
+            })
+            .catch(err => console.error("Error fetching articles:", err));
     }, []);
 
     return (
@@ -602,7 +628,7 @@ const LandingPage = () => {
                                             </Link>
                                         </div>
 
-                                        {/* Ideas Grid */}
+                                        {/* Ideas Grid or Empty State */}
                                         {recentIdeas.length > 0 ? (
                                             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-16">
                                                 {recentIdeas.map(idea => (
@@ -620,8 +646,24 @@ const LandingPage = () => {
                                             </div>
                                         )}
 
-                                        {/* News Feed */}
-                                        <NewsFeed limit={3} showViewAll={true} />
+                                        {/* News/Articles Header (Updated) */}
+                                        <div className="flex justify-between items-center mb-8 mt-16">
+                                            <h2 className="text-3xl font-bold flex items-center gap-2">
+                                                <Globe className="text-gold" size={32} /> Recent <span className="text-gold">Articles</span>
+                                            </h2>
+                                            <Link to="/news" className="text-gold hover:text-white flex items-center gap-2 transition-colors">
+                                                View All <ArrowRight size={16} />
+                                            </Link>
+                                        </div>
+
+                                        {/* News Feed Grid or Empty State */}
+                                        {recentArticles.length > 0 ? (
+                                            <NewsFeed limit={3} compact={true} articles={recentArticles} />
+                                        ) : (
+                                            <div className="text-center py-12 bg-white/5 rounded-xl border border-white/10 mb-16">
+                                                <p className="text-gray-400 mb-4">No recent articles.</p>
+                                            </div>
+                                        )}
                                     </div>
                                 </motion.div>
                             )}

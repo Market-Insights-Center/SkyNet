@@ -15,10 +15,21 @@ const IdeasPage = () => {
         try {
             // UPDATED PORT: 8000
             const res = await fetch('/api/ideas');
+            if (!res.ok) {
+                throw new Error('Failed to fetch ideas');
+            }
             const data = await res.json();
-            setIdeas(data);
+            
+            // Fix for black screen: ensure data is an array before setting state
+            if (Array.isArray(data)) {
+                setIdeas(data);
+            } else {
+                console.error("API returned non-array data:", data);
+                setIdeas([]);
+            }
         } catch (error) {
             console.error("Error fetching ideas:", error);
+            setIdeas([]); // Safely set empty array on error
         } finally {
             setLoading(false);
         }

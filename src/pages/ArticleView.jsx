@@ -8,7 +8,8 @@ const ArticleView = () => {
     const { id } = useParams();
     const { currentUser } = useAuth();
     const [article, setArticle] = useState(null);
-    const [userVote, setUserVote] = useState(null); // 'up', 'down', or null
+    const [userVote, setUserVote] = useState(null);
+    // FIX: Initialize with 0 to prevent NaN if fetch delays
     const [likes, setLikes] = useState(0);
     const [dislikes, setDislikes] = useState(0);
     const [shares, setShares] = useState(0);
@@ -19,12 +20,12 @@ const ArticleView = () => {
     const [loading, setLoading] = useState(true);
     const [mods, setMods] = useState([]);
     const [isMod, setIsMod] = useState(false);
-
+    
     // Email Modal State
     const [showEmailModal, setShowEmailModal] = useState(false);
     const [emailTo, setEmailTo] = useState('');
 
-    const [replyingTo, setReplyingTo] = useState(null); // comment ID
+    const [replyingTo, setReplyingTo] = useState(null);
     const [replyText, setReplyText] = useState('');
 
     useEffect(() => {
@@ -41,11 +42,15 @@ const ArticleView = () => {
 
         // Fetch Article
         fetch(`/api/articles/${id}`)
-            .then(res => res.json())
+            .then(res => {
+                if (!res.ok) throw new Error("Article not found");
+                return res.json();
+            })
             .then(data => {
                 setArticle(data);
-                setLikes(data.likes);
-                setDislikes(data.dislikes);
+                // FIX: Fallback to 0 if data is missing
+                setLikes(data.likes || 0);
+                setDislikes(data.dislikes || 0);
                 setShares(data.shares || 0);
                 setComments(data.comments || []);
 
@@ -68,13 +73,14 @@ const ArticleView = () => {
         const prevLikes = likes;
         const prevDislikes = dislikes;
 
+        // Optimistic UI Update
         if (userVote === type) {
             setUserVote(null);
-            if (type === 'up') setLikes(prev => prev - 1);
-            else setDislikes(prev => prev - 1);
+            if (type === 'up') setLikes(prev => Math.max(0, prev - 1));
+            else setDislikes(prev => Math.max(0, prev - 1));
         } else {
-            if (userVote === 'up') setLikes(prev => prev - 1);
-            if (userVote === 'down') setDislikes(prev => prev - 1);
+            if (userVote === 'up') setLikes(prev => Math.max(0, prev - 1));
+            if (userVote === 'down') setDislikes(prev => Math.max(0, prev - 1));
 
             setUserVote(type);
             if (type === 'up') setLikes(prev => prev + 1);
@@ -87,6 +93,7 @@ const ArticleView = () => {
             body: JSON.stringify({ user_id: currentUser.uid, vote_type: type })
         }).catch(err => {
             console.error("Error voting:", err);
+            // Revert on error
             setUserVote(prevVote);
             setLikes(prevLikes);
             setDislikes(prevDislikes);
@@ -107,7 +114,7 @@ const ArticleView = () => {
                 body: JSON.stringify({ platform: 'clipboard' })
             })
             .then(res => res.json())
-            .then(data => setShares(data.shares))
+            .then(data => setShares(data.shares || 0))
             .catch(err => console.error("Error sharing:", err));
 
         } else if (option === 'email') {
@@ -119,7 +126,6 @@ const ArticleView = () => {
         e.preventDefault();
         if (!emailTo) return;
 
-        // Send to backend to simulate email and increment count
         fetch(`/api/articles/${id}/share/email`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -150,7 +156,7 @@ const ArticleView = () => {
 
         const commentData = {
             id: Date.now(),
-            article_id: parseInt(id),
+            article_id: parseInt(id), // Ensure this matches backend expectation
             user: currentUser.displayName || currentUser.email.split('@')[0],
             email: currentUser.email,
             text: text,
@@ -186,6 +192,7 @@ const ArticleView = () => {
 
     const handleDeleteComment = (commentId) => {
         if (isMod) {
+            // Optimistic UI Removal
             const deleteFromList = (list) => {
                 return list.filter(c => c.id !== commentId).map(c => ({
                     ...c,
@@ -196,7 +203,10 @@ const ArticleView = () => {
 
             fetch(`/api/comments/${commentId}?requester_email=${currentUser.email}`, {
                 method: 'DELETE'
-            }).catch(err => console.error("Error deleting comment:", err));
+            }).catch(err => {
+                console.error("Error deleting comment:", err);
+                alert("Failed to delete comment on server.");
+            });
         }
     };
 
@@ -283,6 +293,7 @@ const ArticleView = () => {
         );
     }
 
+    // ... (Remainder of the return statement is unchanged)
     return (
         <div className="min-h-screen bg-deep-black text-white pt-24 px-4 pb-20 relative">
             
