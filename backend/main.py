@@ -20,15 +20,13 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 # Load environment variables
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-# 1. Load backend/.env
 load_dotenv(os.path.join(BASE_DIR, '.env'))
-# 2. Load root .env (overrides if duplicates, or fills gaps)
 load_dotenv(os.path.join(BASE_DIR, '..', '.env'))
 
 # Import your command modules
 from integration import invest_command, cultivate_command, custom_command, tracking_command
 
-# Updated database imports
+# Database imports
 from database import (
     read_articles_from_csv, 
     save_articles_to_csv, 
@@ -80,7 +78,7 @@ SUPER_ADMIN_EMAIL = "marketinsightscenter@gmail.com"
 class ChatCreateRequest(BaseModel):
     creator_email: str
     participants: List[str]
-    type: str = "general" # general, support, custom_portfolio
+    type: str = "general"
     initial_message: Optional[str] = None
 
 class ChatMessageRequest(BaseModel):
@@ -131,8 +129,8 @@ class EmailShareRequest(BaseModel):
     article_title: str
 
 class CommentCreateRequest(BaseModel):
-    idea_id: Optional[int] = None    # Made Optional
-    article_id: Optional[int] = None # Added Article ID
+    idea_id: Optional[int] = None
+    article_id: Optional[int] = None 
     user_id: str
     user: str
     email: str
@@ -187,7 +185,6 @@ def get_mod_list():
             
     return mods
 
-# Try standard env var, fallback to VITE_ prefixed one
 def get_chats(email: str, all_chats: bool = False):
     chats = read_chats()
     if all_chats: return chats
@@ -290,22 +287,16 @@ async def get_market_data(request: MarketDataRequest):
                 if hist_close.empty: continue
 
                 def get_val(series, idx):
-                    try:
-                        return float(series.iloc[idx].item())
-                    except:
-                        return float(series.iloc[idx])
+                    try: return float(series.iloc[idx].item())
+                    except: return float(series.iloc[idx])
 
                 current_price = get_val(hist_close, -1)
-                
                 price_1d = get_val(hist_close, -2) if len(hist_close) > 1 else current_price
                 change_1d = ((current_price - price_1d) / price_1d) * 100 if price_1d != 0 else 0
-                
                 price_1w = get_val(hist_close, -6) if len(hist_close) > 6 else get_val(hist_close, 0)
                 change_1w = ((current_price - price_1w) / price_1w) * 100 if price_1w != 0 else 0
-
                 price_1m = get_val(hist_close, -22) if len(hist_close) > 22 else get_val(hist_close, 0)
                 change_1m = ((current_price - price_1m) / price_1m) * 100 if price_1m != 0 else 0
-
                 price_1y = get_val(hist_close, 0)
                 change_1y = ((current_price - price_1y) / price_1y) * 100 if price_1y != 0 else 0
 
@@ -318,7 +309,7 @@ async def get_market_data(request: MarketDataRequest):
                 mkt_cap = 0
                 volume = 0
                 pe_ratio = 0
-                company_name = ""  # Initialize variable
+                company_name = "" 
 
                 try:
                     t = yf.Ticker(ticker)
@@ -326,18 +317,14 @@ async def get_market_data(request: MarketDataRequest):
                     volume = t.fast_info.last_volume
                     info = t.info
                     pe_ratio = info.get('trailingPE', 0)
-                    
-                    # Fetch company name
                     company_name = info.get('shortName') or info.get('longName') or ""
-
                     if not volume: volume = info.get('volume', 0)
                     if not mkt_cap: mkt_cap = info.get('marketCap', 0)
-                except: 
-                    pass 
+                except: pass 
 
                 results.append({
                     "ticker": ticker,
-                    "companyName": company_name, # Add to response
+                    "companyName": company_name,
                     "price": current_price,
                     "change": change_1d,
                     "change1W": change_1w,
@@ -412,22 +399,32 @@ def manage_mods(request: ModRequest):
     mods = get_mod_list()
     if request.requester_email.lower() != SUPER_ADMIN_EMAIL:
          raise HTTPException(status_code=403, detail="Only Super Admin can manage moderators")
+    
     target = request.email.lower().strip()
+    
     if request.action == "add":
         if target not in mods:
             mods.append(target)
             with open(MODS_FILE, 'a', newline='') as f:
                 writer = csv.writer(f)
                 writer.writerow([target])
+            # Auto-upgrade to Singularity
+            update_user_tier(target, "Singularity")
+                
     elif request.action == "remove":
-        if target == SUPER_ADMIN_EMAIL: raise HTTPException(status_code=400, detail="Cannot remove super admin")
+        if target == SUPER_ADMIN_EMAIL: 
+            raise HTTPException(status_code=400, detail="Cannot remove super admin")
         if target in mods:
             mods.remove(target)
             with open(MODS_FILE, 'w', newline='') as f:
                 writer = csv.writer(f)
                 writer.writerow(["email"])
-                for m in mods: writer.writerow([m])
-    return {"status": "success"}
+                for m in mods: 
+                    if m != SUPER_ADMIN_EMAIL: 
+                        writer.writerow([m])
+                        
+    # IMPORTANT: Return the updated list to prevent frontend crash
+    return {"status": "success", "mods": get_mod_list()}
 
 @app.get("/api/users")
 def get_users(): 
@@ -444,7 +441,6 @@ def api_get_user_profile(email: str, uid: Optional[str] = None):
         
     profile = get_user_profile(email)
     
-    # Auto-signup logic
     if not profile and uid:
         if create_user_profile(email, uid):
              profile = get_user_profile(email)
@@ -506,28 +502,21 @@ def api_delete_idea(req: IdeaDeleteRequest):
         return {"status": "success"}
     raise HTTPException(status_code=404, detail="Idea not found")
 
-# --- ARTICLES, IDEAS & COMMENTS ENDPOINTS ---
-
 @app.get("/api/articles")
 def get_articles(limit: int = 100):
     articles = read_articles_from_csv()
     articles.sort(key=lambda x: x.get('date', ''), reverse=True)
     return articles[:limit]
 
-# NEW: Single Article Fetch (Fixes your 404 on fetching single article)
 @app.get("/api/articles/{article_id}")
 def get_article_by_id(article_id: int):
     articles = read_articles_from_csv()
     article = next((a for a in articles if int(a['id']) == article_id), None)
     if not article:
         raise HTTPException(status_code=404, detail="Article not found")
-    
-    # Attach comments
     all_comments = read_comments_from_csv()
     article_comments = [c for c in all_comments if str(c.get('article_id')) == str(article_id)]
-    # Sort comments newest first
     article_comments.sort(key=lambda x: x.get('date', ''), reverse=True)
-    
     article['comments'] = article_comments
     return article
 
@@ -537,7 +526,6 @@ def create_article(req: ArticleCreateRequest):
     new_id = 1
     if articles:
         new_id = max([int(a['id']) for a in articles]) + 1
-    
     new_article = {
         "id": new_id,
         "title": req.title,
@@ -558,79 +546,58 @@ def create_article(req: ArticleCreateRequest):
     save_articles_to_csv(articles)
     return new_article
 
-# NEW: Article Voting (Fixes 404 on voting)
 @app.post("/api/articles/{article_id}/vote")
 def vote_article(article_id: int, req: VoteRequest):
     articles = read_articles_from_csv()
     article = next((a for a in articles if int(a['id']) == article_id), None)
     if not article: raise HTTPException(status_code=404, detail="Article not found")
-    
     liked_by = article.get('liked_by', [])
     disliked_by = article.get('disliked_by', [])
-    
     if req.vote_type == 'up':
-        if req.user_id in liked_by:
-            liked_by.remove(req.user_id)
+        if req.user_id in liked_by: liked_by.remove(req.user_id)
         else:
             liked_by.append(req.user_id)
             if req.user_id in disliked_by: disliked_by.remove(req.user_id)
     elif req.vote_type == 'down':
-        if req.user_id in disliked_by:
-            disliked_by.remove(req.user_id)
+        if req.user_id in disliked_by: disliked_by.remove(req.user_id)
         else:
             disliked_by.append(req.user_id)
             if req.user_id in liked_by: liked_by.remove(req.user_id)
-            
     article['liked_by'] = liked_by
     article['disliked_by'] = disliked_by
     article['likes'] = len(liked_by)
     article['dislikes'] = len(disliked_by)
-    
     save_articles_to_csv(articles)
     return {"status": "success", "likes": article['likes'], "dislikes": article['dislikes']}
 
-# NEW: Article Sharing (Fixes 404 on share)
 @app.post("/api/articles/{article_id}/share")
 def share_article(article_id: int, req: ShareRequest):
     articles = read_articles_from_csv()
     article = next((a for a in articles if int(a['id']) == article_id), None)
     if not article: raise HTTPException(status_code=404, detail="Article not found")
-    
     current_shares = article.get('shares', 0)
     article['shares'] = current_shares + 1
-    
     save_articles_to_csv(articles)
     return {"status": "success", "shares": article['shares']}
 
-# NEW: Email Sharing (Fixes 404 on email share)
 @app.post("/api/articles/{article_id}/share/email")
 def share_article_email(article_id: int, req: EmailShareRequest):
-    # In a real app, integrate SendGrid/SMTP here.
-    # For now, we simulate success and increment share count.
     articles = read_articles_from_csv()
     article = next((a for a in articles if int(a['id']) == article_id), None)
     if not article: raise HTTPException(status_code=404, detail="Article not found")
-    
     current_shares = article.get('shares', 0)
     article['shares'] = current_shares + 1
     save_articles_to_csv(articles)
-    
     return {"status": "success", "message": f"Email sent to {req.email}"}
-
 
 @app.get("/api/ideas")
 def get_ideas(limit: int = 100):
     ideas = read_ideas_from_csv()
     all_comments = read_comments_from_csv()
-    
-    # Sort Comments by Date (Newest first)
     all_comments.sort(key=lambda x: x.get('date', ''), reverse=True)
-    
-    # Enrich Ideas with Comments
     for idea in ideas:
         idea_id = str(idea.get('id'))
         idea['comments'] = [c for c in all_comments if str(c.get('idea_id')) == idea_id]
-        
     ideas.sort(key=lambda x: x.get('date', ''), reverse=True)
     return ideas[:limit]
 
@@ -638,9 +605,7 @@ def get_ideas(limit: int = 100):
 def create_idea(req: IdeaCreateRequest):
     ideas = read_ideas_from_csv()
     new_id = 1
-    if ideas:
-        new_id = max([int(i['id']) for i in ideas]) + 1
-        
+    if ideas: new_id = max([int(i['id']) for i in ideas]) + 1
     new_idea = {
         "id": new_id,
         "ticker": req.ticker,
@@ -664,28 +629,22 @@ def vote_idea(idea_id: int, req: VoteRequest):
     ideas = read_ideas_from_csv()
     idea = next((i for i in ideas if int(i['id']) == idea_id), None)
     if not idea: raise HTTPException(status_code=404, detail="Idea not found")
-    
     liked_by = idea.get('liked_by', [])
     disliked_by = idea.get('disliked_by', [])
-    
     if req.vote_type == 'up':
-        if req.user_id in liked_by:
-            liked_by.remove(req.user_id)
+        if req.user_id in liked_by: liked_by.remove(req.user_id)
         else:
             liked_by.append(req.user_id)
             if req.user_id in disliked_by: disliked_by.remove(req.user_id)
     elif req.vote_type == 'down':
-        if req.user_id in disliked_by:
-            disliked_by.remove(req.user_id)
+        if req.user_id in disliked_by: disliked_by.remove(req.user_id)
         else:
             disliked_by.append(req.user_id)
             if req.user_id in liked_by: liked_by.remove(req.user_id)
-            
     idea['liked_by'] = liked_by
     idea['disliked_by'] = disliked_by
     idea['likes'] = len(liked_by)
     idea['dislikes'] = len(disliked_by)
-    
     save_ideas_to_csv(ideas)
     return {"status": "success", "likes": idea['likes'], "dislikes": idea['dislikes']}
 
@@ -693,13 +652,11 @@ def vote_idea(idea_id: int, req: VoteRequest):
 def create_comment(req: CommentCreateRequest):
     comments = read_comments_from_csv()
     new_id = 1
-    if comments:
-        new_id = max([int(c['id']) for c in comments]) + 1
-        
+    if comments: new_id = max([int(c['id']) for c in comments]) + 1
     new_comment = {
         "id": new_id,
         "idea_id": req.idea_id,
-        "article_id": req.article_id, # Now supported
+        "article_id": req.article_id,
         "user_id": req.user_id,
         "user": req.user,
         "email": req.email,
@@ -707,43 +664,29 @@ def create_comment(req: CommentCreateRequest):
         "date": req.date,
         "isAdmin": False
     }
-    
-    # Check if admin
     mods = get_mod_list()
-    if req.email.lower() in mods:
-        new_comment['isAdmin'] = True
-        
+    if req.email.lower() in mods: new_comment['isAdmin'] = True
     comments.insert(0, new_comment)
     save_comments_to_csv(comments)
     return new_comment
 
-# NEW: Delete Comment Endpoint (Fixes 404 on delete)
 @app.delete("/api/comments/{comment_id}")
 def api_delete_comment(comment_id: int, requester_email: str):
     mods = get_mod_list()
-    # Check authorization - only mods/admins can delete for now
     if requester_email.lower() not in mods:
         raise HTTPException(status_code=403, detail="Not authorized to delete comments")
-        
-    if delete_comment(comment_id):
-        return {"status": "success"}
+    if delete_comment(comment_id): return {"status": "success"}
     raise HTTPException(status_code=404, detail="Comment not found")
 
 @app.post("/api/upload")
 async def upload_file(file: UploadFile = File(...)):
-    # Ensure uploads directory exists
     upload_dir = os.path.join(STATIC_DIR, "uploads")
-    if not os.path.exists(upload_dir):
-        os.makedirs(upload_dir)
-    
-    # Generate unique filename
+    if not os.path.exists(upload_dir): os.makedirs(upload_dir)
     filename = f"{uuid.uuid4()}_{file.filename}"
     file_path = os.path.join(upload_dir, filename)
-    
     with open(file_path, "wb") as f:
         content = await file.read()
         f.write(content)
-        
     return {"url": f"/static/uploads/{filename}"}
 
 @app.get("/api/stats")
@@ -751,15 +694,12 @@ def get_stats():
     users = get_all_users_from_db()
     ideas = read_ideas_from_csv()
     articles = read_articles_from_csv()
-    
     tags = {}
     for i in ideas:
         for tag in i.get('hashtags', []):
             tags[tag] = tags.get(tag, 0) + 1
-    
     sorted_tags = sorted(tags.items(), key=lambda x: x[1], reverse=True)
     trending = [t[0] for t in sorted_tags[:5]]
-    
     return {
         "total_users": len(users),
         "active_users": len(users),
