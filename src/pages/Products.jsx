@@ -1,7 +1,7 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Brain, ChevronRight, Lock } from 'lucide-react';
+import { Bot, ChevronRight, Search, Scale, Siren } from 'lucide-react';
 
 const Products = () => {
     return (
@@ -29,15 +29,15 @@ const Products = () => {
                             className="h-full bg-white/5 border border-gold/30 rounded-2xl p-8 hover:bg-white/10 hover:border-gold transition-all duration-300 relative overflow-hidden"
                         >
                             <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-                                <Brain size={120} />
+                                <Bot size={120} />
                             </div>
                             <div className="relative z-10">
                                 <div className="w-12 h-12 bg-gold/20 rounded-lg flex items-center justify-center mb-6 text-gold">
-                                    <Brain size={24} />
+                                    <Bot size={24} />
                                 </div>
                                 <h3 className="text-2xl font-bold mb-2 group-hover:text-gold transition-colors">Portfolio Lab</h3>
                                 <p className="text-gray-400 mb-6">
-                                    The ultimate environment for testing and optimizing investment strategies with AI-driven insights.
+                                    A tool that builds portfolios and portfolio allocations using advanced strategies and formulas backed by investment research.
                                 </p>
                                 <div className="flex items-center text-gold font-bold">
                                     Launch Application <ChevronRight size={20} className="ml-2 group-hover:translate-x-1 transition-transform" />
@@ -46,7 +46,7 @@ const Products = () => {
                         </motion.div>
                     </Link>
 
-                    {/* Future Product 1 - Locked */}
+                    {/* Asset Evaluator - Locked */}
                     <div className="group relative">
                         <motion.div
                             initial={{ opacity: 0, y: 20 }}
@@ -55,11 +55,11 @@ const Products = () => {
                             className="h-full bg-white/5 border border-white/10 rounded-2xl p-8 opacity-75 grayscale hover:grayscale-0 transition-all duration-500"
                         >
                             <div className="w-12 h-12 bg-white/10 rounded-lg flex items-center justify-center mb-6 text-gray-400">
-                                <Lock size={24} />
+                                <Search size={24} />
                             </div>
-                            <h3 className="text-2xl font-bold mb-2 text-gray-300">Quantum Hedge</h3>
+                            <h3 className="text-2xl font-bold mb-2 text-gray-300">Asset Evaluator</h3>
                             <p className="text-gray-500 mb-6">
-                                Advanced risk management using quantum-inspired algorithms for institutional-grade hedging.
+                                Tools for scoring the strength of portfolios and assets, generating investment recommendations.
                             </p>
                             <div className="inline-block px-3 py-1 rounded-full bg-white/10 text-xs font-bold text-gray-400 border border-white/10">
                                 COMING SOON
@@ -67,7 +67,7 @@ const Products = () => {
                         </motion.div>
                     </div>
 
-                    {/* Future Product 2 - Locked */}
+                    {/* Comparison Matrix - Locked */}
                     <div className="group relative">
                         <motion.div
                             initial={{ opacity: 0, y: 20 }}
@@ -76,11 +76,32 @@ const Products = () => {
                             className="h-full bg-white/5 border border-white/10 rounded-2xl p-8 opacity-75 grayscale hover:grayscale-0 transition-all duration-500"
                         >
                             <div className="w-12 h-12 bg-white/10 rounded-lg flex items-center justify-center mb-6 text-gray-400">
-                                <Lock size={24} />
+                                <Scale size={24} />
                             </div>
-                            <h3 className="text-2xl font-bold mb-2 text-gray-300">Neural Trade</h3>
+                            <h3 className="text-2xl font-bold mb-2 text-gray-300">Comparison Matrix</h3>
                             <p className="text-gray-500 mb-6">
-                                Automated high-frequency trading execution powered by deep reinforcement learning.
+                                Products that produce lists of the strongest assets with the highest growth potential based on tested formulas.
+                            </p>
+                            <div className="inline-block px-3 py-1 rounded-full bg-white/10 text-xs font-bold text-gray-400 border border-white/10">
+                                COMING SOON
+                            </div>
+                        </motion.div>
+                    </div>
+
+                    {/* Market Nexus - Locked */}
+                    <div className="group relative">
+                        <motion.div
+                            initial={{ opacity: 0, y: 20 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ delay: 0.5 }}
+                            className="h-full bg-white/5 border border-white/10 rounded-2xl p-8 opacity-75 grayscale hover:grayscale-0 transition-all duration-500"
+                        >
+                            <div className="w-12 h-12 bg-white/10 rounded-lg flex items-center justify-center mb-6 text-gray-400">
+                                <Siren size={24} />
+                            </div>
+                            <h3 className="text-2xl font-bold mb-2 text-gray-300">Market Nexus</h3>
+                            <p className="text-gray-500 mb-6">
+                                Score the strength of the market, forecast reversal likelihoods, and bring all relevant data into a single output.
                             </p>
                             <div className="inline-block px-3 py-1 rounded-full bg-white/10 text-xs font-bold text-gray-400 border border-white/10">
                                 COMING SOON

@@ -545,7 +545,7 @@ const LandingPage = () => {
                 <WealthCalculator />
             </ErrorBoundary>
 
-            {/* Market Dashboard (Moved Below Calculator) */}
+            {/* Market Dashboard */}
             <ErrorBoundary>
                 <MarketDashboard />
             </ErrorBoundary>
@@ -649,7 +649,7 @@ const LandingPage = () => {
                             />
                             <SubscriptionCard
                                 title="Pro"
-                                price="$20"
+                                price="$19"
                                 period="/month"
                                 planId={import.meta.env.VITE_PAYPAL_VISIONARY_PLAN_ID}
                                 features={["Priority support", "Higher product usage limits", "Community access"]}
@@ -658,7 +658,7 @@ const LandingPage = () => {
                             />
                             <SubscriptionCard
                                 title="Enterprise"
-                                price="$50"
+                                price="$49"
                                 period="/month"
                                 planId={import.meta.env.VITE_PAYPAL_INSTITUTIONAL_PLAN_ID}
                                 features={["High product usage limits", "Community access", "Priority support", "Early access to new features"]}
