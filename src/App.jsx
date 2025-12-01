@@ -37,12 +37,15 @@ function App() {
     // Console warning if ID is missing (helps debugging)
     if (!clientId) {
         console.warn("⚠️ VITE_PAYPAL_CLIENT_ID is missing. PayPal features will be in 'Safety Mode'.");
+    } else {
+        console.log("✅ PayPal Client ID found:", clientId);
+        console.log("🔧 PayPal Options:", paypalOptions);
     }
 
     return (
         // <--- CRITICAL: Must wrap everything in PayPalScriptProvider
-        <PayPalScriptProvider options={paypalOptions}> 
-            
+        <PayPalScriptProvider options={paypalOptions}>
+
             {isLoading && <StartupAnimation onComplete={() => setIsLoading(false)} />}
 
             <AuthProvider>

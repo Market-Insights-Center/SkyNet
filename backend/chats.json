@@ -195,5 +195,21 @@
         ],
         "last_updated": "2025-11-30T04:14:35.333170",
         "last_message_preview": "55"
+    },
+    {
+        "id": "1e191d2f-44df-44db-a123-eda92cc96586",
+        "type": "custom_portfolio",
+        "participants": [
+            "marketinsightscenter@gmail.com"
+        ],
+        "messages": [
+            {
+                "sender": "marketinsightscenter@gmail.com",
+                "text": "Hello Verzogerung, \n\nYou have requested a Custom Portfolio Build. Here are the details we have on file:\n\n**User Questionnaire Responses:**\n- **Risk Tolerance:** 10\n- **Trading Frequency:** Daily\n- **Portfolio Types:** All\n\nPlease review these details. If you want to change anything, please let us know. \nIf everything looks correct, please reply with \"Confirm\" to proceed with the custom portfolio build.\n",
+                "timestamp": "2025-12-01T03:15:27.264780"
+            }
+        ],
+        "last_updated": "2025-12-01T03:15:27.264780",
+        "last_message_preview": "Hello Verzogerung, \n\nYou have requested a Custom Portfolio Build. Here are the details we have on file:\n\n**User Questionnaire Responses:**\n- **Risk Tolerance:** 10\n- **Trading Frequency:** Daily\n- **Portfolio Types:** All\n\nPlease review these details. If you want to change anything, please let us know. \nIf everything looks correct, please reply with \"Confirm\" to proceed with the custom portfolio build.\n"
     }
 ]

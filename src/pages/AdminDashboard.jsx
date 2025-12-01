@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-    Users, TrendingUp, Shield, Activity, Search, Edit2, 
-    Save, X, Check, Trash2, Tag, Plus, FileText, Lightbulb 
+import {
+    Users, TrendingUp, Shield, Activity, Search, Edit2,
+    Save, X, Check, Trash2, Tag, Plus, FileText, Lightbulb
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
@@ -11,7 +11,7 @@ const AdminDashboard = () => {
     const { currentUser } = useAuth();
     const navigate = useNavigate();
     const [activeTab, setActiveTab] = useState('overview');
-    
+
     const [users, setUsers] = useState([]);
     const [coupons, setCoupons] = useState([]);
     const [articles, setArticles] = useState([]);
@@ -24,7 +24,7 @@ const AdminDashboard = () => {
     const [editingUser, setEditingUser] = useState(null);
     const [newTier, setNewTier] = useState('');
     const [showCouponModal, setShowCouponModal] = useState(false);
-    const [newCoupon, setNewCoupon] = useState({ code: '', plan_id: '', tier: 'Visionary', discount_label: '20% OFF' });
+    const [newCoupon, setNewCoupon] = useState({ code: '', plan_id: '', tier: 'Pro', discount_label: '20% OFF' });
 
     // --- SECURITY CHECK ---
     useEffect(() => {
@@ -46,12 +46,12 @@ const AdminDashboard = () => {
                 setUsers(data);
                 setStats({
                     totalUsers: data.length,
-                    proUsers: data.filter(u => u.tier === 'Visionary' || u.tier === 'Institutional').length,
+                    proUsers: data.filter(u => u.tier === 'Pro' || u.tier === 'Enterprise').length,
                     activeTrials: data.filter(u => u.subscription_status === 'trialling').length
                 });
             }
         });
-        
+
         if (currentUser) {
             fetch(`/api/admin/coupons?email=${currentUser.email}`).then(res => res.json()).then(data => setCoupons(Array.isArray(data) ? data : [])).catch(() => setCoupons([]));
             fetch('/api/articles').then(res => res.json()).then(data => setArticles(Array.isArray(data) ? data : [])).catch(() => setArticles([]));
@@ -62,7 +62,7 @@ const AdminDashboard = () => {
 
     const handleUpdateTier = async () => {
         const res = await fetch('/api/admin/users/update', {
-            method: 'POST', headers: {'Content-Type': 'application/json'},
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ target_email: editingUser.email, new_tier: newTier, requester_email: currentUser.email })
         });
         if (res.ok) {
@@ -74,7 +74,7 @@ const AdminDashboard = () => {
     const handleDeleteUser = async (email) => {
         if (!window.confirm(`Are you sure you want to PERMANENTLY delete ${email}?`)) return;
         const res = await fetch('/api/admin/users/delete', {
-            method: 'POST', headers: {'Content-Type': 'application/json'},
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ target_email: email, requester_email: currentUser.email })
         });
         if (res.ok) {
@@ -82,6 +82,33 @@ const AdminDashboard = () => {
         } else {
             alert("Failed to delete user. Ensure you have permission.");
         }
+    };
+
+    const handleDeleteCoupon = async (code) => {
+        if (!window.confirm(`Delete coupon ${code}?`)) return;
+        const res = await fetch('/api/admin/coupons/delete', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ code, requester_email: currentUser.email })
+        });
+        if (res.ok) setCoupons(coupons.filter(c => c.code !== code));
+    };
+
+    const handleDeleteArticle = async (id) => {
+        if (!window.confirm(`Delete article ${id}?`)) return;
+        const res = await fetch('/api/admin/articles/delete', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: String(id), requester_email: currentUser.email })
+        });
+        if (res.ok) setArticles(articles.filter(a => String(a.id) !== String(id)));
+    };
+
+    const handleDeleteIdea = async (id) => {
+        if (!window.confirm(`Delete idea ${id}?`)) return;
+        const res = await fetch('/api/admin/ideas/delete', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: String(id), requester_email: currentUser.email })
+        });
+        if (res.ok) setIdeas(ideas.filter(i => String(i.id) !== String(id)));
     };
 
     const handleCreateCoupon = async () => {
@@ -169,7 +196,7 @@ const AdminDashboard = () => {
                                     {filteredUsers.map(user => (
                                         <tr key={user.email} className="hover:bg-white/5 transition-colors">
                                             <td className="p-4">{user.email}</td>
-                                            <td className="p-4"><span className={`px-2 py-1 rounded text-xs font-bold ${user.tier === 'Singularity' ? 'bg-purple-900 text-purple-200' : user.tier === 'Visionary' ? 'bg-gold/20 text-gold' : 'bg-gray-700 text-gray-300'}`}>{user.tier}</span></td>
+                                            <td className="p-4"><span className={`px-2 py-1 rounded text-xs font-bold ${user.tier === 'Singularity' ? 'bg-purple-900 text-purple-200' : user.tier === 'Pro' ? 'bg-gold/20 text-gold' : 'bg-gray-700 text-gray-300'}`}>{user.tier}</span></td>
                                             <td className="p-4 text-sm text-gray-400">{user.subscription_status || 'none'}</td>
                                             <td className="p-4 flex gap-2">
                                                 <button onClick={() => { setEditingUser(user); setNewTier(user.tier); }} className="p-2 hover:bg-white/10 rounded-lg text-gold"><Edit2 size={16} /></button>
@@ -183,14 +210,16 @@ const AdminDashboard = () => {
                     </div>
                 )}
 
-                {/* Other Tabs (Same as before) */}
                 {activeTab === 'coupons' && (
                     <div>
                         <div className="flex justify-end mb-4"><button onClick={() => setShowCouponModal(true)} className="bg-gold text-black px-4 py-2 rounded-lg font-bold flex items-center gap-2 hover:bg-yellow-500"><Plus size={18} /> Create Coupon</button></div>
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                             {coupons.map(c => (
                                 <div key={c.code} className="bg-white/5 p-6 rounded-xl border border-white/10 relative">
-                                    <div className="absolute top-4 right-4"><Tag className="text-gold/20" size={40} /></div>
+                                    <div className="absolute top-4 right-4 flex gap-2">
+                                        <button onClick={() => handleDeleteCoupon(c.code)} className="text-red-500 hover:text-red-400 bg-black/50 p-1 rounded"><Trash2 size={16} /></button>
+                                        <Tag className="text-gold/20" size={40} />
+                                    </div>
                                     <h3 className="text-xl font-bold text-white mb-1">{c.code}</h3>
                                     <p className="text-gold font-bold mb-4">{c.discount_label}</p>
                                     <div className="text-sm text-gray-400"><p>Tier: {c.applicable_tier}</p><p title={c.plan_id} className="truncate">ID: {c.plan_id}</p></div>
@@ -207,7 +236,10 @@ const AdminDashboard = () => {
                             {articles.map(a => (
                                 <div key={a.id} className="p-4 bg-black/40 rounded border border-white/5 flex justify-between items-center">
                                     <div><h3 className="font-bold">{a.title}</h3><p className="text-sm text-gray-400">By {a.author} • {a.date}</p></div>
-                                    <div className="text-sm text-gray-500">ID: {a.id}</div>
+                                    <div className="flex items-center gap-4">
+                                        <div className="text-sm text-gray-500">ID: {a.id}</div>
+                                        <button onClick={() => handleDeleteArticle(a.id)} className="text-red-500 hover:text-red-400"><Trash2 size={18} /></button>
+                                    </div>
                                 </div>
                             ))}
                         </div>
@@ -221,6 +253,7 @@ const AdminDashboard = () => {
                             {ideas.map(i => (
                                 <div key={i.id} className="p-4 bg-black/40 rounded border border-white/5 flex justify-between items-center">
                                     <div><h3 className="font-bold">{i.title} <span className="text-gold">({i.ticker})</span></h3><p className="text-sm text-gray-400">By {i.author}</p></div>
+                                    <button onClick={() => handleDeleteIdea(i.id)} className="text-red-500 hover:text-red-400"><Trash2 size={18} /></button>
                                 </div>
                             ))}
                         </div>
@@ -259,7 +292,7 @@ const AdminDashboard = () => {
                                 <div>
                                     <label className="block text-sm text-gray-400 mb-1">Tier</label>
                                     <select value={newTier} onChange={(e) => setNewTier(e.target.value)} className="w-full bg-black border border-white/10 rounded px-3 py-2 text-white">
-                                        <option value="Free">Free</option><option value="Visionary">Visionary</option><option value="Institutional">Institutional</option><option value="Singularity">Singularity</option>
+                                        <option value="Basic">Basic</option><option value="Pro">Pro</option><option value="Enterprise">Enterprise</option><option value="Singularity">Singularity</option>
                                     </select>
                                 </div>
                             </div>
@@ -276,10 +309,10 @@ const AdminDashboard = () => {
                         <div className="bg-gray-900 border border-white/10 p-8 rounded-xl w-full max-w-md">
                             <h3 className="text-xl font-bold mb-6">Create Coupon</h3>
                             <div className="space-y-4 mb-8">
-                                <div><label className="block text-sm text-gray-400 mb-1">Code</label><input value={newCoupon.code} onChange={e => setNewCoupon({...newCoupon, code: e.target.value.toUpperCase()})} className="w-full bg-black border border-white/10 rounded px-3 py-2 text-white" placeholder="e.g. SAVE20" /></div>
-                                <div><label className="block text-sm text-gray-400 mb-1">Label</label><input value={newCoupon.discount_label} onChange={e => setNewCoupon({...newCoupon, discount_label: e.target.value})} className="w-full bg-black border border-white/10 rounded px-3 py-2 text-white" placeholder="e.g. 20% OFF" /></div>
-                                <div><label className="block text-sm text-gray-400 mb-1">Tier</label><select value={newCoupon.tier} onChange={e => setNewCoupon({...newCoupon, tier: e.target.value})} className="w-full bg-black border border-white/10 rounded px-3 py-2 text-white"><option value="Visionary">Visionary</option><option value="Institutional">Institutional</option></select></div>
-                                <div><label className="block text-sm text-gray-400 mb-1">Plan ID</label><input value={newCoupon.plan_id} onChange={e => setNewCoupon({...newCoupon, plan_id: e.target.value})} className="w-full bg-black border border-white/10 rounded px-3 py-2 text-white" placeholder="Hidden PayPal Plan ID" /></div>
+                                <div><label className="block text-sm text-gray-400 mb-1">Code</label><input value={newCoupon.code} onChange={e => setNewCoupon({ ...newCoupon, code: e.target.value.toUpperCase() })} className="w-full bg-black border border-white/10 rounded px-3 py-2 text-white" placeholder="e.g. SAVE20" /></div>
+                                <div><label className="block text-sm text-gray-400 mb-1">Label</label><input value={newCoupon.discount_label} onChange={e => setNewCoupon({ ...newCoupon, discount_label: e.target.value })} className="w-full bg-black border border-white/10 rounded px-3 py-2 text-white" placeholder="e.g. 20% OFF" /></div>
+                                <div><label className="block text-sm text-gray-400 mb-1">Tier</label><select value={newCoupon.tier} onChange={e => setNewCoupon({ ...newCoupon, tier: e.target.value })} className="w-full bg-black border border-white/10 rounded px-3 py-2 text-white"><option value="Pro">Pro</option><option value="Enterprise">Enterprise</option></select></div>
+                                <div><label className="block text-sm text-gray-400 mb-1">Plan ID</label><input value={newCoupon.plan_id} onChange={e => setNewCoupon({ ...newCoupon, plan_id: e.target.value })} className="w-full bg-black border border-white/10 rounded px-3 py-2 text-white" placeholder="Hidden PayPal Plan ID" /></div>
                             </div>
                             <div className="flex justify-end gap-3"><button onClick={() => setShowCouponModal(false)} className="px-4 py-2 text-gray-400">Cancel</button><button onClick={handleCreateCoupon} className="px-4 py-2 bg-gold text-black rounded font-bold">Create</button></div>
                         </div>

@@ -5,15 +5,19 @@ import { PayPalButtons } from "@paypal/react-paypal-js";
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 
+// Get the default plan ID from environment variables as a fallback/default
+const DEFAULT_PLAN_ID = import.meta.env.VITE_PAYPAL_DEFAULT_PLAN_ID; //
+
 const SubscriptionCard = ({ title, price, period, planId, features, isPopular, delay }) => {
     const { currentUser, refreshUserProfile } = useAuth();
     const navigate = useNavigate();
     const [error, setError] = useState(null);
     const [showPayment, setShowPayment] = useState(false);
-    
+
     // Coupon State
     const [promoCode, setPromoCode] = useState('');
-    const [activePlanId, setActivePlanId] = useState(planId);
+    // Use the prop planId, but fall back to the environment variable if the prop is not passed.
+    const [activePlanId, setActivePlanId] = useState(planId || DEFAULT_PLAN_ID);
     const [discountLabel, setDiscountLabel] = useState(null);
     const [isVerifyingCode, setIsVerifyingCode] = useState(false);
 
@@ -51,7 +55,7 @@ const SubscriptionCard = ({ title, price, period, planId, features, isPopular, d
             if (result.status === 'success') {
                 alert(`Welcome to ${title}! Your subscription is active.`);
                 // Refresh profile to update UI immediately
-                await refreshUserProfile(currentUser); 
+                await refreshUserProfile(currentUser);
                 navigate('/profile');
             } else {
                 throw new Error(result.message);
@@ -64,10 +68,10 @@ const SubscriptionCard = ({ title, price, period, planId, features, isPopular, d
 
     // --- Logic for Button State ---
     const isCurrentPlan = currentUser?.tier === title;
-    
+
     // Default label based on price
     let buttonLabel = price === "$0" ? "Current Plan" : "Start Free Trial";
-    
+
     // Override if user is already on this tier
     if (isCurrentPlan) {
         buttonLabel = "You currently are on this tier";
@@ -86,14 +90,14 @@ const SubscriptionCard = ({ title, price, period, planId, features, isPopular, d
                     Most Popular
                 </div>
             )}
-            
+
             <h3 className={`text-2xl font-bold mb-2 ${isPopular ? 'text-gold' : 'text-white'}`}>{title}</h3>
-            
+
             <div className="flex items-baseline mb-2">
                 <span className="text-4xl font-bold text-white">{price}</span>
                 <span className="text-gray-400 ml-1">{period}</span>
             </div>
-            
+
             {discountLabel && (
                 <div className="mb-4 inline-block bg-green-500/20 text-green-400 text-xs px-2 py-1 rounded border border-green-500/30">
                     Coupon Applied: {discountLabel}
@@ -113,14 +117,14 @@ const SubscriptionCard = ({ title, price, period, planId, features, isPopular, d
             {price !== "$0" && !isCurrentPlan && (
                 <div className="mb-4">
                     <div className="flex gap-2">
-                        <input 
-                            type="text" 
-                            placeholder="Promo Code" 
+                        <input
+                            type="text"
+                            placeholder="Promo Code"
                             value={promoCode}
                             onChange={(e) => setPromoCode(e.target.value.toUpperCase())}
                             className="w-full bg-black/40 border border-white/10 rounded px-3 py-2 text-xs text-white"
                         />
-                        <button 
+                        <button
                             onClick={handleApplyCoupon}
                             disabled={isVerifyingCode}
                             className="bg-white/10 hover:bg-white/20 text-white text-xs px-3 rounded"
@@ -133,21 +137,21 @@ const SubscriptionCard = ({ title, price, period, planId, features, isPopular, d
 
             <div className="mt-auto">
                 {!currentUser ? (
-                    <button 
+                    <button
                         onClick={() => navigate('/login')}
                         className="w-full py-3 rounded-lg font-bold bg-white/10 text-white hover:bg-white/20 transition-colors flex items-center justify-center gap-2"
                     >
                         <Lock size={18} /> Login to Subscribe
                     </button>
                 ) : isCurrentPlan ? (
-                    <button 
-                        disabled 
+                    <button
+                        disabled
                         className="w-full py-3 rounded-lg font-bold bg-white/10 text-white/50 cursor-not-allowed border border-white/5"
                     >
                         {buttonLabel}
                     </button>
                 ) : !showPayment ? (
-                    <button 
+                    <button
                         onClick={() => setShowPayment(true)}
                         className="w-full py-3 rounded-lg font-bold bg-gold text-black hover:bg-yellow-500 transition-colors flex items-center justify-center gap-2"
                     >
@@ -156,14 +160,15 @@ const SubscriptionCard = ({ title, price, period, planId, features, isPopular, d
                 ) : (
                     <div className="w-full relative z-0 animate-fadeIn bg-black/20 p-2 rounded-xl">
                         <PayPalButtons
-                            key={activePlanId} 
-                            style={{ 
-                                shape: 'pill', 
-                                color: 'black', 
-                                layout: 'vertical', 
-                                label: 'subscribe' 
+                            key={activePlanId}
+                            style={{
+                                shape: 'pill',
+                                color: 'black',
+                                layout: 'vertical',
+                                label: 'subscribe'
                             }}
                             createSubscription={(data, actions) => {
+                                console.log("Creating subscription for Plan ID:", activePlanId);
                                 return actions.subscription.create({
                                     plan_id: activePlanId
                                 });

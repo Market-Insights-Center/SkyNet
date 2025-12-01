@@ -13,9 +13,17 @@ from datetime import datetime
 import uuid
 import yfinance as yf
 import pandas as pd
+from dotenv import load_dotenv
 
 # Ensure we can import from local folders
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+
+# Load environment variables
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+# 1. Load backend/.env
+load_dotenv(os.path.join(BASE_DIR, '.env'))
+# 2. Load root .env (overrides if duplicates, or fills gaps)
+load_dotenv(os.path.join(BASE_DIR, '..', '.env'))
 
 # Import your command modules
 from integration import invest_command, cultivate_command, custom_command, tracking_command
@@ -36,7 +44,9 @@ from database import (
     validate_coupon,   
     delete_coupon,
     check_and_increment_limit,
-    delete_user_full
+    delete_user_full,
+    delete_article,
+    delete_idea
 )
 
 logging.basicConfig(level=logging.INFO)
@@ -59,97 +69,17 @@ if not os.path.exists(STATIC_DIR):
     os.makedirs(STATIC_DIR)
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 MODS_FILE = os.path.join(BASE_DIR, 'mods.csv')
+SUPER_ADMIN_EMAIL = "marketinsightscenter@gmail.com"
 
 # --- PAYPAL CONFIGURATION ---
-PAYPAL_MODE = os.getenv("PAYPAL_MODE", "sandbox")
-PAYPAL_CLIENT_ID = os.getenv("PAYPAL_CLIENT_ID", "your_sandbox_client_id")
-PAYPAL_SECRET = os.getenv("PAYPAL_SECRET", "your_sandbox_secret")
-PAYPAL_API_BASE = "https://api-m.sandbox.paypal.com" if PAYPAL_MODE == "sandbox" else "https://api-m.paypal.com"
+PAYPAL_MODE = os.getenv("PAYPAL_MODE", "live")
 
-# PLAN MAP
-PLAN_TIER_MAP = {
-    "P-EXPLORER-ID": "Explorer",    
-    "P-1EE89936BP540274LNEWASQI": "Visionary",  
-    "P-8EG71614L88223945NEWAUBI": "Institutional"
-}
-
-# --- Models ---
-class SubPortfolio(BaseModel):
-    tickers: Any
-    weight: float
-
-class InvestRequest(BaseModel):
-    ema_sensitivity: Optional[Any] = 2
-    amplification: Optional[float] = 1.0
-    sub_portfolios: List[SubPortfolio] = []
-    tailor_to_value: bool = False
-    total_value: Optional[float] = None
-    use_fractional_shares: bool = False
-    user_id: Optional[str] = None
-    email: Optional[str] = "" 
-
-class GenericAlgoRequest(BaseModel):
-    user_id: Optional[str] = ""
-    portfolio_code: Optional[str] = ""
-    action: Optional[str] = "run_analysis"
-    total_value: Optional[float] = 10000.0
-    use_fractional_shares: Optional[bool] = False
-    sub_portfolios: Optional[List[Dict]] = []
-    ema_sensitivity: Optional[Any] = 2
-    amplification: Optional[float] = 1.0
-    trades: Optional[List] = []
-    rh_username: Optional[str] = ""
-    rh_password: Optional[str] = ""
-    email_to: Optional[str] = "" 
-    risk_tolerance: Optional[int] = 10
-    vote_type: Optional[str] = "stock"
-    overwrite: Optional[bool] = False
-    strategy_code: Optional[str] = "A" 
-    cultivate_code: Optional[str] = "A"
-    portfolio_value: Optional[float] = 10000.0
-    new_run_data: Optional[List[Dict]] = []
-    final_cash: Optional[float] = 0.0
-
-class MarketDataRequest(BaseModel):
-    tickers: List[str]
-
-class ModRequest(BaseModel):
-    email: str
-    action: str 
-    requester_email: str
-
-class SubscriptionVerifyRequest(BaseModel):
-    subscriptionId: str
-    email: str
-
-# --- ADMIN MODELS ---
-class AdminUpdateUserRequest(BaseModel):
-    target_email: str
-    new_tier: str
-    requester_email: str
-
-class AdminDeleteUserRequest(BaseModel):
-    target_email: str
-    requester_email: str
-
-class CreateCouponRequest(BaseModel):
-    code: str
-    plan_id: str
-    tier: str
-    discount_label: str
-    requester_email: str
-
-class DeleteCouponRequest(BaseModel):
-    code: str
-    requester_email: str
-
-# --- Chat Models ---
+# --- PYDANTIC MODELS ---
 class ChatCreateRequest(BaseModel):
-    type: str
-    participants: List[str]
     creator_email: str
+    participants: List[str]
+    type: str = "general" # general, support, custom_portfolio
     initial_message: Optional[str] = None
 
 class ChatMessageRequest(BaseModel):
@@ -160,176 +90,35 @@ class ChatDeleteRequest(BaseModel):
     chat_id: str
     email: str
 
-# --- Helper Functions ---
-SUPER_ADMIN_EMAIL = "marketinsightscenter@gmail.com"
+class MarketDataRequest(BaseModel):
+    tickers: List[str]
 
+class ModRequest(BaseModel):
+    email: str
+    action: str # add, remove
+    requester_email: str
+
+# --- HELPER FUNCTIONS ---
 def get_mod_list():
-    mods = [SUPER_ADMIN_EMAIL]
+    mods = []
     if os.path.exists(MODS_FILE):
-        try:
-            with open(MODS_FILE, 'r') as f:
-                reader = csv.DictReader(f)
-                for row in reader:
-                    if row and row.get("email"):
-                        email = row["email"].strip().lower()
-                        if email not in mods:
-                            mods.append(email)
-        except Exception: pass
+        with open(MODS_FILE, 'r') as f:
+            reader = csv.reader(f)
+            next(reader, None) # Skip header
+            for row in reader:
+                if row: mods.append(row[0].lower())
+    
+    # Ensure Super Admin is always in the list
+    if SUPER_ADMIN_EMAIL not in mods:
+        mods.append(SUPER_ADMIN_EMAIL)
+        # Write back to file if missing
+        with open(MODS_FILE, 'a', newline='') as f:
+            writer = csv.writer(f)
+            writer.writerow([SUPER_ADMIN_EMAIL])
+            
     return mods
 
-def is_admin(email):
-    if not email: return False
-    clean_email = email.strip().lower()
-    return clean_email in get_mod_list()
-
-def get_paypal_access_token():
-    try:
-        url = f"{PAYPAL_API_BASE}/v1/oauth2/token"
-        headers = {"Accept": "application/json", "Accept-Language": "en_US"}
-        data = {"grant_type": "client_credentials"}
-        response = requests.post(url, headers=headers, data=data, auth=(PAYPAL_CLIENT_ID, PAYPAL_SECRET))
-        if response.status_code == 200:
-            return response.json().get("access_token")
-        return None
-    except Exception as e:
-        print(f"PayPal Token Error: {e}")
-        return None
-
-# --- ENDPOINTS ---
-
-# 1. NEW ENDPOINT: User Profile Fetch
-@app.get("/api/user/profile")
-def api_get_user_profile(email: str):
-    profile = get_user_profile(email)
-    if profile:
-        return profile
-    # Return default empty profile if not found in DB yet
-    return {"email": email, "tier": "Free", "subscription_status": "none"}
-
-@app.post("/api/invest")
-async def invest_endpoint(request: InvestRequest):
-    allowed = check_and_increment_limit(request.email, "portfolio_lab")
-    if not allowed:
-        raise HTTPException(status_code=403, detail="Monthly Usage Limit Reached. Upgrade your subscription for more access.")
-
-    try:
-        ai_params = request.model_dump()
-        result = await invest_command.handle_invest_command([], ai_params=ai_params, is_called_by_ai=True)
-        if isinstance(result, tuple):
-             _, _, final_cash, tailored_data = result
-             return {"status": "success", "holdings": tailored_data, "final_cash": final_cash}
-        return result
-    except Exception as e:
-        return {"status": "error", "message": str(e)}
-
-@app.post("/api/custom")
-async def custom_endpoint(request: GenericAlgoRequest):
-    allowed = check_and_increment_limit(request.email_to, "portfolio_lab")
-    if not allowed:
-        raise HTTPException(status_code=403, detail="Monthly Usage Limit Reached. Upgrade your subscription for more access.")
-
-    try:
-        ai_params = request.model_dump()
-        return await custom_command.handle_custom_command([], ai_params=ai_params, is_called_by_ai=True)
-    except Exception as e:
-        return {"status": "error", "message": str(e)}
-
-@app.post("/api/tracking")
-async def tracking_endpoint(request: GenericAlgoRequest):
-    allowed = check_and_increment_limit(request.email_to, "portfolio_lab")
-    if not allowed:
-        raise HTTPException(status_code=403, detail="Monthly Usage Limit Reached. Upgrade your subscription for more access.")
-
-    try:
-        ai_params = request.model_dump()
-        return await tracking_command.handle_tracking_command([], ai_params=ai_params, is_called_by_ai=True)
-    except Exception as e:
-        return {"status": "error", "message": str(e)}
-
-@app.post("/api/cultivate")
-async def cultivate_endpoint(request: GenericAlgoRequest):
-    allowed = check_and_increment_limit(request.email_to, "cultivate")
-    if not allowed:
-        raise HTTPException(status_code=403, detail="Monthly Cultivate Limit Reached. Upgrade your subscription for more access.")
-
-    try:
-        ai_params = request.model_dump()
-        return await cultivate_command.handle_cultivate_command([], ai_params=ai_params, is_called_by_ai=True)
-    except Exception as e:
-        return {"status": "error", "message": str(e)}
-
-# --- ADMIN ENDPOINTS ---
-
-@app.post("/api/admin/users/update")
-def admin_update_user(req: AdminUpdateUserRequest):
-    if not is_admin(req.requester_email):
-        raise HTTPException(status_code=403, detail="Not authorized")
-    success = update_user_tier(req.target_email, req.new_tier, status="admin_override")
-    if success: return {"status": "success"}
-    raise HTTPException(status_code=500, detail="Failed to update user")
-
-@app.post("/api/admin/users/delete")
-def admin_delete_user(req: AdminDeleteUserRequest):
-    if not is_admin(req.requester_email):
-        raise HTTPException(status_code=403, detail="Not authorized")
-    
-    success = delete_user_full(req.target_email)
-    if success:
-        return {"status": "success"}
-    raise HTTPException(status_code=500, detail="Failed to delete user")
-
-@app.get("/api/admin/coupons")
-def list_coupons(email: str):
-    if not is_admin(email): raise HTTPException(status_code=403, detail="Not authorized")
-    return get_all_coupons()
-
-@app.post("/api/admin/coupons/create")
-def admin_create_coupon(req: CreateCouponRequest):
-    if not is_admin(req.requester_email): raise HTTPException(status_code=403, detail="Not authorized")
-    success = create_coupon(req.code, req.plan_id, req.tier, req.discount_label)
-    if success: return {"status": "success"}
-    raise HTTPException(status_code=500, detail="Failed to create coupon")
-
-@app.post("/api/admin/coupons/delete")
-def admin_delete_coupon(req: DeleteCouponRequest):
-    if not is_admin(req.requester_email): raise HTTPException(status_code=403, detail="Not authorized")
-    success = delete_coupon(req.code)
-    if success: return {"status": "success"}
-    raise HTTPException(status_code=500, detail="Failed to delete coupon")
-
-@app.get("/api/coupons/validate")
-def check_coupon(code: str):
-    coupon = validate_coupon(code)
-    if coupon: return {"valid": True, "plan_id": coupon['plan_id'], "label": coupon.get('discount_label', 'Discount')}
-    return {"valid": False}
-
-# --- SUBSCRIPTION ENDPOINTS ---
-
-@app.post("/api/subscriptions/verify")
-async def verify_subscription(req: SubscriptionVerifyRequest):
-    token = get_paypal_access_token()
-    if not token: raise HTTPException(status_code=500, detail="Could not connect to payment provider")
-    try:
-        url = f"{PAYPAL_API_BASE}/v1/billing/subscriptions/{req.subscriptionId}"
-        headers = {"Authorization": f"Bearer {token}"}
-        response = requests.get(url, headers=headers)
-        if response.status_code != 200: raise HTTPException(status_code=400, detail="Invalid Subscription ID")
-        sub_data = response.json()
-        status = sub_data.get("status")
-        plan_id = sub_data.get("plan_id")
-        tier = PLAN_TIER_MAP.get(plan_id, "Visionary") 
-        if status in ["ACTIVE", "TRIALLING"]:
-            success = update_user_tier(req.email, tier, req.subscriptionId, status.lower())
-            if success: return {"status": "success", "tier": tier}
-            else: raise HTTPException(status_code=500, detail="Database update failed")
-        else: return {"status": "failed", "message": f"Subscription status is {status}"}
-    except Exception as e:
-        logger.error(f"Verify Error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-# --- CHAT & MARKET DATA ---
-
-@app.get("/api/chat/list")
+# Try standard env var, fallback to VITE_ prefixed one
 def get_chats(email: str, all_chats: bool = False):
     chats = read_chats()
     if all_chats: return chats
@@ -357,7 +146,12 @@ def get_messages(chat_id: str, email: str):
     chats = read_chats()
     chat = next((c for c in chats if c["id"] == chat_id), None)
     if not chat: raise HTTPException(status_code=404, detail="Chat not found")
-    if email not in chat["participants"]: raise HTTPException(status_code=403, detail="Access denied")
+    
+    # Check if user is participant OR mod
+    mods = get_mod_list()
+    if email not in chat["participants"] and email not in mods:
+        raise HTTPException(status_code=403, detail="Access denied")
+        
     return chat.get("messages", [])
 
 @app.post("/api/chat/{chat_id}/message")
@@ -378,16 +172,31 @@ def delete_chat(req: ChatDeleteRequest):
     chats = read_chats()
     updated_chats = []
     found = False
+    mods = get_mod_list()
+    
     for chat in chats:
         if chat["id"] == req.chat_id:
-            found = True
-            if req.email in chat["participants"]: chat["participants"].remove(req.email)
-            if len(chat["participants"]) > 0: updated_chats.append(chat)
-        else: updated_chats.append(chat)
+            # Allow delete if user is participant OR admin
+            if req.email in chat["participants"] or req.email in mods:
+                found = True
+                continue 
+            else:
+                updated_chats.append(chat)
+        else:
+            updated_chats.append(chat)
+            
     if found:
         save_chats(updated_chats)
         return {"status": "success"}
-    raise HTTPException(status_code=404, detail="Chat not found")
+    
+    chat_exists = any(c["id"] == req.chat_id for c in chats)
+    if not chat_exists:
+        raise HTTPException(status_code=404, detail="Chat not found")
+        
+    if not found:
+         raise HTTPException(status_code=403, detail="Not authorized to delete this chat")
+
+    return {"status": "success"}
 
 @app.post("/api/market-data")
 async def get_market_data(request: MarketDataRequest):
@@ -573,10 +382,113 @@ def manage_mods(request: ModRequest):
 def get_articles(limit: int = 100): return read_articles_from_csv()[:limit]
 
 @app.get("/api/users")
-def get_users(): return get_all_users_from_db()
+def get_users(): 
+    users = get_all_users_from_db()
+    # Ensure Super Admin has Singularity tier
+    for user in users:
+        if user['email'] == SUPER_ADMIN_EMAIL:
+            user['tier'] = 'Singularity'
+    return users
+
+@app.get("/api/user/profile")
+def api_get_user_profile(email: str):
+    # Special override for Super Admin
+    if email == SUPER_ADMIN_EMAIL:
+        return {"email": email, "tier": "Singularity", "subscription_status": "active", "risk_tolerance": 10, "trading_frequency": "Daily", "portfolio_types": ["All"]}
+        
+    profile = get_user_profile(email)
+    if profile:
+        return profile
+    # Return default empty profile if not found in DB yet
+    return {"email": email, "tier": "Basic", "subscription_status": "none"}
 
 @app.get("/api/ideas")
 def get_ideas(limit: int = 100): return read_ideas_from_csv()[:limit]
+
+# --- ADMIN ROUTES ---
+@app.get("/api/admin/coupons")
+def api_get_coupons(email: str):
+    mods = get_mod_list()
+    if email not in mods: raise HTTPException(status_code=403, detail="Not authorized")
+    return get_all_coupons()
+
+@app.post("/api/admin/coupons/create")
+def api_create_coupon(req: Request, payload: Dict[str, Any] = None):
+    pass 
+
+class CouponCreateRequest(BaseModel):
+    code: str
+    plan_id: str
+    tier: str
+    discount_label: str
+    requester_email: str
+
+@app.post("/api/admin/coupons/create")
+def api_create_coupon_impl(req: CouponCreateRequest):
+    mods = get_mod_list()
+    if req.requester_email.lower() not in mods: raise HTTPException(status_code=403, detail="Not authorized")
+    create_coupon(req.code, req.plan_id, req.tier, req.discount_label)
+    return {"status": "success"}
+
+class UserUpdateRequest(BaseModel):
+    target_email: str
+    new_tier: str
+    requester_email: str
+
+@app.post("/api/admin/users/update")
+def api_update_user_tier(req: UserUpdateRequest):
+    mods = get_mod_list()
+    if req.requester_email.lower() not in mods: raise HTTPException(status_code=403, detail="Not authorized")
+    update_user_tier(req.target_email, req.new_tier)
+    return {"status": "success"}
+
+class UserDeleteRequest(BaseModel):
+    target_email: str
+    requester_email: str
+
+@app.post("/api/admin/users/delete")
+def api_delete_user(req: UserDeleteRequest):
+    mods = get_mod_list()
+    if req.requester_email.lower() not in mods: raise HTTPException(status_code=403, detail="Not authorized")
+    if req.target_email == SUPER_ADMIN_EMAIL: raise HTTPException(status_code=400, detail="Cannot delete Super Admin")
+    delete_user_full(req.target_email)
+    return {"status": "success"}
+
+class CouponDeleteRequest(BaseModel):
+    code: str
+    requester_email: str
+
+@app.post("/api/admin/coupons/delete")
+def api_delete_coupon(req: CouponDeleteRequest):
+    mods = get_mod_list()
+    if req.requester_email.lower() not in mods: raise HTTPException(status_code=403, detail="Not authorized")
+    if delete_coupon(req.code):
+        return {"status": "success"}
+    raise HTTPException(status_code=404, detail="Coupon not found")
+
+class ArticleDeleteRequest(BaseModel):
+    id: str
+    requester_email: str
+
+@app.post("/api/admin/articles/delete")
+def api_delete_article(req: ArticleDeleteRequest):
+    mods = get_mod_list()
+    if req.requester_email.lower() not in mods: raise HTTPException(status_code=403, detail="Not authorized")
+    if delete_article(req.id):
+        return {"status": "success"}
+    raise HTTPException(status_code=404, detail="Article not found")
+
+class IdeaDeleteRequest(BaseModel):
+    id: str
+    requester_email: str
+
+@app.post("/api/admin/ideas/delete")
+def api_delete_idea(req: IdeaDeleteRequest):
+    mods = get_mod_list()
+    if req.requester_email.lower() not in mods: raise HTTPException(status_code=403, detail="Not authorized")
+    if delete_idea(req.id):
+        return {"status": "success"}
+    raise HTTPException(status_code=404, detail="Idea not found")
 
 if __name__ == "__main__":
     import uvicorn

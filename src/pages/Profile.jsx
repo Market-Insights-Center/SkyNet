@@ -229,6 +229,12 @@ export default function Profile() {
                                 )}
                             </div>
                             <p className="text-gray-400 text-sm">{currentUser?.email}</p>
+                            <div className="mt-2 flex items-center gap-2">
+                                <span className="text-gray-400 text-xs uppercase tracking-wider">Current Plan:</span>
+                                <span className={`px-2 py-0.5 rounded text-xs font-bold ${currentUser?.tier === 'Enterprise' ? 'bg-purple-900 text-purple-200' : currentUser?.tier === 'Pro' ? 'bg-gold/20 text-gold' : 'bg-gray-700 text-gray-300'}`}>
+                                    {currentUser?.tier || 'Basic'}
+                                </span>
+                            </div>
                         </div>
                     </div>
 

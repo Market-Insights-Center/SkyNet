@@ -280,6 +280,13 @@ def save_articles_to_csv(articles):
         print(f"Error saving to CSV: {e}")
         return False
 
+def delete_article(article_id):
+    articles = read_articles_from_csv()
+    new_articles = [a for a in articles if str(a['id']) != str(article_id)]
+    if len(articles) == len(new_articles):
+        return False
+    return save_articles_to_csv(new_articles)
+
 # --- CSV HELPERS (IDEAS) ---
 
 def init_ideas_csv():
@@ -345,6 +352,13 @@ def save_ideas_to_csv(ideas):
     except Exception as e:
         print(f"Error saving to Ideas CSV: {e}")
         return False
+
+def delete_idea(idea_id):
+    ideas = read_ideas_from_csv()
+    new_ideas = [i for i in ideas if str(i['id']) != str(idea_id)]
+    if len(ideas) == len(new_ideas):
+        return False
+    return save_ideas_to_csv(new_ideas)
 
 # --- Chat Helpers ---
 def read_chats():

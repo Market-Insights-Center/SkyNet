@@ -8,7 +8,7 @@ import Watchlist from '../components/Watchlist';
 import NewsFeed from '../components/NewsFeed';
 import IdeaCard from '../components/IdeaCard';
 import Footer from '../components/Footer';
-import SubscriptionCard from '../components/SubscriptionCard'; // <--- NEW IMPORT
+import SubscriptionCard from '../components/SubscriptionCard';
 import { useAuth } from '../contexts/AuthContext';
 
 class ErrorBoundary extends React.Component {
@@ -99,99 +99,70 @@ const Tooltip = ({ text, children }) => {
     );
 };
 
-const StatRow = ({ label, value, tooltip }) => (
-    <div className="flex justify-between items-center py-1 border-b border-white/5 last:border-0 hover:bg-white/5 px-2 rounded transition-colors">
-        <div className="flex items-center gap-2">
-            <span className="text-gray-400 text-sm">{label}</span>
-            {tooltip && (
-                <Tooltip text={tooltip}>
-                    <HelpCircle size={12} className="text-gray-500 hover:text-gold cursor-help transition-colors" />
-                </Tooltip>
-            )}
-        </div>
-        <span className="text-gray-200 font-mono text-sm font-medium">{value}</span>
-    </div>
-);
-
-// --- Performance Details Modal ---
+// --- Performance Modal Component ---
 const PerformanceModal = ({ isOpen, onClose }) => {
     if (!isOpen) return null;
 
     const tooltips = {
-        totalReturn: "The percentage increase in the portfolio's value over the entire period.",
-        cagr: "Compound Annual Growth Rate: The mean annual growth rate of an investment over a specified period of time longer than one year.",
-        correlation: "A statistic that measures the degree to which the portfolio moves in relation to the SPY. Ranges from -1 to 1.",
-        beta: "A measure of the volatility, or systematic risk, of the portfolio in comparison to the market (SPY).",
-        meanDaily: "The average return realized by the portfolio on a daily basis.",
-        stdDev: "Standard Deviation: A measure of the amount of variation or dispersion of the daily returns.",
-        upsideDev: "A measure of volatility that only considers positive returns.",
-        downsideDev: "A measure of volatility that only considers negative returns (downside risk).",
-        cvar: "Conditional Value at Risk (5%): The weighted average of losses that occur beyond the 5% VaR threshold (worst 5% of days).",
-        condGain: "The average gain on the best 5% of trading days."
+        correlation: "Measures how closely the portfolio moves with SPY. 1.0 means perfect alignment, 0 means no relationship.",
+        beta: "Measures volatility relative to SPY. Beta > 1 means more volatile, Beta < 1 means less volatile.",
+        meanDaily: "The average return per day over the backtesting period.",
+        stdDev: "Standard Deviation: a measure of the amount of variation or dispersion of a set of values.",
+        upsideDev: "Standard deviation of only positive returns (upside volatility).",
+        downsideDev: "Standard deviation of only negative returns (downside risk).",
+        cvar: "Conditional Value at Risk (5%): The expected loss in the worst 5% of cases.",
+        condGain: "Conditional Gain (5%): The expected gain in the best 5% of cases."
     };
 
-    return (
-        <div className="fixed inset-0 z-[100] flex items-start justify-center pt-16 px-4 pb-4 bg-black/80 backdrop-blur-md">
-            <motion.div
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.95 }}
-                className="bg-[#0a0a0a] border border-gold/20 rounded-2xl w-full max-w-5xl max-h-[calc(100vh-6rem)] overflow-y-auto shadow-2xl scrollbar-thin scrollbar-thumb-gold/20 scrollbar-track-black"
-            >
-                <div className="sticky top-0 bg-[#0a0a0a]/95 backdrop-blur border-b border-white/10 p-4 flex justify-between items-center z-10">
-                    <h3 className="text-xl font-bold text-gold">Performance Details</h3>
-                    <button
-                        onClick={onClose}
-                        className="p-2 hover:bg-white/10 rounded-full transition-colors group"
-                        aria-label="Close details"
-                    >
-                        <X size={24} className="text-gray-400 group-hover:text-white transition-colors" />
-                    </button>
-                </div>
+    const StatRow = ({ label, value, tooltip }) => (
+        <div className="flex justify-between items-center py-2 border-b border-white/5 last:border-0 hover:bg-white/5 px-2 rounded transition-colors group">
+            <div className="flex items-center gap-2">
+                <span className="text-gray-400 text-sm">{label}</span>
+                {tooltip && (
+                    <Tooltip text={tooltip}>
+                        <HelpCircle size={12} className="text-gray-600 group-hover:text-gold transition-colors cursor-help" />
+                    </Tooltip>
+                )}
+            </div>
+            <span className="font-mono font-bold text-gold">{value}</span>
+        </div>
+    );
 
-                <div className="p-6 space-y-8">
-                    <div className="rounded-xl overflow-hidden border border-white/10 bg-black relative h-[300px] md:h-[400px]">
-                        <img
-                            src="/cultivatebacktest.png"
-                            alt="Cultivate Backtest vs SPY Graph"
-                            className="w-full h-full object-contain"
-                        />
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+            <motion.div
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.9 }}
+                className="bg-[#0a0a0a] border border-gold/30 rounded-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto shadow-2xl relative"
+            >
+                <button
+                    onClick={onClose}
+                    className="absolute top-4 right-4 text-gray-400 hover:text-white transition-colors p-2 hover:bg-white/10 rounded-full"
+                >
+                    <X size={24} />
+                </button>
+
+                <div className="p-8">
+                    <div className="text-center mb-8">
+                        <h3 className="text-3xl font-bold mb-2">Detailed <span className="text-gold">Performance Metrics</span></h3>
+                        <p className="text-gray-400">Cultivate vs. SPY Benchmark (Nov 2015 - Nov 2025)</p>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                         <div className="space-y-8">
                             <div>
-                                <h4 className="text-gold font-bold mb-3 border-b border-gold/20 pb-2 tracking-wider text-sm">PERFORMANCE SUMMARY</h4>
+                                <h4 className="text-gold font-bold mb-3 border-b border-gold/20 pb-2 tracking-wider text-sm">OVERALL PERFORMANCE</h4>
                                 <div className="space-y-0.5">
-                                    <StatRow label="Start Date" value="2015-11-30" />
-                                    <StatRow label="End Date" value="2025-11-27" />
-                                    <StatRow label="Duration" value="9.99 years" />
-                                    <StatRow label="Initial Portfolio Value" value="$10,000.00" />
-                                    <StatRow label="Final Portfolio Value" value="$68,721.09" />
-                                    <StatRow label="Total Return" value="587.21%" tooltip={tooltips.totalReturn} />
-                                    <StatRow label="CAGR" value="21.27%" tooltip={tooltips.cagr} />
-                                </div>
-                            </div>
-                            <div>
-                                <h4 className="text-gold font-bold mb-3 border-b border-gold/20 pb-2 tracking-wider text-sm">SPY BENCHMARK</h4>
-                                <div className="space-y-0.5">
-                                    <StatRow label="Final Value" value="$32,568.88" />
-                                    <StatRow label="Total Return" value="225.69%" tooltip={tooltips.totalReturn} />
-                                    <StatRow label="CAGR" value="12.54%" tooltip={tooltips.cagr} />
-                                </div>
-                            </div>
-                            <div>
-                                <h4 className="text-gold font-bold mb-3 border-b border-gold/20 pb-2 tracking-wider text-sm">CONDITION: OVERALL</h4>
-                                <div className="space-y-0.5">
-                                    <StatRow label="Correlation to SPY" value="0.6187" tooltip={tooltips.correlation} />
-                                    <StatRow label="Beta to SPY" value="1.1277" tooltip={tooltips.beta} />
+                                    <StatRow label="Correlation to SPY" value="0.5975" tooltip={tooltips.correlation} />
+                                    <StatRow label="Beta to SPY" value="0.9922" tooltip={tooltips.beta} />
                                     <div className="mt-3 mb-1"><span className="text-xs text-gold font-bold uppercase">Cultivate Portfolio</span></div>
-                                    <StatRow label="Mean Daily Return" value="0.0984%" tooltip={tooltips.meanDaily} />
-                                    <StatRow label="Std Dev Daily Return" value="2.0824%" tooltip={tooltips.stdDev} />
-                                    <StatRow label="Upside Std Dev" value="1.4233%" tooltip={tooltips.upsideDev} />
-                                    <StatRow label="Downside Std Dev" value="1.4754%" tooltip={tooltips.downsideDev} />
-                                    <StatRow label="CVaR 5% (Loss)" value="-4.8520%" tooltip={tooltips.cvar} />
-                                    <StatRow label="Conditional Gain 5%" value="4.8178%" tooltip={tooltips.condGain} />
+                                    <StatRow label="Mean Daily Return" value="0.0818%" tooltip={tooltips.meanDaily} />
+                                    <StatRow label="Std Dev Daily Return" value="2.7844%" tooltip={tooltips.stdDev} />
+                                    <StatRow label="Upside Std Dev" value="1.9168%" tooltip={tooltips.upsideDev} />
+                                    <StatRow label="Downside Std Dev" value="1.9056%" tooltip={tooltips.downsideDev} />
+                                    <StatRow label="CVaR 5% (Loss)" value="-6.0487%" tooltip={tooltips.cvar} />
+                                    <StatRow label="Conditional Gain 5%" value="6.3023%" tooltip={tooltips.condGain} />
                                     <div className="mt-3 mb-1"><span className="text-xs text-gray-400 font-bold uppercase">SPY Benchmark</span></div>
                                     <StatRow label="Mean Daily Return" value="0.0535%" />
                                     <StatRow label="Std Dev Daily Return" value="1.1425%" />
@@ -397,8 +368,8 @@ const WealthCalculator = () => {
 const FAQSection = () => {
     const faqs = [
         {
-            q: "What distinguishes the 'Visionary' tier from the 'Explorer' tier?",
-            a: "The Visionary tier is built for active investors seeking Alpha. While Explorer gives you market data and community access, Visionary unlocks our proprietary AI buy/sell signals, advanced Portfolio Lab backtesting tools, and real-time risk alerts."
+            q: "What distinguishes the 'Pro' tier from the 'Basic' tier?",
+            a: "The Pro tier is built for active investors seeking Alpha. While Basic gives you limited product usage and community access, Pro unlocks priority support and higher usage limits."
         },
         {
             q: "How does the 'Singularity' model adapt to market changes?",
@@ -410,7 +381,7 @@ const FAQSection = () => {
         },
         {
             q: "Do you offer API access for custom integrations?",
-            a: "Yes, API access is available exclusively in the Institutional tier. This allows you to programmatically access our signals, market data, and sentiment analysis for integration into your own algo-trading bots or dashboards."
+            a: "Yes, API access is available exclusively in the Enterprise tier. This allows you to programmatically access our signals, market data, and sentiment analysis for integration into your own algo-trading bots or dashboards."
         },
         {
             q: "Can I cancel or upgrade my subscription at any time?",
@@ -595,8 +566,8 @@ const LandingPage = () => {
                                 whileTap={{ scale: 0.95 }}
                                 onClick={() => setShowCommunityStream(!showCommunityStream)}
                                 className={`flex items-center gap-2 px-6 py-3 rounded-full font-bold transition-all ${showCommunityStream
-                                        ? "bg-white/10 text-white hover:bg-white/20 border border-white/10"
-                                        : "bg-gold/10 text-gold hover:bg-gold/20 border border-gold/30"
+                                    ? "bg-white/10 text-white hover:bg-white/20 border border-white/10"
+                                    : "bg-gold/10 text-gold hover:bg-gold/20 border border-gold/30"
                                     }`}
                             >
                                 {showCommunityStream ? (
@@ -659,7 +630,7 @@ const LandingPage = () => {
                 </section>
             </ErrorBoundary>
 
-            {/* Pricing Section (REPLACED) */}
+            {/* Pricing Section */}
             <ErrorBoundary>
                 <section className="py-24 px-4 bg-deep-black">
                     <div className="max-w-7xl mx-auto">
@@ -669,28 +640,28 @@ const LandingPage = () => {
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
                             <SubscriptionCard
-                                title="Explorer"
+                                title="Basic"
                                 price="$0"
                                 period="/month"
                                 planId="FREE_TIER"
-                                features={["Basic Market Data", "Daily Newsletter", "Community Access"]}
+                                features={["Limited product usage", "Community access"]}
                                 delay={0.1}
                             />
                             <SubscriptionCard
-                                title="Visionary"
-                                price="$49"
+                                title="Pro"
+                                price="$20"
                                 period="/month"
-                                planId="P-1EE89936BP540274LNEWASQI" // <--- REPLACE THIS WITH REAL ID
-                                features={["Real-time AI Signals", "Advanced Portfolio Lab", "Priority Support", "Unlimited Backtesting"]}
+                                planId={import.meta.env.VITE_PAYPAL_VISIONARY_PLAN_ID}
+                                features={["Priority support", "Higher product usage limits", "Community access"]}
                                 isPopular={true}
                                 delay={0.2}
                             />
                             <SubscriptionCard
-                                title="Institutional"
-                                price="$199"
+                                title="Enterprise"
+                                price="$50"
                                 period="/month"
-                                planId="P-8EG71614L88223945NEWAUBI" // <--- REPLACE THIS WITH REAL ID
-                                features={["API Access", "Dedicated Account Manager", "Custom Strategy Development", "White-label Reports"]}
+                                planId={import.meta.env.VITE_PAYPAL_INSTITUTIONAL_PLAN_ID}
+                                features={["High product usage limits", "Community access", "Priority support", "Early access to new features"]}
                                 delay={0.3}
                             />
                         </div>
