@@ -317,13 +317,18 @@ async def get_market_data(request: MarketDataRequest):
                 mkt_cap = 0
                 volume = 0
                 pe_ratio = 0
-                
+                company_name = ""  # Initialize variable
+
                 try:
                     t = yf.Ticker(ticker)
                     mkt_cap = t.fast_info.market_cap
                     volume = t.fast_info.last_volume
                     info = t.info
                     pe_ratio = info.get('trailingPE', 0)
+                    
+                    # Fetch company name
+                    company_name = info.get('shortName') or info.get('longName') or ""
+
                     if not volume: volume = info.get('volume', 0)
                     if not mkt_cap: mkt_cap = info.get('marketCap', 0)
                 except: 
@@ -331,6 +336,7 @@ async def get_market_data(request: MarketDataRequest):
 
                 results.append({
                     "ticker": ticker,
+                    "companyName": company_name, # Add to response
                     "price": current_price,
                     "change": change_1d,
                     "change1W": change_1w,

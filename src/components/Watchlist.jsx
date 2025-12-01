@@ -22,7 +22,7 @@ import { db } from '../firebase';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { TradingViewWidget } from './MarketDashboard';
 
-const INITIAL_TICKERS = ['AAPL', 'MSFT', 'GOOG', 'AMZN', 'NVDA', 'META', 'TSLA'];
+const INITIAL_TICKERS = ['AAPL', 'MSFT', 'GOOG', 'AMZN', 'NVDA', 'META', 'TSLA', 'SPY'];
 
 // Mapping for full names
 const TICKER_NAMES = {
@@ -150,7 +150,7 @@ const SortableRow = ({ ticker, columns, onDelete, data, onSelect }) => {
 
                 return <div key={col.id} className={`text-sm font-medium truncate ${colorClass}`}>{displayVal}</div>;
             })}
-            <button onClick={(e) => { e.stopPropagation(); onDelete(tickerId); }} className="opacity-0 group-hover:opacity-100 text-gray-500 hover:text-red-500 transition-all p-2 rounded-full hover:bg-red-500/10"><Trash2 size={18} /></button>
+            <button onClick={(e) => { e.stopPropagation(); onDelete(tickerId); }} className="text-gray-500 hover:text-red-500 transition-all p-2 rounded-full hover:bg-red-500/10"><Trash2 size={18} /></button>
         </div>
     );
 };
