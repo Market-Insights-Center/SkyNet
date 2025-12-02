@@ -200,7 +200,8 @@ export default function Profile() {
                 </div>
 
                 <div className="flex justify-between items-center mb-8">
-                    <h2 className="text-3xl font-bold bg-gradient-to-r from-purple-400 to-gold-400 bg-clip-text text-transparent text-gold-400">
+                    {/* MODIFIED: Replaced gradient text with solid color for clarity */}
+                    <h2 className="text-3xl font-bold text-gold">
                         Profile
                     </h2>
                     <button

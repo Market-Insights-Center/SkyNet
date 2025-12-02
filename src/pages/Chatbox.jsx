@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Send, Plus, Search, User, Shield, MessageSquare, MoreVertical, X, Trash2, Check, Users, Briefcase, Paperclip, Bot } from 'lucide-react';
+import { Send, Plus, Search, User, Shield, MessageSquare, MoreVertical, X, Trash2, Check, Users, Briefcase, Paperclip, Bot, ArrowLeft } from 'lucide-react';
 
 const Chatbox = () => {
     const { currentUser } = useAuth();
@@ -306,10 +306,16 @@ If everything looks correct, please reply with "Confirm" to proceed with the cus
     };
 
     return (
-        // FIX: Replaced "h-screen" with "fixed inset-0" to eliminate page-level scrollbars
         <div className="fixed inset-0 pt-24 bg-deep-black flex overflow-hidden">
             {/* Sidebar */}
-            <div className="w-80 border-r border-white/10 flex flex-col bg-[#0a0a0a] h-full">
+            {/* Mobile: w-full. Hidden if a chat is selected (selectedChat is true).
+               Desktop: w-80. Always visible (flex).
+            */}
+            <div className={`
+                flex-col bg-[#0a0a0a] h-full border-r border-white/10
+                w-full md:w-80
+                ${selectedChat ? 'hidden md:flex' : 'flex'}
+            `}>
                 <div className="p-4 border-b border-white/10 flex justify-between items-center shrink-0">
                     <h2 className="text-xl font-bold text-gold">Chatbox</h2>
                     <button
@@ -394,11 +400,25 @@ If everything looks correct, please reply with "Confirm" to proceed with the cus
             </div>
 
             {/* Chat Area */}
-            <div className="flex-1 flex flex-col bg-[#050505] h-full min-w-0">
+            {/* Mobile: w-full. Hidden if NO chat is selected (!selectedChat).
+                Desktop: flex-1. Hidden if NO chat is selected (only shows placeholder). 
+            */}
+            <div className={`
+                flex-1 flex-col bg-[#050505] h-full min-w-0
+                ${selectedChat ? 'flex' : 'hidden md:flex'}
+            `}>
                 {selectedChat ? (
                     <>
-                        <div className="h-16 border-b border-white/10 flex items-center justify-between px-6 bg-[#0a0a0a] shrink-0">
+                        <div className="h-16 border-b border-white/10 flex items-center justify-between px-4 md:px-6 bg-[#0a0a0a] shrink-0">
                             <div className="flex items-center gap-3">
+                                {/* Mobile Back Button */}
+                                <button 
+                                    onClick={() => setSelectedChat(null)}
+                                    className="md:hidden p-2 -ml-2 text-gray-400 hover:text-white"
+                                >
+                                    <ArrowLeft size={20} />
+                                </button>
+
                                 <div className={`w-8 h-8 rounded-full flex items-center justify-center ${selectedChat.type === 'admin_support' ? 'bg-gold/20 text-gold' : selectedChat.type === 'custom_portfolio' ? 'bg-blue-500/20 text-blue-400' : 'bg-purple-500/20 text-purple-400'}`}>
                                     {selectedChat.type === 'admin_support' ? <Shield size={16} /> : selectedChat.type === 'custom_portfolio' ? <Briefcase size={16} /> : <User size={16} />}
                                 </div>
@@ -412,12 +432,12 @@ If everything looks correct, please reply with "Confirm" to proceed with the cus
                         </div>
 
                         {/* SCROLL: min-h-0 and custom-scrollbar to enable scrolling */}
-                        <div className="flex-1 overflow-y-auto min-h-0 p-6 space-y-4 custom-scrollbar">
+                        <div className="flex-1 overflow-y-auto min-h-0 p-4 md:p-6 space-y-4 custom-scrollbar">
                             {messages.map((msg, idx) => {
                                 const isMe = msg.sender === currentUser.email;
                                 return (
                                     <div key={idx} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
-                                        <div className={`max-w-[70%] rounded-2xl px-4 py-2 ${isMe ? 'bg-gold text-black rounded-tr-none' : 'bg-white/10 text-gray-200 rounded-tl-none'}`}>
+                                        <div className={`max-w-[85%] md:max-w-[70%] rounded-2xl px-4 py-2 ${isMe ? 'bg-gold text-black rounded-tr-none' : 'bg-white/10 text-gray-200 rounded-tl-none'}`}>
                                             {!isMe && <div className="text-[10px] text-gray-400 mb-1">{getUsername(msg.sender)}</div>}
                                             <div className="text-sm whitespace-pre-wrap">{msg.text}</div>
                                             <div className={`text-[10px] mt-1 text-right ${isMe ? 'text-black/60' : 'text-gray-500'}`}>
@@ -467,7 +487,9 @@ If everything looks correct, please reply with "Confirm" to proceed with the cus
                             initial={{ opacity: 0, scale: 0.95 }}
                             animate={{ opacity: 1, scale: 1 }}
                             exit={{ opacity: 0, scale: 0.95 }}
-                            className="bg-[#1a1a1a] border border-white/10 rounded-2xl w-full max-w-md overflow-hidden shadow-2xl h-[500px] flex flex-col"
+                            className="bg-[#1a1a1a] border border-white/10 overflow-hidden shadow-2xl flex flex-col
+                            w-full h-full rounded-none
+                            md:w-full md:max-w-md md:h-[500px] md:rounded-2xl"
                         >
                             <div className="p-6 border-b border-white/10 flex justify-between items-center shrink-0">
                                 <h3 className="text-xl font-bold text-white">New Conversation</h3>
