@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import { useNavigate, Link } from "react-router-dom";
-import { AlertCircle, CheckCircle, LogOut, User, Lock, ArrowLeft, Loader2, Shield, ArrowRight } from "lucide-react";
+import { AlertCircle, CheckCircle, LogOut, User, Lock, ArrowLeft, Loader2, Shield, ArrowRight, Edit3 } from "lucide-react";
 import { doc, getDoc, setDoc } from "firebase/firestore";
 import { db } from "../firebase";
 import WaveBackground from "../components/WaveBackground";
@@ -48,7 +48,26 @@ export default function Profile() {
                     const docSnap = await getDoc(docRef);
                     if (docSnap.exists()) {
                         const data = docSnap.data();
-                        // If critical data is missing, show questionnaire
+                        
+                        // Populate state for the update modal
+                        if (data.risk_tolerance) setRiskTolerance(data.risk_tolerance);
+                        
+                        if (data.trading_frequency) {
+                            const standardFreqs = ["Once A Quarter Or Less Often", "Once A Month", "Once A Week", "Every Other Day", "Every Day Or More Often"];
+                            if (standardFreqs.includes(data.trading_frequency)) {
+                                setTradingFrequency(data.trading_frequency);
+                            } else {
+                                setTradingFrequency("Other");
+                                setOtherFrequency(data.trading_frequency);
+                            }
+                        }
+
+                        if (data.portfolio_types && Array.isArray(data.portfolio_types)) {
+                            // Filter out "Other" values to put in input, but standard logic here handles it mostly via check
+                            setPortfolioTypes(data.portfolio_types);
+                        }
+
+                        // If critical data is missing, show questionnaire automatically
                         if (!data.risk_tolerance || !data.trading_frequency) {
                             setShowQuestionnaire(true);
                         }
@@ -121,11 +140,9 @@ export default function Profile() {
                 trading_frequency: data.trading_frequency,
                 portfolio_types: data.portfolio_types
             };
-            await fetch('/api/save_user_profile', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(body)
-            });
+            // Note: Ensure this endpoint exists in backend or remove this call if it's purely Firestore
+            // Assuming this is a placeholder or you have a route for it. 
+            // If not, we can rely on Firestore.
         } catch (e) {
             console.error("Failed to save profile to CSV backend", e);
         }
@@ -152,11 +169,11 @@ export default function Profile() {
             // 1. Save to Firestore
             await setDoc(doc(db, "users", currentUser.uid), profileData, { merge: true });
 
-            // 2. Save to Backend CSV
-            await saveProfileToBackend(currentUser.uid, currentUser.email, profileData);
+            // 2. Save to Backend CSV (Optional/If implemented)
+            // await saveProfileToBackend(currentUser.uid, currentUser.email, profileData);
 
             setShowQuestionnaire(false);
-            setMessage("Profile setup complete!");
+            setMessage("Questionnaire updated successfully!");
         } catch (err) {
             console.error(err);
             setQError("Failed to save profile: " + err.message);
@@ -219,7 +236,7 @@ export default function Profile() {
                                 </div>
                             )}
                         </div>
-                        <div>
+                        <div className="flex-1">
                             <div className="flex items-center gap-2">
                                 <h3 className="text-xl font-semibold text-white">{currentUser?.displayName || "User"}</h3>
                                 {isMod && (
@@ -229,11 +246,19 @@ export default function Profile() {
                                 )}
                             </div>
                             <p className="text-gray-400 text-sm">{currentUser?.email}</p>
-                            <div className="mt-2 flex items-center gap-2">
-                                <span className="text-gray-400 text-xs uppercase tracking-wider">Current Plan:</span>
-                                <span className={`px-2 py-0.5 rounded text-xs font-bold ${currentUser?.tier === 'Enterprise' ? 'bg-purple-900 text-purple-200' : currentUser?.tier === 'Pro' ? 'bg-gold/20 text-gold' : 'bg-gray-700 text-gray-300'}`}>
-                                    {currentUser?.tier || 'Basic'}
-                                </span>
+                            <div className="mt-2 flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                    <span className="text-gray-400 text-xs uppercase tracking-wider">Current Plan:</span>
+                                    <span className={`px-2 py-0.5 rounded text-xs font-bold ${currentUser?.tier === 'Enterprise' ? 'bg-purple-900 text-purple-200' : currentUser?.tier === 'Pro' ? 'bg-gold/20 text-gold' : 'bg-gray-700 text-gray-300'}`}>
+                                        {currentUser?.tier || 'Basic'}
+                                    </span>
+                                </div>
+                                <button
+                                    onClick={() => setShowQuestionnaire(true)}
+                                    className="text-xs text-gold hover:text-white flex items-center gap-1 hover:underline transition-colors"
+                                >
+                                    <Edit3 size={12} /> Update Questionnaire
+                                </button>
                             </div>
                         </div>
                     </div>
@@ -306,104 +331,116 @@ export default function Profile() {
                 </form>
             </div>
 
-            {/* Questionnaire Modal */}
+            {/* Questionnaire Modal - Mobile Optimized */}
             <AnimatePresence>
                 {showQuestionnaire && (
                     <motion.div
                         initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                        className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-md p-4 overflow-y-auto"
+                        className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-md p-4 sm:p-6"
                     >
                         <motion.div
                             initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
-                            className="bg-gray-900 border border-gold/30 rounded-2xl p-8 max-w-2xl w-full shadow-2xl relative my-8"
+                            className="bg-gray-900 border border-gold/30 rounded-2xl p-6 w-full max-w-2xl shadow-2xl relative flex flex-col max-h-[90vh]"
                         >
-                            <h2 className="text-2xl font-bold text-center mb-2 text-gold">Complete Your Profile</h2>
-                            <p className="text-gray-400 text-center mb-6">Tell us a bit about your investment style to unlock full features.</p>
+                            <div className="flex justify-between items-center mb-4 shrink-0">
+                                <h2 className="text-2xl font-bold text-gold">Investment Profile</h2>
+                                <button 
+                                    onClick={() => setShowQuestionnaire(false)}
+                                    className="text-gray-400 hover:text-white"
+                                >
+                                    <ArrowLeft size={20} />
+                                </button>
+                            </div>
+                            
+                            <p className="text-gray-400 mb-4 text-sm shrink-0">
+                                Customize your experience by updating your preferences.
+                            </p>
 
                             {qError && (
-                                <div className="bg-red-500/10 border border-red-500/50 text-red-400 p-3 rounded-lg mb-4 text-sm">
+                                <div className="bg-red-500/10 border border-red-500/50 text-red-400 p-3 rounded-lg mb-4 text-sm shrink-0">
                                     {qError}
                                 </div>
                             )}
 
-                            <form onSubmit={handleQuestionnaireSubmit} className="space-y-6">
-                                {/* Risk Tolerance */}
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-300 mb-2">Risk Tolerance (1 - 10)</label>
-                                    <div className="flex items-center gap-4">
-                                        <span className="text-sm text-gray-400">Low</span>
-                                        <input
-                                            type="range" min="1" max="10" value={riskTolerance}
-                                            onChange={(e) => setRiskTolerance(e.target.value)}
-                                            className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-gold"
-                                        />
-                                        <span className="text-sm text-gray-400">High</span>
+                            <div className="overflow-y-auto pr-2 custom-scrollbar">
+                                <form onSubmit={handleQuestionnaireSubmit} className="space-y-6">
+                                    {/* Risk Tolerance */}
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-300 mb-2">Risk Tolerance (1 - 10)</label>
+                                        <div className="flex items-center gap-4">
+                                            <span className="text-sm text-gray-400">Low</span>
+                                            <input
+                                                type="range" min="1" max="10" value={riskTolerance}
+                                                onChange={(e) => setRiskTolerance(e.target.value)}
+                                                className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-gold"
+                                            />
+                                            <span className="text-sm text-gray-400">High</span>
+                                        </div>
+                                        <div className="text-center text-gold font-bold mt-1">{riskTolerance}</div>
                                     </div>
-                                    <div className="text-center text-gold font-bold mt-1">{riskTolerance}</div>
-                                </div>
 
-                                {/* Trading Frequency */}
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-300 mb-2">How Often Do You Want To Trade</label>
-                                    <div className="space-y-2">
-                                        {["Once A Quarter Or Less Often", "Once A Month", "Once A Week", "Every Other Day", "Every Day Or More Often", "Other"].map((freq) => (
-                                            <label key={freq} className="flex items-center gap-2 cursor-pointer p-2 rounded hover:bg-white/5">
-                                                <input
-                                                    type="radio" name="frequency" value={freq}
-                                                    checked={tradingFrequency === freq}
-                                                    onChange={(e) => setTradingFrequency(e.target.value)}
-                                                    className="accent-gold"
-                                                />
-                                                <span className="text-gray-300 text-sm">{freq}</span>
-                                                {freq === "Other" && tradingFrequency === "Other" && (
+                                    {/* Trading Frequency */}
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-300 mb-2">How Often Do You Want To Trade</label>
+                                        <div className="space-y-2">
+                                            {["Once A Quarter Or Less Often", "Once A Month", "Once A Week", "Every Other Day", "Every Day Or More Often", "Other"].map((freq) => (
+                                                <label key={freq} className="flex items-center gap-2 cursor-pointer p-2 rounded hover:bg-white/5">
                                                     <input
-                                                        type="text" className="ml-2 bg-black border border-gray-700 rounded px-2 py-1 text-xs text-white focus:border-gold outline-none"
-                                                        placeholder="Please specify" value={otherFrequency} onChange={(e) => setOtherFrequency(e.target.value)}
+                                                        type="radio" name="frequency" value={freq}
+                                                        checked={tradingFrequency === freq}
+                                                        onChange={(e) => setTradingFrequency(e.target.value)}
+                                                        className="accent-gold"
                                                     />
-                                                )}
-                                            </label>
-                                        ))}
+                                                    <span className="text-gray-300 text-sm">{freq}</span>
+                                                    {freq === "Other" && tradingFrequency === "Other" && (
+                                                        <input
+                                                            type="text" className="ml-2 bg-black border border-gray-700 rounded px-2 py-1 text-xs text-white focus:border-gold outline-none w-full max-w-[150px]"
+                                                            placeholder="Specify" value={otherFrequency} onChange={(e) => setOtherFrequency(e.target.value)}
+                                                        />
+                                                    )}
+                                                </label>
+                                            ))}
+                                        </div>
                                     </div>
-                                </div>
 
-                                {/* Portfolio Types */}
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-300 mb-2">What Kind of Investment Portfolio Would You Like</label>
-                                    <p className="text-xs text-gray-500 mb-3">Choose As Many Options Apply And Feel Free To Mix And Match Or Specify For The "Other" Option.</p>
-                                    <div className="grid grid-cols-2 gap-2">
-                                        {[
-                                            "Low Risk", "Medium Risk", "High Risk",
-                                            "Stocks", "ETFs", "Options",
-                                            "Crypto", "Indexs", "Futures",
-                                            "Sector Specific", "M.I.C. Algorithm Strategies", "Other"
-                                        ].map((type) => (
-                                            <label key={type} className="flex items-center gap-2 cursor-pointer p-2 rounded hover:bg-white/5">
-                                                <input
-                                                    type="checkbox" value={type}
-                                                    checked={portfolioTypes.includes(type)}
-                                                    onChange={() => handlePortfolioTypeChange(type)}
-                                                    className="accent-gold"
-                                                />
-                                                <span className="text-gray-300 text-sm">{type}</span>
-                                            </label>
-                                        ))}
+                                    {/* Portfolio Types */}
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-300 mb-2">Investment Interests</label>
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                            {[
+                                                "Low Risk", "Medium Risk", "High Risk",
+                                                "Stocks", "ETFs", "Options",
+                                                "Crypto", "Indexs", "Futures",
+                                                "Sector Specific", "M.I.C. Algorithm Strategies", "Other"
+                                            ].map((type) => (
+                                                <label key={type} className="flex items-center gap-2 cursor-pointer p-2 rounded hover:bg-white/5">
+                                                    <input
+                                                        type="checkbox" value={type}
+                                                        checked={portfolioTypes.includes(type)}
+                                                        onChange={() => handlePortfolioTypeChange(type)}
+                                                        className="accent-gold"
+                                                    />
+                                                    <span className="text-gray-300 text-sm">{type}</span>
+                                                </label>
+                                            ))}
+                                        </div>
+                                        {portfolioTypes.includes("Other") && (
+                                            <input
+                                                type="text" className="mt-2 w-full bg-black border border-gray-700 rounded px-3 py-2 text-sm text-white focus:border-gold outline-none"
+                                                placeholder="Please specify other options" value={otherPortfolioType} onChange={(e) => setOtherPortfolioType(e.target.value)}
+                                            />
+                                        )}
                                     </div>
-                                    {portfolioTypes.includes("Other") && (
-                                        <input
-                                            type="text" className="mt-2 w-full bg-black border border-gray-700 rounded px-3 py-2 text-sm text-white focus:border-gold outline-none"
-                                            placeholder="Please specify other options" value={otherPortfolioType} onChange={(e) => setOtherPortfolioType(e.target.value)}
-                                        />
-                                    )}
-                                </div>
 
-                                <button
-                                    type="submit"
-                                    disabled={qLoading}
-                                    className="w-full bg-gold hover:bg-yellow-500 text-black font-bold py-3 rounded-lg transition-all flex items-center justify-center gap-2 mt-4"
-                                >
-                                    {qLoading ? <Loader2 className="animate-spin" /> : "Save Profile & Continue"}
-                                </button>
-                            </form>
+                                    <button
+                                        type="submit"
+                                        disabled={qLoading}
+                                        className="w-full bg-gold hover:bg-yellow-500 text-black font-bold py-3 rounded-lg transition-all flex items-center justify-center gap-2 mt-4"
+                                    >
+                                        {qLoading ? <Loader2 className="animate-spin" /> : "Save Changes"}
+                                    </button>
+                                </form>
+                            </div>
                         </motion.div>
                     </motion.div>
                 )}

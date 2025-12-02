@@ -34,6 +34,8 @@ const Chatbox = () => {
             })
             .catch(err => console.log("Mod check skipped"));
 
+        // Fetch users immediately to build username map
+        fetchUsers();
         fetchConversations();
 
         const interval = setInterval(fetchConversations, 2000);
@@ -52,6 +54,35 @@ const Chatbox = () => {
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [messages]);
+
+    // --- HELPER: Date Formatting ---
+    const formatDisplayDate = (dateString, type = 'sidebar') => {
+        if (!dateString) return '';
+        const date = new Date(dateString);
+        const now = new Date();
+        const diffMs = now - date;
+        const diffHours = diffMs / (1000 * 60 * 60);
+
+        const timeOpts = { hour: '2-digit', minute: '2-digit' };
+        const dateOpts = { month: 'numeric', day: 'numeric', year: '2-digit' };
+
+        if (type === 'sidebar') {
+            // Sidebar: Show date if > 24h, else Time
+            if (diffHours > 24) {
+                return date.toLocaleDateString([], dateOpts);
+            }
+            return date.toLocaleTimeString([], timeOpts);
+        }
+
+        if (type === 'message') {
+            // Message: If > 24h, show "Date Time", else just "Time"
+            if (diffHours > 24) {
+                return `${date.toLocaleDateString([], dateOpts)} ${date.toLocaleTimeString([], timeOpts)}`;
+            }
+            return date.toLocaleTimeString([], timeOpts);
+        }
+        return '';
+    };
 
     const fetchConversations = async () => {
         try {
@@ -210,6 +241,7 @@ If everything looks correct, please reply with "Confirm" to proceed with the cus
             const res = await fetch('/api/users');
             if (res.ok) {
                 const data = await res.json();
+                // Filter out self
                 setAllUsers(data.filter(u => u.email !== currentUser.email));
             }
         } catch (err) {
@@ -242,6 +274,12 @@ If everything looks correct, please reply with "Confirm" to proceed with the cus
         fetchUsers();
     };
 
+    // Helper to get username from email using allUsers map
+    const getUsername = (email) => {
+        const user = allUsers.find(u => u.email === email);
+        return user ? user.username : email.split('@')[0];
+    };
+
     const getChatName = (chat) => {
         if (!chat) return "Unknown";
         if (chat.type === 'admin_support') return "Admin Support Team";
@@ -251,9 +289,13 @@ If everything looks correct, please reply with "Confirm" to proceed with the cus
         const otherParticipants = participants.filter(p => p !== currentUser.email);
 
         if (otherParticipants.length === 0) return "Me (Draft)";
-        if (otherParticipants.length === 1) return otherParticipants[0];
+        
+        // Map emails to usernames
+        const names = otherParticipants.map(email => getUsername(email));
 
-        return `${otherParticipants[0]} +${otherParticipants.length - 1} others`;
+        if (names.length === 1) return names[0];
+        if (names.length === 2) return `${names[0]}, ${names[1]}`;
+        return `${names[0]} +${names.length - 1} others`;
     };
 
     // Group conversations by type
@@ -325,12 +367,13 @@ If everything looks correct, please reply with "Confirm" to proceed with the cus
                                                 </div>
                                                 {chat.last_updated && (
                                                     <div className="text-[10px] text-gray-600 absolute right-2 top-2">
-                                                        {new Date(chat.last_updated).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                        {/* UPDATED: Uses new formatDisplayDate for sidebar */}
+                                                        {formatDisplayDate(chat.last_updated, 'sidebar')}
                                                     </div>
                                                 )}
                                             </div>
 
-                                            {/* Trash Icon for Deletion - VISIBILITY FIXED */}
+                                            {/* Trash Icon for Deletion - Always Visible */}
                                             <button
                                                 type="button"
                                                 onClick={(e) => deleteConversation(e, chat.id)}
@@ -361,7 +404,7 @@ If everything looks correct, please reply with "Confirm" to proceed with the cus
                                 <div>
                                     <div className="font-bold text-gray-200">{getChatName(selectedChat)}</div>
                                     <div className="text-xs text-gray-500">
-                                        {(selectedChat.participants || []).join(', ')}
+                                        {(selectedChat.participants || []).map(email => getUsername(email)).join(', ')}
                                     </div>
                                 </div>
                             </div>
@@ -374,10 +417,11 @@ If everything looks correct, please reply with "Confirm" to proceed with the cus
                                 return (
                                     <div key={idx} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
                                         <div className={`max-w-[70%] rounded-2xl px-4 py-2 ${isMe ? 'bg-gold text-black rounded-tr-none' : 'bg-white/10 text-gray-200 rounded-tl-none'}`}>
-                                            {!isMe && <div className="text-[10px] text-gray-400 mb-1">{msg.sender}</div>}
+                                            {!isMe && <div className="text-[10px] text-gray-400 mb-1">{getUsername(msg.sender)}</div>}
                                             <div className="text-sm whitespace-pre-wrap">{msg.text}</div>
                                             <div className={`text-[10px] mt-1 text-right ${isMe ? 'text-black/60' : 'text-gray-500'}`}>
-                                                {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                {/* UPDATED: Uses new formatDisplayDate for messages */}
+                                                {formatDisplayDate(msg.timestamp, 'message')}
                                             </div>
                                         </div>
                                     </div>
@@ -479,7 +523,7 @@ If everything looks correct, please reply with "Confirm" to proceed with the cus
                                             <Search className="absolute left-3 top-2.5 text-gray-500" size={16} />
                                             <input
                                                 type="text"
-                                                placeholder="Search users..."
+                                                placeholder="Search users by name..."
                                                 value={searchUserQuery}
                                                 onChange={(e) => setSearchUserQuery(e.target.value)}
                                                 className="w-full bg-black/30 border border-white/10 rounded-lg pl-10 pr-4 py-2 text-white focus:outline-none focus:border-gold"
@@ -489,7 +533,9 @@ If everything looks correct, please reply with "Confirm" to proceed with the cus
 
                                         <div className="flex-1 overflow-y-auto space-y-2 mb-4">
                                             {allUsers
-                                                .filter(u => (u.email || '').toLowerCase().includes(searchUserQuery.toLowerCase()))
+                                                .filter(u => 
+                                                    (u.username || '').toLowerCase().includes(searchUserQuery.toLowerCase())
+                                                )
                                                 .map(user => {
                                                     const isSelected = selectedUsers.includes(user.email);
                                                     return (
@@ -501,10 +547,12 @@ If everything looks correct, please reply with "Confirm" to proceed with the cus
                                                             <div className={`w-5 h-5 rounded border flex items-center justify-center ${isSelected ? 'bg-gold border-gold' : 'border-gray-500'}`}>
                                                                 {isSelected && <Check size={14} className="text-black" />}
                                                             </div>
-                                                            <div className="w-8 h-8 rounded-full bg-purple-500/20 flex items-center justify-center text-purple-400">
-                                                                <span className="text-xs font-bold">{user.email[0].toUpperCase()}</span>
+                                                            <div className="w-8 h-8 rounded-full bg-purple-500/20 flex items-center justify-center text-purple-400 shrink-0">
+                                                                <span className="text-xs font-bold">{user.username[0].toUpperCase()}</span>
                                                             </div>
-                                                            <div className="truncate text-sm text-gray-300">{user.email}</div>
+                                                            <div className="min-w-0">
+                                                                <div className="font-bold text-gray-200 truncate text-sm">{user.username}</div>
+                                                            </div>
                                                         </button>
                                                     );
                                                 })

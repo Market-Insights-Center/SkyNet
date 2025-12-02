@@ -158,27 +158,6 @@
         ]
     },
     {
-        "id": "ce815dd0-aec1-4e87-b4c6-e5a3f0aa0858",
-        "type": "admin_support",
-        "participants": [
-            "marketinsightscenter@gmail.com"
-        ],
-        "messages": [
-            {
-                "sender": "marketinsightscenter@gmail.com",
-                "text": "Started a new support ticket.",
-                "timestamp": "2025-11-30T04:14:31.831280"
-            },
-            {
-                "sender": "marketinsightscenter@gmail.com",
-                "text": "55",
-                "timestamp": "2025-11-30T04:14:35.333170"
-            }
-        ],
-        "last_updated": "2025-11-30T04:14:35.333170",
-        "last_message_preview": "55"
-    },
-    {
         "id": "1e191d2f-44df-44db-a123-eda92cc96586",
         "type": "custom_portfolio",
         "participants": [
@@ -220,22 +199,6 @@
         "last_message_preview": "asdf"
     },
     {
-        "id": "2120e50e-393a-4cf5-b4de-17303f31320a",
-        "type": "admin_support",
-        "participants": [
-            "marketinsightscenter@gmail.com"
-        ],
-        "messages": [
-            {
-                "sender": "marketinsightscenter@gmail.com",
-                "text": "Started a new support ticket.",
-                "timestamp": "2025-12-01T07:57:28.174675"
-            }
-        ],
-        "last_updated": "2025-12-01T07:57:28.174675",
-        "last_message_preview": "Started a new support ticket."
-    },
-    {
         "id": "6bbc67fc-76a5-48e2-886e-21cfac768354",
         "type": "admin_support",
         "participants": [
@@ -252,7 +215,7 @@
         "last_message_preview": "Started a new support ticket."
     },
     {
-        "id": "ef427c85-4585-4fd5-bf9b-96a772bb604f",
+        "id": "09cfa9b8-fc3f-4562-8b10-21af671b7cb4",
         "type": "admin_support",
         "participants": [
             "marketinsightscenter@gmail.com"
@@ -261,10 +224,10 @@
             {
                 "sender": "marketinsightscenter@gmail.com",
                 "text": "Started a new support ticket.",
-                "timestamp": "2025-12-01T08:00:57.302326"
+                "timestamp": "2025-12-01T23:52:00.777103"
             }
         ],
-        "last_updated": "2025-12-01T08:00:57.302326",
+        "last_updated": "2025-12-01T23:52:00.777103",
         "last_message_preview": "Started a new support ticket."
     }
 ]

@@ -18,10 +18,11 @@ const AdminDashboard = () => {
     const [ideas, setIdeas] = useState([]);
     const [mods, setMods] = useState([]);
     const [stats, setStats] = useState({ totalUsers: 0, proUsers: 0, activeTrials: 0 });
+    
+    // Unified Search Term for all tabs
     const [searchTerm, setSearchTerm] = useState('');
     const [newModEmail, setNewModEmail] = useState('');
     
-    // Status states for better feedback
     const [loadingUsers, setLoadingUsers] = useState(false);
     const [errorUsers, setErrorUsers] = useState(null);
 
@@ -43,7 +44,7 @@ const AdminDashboard = () => {
             .catch(() => navigate('/'));
     }, [currentUser, navigate]);
 
-    // Extracted fetchUsers to reuse it
+    // Fetch Users helper
     const fetchUsers = () => {
         setLoadingUsers(true);
         setErrorUsers(null);
@@ -158,7 +159,6 @@ const AdminDashboard = () => {
             if (data.status === 'success') {
                 if(action === 'add') alert(`${email} added to moderators.`);
                 
-                // Safe update of mod list
                 if (data.mods && Array.isArray(data.mods)) {
                     setMods(data.mods);
                 } else {
@@ -167,9 +167,7 @@ const AdminDashboard = () => {
                     if (Array.isArray(refreshData.mods)) setMods(refreshData.mods);
                 }
                 setNewModEmail('');
-                
-                // NEW: Refresh user list so the "Tier" column updates to "Singularity"
-                fetchUsers();
+                fetchUsers(); // Refresh user list to show tier change
             } else {
                 alert(data.detail || "Action failed");
             }
@@ -179,10 +177,25 @@ const AdminDashboard = () => {
         }
     };
 
-    const filteredUsers = users.filter(u => u.email.toLowerCase().includes(searchTerm.toLowerCase()));
+    // Filter Logic for Users Tab
+    const filteredUsers = users.filter(u => 
+        u.email.toLowerCase().includes(searchTerm.toLowerCase()) || 
+        (u.username || '').toLowerCase().includes(searchTerm.toLowerCase())
+    );
+
+    // Helpers for Moderators Tab
+    const getModDetails = (email) => {
+        const user = users.find(u => u.email === email);
+        return user ? { username: user.username, email: user.email } : { username: 'Unknown', email: email };
+    };
+
+    const filteredMods = (mods || []).map(getModDetails).filter(m => 
+        m.email.toLowerCase().includes(searchTerm.toLowerCase()) || 
+        m.username.toLowerCase().includes(searchTerm.toLowerCase())
+    );
 
     const TabButton = ({ id, label, icon: Icon }) => (
-        <button onClick={() => setActiveTab(id)} className={`px-4 py-2 rounded-lg font-bold flex items-center gap-2 ${activeTab === id ? 'bg-gold text-black' : 'bg-white/10 text-gray-300'}`}>
+        <button onClick={() => { setActiveTab(id); setSearchTerm(''); }} className={`px-4 py-2 rounded-lg font-bold flex items-center gap-2 ${activeTab === id ? 'bg-gold text-black' : 'bg-white/10 text-gray-300'}`}>
             <Icon size={16} /> {label}
         </button>
     );
@@ -226,7 +239,7 @@ const AdminDashboard = () => {
                     <div className="bg-white/5 rounded-xl border border-white/10 overflow-hidden">
                         <div className="p-4 border-b border-white/10 flex items-center gap-4">
                             <Search className="text-gray-400" size={20} />
-                            <input type="text" placeholder="Search users by email..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="bg-transparent border-none outline-none text-white w-full" />
+                            <input type="text" placeholder="Search by username or email..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="bg-transparent border-none outline-none text-white w-full" />
                         </div>
                         
                         {loadingUsers && <div className="p-8 text-center text-gray-400">Loading users...</div>}
@@ -235,14 +248,23 @@ const AdminDashboard = () => {
                         {!loadingUsers && !errorUsers && (
                             <div className="overflow-x-auto">
                                 <table className="w-full text-left">
-                                    <thead className="bg-white/5 text-gray-400 text-sm"><tr><th className="p-4">Email</th><th className="p-4">Tier</th><th className="p-4">Status</th><th className="p-4">Actions</th></tr></thead>
+                                    <thead className="bg-white/5 text-gray-400 text-sm">
+                                        <tr>
+                                            <th className="p-4">Username</th>
+                                            <th className="p-4">Email</th>
+                                            <th className="p-4">Tier</th>
+                                            <th className="p-4">Status</th>
+                                            <th className="p-4">Actions</th>
+                                        </tr>
+                                    </thead>
                                     <tbody className="divide-y divide-white/5">
                                         {filteredUsers.length === 0 ? (
-                                            <tr><td colSpan="4" className="p-8 text-center text-gray-500">No users found.</td></tr>
+                                            <tr><td colSpan="5" className="p-8 text-center text-gray-500">No users found.</td></tr>
                                         ) : (
                                             filteredUsers.map(user => (
                                                 <tr key={user.email} className="hover:bg-white/5 transition-colors">
-                                                    <td className="p-4">{user.email}</td>
+                                                    <td className="p-4 font-bold text-white">{user.username || 'N/A'}</td>
+                                                    <td className="p-4 text-gray-300">{user.email}</td>
                                                     <td className="p-4"><span className={`px-2 py-1 rounded text-xs font-bold ${user.tier === 'Singularity' ? 'bg-purple-900 text-purple-200' : user.tier === 'Pro' ? 'bg-gold/20 text-gold' : 'bg-gray-700 text-gray-300'}`}>{user.tier}</span></td>
                                                     <td className="p-4 text-sm text-gray-400">{user.subscription_status || 'none'}</td>
                                                     <td className="p-4 flex gap-2">
@@ -315,16 +337,24 @@ const AdminDashboard = () => {
                 {activeTab === 'mods' && (
                     <div className="bg-white/5 rounded-xl border border-white/10 p-6 max-w-2xl">
                         <h2 className="text-xl font-bold mb-6">Moderator Management</h2>
+                        <div className="p-4 border-b border-white/10 flex items-center gap-4 mb-4">
+                            <Search className="text-gray-400" size={20} />
+                            <input type="text" placeholder="Search mods by name or email..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="bg-transparent border-none outline-none text-white w-full" />
+                        </div>
+
                         <div className="flex gap-4 mb-8">
                             <input value={newModEmail} onChange={e => setNewModEmail(e.target.value)} placeholder="Enter email to add as moderator" className="flex-1 bg-black border border-white/10 rounded px-4 py-2 text-white" />
                             <button onClick={() => handleModAction(newModEmail, 'add')} className="bg-gold text-black px-4 py-2 rounded font-bold">Add Mod</button>
                         </div>
                         <div className="space-y-2">
-                            {(mods || []).map(email => (
-                                <div key={email} className="flex justify-between items-center p-3 bg-black/40 rounded border border-white/5">
-                                    <span>{email}</span>
-                                    {email !== 'marketinsightscenter@gmail.com' && (
-                                        <button onClick={() => handleModAction(email, 'remove')} className="text-red-500 hover:text-red-400"><Trash2 size={18} /></button>
+                            {filteredMods.map(mod => (
+                                <div key={mod.email} className="flex justify-between items-center p-3 bg-black/40 rounded border border-white/5">
+                                    <div>
+                                        <div className="font-bold text-white">{mod.username}</div>
+                                        <div className="text-sm text-gray-400">{mod.email}</div>
+                                    </div>
+                                    {mod.email !== 'marketinsightscenter@gmail.com' && (
+                                        <button onClick={() => handleModAction(mod.email, 'remove')} className="text-red-500 hover:text-red-400"><Trash2 size={18} /></button>
                                     )}
                                 </div>
                             ))}

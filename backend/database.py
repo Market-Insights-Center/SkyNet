@@ -89,47 +89,40 @@ def create_user_profile(email, uid):
         return False
 
 def get_all_users_from_db():
-    """Fetches ALL users using robust iterate_all() method."""
+    """Fetches ALL users from Auth and merges with Firestore Tier data."""
     try:
-        print("Attempting to fetch users from Firebase Auth...")
+        # 1. Get all Auth users (Source of Truth)
         auth_users = []
+        page = get_auth().list_users()
+        while page:
+            auth_users.extend(page.users)
+            page = page.get_next_page()
+            
+        # 2. Get all Firestore profiles (Tiers)
+        db = get_db()
+        docs = db.collection('users').stream()
+        db_data = {doc.id: doc.to_dict() for doc in docs}
         
-        # FIX: Use iterate_all() to automatically handle pagination
-        try:
-            for user in get_auth().list_users().iterate_all():
-                auth_users.append(user)
-            print(f"Successfully retrieved {len(auth_users)} users from Auth.")
-        except Exception as e:
-            print(f"AUTH ERROR: Could not list users. Check serviceAccountKey.json. Details: {e}")
-            return []
-
-        # Fetch Firestore profiles to merge Tier data
-        db_data = {}
-        try:
-            db = get_db()
-            docs = db.collection('users').stream()
-            for doc in docs:
-                db_data[doc.id] = doc.to_dict()
-        except Exception as e:
-            print(f"FIRESTORE ERROR: Could not fetch profiles. Defaults will be used. Details: {e}")
-
-        # Merge data
+        # 3. Merge
         final_list = []
         for user in auth_users:
             email = user.email
             if not email: continue
             
             profile = db_data.get(email, {})
+            # Get display name or fallback to "User"
+            username = user.display_name if user.display_name else "User"
+            
             final_list.append({
                 'email': email,
+                'username': username, # Added username
                 'uid': user.uid,
                 'tier': profile.get('tier', 'Free'),
                 'subscription_status': profile.get('subscription_status', 'none')
             })
-            
         return final_list
     except Exception as e:
-        print(f"CRITICAL ERROR in get_all_users_from_db: {e}")
+        print(f"Error fetching users: {e}")
         return []
 
 def delete_user_full(email):
@@ -450,7 +443,7 @@ def save_comments_to_csv(comments):
                 writer.writerow([
                     c.get('id'),
                     c.get('idea_id', 0),
-                    c.get('article_id', 0), 
+                    c.get('article_id', 0),
                     c.get('user_id'),
                     c.get('user'),
                     c.get('email'),
@@ -464,7 +457,6 @@ def save_comments_to_csv(comments):
         return False
 
 def delete_comment(comment_id):
-    """Deletes a comment by ID."""
     comments = read_comments_from_csv()
     new_comments = [c for c in comments if str(c['id']) != str(comment_id)]
     if len(comments) == len(new_comments):
