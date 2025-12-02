@@ -306,10 +306,11 @@ If everything looks correct, please reply with "Confirm" to proceed with the cus
     };
 
     return (
-        <div className="pt-8 h-[calc(100vh-80px)] bg-deep-black flex">
+        // FIX: Replaced "h-screen" with "fixed inset-0" to eliminate page-level scrollbars
+        <div className="fixed inset-0 pt-24 bg-deep-black flex overflow-hidden">
             {/* Sidebar */}
-            <div className="w-80 border-r border-white/10 flex flex-col bg-[#0a0a0a]">
-                <div className="p-4 border-b border-white/10 flex justify-between items-center">
+            <div className="w-80 border-r border-white/10 flex flex-col bg-[#0a0a0a] h-full">
+                <div className="p-4 border-b border-white/10 flex justify-between items-center shrink-0">
                     <h2 className="text-xl font-bold text-gold">Chatbox</h2>
                     <button
                         onClick={openNewChatModal}
@@ -321,7 +322,7 @@ If everything looks correct, please reply with "Confirm" to proceed with the cus
 
                 {/* Admin Toggle */}
                 {isMod && (
-                    <div className="flex border-b border-white/10">
+                    <div className="flex border-b border-white/10 shrink-0">
                         <button
                             onClick={() => setAdminViewAll(false)}
                             className={`flex-1 py-3 text-xs font-medium transition-colors ${!adminViewAll ? 'bg-white/10 text-gold' : 'text-gray-500 hover:text-white'}`}
@@ -337,7 +338,8 @@ If everything looks correct, please reply with "Confirm" to proceed with the cus
                     </div>
                 )}
 
-                <div className="flex-1 overflow-y-auto">
+                {/* SCROLL: min-h-0 and custom-scrollbar to enable scrolling */}
+                <div className="flex-1 overflow-y-auto min-h-0 custom-scrollbar">
                     {conversations.length === 0 ? (
                         <div className="p-4 text-gray-500 text-center text-sm">No conversations found.</div>
                     ) : (
@@ -367,7 +369,7 @@ If everything looks correct, please reply with "Confirm" to proceed with the cus
                                                 </div>
                                                 {chat.last_updated && (
                                                     <div className="text-[10px] text-gray-600 absolute right-2 top-2">
-                                                        {/* UPDATED: Uses new formatDisplayDate for sidebar */}
+                                                        {/* Sidebar Date/Time */}
                                                         {formatDisplayDate(chat.last_updated, 'sidebar')}
                                                     </div>
                                                 )}
@@ -392,11 +394,10 @@ If everything looks correct, please reply with "Confirm" to proceed with the cus
             </div>
 
             {/* Chat Area */}
-            <div className="flex-1 flex flex-col bg-[#050505]">
+            <div className="flex-1 flex flex-col bg-[#050505] h-full min-w-0">
                 {selectedChat ? (
                     <>
-                        {/* Header */}
-                        <div className="h-16 border-b border-white/10 flex items-center justify-between px-6 bg-[#0a0a0a]">
+                        <div className="h-16 border-b border-white/10 flex items-center justify-between px-6 bg-[#0a0a0a] shrink-0">
                             <div className="flex items-center gap-3">
                                 <div className={`w-8 h-8 rounded-full flex items-center justify-center ${selectedChat.type === 'admin_support' ? 'bg-gold/20 text-gold' : selectedChat.type === 'custom_portfolio' ? 'bg-blue-500/20 text-blue-400' : 'bg-purple-500/20 text-purple-400'}`}>
                                     {selectedChat.type === 'admin_support' ? <Shield size={16} /> : selectedChat.type === 'custom_portfolio' ? <Briefcase size={16} /> : <User size={16} />}
@@ -410,8 +411,8 @@ If everything looks correct, please reply with "Confirm" to proceed with the cus
                             </div>
                         </div>
 
-                        {/* Messages */}
-                        <div className="flex-1 overflow-y-auto p-6 space-y-4">
+                        {/* SCROLL: min-h-0 and custom-scrollbar to enable scrolling */}
+                        <div className="flex-1 overflow-y-auto min-h-0 p-6 space-y-4 custom-scrollbar">
                             {messages.map((msg, idx) => {
                                 const isMe = msg.sender === currentUser.email;
                                 return (
@@ -420,7 +421,7 @@ If everything looks correct, please reply with "Confirm" to proceed with the cus
                                             {!isMe && <div className="text-[10px] text-gray-400 mb-1">{getUsername(msg.sender)}</div>}
                                             <div className="text-sm whitespace-pre-wrap">{msg.text}</div>
                                             <div className={`text-[10px] mt-1 text-right ${isMe ? 'text-black/60' : 'text-gray-500'}`}>
-                                                {/* UPDATED: Uses new formatDisplayDate for messages */}
+                                                {/* Message Date/Time */}
                                                 {formatDisplayDate(msg.timestamp, 'message')}
                                             </div>
                                         </div>
@@ -431,7 +432,7 @@ If everything looks correct, please reply with "Confirm" to proceed with the cus
                         </div>
 
                         {/* Input */}
-                        <form onSubmit={handleSendMessage} className="p-4 border-t border-white/10 bg-[#0a0a0a]">
+                        <form onSubmit={handleSendMessage} className="p-4 border-t border-white/10 bg-[#0a0a0a] shrink-0">
                             <div className="flex items-center gap-2">
                                 <input
                                     type="text"

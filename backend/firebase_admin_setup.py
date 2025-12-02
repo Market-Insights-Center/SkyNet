@@ -1,41 +1,40 @@
 import firebase_admin
 from firebase_admin import credentials, firestore, auth
 import os
-import sys
+import json
 
-# Get the directory of the current file to ensure we find the key
+# Path to service account key (Fallback)
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-CRED_PATH = os.path.join(BASE_DIR, 'serviceAccountKey.json')
+cred_path = os.path.join(BASE_DIR, 'serviceAccountKey.json')
 
-db = None
-
-def initialize_firebase():
-    global db
+# Initialize Firebase Admin
+if not firebase_admin._apps:
     try:
-        if not firebase_admin._apps:
-            if os.path.exists(CRED_PATH):
-                cred = credentials.Certificate(CRED_PATH)
-                firebase_admin.initialize_app(cred)
-                print(f"SUCCESS: Firebase Admin initialized with {CRED_PATH}")
-            else:
-                print("\n" + "="*60)
-                print(f"CRITICAL ERROR: serviceAccountKey.json NOT FOUND at:")
-                print(f"{CRED_PATH}")
-                print("Users will NOT load. Please upload the key to the 'backend' folder.")
-                print("="*60 + "\n")
-                # Don't crash, but warn heavily. Auth calls will fail later.
+        # 1. Try Loading from Environment Variable (Best for VPS)
+        env_creds = os.environ.get('FIREBASE_SERVICE_ACCOUNT_JSON')
         
-        if not db:
-            db = firestore.client()
+        if env_creds:
+            # Parse the JSON string from the env var
+            cred_dict = json.loads(env_creds)
+            cred = credentials.Certificate(cred_dict)
+            firebase_admin.initialize_app(cred)
+            print("SUCCESS: Firebase initialized using Environment Variable.")
+            
+        # 2. Try Loading from File (Best for Localhost)
+        elif os.path.exists(cred_path):
+            cred = credentials.Certificate(cred_path)
+            firebase_admin.initialize_app(cred)
+            print(f"SUCCESS: Firebase initialized using file: {cred_path}")
+            
+        else:
+            print("CRITICAL WARNING: No Firebase credentials found! (Checked Env Var & File)")
             
     except Exception as e:
-        print(f"CRITICAL FIREBASE INIT ERROR: {e}")
+        print(f"CRITICAL ERROR initializing Firebase: {e}")
 
-# Initialize immediately
-initialize_firebase()
+db = firestore.client()
 
 def get_db():
-    if not db: initialize_firebase()
     return db
 
 def get_auth():
