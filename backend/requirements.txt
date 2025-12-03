@@ -13,6 +13,7 @@ yfinance
 pytz
 lxml
 requests
+websockets
 
 # Visualization & Formatting
 matplotlib

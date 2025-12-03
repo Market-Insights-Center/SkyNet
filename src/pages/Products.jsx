@@ -1,9 +1,79 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Bot, ChevronRight, Search, Scale, Siren } from 'lucide-react';
+import { Bot, ChevronRight, Search, Scale, Siren, ToggleLeft, ToggleRight, ExternalLink } from 'lucide-react';
+import { useAuth } from '../contexts/AuthContext';
 
 const Products = () => {
+    const { userProfile } = useAuth();
+    const [skynetActive, setSkynetActive] = useState(false);
+    const [isProcessing, setIsProcessing] = useState(false);
+
+    // Check if we are inside the popup
+    useEffect(() => {
+        const params = new URLSearchParams(window.location.search);
+        if (params.get('skynet') === 'true') {
+            setSkynetActive(true);
+        }
+    }, []);
+
+    const toggleSkyNet = async () => {
+        if (isProcessing) return;
+        setIsProcessing(true);
+
+        try {
+            if (skynetActive) {
+                // STOP Logic
+                if (!window.opener) {
+                    // Only close if we are in the popup
+                    window.close();
+                } else {
+                    // We are in popup, just close self
+                    window.close();
+                }
+                
+                // Also tell backend to stop
+                await fetch('http://localhost:8000/api/skynet/toggle', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'stop' })
+                });
+                
+            } else {
+                // START Logic
+                // 1. Tell backend to launch Python script
+                const response = await fetch('http://localhost:8000/api/skynet/toggle', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'start' })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    // 2. Open popup
+                    const width = 1200;
+                    const height = 800;
+                    const left = (window.screen.width / 2) - (width / 2);
+                    const top = (window.screen.height / 2) - (height / 2);
+                    
+                    window.open(
+                        `${window.location.origin}/?skynet=true`, 
+                        'SkyNetInterface', 
+                        `width=${width},height=${height},top=${top},left=${left},toolbar=no,menubar=no`
+                    );
+                } else {
+                    alert(`Error starting SkyNet: ${data.detail || 'Unknown error'}`);
+                }
+            }
+        } catch (error) {
+            console.error("SkyNet Toggle Error:", error);
+            alert("Failed to communicate with backend. Ensure main.py is running.");
+        } finally {
+            setIsProcessing(false);
+        }
+    };
+
     return (
         <div className="min-h-screen bg-deep-black text-white pt-24 px-4">
             <div className="max-w-7xl mx-auto">
@@ -18,6 +88,46 @@ const Products = () => {
                         Explore the suite of advanced financial tools designed to give you the edge in the modern market.
                     </p>
                 </motion.div>
+
+                {/* --- SKYNET INTERFACE ACTIVATION --- */}
+                {/* MODIFIED CONDITION: Show if Singularity Tier OR if profile hasn't loaded yet (!userProfile) */}
+                {(!userProfile || userProfile?.tier === 'Singularity') && (
+                    <motion.div 
+                        initial={{ opacity: 0, scale: 0.95 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        className="mb-12 p-6 bg-gradient-to-r from-gray-900 to-black border border-cyan-500/30 rounded-xl flex flex-col md:flex-row items-center justify-between shadow-[0_0_15px_rgba(6,182,212,0.15)]"
+                    >
+                        <div className="mb-4 md:mb-0">
+                            <h2 className="text-2xl font-bold text-cyan-400 flex items-center gap-2">
+                                <Bot className="w-6 h-6" />
+                                SkyNet Interface <span className="text-xs bg-cyan-500/20 text-cyan-300 px-2 py-0.5 rounded border border-cyan-500/30">BETA</span>
+                            </h2>
+                            <p className="text-gray-400 text-sm mt-1">
+                                Activate gesture and voice control system. (Auto-starts backend process)
+                            </p>
+                        </div>
+                        
+                        <button 
+                            onClick={toggleSkyNet}
+                            disabled={isProcessing}
+                            className={`flex items-center gap-2 px-6 py-3 rounded-full font-bold transition-all border ${
+                                skynetActive 
+                                    ? 'bg-red-500/10 text-red-400 border-red-500/50 hover:bg-red-500/20' 
+                                    : 'bg-cyan-500/10 text-cyan-400 border-cyan-500/50 hover:bg-cyan-500/20 shadow-[0_0_10px_rgba(6,182,212,0.2)]'
+                            } ${isProcessing ? 'opacity-50 cursor-not-allowed' : ''}`}
+                        >
+                            {isProcessing ? (
+                                <span className="animate-pulse">PROCESSING...</span>
+                            ) : (
+                                <>
+                                    {skynetActive ? <ToggleRight className="w-6 h-6"/> : <ToggleLeft className="w-6 h-6"/>}
+                                    {skynetActive ? 'DISENGAGE SYSTEM' : 'INITIALIZE SYSTEM'}
+                                    {!skynetActive && <ExternalLink className="w-4 h-4 ml-1" />}
+                                </>
+                            )}
+                        </button>
+                    </motion.div>
+                )}
 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                     {/* Portfolio Lab - Active */}

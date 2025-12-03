@@ -7,27 +7,37 @@ import speech_recognition as sr
 import pyttsx3
 import queue
 import sys
+import asyncio
+import websockets
+import json
 
 # --- CONFIGURATION ---
-PINCH_THRESHOLD = 0.04       # Distance between Thumb and Index to trigger a pinch
-MIDDLE_TAP_THRESHOLD = 0.05  # Distance between Middle finger and Index for draw toggle
-DOUBLE_CLICK_TIME = 0.5      # Seconds allowed between taps
-RESET_HOLD_TIME = 1.0        # Seconds to hold Open Palm to reset
+PINCH_THRESHOLD = 0.04       
+PINKY_THRESHOLD = 0.06
+DOUBLE_CLICK_TIME = 0.5      
+CLICK_DURATION = 0.3         
+RESET_HOLD_TIME = 1.0        
+WS_PORT = 8001               
+SENSITIVITY = 2.0            
 
 class SkyNetController:
     def __init__(self):
-        # State Variables
         self.is_running = True
-        self.mode = "IDLE"  # IDLE, LISTENING_TICKER
+        self.mode = "IDLE"
+        self.connected_clients = set()
+        self.loop = None  
         
-        # Gesture Variables
+        # Gesture State
         self.is_pinching = False
-        self.last_pinch_time = 0
-        self.drawing_active = False
-        self.middle_finger_was_touching = False
-        self.open_palm_start_time = 0
+        self.pinch_start_time = 0
+        self.last_pinch_release_time = 0
+        self.is_pinky_pinching = False
         
-        # MediaPipe Setup
+        self.rock_sign_start_time = 0
+        self.shaka_start_time = 0
+        self.scroll_gesture_time = 0
+        
+        # MediaPipe
         self.mp_hands = mp.solutions.hands
         self.hands = self.mp_hands.Hands(
             max_num_hands=1,
@@ -36,26 +46,53 @@ class SkyNetController:
         )
         self.mp_draw = mp.solutions.drawing_utils
 
-        # Voice Engine Setup
+        # Audio
         try:
             self.tts_engine = pyttsx3.init()
             self.tts_engine.setProperty('rate', 160)
-        except Exception as e:
-            print(f"Warning: TTS Engine failed: {e}")
+        except:
             self.tts_engine = None
 
-        # Speech Recognition Setup
         self.recognizer = sr.Recognizer()
         self.mic = sr.Microphone()
-        
-        # Calibrate immediately
         with self.mic as source:
-            print("Calibrating microphone... (Silence please)")
+            print("Calibrating microphone...")
             self.recognizer.adjust_for_ambient_noise(source, duration=1)
 
+    # --- SHUTDOWN LOGIC ---
+    def initiate_shutdown(self, trigger_source):
+        print(f"\n[SYSTEM] Shutdown initiated by {trigger_source}")
+        self.broadcast_command("TERMINATE", None, f"Kill Code: {trigger_source}")
+        self.speak("Terminating Session.")
+        def shutdown_sequence():
+            time.sleep(2.0)
+            self.is_running = False
+            print("[SYSTEM] Core Loops Terminated.")
+        threading.Thread(target=shutdown_sequence, daemon=True).start()
+
+    # --- WEBSOCKETS ---
+    async def ws_handler(self, websocket):
+        self.connected_clients.add(websocket)
+        try:
+            async for message in websocket: pass
+        except: pass
+        finally: self.connected_clients.remove(websocket)
+
+    def broadcast_command(self, action, payload=None, log_message=None):
+        if not self.loop: return
+        data = json.dumps({"action": action, "payload": payload, "log": log_message})
+        try:
+            asyncio.run_coroutine_threadsafe(self._send_all(data), self.loop)
+        except: pass
+
+    async def _send_all(self, message):
+        if self.connected_clients:
+            await asyncio.gather(*[client.send(message) for client in self.connected_clients])
+
+    # --- VOICE ---
     def speak(self, text):
-        """Non-blocking speak function"""
         print(f"SkyNet: {text}")
+        self.broadcast_command("LOG", None, f"AI: {text}")
         if self.tts_engine:
             threading.Thread(target=self._speak_thread, args=(text,), daemon=True).start()
 
@@ -64,197 +101,216 @@ class SkyNetController:
             engine = pyttsx3.init()
             engine.say(text)
             engine.runAndWait()
-        except:
-            pass
+        except: pass
 
     def listen_loop(self):
-        """Continuous listening loop"""
-        print("\n[EARS] Listening for 'Open Chart', 'New Idea', 'Portfolio'...")
-        
+        print("[EARS] Active")
         while self.is_running:
             try:
                 with self.mic as source:
                     audio = self.recognizer.listen(source, timeout=2, phrase_time_limit=5)
-                
                 try:
                     text = self.recognizer.recognize_google(audio).lower()
                     self.process_voice_command(text)
-                except sr.UnknownValueError:
-                    pass 
-                except sr.RequestError:
-                    print("[EARS] API Connection Error")
-
-            except sr.WaitTimeoutError:
-                continue
-            except Exception as e:
-                # Suppress generic timeout errors to keep log clean
-                continue
+                except: pass
+            except: continue
 
     def process_voice_command(self, text):
-        """Command State Machine"""
+        if not self.is_running: return
         print(f" -> Heard: '{text}'")
+        self.broadcast_command("VOICE_HEARD", text)
+
+        if "sarah connor" in text or "terminate" in text:
+            self.initiate_shutdown("Voice Command")
+            return
+        
+        if "close" in text or "cancel" in text:
+            self.speak("Closing Chart")
+            self.broadcast_command("CLOSE_CHART", None, "Voice: Close")
+            return
 
         if self.mode == "IDLE":
             if "open chart" in text:
                 self.mode = "LISTENING_TICKER"
-                print("\n>>> COMMAND: OPEN_CHART_INITIATED")
                 self.speak("Spell the ticker.")
-            
-            elif "portfolio" in text or "lab" in text:
-                print("\n>>> COMMAND: NAVIGATE(/portfolio-lab)")
-                self.speak("Opening Portfolio Lab")
-            
+                self.broadcast_command("STATUS", "LISTENING_TICKER", "Waiting for ticker...")
+            elif "portfolio" in text:
+                self.speak("Portfolio Lab")
+                self.broadcast_command("NAVIGATE", "/portfolio-lab", "Navigating: Portfolio")
             elif "news" in text:
-                print("\n>>> COMMAND: NAVIGATE(/news)")
-                self.speak("Loading News Feed")
-            
-            elif "new idea" in text or "create idea" in text:
-                print("\n>>> COMMAND: OPEN_MODAL(CREATE_IDEA)")
-                self.speak("New Idea Template")
-            
+                self.speak("News Feed")
+                self.broadcast_command("NAVIGATE", "/news", "Navigating: News")
+            elif "new idea" in text:
+                self.speak("Create Idea")
+                self.broadcast_command("OPEN_MODAL", "CREATE_IDEA", "Opening Modal")
             elif "profile" in text:
-                print("\n>>> COMMAND: NAVIGATE(/profile)")
-                self.speak("Opening Profile")
-
+                self.speak("Profile")
+                self.broadcast_command("NAVIGATE", "/profile")
             elif "admin" in text:
-                print("\n>>> COMMAND: NAVIGATE(/admin)")
-                self.speak("Admin Dashboard")
+                self.speak("Admin")
+                self.broadcast_command("NAVIGATE", "/admin")
 
         elif self.mode == "LISTENING_TICKER":
-            if "cancel" in text or "stop" in text:
+            if "cancel" in text:
                 self.mode = "IDLE"
                 self.speak("Cancelled")
-                print(">>> COMMAND: CANCELLED")
+                self.broadcast_command("RESET", None, "Cancelled")
             else:
                 clean_ticker = text.upper().replace(" ", "").replace(".", "")
                 if 2 <= len(clean_ticker) <= 6:
-                    print(f"\n>>> COMMAND: OPEN_CHART_TV({clean_ticker})")
                     self.speak(f"Opening {clean_ticker}")
+                    self.broadcast_command("OPEN_CHART", clean_ticker, f"Chart: {clean_ticker}")
                     self.mode = "IDLE"
                 else:
-                    self.speak("Ticker not recognized. Try again or say cancel.")
+                    self.speak("Try again.")
 
+    # --- GESTURE UTILS ---
     def calculate_distance(self, p1, p2):
         return math.hypot(p1.x - p2.x, p1.y - p2.y)
 
     def is_fist(self, landmarks):
-        tips = [8, 12, 16, 20]
-        knuckles = [5, 9, 13, 17]
-        count_down = 0
-        for tip, knuckle in zip(tips, knuckles):
-            if landmarks[tip].y > landmarks[knuckle].y:
-                count_down += 1
-        return count_down == 4
+        return all(landmarks[t].y > landmarks[k].y for t, k in zip([8,12,16,20], [5,9,13,17]))
 
-    def is_open_palm(self, landmarks):
-        tips = [8, 12, 16, 20]
-        knuckles = [5, 9, 13, 17]
-        count_up = 0
-        for tip, knuckle in zip(tips, knuckles):
-            if landmarks[tip].y < landmarks[knuckle].y:
-                count_up += 1
-        return count_up == 4
+    def is_rock_sign(self, landmarks):
+        index_up = landmarks[8].y < landmarks[6].y
+        pinky_up = landmarks[20].y < landmarks[18].y
+        middle_down = landmarks[12].y > landmarks[10].y
+        ring_down = landmarks[16].y > landmarks[14].y
+        return index_up and pinky_up and middle_down and ring_down
 
+    def is_two_finger_point(self, landmarks):
+        """Index & Middle UP (Scroll Wheel UP)"""
+        index_up = landmarks[8].y < landmarks[6].y
+        middle_up = landmarks[12].y < landmarks[10].y
+        ring_down = landmarks[16].y > landmarks[14].y
+        pinky_down = landmarks[20].y > landmarks[18].y
+        return index_up and middle_up and ring_down and pinky_down
+
+    def is_three_finger_point(self, landmarks):
+        """Index, Middle, Ring UP (Scroll Wheel DOWN)"""
+        index_up = landmarks[8].y < landmarks[6].y
+        middle_up = landmarks[12].y < landmarks[10].y
+        ring_up = landmarks[16].y < landmarks[14].y
+        pinky_down = landmarks[20].y > landmarks[18].y
+        return index_up and middle_up and ring_up and pinky_down
+
+    def is_shaka(self, landmarks):
+        index_down = landmarks[8].y > landmarks[6].y
+        middle_down = landmarks[12].y > landmarks[10].y
+        ring_down = landmarks[16].y > landmarks[14].y
+        pinky_up = landmarks[20].y < landmarks[18].y
+        return index_down and middle_down and ring_down and pinky_up
+
+    # --- GESTURE PROCESSING ---
     def process_gestures(self, landmarks):
-        if self.is_open_palm(landmarks):
-            if self.open_palm_start_time == 0:
-                self.open_palm_start_time = time.time()
-            elif (time.time() - self.open_palm_start_time) > RESET_HOLD_TIME:
-                if self.mode != "IDLE" or self.drawing_active:
-                    print("\n>>> GESTURE: SYSTEM_RESET")
-                    self.speak("System Reset")
-                    self.mode = "IDLE"
-                    self.drawing_active = False
-                self.open_palm_start_time = 0
+        if not self.is_running: return
+
+        # 1. CORE TRACKING
+        index_tip = landmarks[8]
+        raw_x = index_tip.x
+        raw_y = index_tip.y
+        
+        # Sensitivity Map
+        cx = (raw_x - 0.5) * SENSITIVITY + 0.5
+        cy = (raw_y - 0.5) * SENSITIVITY + 0.5
+        cx = max(0.0, min(1.0, cx))
+        cy = max(0.0, min(1.0, cy))
+        
+        cursor_state = "open"
+
+        # 2. PRIORITY GESTURES
+
+        # KILL SWITCH (Rock On)
+        if self.is_rock_sign(landmarks):
+            if self.rock_sign_start_time == 0:
+                self.rock_sign_start_time = time.time()
+            elif (time.time() - self.rock_sign_start_time) > 1.2:
+                self.initiate_shutdown("Gesture (Rock On)")
+                self.rock_sign_start_time = 0
             return
         else:
-            self.open_palm_start_time = 0
+            self.rock_sign_start_time = 0
 
+        # RESET (Shaka)
+        if self.is_shaka(landmarks):
+            if self.shaka_start_time == 0:
+                self.shaka_start_time = time.time()
+            elif (time.time() - self.shaka_start_time) > 1.0:
+                self.broadcast_command("RESET_VIEW", None, "Gesture: Shaka")
+                self.shaka_start_time = 0
+            return
+        else:
+            self.shaka_start_time = 0
+
+        # WHEEL UP (2 Fingers)
+        if self.is_two_finger_point(landmarks):
+            if (time.time() - self.scroll_gesture_time) > 0.15: 
+                self.broadcast_command("WHEEL", "UP", "Gesture: Scroll Up")
+                self.scroll_gesture_time = time.time()
+            return
+
+        # WHEEL DOWN (3 Fingers)
+        if self.is_three_finger_point(landmarks):
+            if (time.time() - self.scroll_gesture_time) > 0.15:
+                self.broadcast_command("WHEEL", "DOWN", "Gesture: Scroll Down")
+                self.scroll_gesture_time = time.time()
+            return
+
+        # DRAG / PAN (Fist)
         if self.is_fist(landmarks):
-            wrist_y = landmarks[0].y
-            if wrist_y < 0.3:
-                sys.stdout.write(f"\r>>> SCROLL: UP      ")
-            elif wrist_y > 0.7:
-                sys.stdout.write(f"\r>>> SCROLL: DOWN    ")
-            sys.stdout.flush()
-            return
+            cursor_state = "closed"
+            self.broadcast_command("DRAG", {"x": cx, "y": cy}, "Gesture: Drag (Fist)")
+            self.broadcast_command("CURSOR", {"x": cx, "y": cy, "state": "closed"})
+            return 
 
-        thumb_tip = landmarks[4]
-        index_tip = landmarks[8]
-        middle_tip = landmarks[12]
+        # ZOOM / CLICK (Pinch)
+        thumb = landmarks[4]
+        index = landmarks[8]
+        pinky = landmarks[20]
 
-        pinch_dist = self.calculate_distance(thumb_tip, index_tip)
-        middle_dist = self.calculate_distance(index_tip, middle_tip)
+        pinch_dist = self.calculate_distance(thumb, index)
+        pinky_pinch_dist = self.calculate_distance(thumb, pinky)
 
-        currently_pinching = pinch_dist < PINCH_THRESHOLD
+        # Index Pinch (Click / Timeframe Zoom In)
+        is_pinching_now = pinch_dist < PINCH_THRESHOLD
 
-        if currently_pinching and not self.is_pinching:
-            if (time.time() - self.last_pinch_time) < DOUBLE_CLICK_TIME:
-                print("\n>>> GESTURE: DOUBLE_TAP (Action: ZOOM_IN)")
-            self.last_pinch_time = time.time()
+        if is_pinching_now and not self.is_pinching:
             self.is_pinching = True
+            self.pinch_start_time = time.time()
             
-        elif not currently_pinching and self.is_pinching:
+            # Double Click or Hold for Zoom? 
+            # We'll treat Double Tap as Timeframe Zoom IN
+            if (time.time() - self.last_pinch_release_time) < DOUBLE_CLICK_TIME:
+                self.broadcast_command("ZOOM", "IN", "Gesture: Timeframe In")
+
+        elif not is_pinching_now and self.is_pinching:
             self.is_pinching = False
+            self.last_pinch_release_time = time.time()
+            # Short Tap = Click
+            if (time.time() - self.pinch_start_time) < CLICK_DURATION:
+                self.broadcast_command("CLICK", None, "Gesture: Click")
 
-        if self.is_pinching:
-            cx, cy = (thumb_tip.x + index_tip.x) / 2, (thumb_tip.y + index_tip.y) / 2
-            cursor_cmd = f"CURSOR: [{cx:.2f}, {cy:.2f}]"
-            
-            middle_touching = middle_dist < MIDDLE_TAP_THRESHOLD
-            if middle_touching and not self.middle_finger_was_touching:
-                self.drawing_active = not self.drawing_active
-                status = "STARTED" if self.drawing_active else "COMPLETED"
-                print(f"\n>>> GESTURE: TRIPLE_TAP -> DRAWING_{status}")
-                self.speak(f"Drawing {status}")
-            
-            self.middle_finger_was_touching = middle_touching
+        # Pinky Pinch (Timeframe Zoom Out)
+        is_pinky_now = pinky_pinch_dist < PINKY_THRESHOLD
+        if is_pinky_now and not self.is_pinky_pinching:
+            self.is_pinky_pinching = True
+            self.broadcast_command("ZOOM", "OUT", "Gesture: Timeframe Out")
+        elif not is_pinky_now:
+            self.is_pinky_pinching = False
 
-            if self.drawing_active:
-                sys.stdout.write(f"\r{cursor_cmd} | DRAWING_LINE...   ")
-            else:
-                sys.stdout.write(f"\r{cursor_cmd}                     ")
-            sys.stdout.flush()
+        self.broadcast_command("CURSOR", {"x": cx, "y": cy, "state": cursor_state})
 
-    def start(self):
-        # 1. Start Voice Thread
-        threading.Thread(target=self.listen_loop, daemon=True).start()
-
-        # 2. Initialize Camera with DIRECTSHOW (Fix for Windows)
-        print("\n=== SKYNET CONTROLLER (PHASE 1.5) ===")
-        print("Attempting to open camera...")
-
-        # Try Index 0 with DirectShow
+    # --- MAIN ---
+    def start_camera(self):
+        print("Opening Camera...")
         cap = cv2.VideoCapture(0, cv2.CAP_DSHOW)
+        if not cap.isOpened(): cap = cv2.VideoCapture(1, cv2.CAP_DSHOW)
         
-        # If Index 0 fails or won't open, try Index 1
-        if not cap.isOpened():
-            print("Camera 0 failed. Trying Camera 1...")
-            cap = cv2.VideoCapture(1, cv2.CAP_DSHOW)
-
-        if not cap.isOpened():
-            print("\nCRITICAL ERROR: Could not open any webcam.")
-            print("1. Check if another app (Zoom/Teams) is using it.")
-            print("2. Check Windows Privacy Settings -> Camera.")
-            self.is_running = False
-            return
-
-        print("Camera ACTIVE. Press 'q' to quit.\n")
-        
-        fail_count = 0
-        while cap.isOpened():
+        while cap.isOpened() and self.is_running:
             success, image = cap.read()
-            
-            if not success:
-                fail_count += 1
-                if fail_count % 10 == 0:
-                    print("Warning: Camera frame empty. Retrying...")
-                # Avoid infinite fast loop if camera disconnects
+            if not success: 
                 time.sleep(0.1)
                 continue
-            
-            # Reset fail count on success
-            fail_count = 0
 
             image = cv2.flip(image, 1)
             image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
@@ -265,16 +321,28 @@ class SkyNetController:
                     self.mp_draw.draw_landmarks(image, hand_landmarks, self.mp_hands.HAND_CONNECTIONS)
                     self.process_gestures(hand_landmarks.landmark)
 
-            cv2.putText(image, f"Mode: {self.mode}", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
-            if self.drawing_active:
-                cv2.putText(image, "DRAWING", (10, 70), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
+            cv2.imshow('SkyNet Vision Node', image)
+            if cv2.waitKey(5) & 0xFF == ord('q'): 
+                self.is_running = False
+                break
 
-            cv2.imshow('SkyNet Vision', image)
-            if cv2.waitKey(5) & 0xFF == ord('q'): break
-
-        self.is_running = False
         cap.release()
         cv2.destroyAllWindows()
 
+    async def main_async(self):
+        self.loop = asyncio.get_running_loop()
+        threading.Thread(target=self.listen_loop, daemon=True).start()
+        threading.Thread(target=self.start_camera, daemon=True).start()
+
+        print(f"\n=== SKYNET LISTENING ON {WS_PORT} ===")
+        async with websockets.serve(self.ws_handler, "localhost", WS_PORT):
+            while self.is_running:
+                await asyncio.sleep(1)
+
 if __name__ == "__main__":
-    SkyNetController().start()
+    controller = SkyNetController()
+    try:
+        if sys.platform == 'win32':
+            asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+        asyncio.run(controller.main_async())
+    except: pass

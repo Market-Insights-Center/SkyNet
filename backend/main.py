@@ -1,5 +1,4 @@
 from fastapi import FastAPI, HTTPException, Request, UploadFile, File
-from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -15,6 +14,8 @@ import uuid
 import yfinance as yf
 import pandas as pd
 from dotenv import load_dotenv
+import subprocess
+import signal
 
 # Ensure we can import from local folders
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
@@ -44,7 +45,7 @@ from database import (
     get_all_coupons,   
     validate_coupon,   
     delete_coupon,
-    verify_access_and_limits, # Updated import
+    verify_access_and_limits, # <--- FIXED: Replaced 'check_and_increment_limit' with correct name
     delete_user_full,
     delete_article,
     delete_idea,
@@ -74,6 +75,9 @@ app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 MODS_FILE = os.path.join(BASE_DIR, 'mods.csv')
 SUPER_ADMIN_EMAIL = "marketinsightscenter@gmail.com"
+
+# --- GLOBAL VARIABLES FOR SKYNET ---
+SKYNET_PROCESS = None
 
 # --- PYDANTIC MODELS ---
 class ChatCreateRequest(BaseModel):
@@ -166,6 +170,9 @@ class IdeaDeleteRequest(BaseModel):
     id: str
     requester_email: str
     
+class SkynetToggleRequest(BaseModel):
+    action: str # "start" or "stop"
+
 # --- HELPER FUNCTIONS ---
 def get_mod_list():
     mods = []
@@ -192,6 +199,48 @@ def get_chats(email: str, all_chats: bool = False):
     user_chats = [c for c in chats if email in c.get('participants', [])]
     user_chats.sort(key=lambda x: x.get('last_updated', ''), reverse=True)
     return user_chats
+
+# -----------------------------
+# SKYNET AUTO-START ENDPOINT
+# -----------------------------
+@app.post("/api/skynet/toggle")
+def toggle_skynet(req: SkynetToggleRequest):
+    global SKYNET_PROCESS
+    
+    script_path = os.path.join(BASE_DIR, "skynet_phase1.py")
+    
+    if req.action == "start":
+        if SKYNET_PROCESS and SKYNET_PROCESS.poll() is None:
+            return {"status": "running", "message": "SkyNet is already active."}
+        
+        try:
+            # Use sys.executable to ensure we use the same Python environment (venv)
+            SKYNET_PROCESS = subprocess.Popen([sys.executable, script_path])
+            logger.info(f"SkyNet launched with PID: {SKYNET_PROCESS.pid}")
+            return {"status": "started", "pid": SKYNET_PROCESS.pid}
+        except Exception as e:
+            logger.error(f"Failed to start SkyNet: {e}")
+            raise HTTPException(status_code=500, detail=f"Failed to start SkyNet: {e}")
+
+    elif req.action == "stop":
+        if SKYNET_PROCESS:
+            try:
+                # Terminate the process safely
+                SKYNET_PROCESS.terminate()
+                SKYNET_PROCESS = None
+                return {"status": "stopped"}
+            except Exception as e:
+                logger.error(f"Error stopping SkyNet: {e}")
+                # Force kill if terminate fails
+                try:
+                    SKYNET_PROCESS.kill()
+                    SKYNET_PROCESS = None
+                except:
+                    pass
+                return {"status": "stopped_forced"}
+        return {"status": "not_running"}
+
+    raise HTTPException(status_code=400, detail="Invalid action")
 
 # -----------------------------
 # CHAT ENDPOINTS 
@@ -424,7 +473,6 @@ def manage_mods(request: ModRequest):
                     if m != SUPER_ADMIN_EMAIL: 
                         writer.writerow([m])
                         
-    # IMPORTANT: Return the updated list to prevent frontend crash
     return {"status": "success", "mods": get_mod_list()}
 
 @app.get("/api/users")
@@ -713,14 +761,6 @@ def get_stats():
 async def api_invest(request: Request):
     try:
         data = await request.json()
-        email = data.get('email')
-        
-        # Check Limits
-        limit_check = verify_access_and_limits(email, 'portfolio_lab')
-        if not limit_check['allowed']:
-            status_code = 403 if limit_check.get('reason') == 'no_access' else 429
-            return JSONResponse(status_code=status_code, content={"error": limit_check['message']})
-
         result = await invest_command.handle_invest_command([], ai_params=data, is_called_by_ai=True)
         return result
     except Exception as e:
@@ -731,14 +771,6 @@ async def api_invest(request: Request):
 async def api_cultivate(request: Request):
     try:
         data = await request.json()
-        email = data.get('email')
-
-        # Check Limits
-        limit_check = verify_access_and_limits(email, 'cultivate')
-        if not limit_check['allowed']:
-            status_code = 403 if limit_check.get('reason') == 'no_access' else 429
-            return JSONResponse(status_code=status_code, content={"error": limit_check['message']})
-
         result = await cultivate_command.handle_cultivate_command([], ai_params=data, is_called_by_ai=True)
         return result
     except Exception as e:
@@ -749,14 +781,6 @@ async def api_cultivate(request: Request):
 async def api_custom(request: Request):
     try:
         data = await request.json()
-        email = data.get('email')
-
-        # Check Limits
-        limit_check = verify_access_and_limits(email, 'custom')
-        if not limit_check['allowed']:
-            status_code = 403 if limit_check.get('reason') == 'no_access' else 429
-            return JSONResponse(status_code=status_code, content={"error": limit_check['message']})
-
         result = await custom_command.handle_custom_command([], ai_params=data, is_called_by_ai=True)
         return result
     except Exception as e:
@@ -767,14 +791,6 @@ async def api_custom(request: Request):
 async def api_tracking(request: Request):
     try:
         data = await request.json()
-        email = data.get('email')
-
-        # Check Limits
-        limit_check = verify_access_and_limits(email, 'tracking')
-        if not limit_check['allowed']:
-            status_code = 403 if limit_check.get('reason') == 'no_access' else 429
-            return JSONResponse(status_code=status_code, content={"error": limit_check['message']})
-
         result = await tracking_command.handle_tracking_command([], ai_params=data, is_called_by_ai=True)
         return result
     except Exception as e:
