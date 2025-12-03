@@ -12,6 +12,7 @@ DATA_DIR = os.path.join(BASE_DIR, 'data')
 ARTICLES_CSV = os.path.join(DATA_DIR, 'articles.csv')
 IDEAS_CSV = os.path.join(DATA_DIR, 'ideas.csv')
 COMMENTS_CSV = os.path.join(DATA_DIR, 'comments.csv') 
+TIER_LIMITS_CSV = os.path.join(DATA_DIR, 'tier_limits.csv')
 CHATS_FILE = os.path.join(BASE_DIR, 'chats.json')
 USER_PROFILES_CSV = os.path.join(BASE_DIR, 'user_profiles.csv')
 
@@ -19,16 +20,126 @@ USER_PROFILES_CSV = os.path.join(BASE_DIR, 'user_profiles.csv')
 if not os.path.exists(DATA_DIR):
     os.makedirs(DATA_DIR)
 
-# --- TIER CONFIGURATION ---
-TIER_LIMITS = {
-    "Free": {"portfolio_lab": 1, "cultivate": 0, "news_depth": 5},
-    "Basic": {"portfolio_lab": 10, "cultivate": 5, "news_depth": 50},
-    "Pro": {"portfolio_lab": 50, "cultivate": 20, "news_depth": 200},
-    "Visionary": {"portfolio_lab": 50, "cultivate": 20, "news_depth": 200}, 
-    "Institutional": {"portfolio_lab": 500, "cultivate": 100, "news_depth": 1000},
-    "Enterprise": {"portfolio_lab": 500, "cultivate": 100, "news_depth": 1000},
-    "Singularity": {"portfolio_lab": float('inf'), "cultivate": float('inf'), "news_depth": float('inf')}
-}
+# Tier Hierarchy for upgrades
+TIER_ORDER = ["Free", "Basic", "Pro", "Visionary", "Institutional", "Enterprise", "Singularity"]
+
+# --- LIMIT LOGIC (NEW) ---
+
+def load_tier_limits():
+    """Reads the CSV and returns a nested dictionary of limits."""
+    limits = {}
+    if os.path.exists(TIER_LIMITS_CSV):
+        try:
+            with open(TIER_LIMITS_CSV, 'r') as f:
+                reader = csv.DictReader(f)
+                for row in reader:
+                    tier = row['Tier'].strip()
+                    product = row['Product'].strip()
+                    limit_str = row['Limit'].strip()
+                    
+                    if tier not in limits: limits[tier] = {}
+                    limits[tier][product] = limit_str
+        except Exception as e:
+            print(f"Error loading limits CSV: {e}")
+    return limits
+
+def get_next_tier_with_access(current_tier, product):
+    """Finds the next higher tier that has access (not NA)."""
+    try:
+        current_idx = TIER_ORDER.index(current_tier)
+    except ValueError:
+        current_idx = -1 # Treat as below Free
+        
+    limits = load_tier_limits()
+    
+    for i in range(current_idx + 1, len(TIER_ORDER)):
+        next_tier = TIER_ORDER[i]
+        tier_limits = limits.get(next_tier, {})
+        limit = tier_limits.get(product, "NA")
+        if limit != "NA":
+            return next_tier
+    return "Enterprise" # Fallback
+
+def verify_access_and_limits(email, product):
+    """
+    Checks if a user can access a product based on tier and limits.
+    Returns dict: { "allowed": bool, "reason": str, "message": str }
+    """
+    try:
+        db = get_db()
+        
+        # 1. Get User Tier
+        user_ref = db.collection('users').document(email)
+        user_doc = user_ref.get()
+        tier = 'Free'
+        if user_doc.exists:
+            tier = user_doc.to_dict().get('tier', 'Free')
+            
+        # 2. Get Limit for Tier/Product
+        all_limits = load_tier_limits()
+        tier_limits = all_limits.get(tier, {})
+        limit_str = tier_limits.get(product, "NA") # Default to NA if not found
+        
+        # 3. Handle Special Cases
+        if limit_str == "NA":
+            next_tier = get_next_tier_with_access(tier, product)
+            return {
+                "allowed": False, 
+                "reason": "no_access", 
+                "message": f"Your current tier ({tier}) does not have access to {product}. Please upgrade to {next_tier}."
+            }
+            
+        if limit_str == "NL":
+            return {"allowed": True, "reason": "no_limit", "message": "Access granted."}
+
+        # 4. Parse Limit (e.g., "10/day")
+        try:
+            limit_val_str, unit = limit_str.split('/')
+            limit_val = int(limit_val_str)
+        except:
+            print(f"Invalid limit format for {tier}/{product}: {limit_str}")
+            return {"allowed": False, "reason": "error", "message": "System configuration error."}
+
+        # 5. Determine Time Window Key
+        now = datetime.utcnow()
+        if unit == 'second': time_key = now.strftime('%Y-%m-%d-%H-%M-%S')
+        elif unit == 'minute': time_key = now.strftime('%Y-%m-%d-%H-%M')
+        elif unit == 'hour': time_key = now.strftime('%Y-%m-%d-%H')
+        elif unit == 'day': time_key = now.strftime('%Y-%m-%d')
+        elif unit == 'week': time_key = now.strftime('%Y-%W')
+        elif unit == 'month': time_key = now.strftime('%Y-%m')
+        else: time_key = now.strftime('%Y-%m-%d') # Default to day
+
+        # 6. Check Usage in Firestore
+        usage_ref = user_ref.collection('usage_logs').document(f"{product}_{time_key}")
+        
+        @firestore.transactional
+        def increment_usage(transaction, ref):
+            snapshot = transaction.get(ref)
+            current_count = 0
+            if snapshot.exists:
+                current_count = snapshot.get('count') or 0
+            
+            if current_count < limit_val:
+                transaction.set(ref, {'count': current_count + 1}, merge=True)
+                return True
+            return False
+
+        transaction = db.transaction()
+        success = increment_usage(transaction, usage_ref)
+        
+        if success:
+            return {"allowed": True, "reason": "authorized", "message": "Access granted."}
+        else:
+             return {
+                 "allowed": False, 
+                 "reason": "limit_exceeded", 
+                 "message": f"You have reached your {product} limit of {limit_str}. Please upgrade to increase your limits."
+             }
+
+    except Exception as e:
+        print(f"Limit Check Error: {e}")
+        return {"allowed": False, "reason": "error", "message": "An error occurred checking limits."}
 
 # --- FIRESTORE USER HELPERS ---
 
@@ -143,47 +254,6 @@ def delete_user_full(email):
     except Exception as e:
         print(f"Delete Error: {e}")
         return False
-
-# --- USAGE LIMIT ENFORCEMENT ---
-
-def check_and_increment_limit(email, feature_key):
-    try:
-        db = get_db()
-        user_ref = db.collection('users').document(email)
-        user_doc = user_ref.get()
-        
-        if user_doc.exists:
-            user_data = user_doc.to_dict()
-            tier = user_data.get('tier', 'Free')
-        else:
-            tier = 'Free'
-        
-        if tier == 'Singularity':
-            return True
-            
-        limit = TIER_LIMITS.get(tier, TIER_LIMITS['Free']).get(feature_key, 0)
-        current_month = datetime.now().strftime('%Y-%m')
-        usage_ref = user_ref.collection('usage_logs').document(current_month)
-        
-        @firestore.transactional
-        def update_in_transaction(transaction, usage_ref):
-            snapshot = transaction.get(usage_ref)
-            current_count = 0
-            if snapshot.exists:
-                current_count = snapshot.get(feature_key) or 0
-            
-            if current_count < limit:
-                transaction.set(usage_ref, {feature_key: current_count + 1}, merge=True)
-                return True
-            else:
-                return False
-
-        transaction = db.transaction()
-        return update_in_transaction(transaction, usage_ref)
-
-    except Exception as e:
-        print(f"Usage Check Error: {e}")
-        return False 
 
 # --- COUPONS ---
 

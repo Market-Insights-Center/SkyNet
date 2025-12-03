@@ -46,6 +46,9 @@ const Chatbox = () => {
     useEffect(() => {
         if (!selectedChat) return;
 
+        // Clear messages immediately when switching chats to prevent ghosting
+        setMessages([]); 
+
         fetchChatMessages(selectedChat.id);
         const interval = setInterval(() => fetchChatMessages(selectedChat.id), 2000);
         return () => clearInterval(interval);
@@ -110,10 +113,7 @@ const Chatbox = () => {
             const res = await fetch(`/api/chat/${chatId}/messages?email=${currentUser.email}`);
             if (res.ok) {
                 const data = await res.json();
-                setMessages(prev => {
-                    if (prev.length !== data.length) return data;
-                    return prev;
-                });
+                setMessages(data);
             }
         } catch (err) {
             console.error("Error fetching messages:", err);
@@ -308,9 +308,6 @@ If everything looks correct, please reply with "Confirm" to proceed with the cus
     return (
         <div className="fixed inset-0 pt-24 bg-deep-black flex overflow-hidden">
             {/* Sidebar */}
-            {/* Mobile: w-full. Hidden if a chat is selected (selectedChat is true).
-               Desktop: w-80. Always visible (flex).
-            */}
             <div className={`
                 flex-col bg-[#0a0a0a] h-full border-r border-white/10
                 w-full md:w-80
@@ -344,7 +341,7 @@ If everything looks correct, please reply with "Confirm" to proceed with the cus
                     </div>
                 )}
 
-                {/* SCROLL: min-h-0 and custom-scrollbar to enable scrolling */}
+                {/* SCROLL */}
                 <div className="flex-1 overflow-y-auto min-h-0 custom-scrollbar">
                     {conversations.length === 0 ? (
                         <div className="p-4 text-gray-500 text-center text-sm">No conversations found.</div>
@@ -375,13 +372,11 @@ If everything looks correct, please reply with "Confirm" to proceed with the cus
                                                 </div>
                                                 {chat.last_updated && (
                                                     <div className="text-[10px] text-gray-600 absolute right-2 top-2">
-                                                        {/* Sidebar Date/Time */}
                                                         {formatDisplayDate(chat.last_updated, 'sidebar')}
                                                     </div>
                                                 )}
                                             </div>
 
-                                            {/* Trash Icon for Deletion - Always Visible */}
                                             <button
                                                 type="button"
                                                 onClick={(e) => deleteConversation(e, chat.id)}
@@ -400,9 +395,6 @@ If everything looks correct, please reply with "Confirm" to proceed with the cus
             </div>
 
             {/* Chat Area */}
-            {/* Mobile: w-full. Hidden if NO chat is selected (!selectedChat).
-                Desktop: flex-1. Hidden if NO chat is selected (only shows placeholder). 
-            */}
             <div className={`
                 flex-1 flex-col bg-[#050505] h-full min-w-0
                 ${selectedChat ? 'flex' : 'hidden md:flex'}
@@ -411,7 +403,6 @@ If everything looks correct, please reply with "Confirm" to proceed with the cus
                     <>
                         <div className="h-16 border-b border-white/10 flex items-center justify-between px-4 md:px-6 bg-[#0a0a0a] shrink-0">
                             <div className="flex items-center gap-3">
-                                {/* Mobile Back Button */}
                                 <button 
                                     onClick={() => setSelectedChat(null)}
                                     className="md:hidden p-2 -ml-2 text-gray-400 hover:text-white"
@@ -431,7 +422,7 @@ If everything looks correct, please reply with "Confirm" to proceed with the cus
                             </div>
                         </div>
 
-                        {/* SCROLL: min-h-0 and custom-scrollbar to enable scrolling */}
+                        {/* SCROLL */}
                         <div className="flex-1 overflow-y-auto min-h-0 p-4 md:p-6 space-y-4 custom-scrollbar">
                             {messages.map((msg, idx) => {
                                 const isMe = msg.sender === currentUser.email;
@@ -441,7 +432,6 @@ If everything looks correct, please reply with "Confirm" to proceed with the cus
                                             {!isMe && <div className="text-[10px] text-gray-400 mb-1">{getUsername(msg.sender)}</div>}
                                             <div className="text-sm whitespace-pre-wrap">{msg.text}</div>
                                             <div className={`text-[10px] mt-1 text-right ${isMe ? 'text-black/60' : 'text-gray-500'}`}>
-                                                {/* Message Date/Time */}
                                                 {formatDisplayDate(msg.timestamp, 'message')}
                                             </div>
                                         </div>
@@ -487,9 +477,7 @@ If everything looks correct, please reply with "Confirm" to proceed with the cus
                             initial={{ opacity: 0, scale: 0.95 }}
                             animate={{ opacity: 1, scale: 1 }}
                             exit={{ opacity: 0, scale: 0.95 }}
-                            className="bg-[#1a1a1a] border border-white/10 overflow-hidden shadow-2xl flex flex-col
-                            w-full h-full rounded-none
-                            md:w-full md:max-w-md md:h-[500px] md:rounded-2xl"
+                            className="bg-[#1a1a1a] border border-white/10 overflow-hidden shadow-2xl flex flex-col w-full h-full rounded-none md:w-full md:max-w-md md:h-[500px] md:rounded-2xl"
                         >
                             <div className="p-6 border-b border-white/10 flex justify-between items-center shrink-0">
                                 <h3 className="text-xl font-bold text-white">New Conversation</h3>
@@ -497,105 +485,43 @@ If everything looks correct, please reply with "Confirm" to proceed with the cus
                                     <X size={20} />
                                 </button>
                             </div>
-
                             <div className="p-6 flex-1 overflow-y-auto">
                                 {modalStep === 'initial' ? (
                                     <div className="space-y-4">
-                                        <button
-                                            onClick={startAdminChat}
-                                            className="w-full p-4 bg-gradient-to-r from-gold/10 to-transparent border border-gold/30 rounded-xl flex items-center gap-4 hover:border-gold transition-all group"
-                                        >
-                                            <div className="p-3 bg-gold/20 rounded-full text-gold group-hover:bg-gold group-hover:text-black transition-colors">
-                                                <Shield size={24} />
-                                            </div>
-                                            <div className="text-left">
-                                                <div className="font-bold text-gold">Talk with Admin Team</div>
-                                                <div className="text-sm text-gray-400">Start a support ticket with moderators</div>
-                                            </div>
+                                        <button onClick={startAdminChat} className="w-full p-4 bg-gradient-to-r from-gold/10 to-transparent border border-gold/30 rounded-xl flex items-center gap-4 hover:border-gold transition-all group">
+                                            <div className="p-3 bg-gold/20 rounded-full text-gold group-hover:bg-gold group-hover:text-black transition-colors"><Shield size={24} /></div>
+                                            <div className="text-left"><div className="font-bold text-gold">Talk with Admin Team</div><div className="text-sm text-gray-400">Start a support ticket with moderators</div></div>
                                         </button>
-
-                                        <button
-                                            onClick={startCustomPortfolioChat}
-                                            className="w-full p-4 bg-gradient-to-r from-blue-500/10 to-transparent border border-blue-500/30 rounded-xl flex items-center gap-4 hover:border-blue-500 transition-all group"
-                                        >
-                                            <div className="p-3 bg-blue-500/20 rounded-full text-blue-400 group-hover:bg-blue-500 group-hover:text-black transition-colors">
-                                                <Briefcase size={24} />
-                                            </div>
-                                            <div className="text-left">
-                                                <div className="font-bold text-blue-400">Request Custom Portfolio</div>
-                                                <div className="text-sm text-gray-400">Build a strategy tailored to you</div>
-                                            </div>
+                                        <button onClick={startCustomPortfolioChat} className="w-full p-4 bg-gradient-to-r from-blue-500/10 to-transparent border border-blue-500/30 rounded-xl flex items-center gap-4 hover:border-blue-500 transition-all group">
+                                            <div className="p-3 bg-blue-500/20 rounded-full text-blue-400 group-hover:bg-blue-500 group-hover:text-black transition-colors"><Briefcase size={24} /></div>
+                                            <div className="text-left"><div className="font-bold text-blue-400">Request Custom Portfolio</div><div className="text-sm text-gray-400">Build a strategy tailored to you</div></div>
                                         </button>
-
-                                        <button
-                                            onClick={() => setModalStep('users')}
-                                            className="w-full p-4 bg-white/5 border border-white/10 rounded-xl flex items-center gap-4 hover:bg-white/10 transition-all group"
-                                        >
-                                            <div className="p-3 bg-white/10 rounded-full text-gray-300 group-hover:bg-white group-hover:text-black transition-colors">
-                                                <Users size={24} />
-                                            </div>
-                                            <div className="text-left">
-                                                <div className="font-bold text-white">Talk with Other Users</div>
-                                                <div className="text-sm text-gray-400">Select one or more users to message</div>
-                                            </div>
+                                        <button onClick={() => setModalStep('users')} className="w-full p-4 bg-white/5 border border-white/10 rounded-xl flex items-center gap-4 hover:bg-white/10 transition-all group">
+                                            <div className="p-3 bg-white/10 rounded-full text-gray-300 group-hover:bg-white group-hover:text-black transition-colors"><Users size={24} /></div>
+                                            <div className="text-left"><div className="font-bold text-white">Talk with Other Users</div><div className="text-sm text-gray-400">Select one or more users to message</div></div>
                                         </button>
                                     </div>
                                 ) : (
                                     <div className="h-full flex flex-col">
                                         <div className="relative mb-4">
                                             <Search className="absolute left-3 top-2.5 text-gray-500" size={16} />
-                                            <input
-                                                type="text"
-                                                placeholder="Search users by name..."
-                                                value={searchUserQuery}
-                                                onChange={(e) => setSearchUserQuery(e.target.value)}
-                                                className="w-full bg-black/30 border border-white/10 rounded-lg pl-10 pr-4 py-2 text-white focus:outline-none focus:border-gold"
-                                                autoFocus
-                                            />
+                                            <input type="text" placeholder="Search users by name..." value={searchUserQuery} onChange={(e) => setSearchUserQuery(e.target.value)} className="w-full bg-black/30 border border-white/10 rounded-lg pl-10 pr-4 py-2 text-white focus:outline-none focus:border-gold" autoFocus />
                                         </div>
-
                                         <div className="flex-1 overflow-y-auto space-y-2 mb-4">
-                                            {allUsers
-                                                .filter(u => 
-                                                    (u.username || '').toLowerCase().includes(searchUserQuery.toLowerCase())
-                                                )
-                                                .map(user => {
-                                                    const isSelected = selectedUsers.includes(user.email);
-                                                    return (
-                                                        <button
-                                                            key={user.email}
-                                                            onClick={() => toggleUserSelection(user.email)}
-                                                            className={`w-full p-3 rounded-lg flex items-center gap-3 transition-colors text-left border ${isSelected ? 'bg-gold/10 border-gold/50' : 'hover:bg-white/10 border-transparent'}`}
-                                                        >
-                                                            <div className={`w-5 h-5 rounded border flex items-center justify-center ${isSelected ? 'bg-gold border-gold' : 'border-gray-500'}`}>
-                                                                {isSelected && <Check size={14} className="text-black" />}
-                                                            </div>
-                                                            <div className="w-8 h-8 rounded-full bg-purple-500/20 flex items-center justify-center text-purple-400 shrink-0">
-                                                                <span className="text-xs font-bold">{user.username[0].toUpperCase()}</span>
-                                                            </div>
-                                                            <div className="min-w-0">
-                                                                <div className="font-bold text-gray-200 truncate text-sm">{user.username}</div>
-                                                            </div>
-                                                        </button>
-                                                    );
-                                                })
-                                            }
+                                            {allUsers.filter(u => (u.username || '').toLowerCase().includes(searchUserQuery.toLowerCase())).map(user => {
+                                                const isSelected = selectedUsers.includes(user.email);
+                                                return (
+                                                    <button key={user.email} onClick={() => toggleUserSelection(user.email)} className={`w-full p-3 rounded-lg flex items-center gap-3 transition-colors text-left border ${isSelected ? 'bg-gold/10 border-gold/50' : 'hover:bg-white/10 border-transparent'}`}>
+                                                        <div className={`w-5 h-5 rounded border flex items-center justify-center ${isSelected ? 'bg-gold border-gold' : 'border-gray-500'}`}>{isSelected && <Check size={14} className="text-black" />}</div>
+                                                        <div className="w-8 h-8 rounded-full bg-purple-500/20 flex items-center justify-center text-purple-400 shrink-0"><span className="text-xs font-bold">{user.username[0].toUpperCase()}</span></div>
+                                                        <div className="min-w-0"><div className="font-bold text-gray-200 truncate text-sm">{user.username}</div></div>
+                                                    </button>
+                                                );
+                                            })}
                                         </div>
-
                                         <div className="flex items-center gap-2 mt-auto">
-                                            <button
-                                                onClick={() => setModalStep('initial')}
-                                                className="flex-1 py-3 bg-white/5 hover:bg-white/10 text-white rounded-lg text-sm font-medium transition-colors"
-                                            >
-                                                Back
-                                            </button>
-                                            <button
-                                                onClick={startDirectChat}
-                                                disabled={selectedUsers.length === 0}
-                                                className="flex-1 py-3 bg-gold hover:bg-yellow-500 text-black rounded-lg text-sm font-bold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                                            >
-                                                Start Chat ({selectedUsers.length})
-                                            </button>
+                                            <button onClick={() => setModalStep('initial')} className="flex-1 py-3 bg-white/5 hover:bg-white/10 text-white rounded-lg text-sm font-medium transition-colors">Back</button>
+                                            <button onClick={startDirectChat} disabled={selectedUsers.length === 0} className="flex-1 py-3 bg-gold hover:bg-yellow-500 text-black rounded-lg text-sm font-bold transition-colors disabled:opacity-50 disabled:cursor-not-allowed">Start Chat ({selectedUsers.length})</button>
                                         </div>
                                     </div>
                                 )}

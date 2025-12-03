@@ -1,4 +1,5 @@
 from fastapi import FastAPI, HTTPException, Request, UploadFile, File
+from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -43,7 +44,7 @@ from database import (
     get_all_coupons,   
     validate_coupon,   
     delete_coupon,
-    check_and_increment_limit,
+    verify_access_and_limits, # Updated import
     delete_user_full,
     delete_article,
     delete_idea,
@@ -712,6 +713,14 @@ def get_stats():
 async def api_invest(request: Request):
     try:
         data = await request.json()
+        email = data.get('email')
+        
+        # Check Limits
+        limit_check = verify_access_and_limits(email, 'portfolio_lab')
+        if not limit_check['allowed']:
+            status_code = 403 if limit_check.get('reason') == 'no_access' else 429
+            return JSONResponse(status_code=status_code, content={"error": limit_check['message']})
+
         result = await invest_command.handle_invest_command([], ai_params=data, is_called_by_ai=True)
         return result
     except Exception as e:
@@ -722,6 +731,14 @@ async def api_invest(request: Request):
 async def api_cultivate(request: Request):
     try:
         data = await request.json()
+        email = data.get('email')
+
+        # Check Limits
+        limit_check = verify_access_and_limits(email, 'cultivate')
+        if not limit_check['allowed']:
+            status_code = 403 if limit_check.get('reason') == 'no_access' else 429
+            return JSONResponse(status_code=status_code, content={"error": limit_check['message']})
+
         result = await cultivate_command.handle_cultivate_command([], ai_params=data, is_called_by_ai=True)
         return result
     except Exception as e:
@@ -732,6 +749,14 @@ async def api_cultivate(request: Request):
 async def api_custom(request: Request):
     try:
         data = await request.json()
+        email = data.get('email')
+
+        # Check Limits
+        limit_check = verify_access_and_limits(email, 'custom')
+        if not limit_check['allowed']:
+            status_code = 403 if limit_check.get('reason') == 'no_access' else 429
+            return JSONResponse(status_code=status_code, content={"error": limit_check['message']})
+
         result = await custom_command.handle_custom_command([], ai_params=data, is_called_by_ai=True)
         return result
     except Exception as e:
@@ -742,6 +767,14 @@ async def api_custom(request: Request):
 async def api_tracking(request: Request):
     try:
         data = await request.json()
+        email = data.get('email')
+
+        # Check Limits
+        limit_check = verify_access_and_limits(email, 'tracking')
+        if not limit_check['allowed']:
+            status_code = 403 if limit_check.get('reason') == 'no_access' else 429
+            return JSONResponse(status_code=status_code, content={"error": limit_check['message']})
+
         result = await tracking_command.handle_tracking_command([], ai_params=data, is_called_by_ai=True)
         return result
     except Exception as e:
