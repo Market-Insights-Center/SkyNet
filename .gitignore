@@ -27,8 +27,18 @@ dist/
 backend/venv/
 __pycache__/
 *.pyc
-.env
 
-# Firebase Secrets
-backend/serviceAccountKey.json
-serviceAccountKey.json
+# Database Files (Prevent overwriting)
+backend/data/*.csv
+!backend/data/tier_limits.csv
+backend/chats.json
+backend/user_profiles.csv
+backend/mods.csv
+backend/market_data.csv
+backend/risk_eod_data.csv
+backend/*_cache.csv
+
+# Config Files (Allow overwriting)
+# .env
+# backend/serviceAccountKey.json
+# serviceAccountKey.json

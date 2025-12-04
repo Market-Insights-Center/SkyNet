@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, useSearchParams } from 'react-router-dom';
-import { PayPalScriptProvider } from "@paypal/react-paypal-js"; 
+import { PayPalScriptProvider } from "@paypal/react-paypal-js";
 import { AuthProvider } from './contexts/AuthContext';
 import { SkyNetProvider, useSkyNet } from './contexts/SkyNetContext';
 import SkyNetOverlay from './components/SkyNetOverlay';
@@ -9,6 +9,7 @@ import Layout from './components/Layout';
 import LandingPage from './pages/LandingPage';
 import PortfolioLab from './pages/PortfolioLab';
 import Products from './pages/Products';
+import MarketNexus from './pages/MarketNexus';
 import Wizard from './pages/Wizard';
 import Login from './pages/Login';
 import SignUp from './pages/SignUp';
@@ -54,6 +55,7 @@ const AppContent = () => {
             <Routes>
                 <Route path="/" element={<LandingPage />} />
                 <Route path="/products" element={<Products />} />
+                <Route path="/market-nexus" element={<MarketNexus />} />
                 <Route path="/portfolio-lab" element={<PortfolioLab />} />
                 <Route path="/custom" element={<Wizard />} />
                 <Route path="/invest" element={<Wizard />} />
@@ -86,7 +88,7 @@ function App() {
     return (
         <div className="min-h-screen bg-black text-white">
             <PayPalScriptProvider options={paypalOptions}>
-                
+
                 {/* Startup Animation runs outside the Router/Providers context */}
                 {isLoading && (
                     <div className="fixed inset-0 z-[9999] bg-black">
@@ -97,10 +99,9 @@ function App() {
                 {/* CRITICAL FIX: The <Router> must wrap AuthProvider and SkyNetProvider 
                    because they use useNavigate/useSearchParams internally.
                 */}
-                <div 
-                    className={`transition-opacity duration-1000 ease-in-out ${
-                        isLoading ? 'opacity-0 pointer-events-none' : 'opacity-100'
-                    }`}
+                <div
+                    className={`transition-opacity duration-1000 ease-in-out ${isLoading ? 'opacity-0 pointer-events-none' : 'opacity-100'
+                        }`}
                 >
                     <Router>
                         <AuthProvider>

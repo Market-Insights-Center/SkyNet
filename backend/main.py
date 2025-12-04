@@ -16,6 +16,9 @@ import pandas as pd
 from dotenv import load_dotenv
 import subprocess
 import signal
+import asyncio
+from apscheduler.schedulers.background import BackgroundScheduler
+from apscheduler.triggers.cron import CronTrigger
 
 # Ensure we can import from local folders
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
@@ -26,7 +29,7 @@ load_dotenv(os.path.join(BASE_DIR, '.env'))
 load_dotenv(os.path.join(BASE_DIR, '..', '.env'))
 
 # Import your command modules
-from integration import invest_command, cultivate_command, custom_command, tracking_command
+from integration import invest_command, cultivate_command, custom_command, tracking_command, risk_command, history_command
 
 # Database imports
 from database import (
@@ -78,6 +81,30 @@ SUPER_ADMIN_EMAIL = "marketinsightscenter@gmail.com"
 
 # --- GLOBAL VARIABLES FOR SKYNET ---
 SKYNET_PROCESS = None
+SCHEDULER = None
+
+def start_scheduler():
+    global SCHEDULER
+    if SCHEDULER is None:
+        SCHEDULER = BackgroundScheduler()
+        
+        def run_risk_job():
+            print("Running scheduled Risk Command...")
+            try:
+                # Create a new event loop for this thread to run the async task
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                loop.run_until_complete(risk_command.handle_risk_command([], ai_params={"assessment_type": "scheduled"}))
+                loop.close()
+            except Exception as e:
+                print(f"Scheduler Error: {e}")
+
+        SCHEDULER.add_job(run_risk_job, CronTrigger(minute='*/15'))
+        SCHEDULER.start()
+        print("Scheduler started.")
+
+# Start scheduler on startup
+start_scheduler()
 
 # --- PYDANTIC MODELS ---
 class ChatCreateRequest(BaseModel):
@@ -795,6 +822,25 @@ async def api_tracking(request: Request):
         return result
     except Exception as e:
         logger.error(f"Error in /api/tracking: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/risk")
+async def api_risk():
+    try:
+        # We can pass empty args to get the default calculation
+        result, _ = await risk_command.perform_risk_calculations_singularity(is_eod_save=False, is_called_by_ai=True)
+        return result
+    except Exception as e:
+        logger.error(f"Error in /api/risk: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/history")
+async def api_history():
+    try:
+        result = await history_command.handle_history_command([], is_called_by_ai=True)
+        return result
+    except Exception as e:
+        logger.error(f"Error in /api/history: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == "__main__":

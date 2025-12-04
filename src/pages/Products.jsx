@@ -31,14 +31,14 @@ const Products = () => {
                     // We are in popup, just close self
                     window.close();
                 }
-                
+
                 // Also tell backend to stop
                 await fetch('http://localhost:8000/api/skynet/toggle', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ action: 'stop' })
                 });
-                
+
             } else {
                 // START Logic
                 // 1. Tell backend to launch Python script
@@ -47,19 +47,19 @@ const Products = () => {
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ action: 'start' })
                 });
-                
+
                 const data = await response.json();
-                
+
                 if (response.ok) {
                     // 2. Open popup
                     const width = 1200;
                     const height = 800;
                     const left = (window.screen.width / 2) - (width / 2);
                     const top = (window.screen.height / 2) - (height / 2);
-                    
+
                     window.open(
-                        `${window.location.origin}/?skynet=true`, 
-                        'SkyNetInterface', 
+                        `${window.location.origin}/?skynet=true`,
+                        'SkyNetInterface',
                         `width=${width},height=${height},top=${top},left=${left},toolbar=no,menubar=no`
                     );
                 } else {
@@ -92,7 +92,7 @@ const Products = () => {
                 {/* --- SKYNET INTERFACE ACTIVATION --- */}
                 {/* MODIFIED CONDITION: Show if Singularity Tier OR if profile hasn't loaded yet (!userProfile) */}
                 {(!userProfile || userProfile?.tier === 'Singularity') && (
-                    <motion.div 
+                    <motion.div
                         initial={{ opacity: 0, scale: 0.95 }}
                         animate={{ opacity: 1, scale: 1 }}
                         className="mb-12 p-6 bg-gradient-to-r from-gray-900 to-black border border-cyan-500/30 rounded-xl flex flex-col md:flex-row items-center justify-between shadow-[0_0_15px_rgba(6,182,212,0.15)]"
@@ -106,21 +106,20 @@ const Products = () => {
                                 Activate gesture and voice control system. (Auto-starts backend process)
                             </p>
                         </div>
-                        
-                        <button 
+
+                        <button
                             onClick={toggleSkyNet}
                             disabled={isProcessing}
-                            className={`flex items-center gap-2 px-6 py-3 rounded-full font-bold transition-all border ${
-                                skynetActive 
-                                    ? 'bg-red-500/10 text-red-400 border-red-500/50 hover:bg-red-500/20' 
+                            className={`flex items-center gap-2 px-6 py-3 rounded-full font-bold transition-all border ${skynetActive
+                                    ? 'bg-red-500/10 text-red-400 border-red-500/50 hover:bg-red-500/20'
                                     : 'bg-cyan-500/10 text-cyan-400 border-cyan-500/50 hover:bg-cyan-500/20 shadow-[0_0_10px_rgba(6,182,212,0.2)]'
-                            } ${isProcessing ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                } ${isProcessing ? 'opacity-50 cursor-not-allowed' : ''}`}
                         >
                             {isProcessing ? (
                                 <span className="animate-pulse">PROCESSING...</span>
                             ) : (
                                 <>
-                                    {skynetActive ? <ToggleRight className="w-6 h-6"/> : <ToggleLeft className="w-6 h-6"/>}
+                                    {skynetActive ? <ToggleRight className="w-6 h-6" /> : <ToggleLeft className="w-6 h-6" />}
                                     {skynetActive ? 'DISENGAGE SYSTEM' : 'INITIALIZE SYSTEM'}
                                     {!skynetActive && <ExternalLink className="w-4 h-4 ml-1" />}
                                 </>
@@ -198,26 +197,31 @@ const Products = () => {
                         </motion.div>
                     </div>
 
-                    {/* Market Nexus - Locked */}
-                    <div className="group relative">
+                    {/* Market Nexus - Active */}
+                    <Link to="/market-nexus" className="group">
                         <motion.div
                             initial={{ opacity: 0, y: 20 }}
                             animate={{ opacity: 1, y: 0 }}
                             transition={{ delay: 0.5 }}
-                            className="h-full bg-white/5 border border-white/10 rounded-2xl p-8 opacity-75 grayscale hover:grayscale-0 transition-all duration-500"
+                            className="h-full bg-white/5 border border-gold/30 rounded-2xl p-8 hover:bg-white/10 hover:border-gold transition-all duration-300 relative overflow-hidden"
                         >
-                            <div className="w-12 h-12 bg-white/10 rounded-lg flex items-center justify-center mb-6 text-gray-400">
-                                <Siren size={24} />
+                            <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+                                <Siren size={120} />
                             </div>
-                            <h3 className="text-2xl font-bold mb-2 text-gray-300">Market Nexus</h3>
-                            <p className="text-gray-500 mb-6">
-                                Score the strength of the market, forecast reversal likelihoods, and bring all relevant data into a single output.
-                            </p>
-                            <div className="inline-block px-3 py-1 rounded-full bg-white/10 text-xs font-bold text-gray-400 border border-white/10">
-                                COMING SOON
+                            <div className="relative z-10">
+                                <div className="w-12 h-12 bg-gold/20 rounded-lg flex items-center justify-center mb-6 text-gold">
+                                    <Siren size={24} />
+                                </div>
+                                <h3 className="text-2xl font-bold mb-2 group-hover:text-gold transition-colors">Market Nexus</h3>
+                                <p className="text-gray-400 mb-6">
+                                    Score the strength of the market, forecast reversal likelihoods, and bring all relevant data into a single output.
+                                </p>
+                                <div className="flex items-center text-gold font-bold">
+                                    Launch Application <ChevronRight size={20} className="ml-2 group-hover:translate-x-1 transition-transform" />
+                                </div>
                             </div>
                         </motion.div>
-                    </div>
+                    </Link>
                 </div>
             </div>
         </div>
