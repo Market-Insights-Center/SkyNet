@@ -21,7 +21,7 @@ if not os.path.exists(DATA_DIR):
     os.makedirs(DATA_DIR)
 
 # Tier Hierarchy for upgrades
-TIER_ORDER = ["Free", "Basic", "Pro", "Visionary", "Institutional", "Enterprise", "Singularity"]
+TIER_ORDER = ["Basic", "Pro", "Enterprise", "Singularity"]
 
 # --- LIMIT LOGIC (NEW) ---
 
@@ -48,7 +48,7 @@ def get_next_tier_with_access(current_tier, product):
     try:
         current_idx = TIER_ORDER.index(current_tier)
     except ValueError:
-        current_idx = -1 # Treat as below Free
+        current_idx = -1 # Treat as below Basic
         
     limits = load_tier_limits()
     
@@ -71,9 +71,9 @@ def verify_access_and_limits(email, product):
         # 1. Get User Tier
         user_ref = db.collection('users').document(email)
         user_doc = user_ref.get()
-        tier = 'Free'
+        tier = 'Basic'
         if user_doc.exists:
-            tier = user_doc.to_dict().get('tier', 'Free')
+            tier = user_doc.to_dict().get('tier', 'Basic')
             
         # 2. Get Limit for Tier/Product
         all_limits = load_tier_limits()
@@ -185,7 +185,7 @@ def create_user_profile(email, uid):
             data = {
                 'email': email,
                 'uid': uid,
-                'tier': 'Free',
+                'tier': 'Basic',
                 'subscription_status': 'none',
                 'created_at': firestore.SERVER_TIMESTAMP,
                 'risk_tolerance': 5, # Default
@@ -228,7 +228,7 @@ def get_all_users_from_db():
                 'email': email,
                 'username': username, # Added username
                 'uid': user.uid,
-                'tier': profile.get('tier', 'Free'),
+                'tier': profile.get('tier', 'Basic'),
                 'subscription_status': profile.get('subscription_status', 'none')
             })
         return final_list
