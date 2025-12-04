@@ -86,7 +86,7 @@ const SkyNetOverlay = () => {
                 <span className="font-bold">MODE: CHART INTERACT</span>
               </div>
               <div className="grid grid-cols-1 gap-1">
-                <div className="flex items-center gap-2"><ArrowUp className="w-3 h-3 text-cyan-500"/> <span>✌️/ W: VISUAL ZOOM</span></div>
+                <div className="flex items-center gap-2"><ArrowUp className="w-3 h-3 text-cyan-500"/> <span>✌️/ W: ZOOM</span></div>
                 <div className="flex items-center gap-2"><Grab className="w-3 h-3 text-cyan-500"/> <span>FIST: PAN CHART</span></div>
                 <div className="flex items-center gap-2"><Maximize className="w-3 h-3 text-cyan-500"/> <span>PINCH: TIMEFRAME</span></div>
                 <div className="flex items-center gap-2"><RefreshCw className="w-3 h-3 text-yellow-500"/> <span>SHAKA: RESET</span></div>
@@ -101,7 +101,7 @@ const SkyNetOverlay = () => {
               <div className="grid grid-cols-1 gap-1">
                 <div className="flex items-center gap-2"><Hand className="w-3 h-3 text-cyan-500"/> <span>OPEN HAND: MOVE</span></div>
                 <div className="flex items-center gap-2"><MousePointer2 className="w-3 h-3 text-cyan-500"/> <span>PINCH: CLICK</span></div>
-                <div className="flex items-center gap-2"><Grab className="w-3 h-3 text-cyan-500"/> <span>FIST: SCROLL PAGE</span></div>
+                <div className="flex items-center gap-2"><ArrowUp className="w-3 h-3 text-cyan-500"/> <span>✌️/ W: SCROLL</span></div>
                 <div className="flex items-center gap-2 text-red-400 pt-1 border-t border-white/10"><Power className="w-3 h-3"/> <span>🤘 ROCK ON: TERMINATE</span></div>
               </div>
             </div>
@@ -109,11 +109,11 @@ const SkyNetOverlay = () => {
         </div>
       </div>
 
-      {/* 4. CHART MODAL (Resizable & Centered) */}
+      {/* 4. CHART MODAL (Resizable & Centered in Available Space) */}
       {chartTicker && (
-        <div className="pointer-events-auto fixed z-[10000] left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center justify-center m-4">
+        <div className="pointer-events-auto fixed z-[10000] left-[calc(50%-10rem)] top-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center justify-center m-4">
           <div 
-            className="bg-gray-900 border border-cyan-500 rounded-lg flex flex-col shadow-[0_0_50px_rgba(6,182,212,0.2)] overflow-hidden resize-y min-w-[600px] min-h-[400px] w-[1000px] h-[700px] max-w-[calc(100vw-22rem)] max-h-[85vh] relative"
+            className="bg-gray-900 border border-cyan-500 rounded-lg flex flex-col shadow-[0_0_50px_rgba(6,182,212,0.2)] overflow-hidden resize-y min-w-[600px] min-h-[400px] w-[1000px] h-[700px] max-w-[calc(100vw-24rem)] max-h-[85vh] relative"
           >
             {/* Toolbar */}
             <div className="h-10 bg-gray-800 border-b border-gray-700 flex justify-between items-center px-4 shrink-0 z-50">

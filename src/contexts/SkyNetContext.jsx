@@ -23,6 +23,9 @@ export const SkyNetProvider = ({ children }) => {
   const chartIntervalRef = useRef(chartInterval);
   const lastDragPos = useRef(null);
   
+  // Track dragging state for "Click and Drag" simulation
+  const isDragging = useRef(false);
+  
   useEffect(() => { chartTickerRef.current = chartTicker; }, [chartTicker]);
   useEffect(() => { chartIntervalRef.current = chartInterval; }, [chartInterval]);
 
@@ -66,6 +69,22 @@ export const SkyNetProvider = ({ children }) => {
     setLogs(prev => [...prev, { message: msg, timestamp, type }].slice(-50));
   };
 
+  // Helper to simulate mouse events
+  const dispatchMouseEvent = (type, x, y, buttons = 1) => {
+    const el = document.elementFromPoint(x, y);
+    if (el) {
+      const ev = new MouseEvent(type, {
+        bubbles: true,
+        cancelable: true,
+        view: window,
+        clientX: x,
+        clientY: y,
+        buttons: buttons
+      });
+      el.dispatchEvent(ev);
+    }
+  };
+
   const handleCommand = (cmd) => {
     const isChartOpen = !!chartTickerRef.current;
     
@@ -93,38 +112,57 @@ export const SkyNetProvider = ({ children }) => {
         setCursorPos({ x: cx, y: cy });
 
         if (isChartOpen) {
-            // --- CHART PAN (Arrows) ---
-            if (lastDragPos.current) {
-                const dx = cx - lastDragPos.current.x;
-                if (Math.abs(dx) > 0.001) {
-                    const key = dx > 0 ? 'ArrowRight' : 'ArrowLeft';
-                    // Repeat events for faster pan
-                    for(let i=0; i<3; i++) window.dispatchEvent(new KeyboardEvent('keydown', { key: key, bubbles: true }));
-                }
+            // --- CHART PAN: Simulate Click and Drag ---
+            const clientX = cx * window.innerWidth;
+            const clientY = cy * window.innerHeight;
+
+            if (!isDragging.current) {
+                dispatchMouseEvent('mousedown', clientX, clientY);
+                isDragging.current = true;
             }
+            dispatchMouseEvent('mousemove', clientX, clientY);
+            
             lastDragPos.current = { x: cx, y: cy };
         } else {
-            // --- PAGE SCROLL ---
-            if (cy < 0.2) window.scrollBy({ top: -30, behavior: 'auto' });
-            if (cy > 0.8) window.scrollBy({ top: 30, behavior: 'auto' });
+            // --- PAGE SCROLL REMOVED ---
+            // User requested two/three finger scrolling (WHEEL) for all scrolling.
         }
         break;
         
       case 'WHEEL':
         if (isChartOpen) {
-            // --- VISUAL ZOOM (Keys) ---
-            const key = cmd.payload === 'UP' ? 'ArrowUp' : 'ArrowDown';
-            for(let i=0; i<3; i++) window.dispatchEvent(new KeyboardEvent('keydown', { key: key, bubbles: true }));
-            addLog(`Chart Zoom: ${cmd.payload}`, "SYSTEM");
+            // --- CHART ZOOM: Simulate Mouse Wheel ---
+            const clientX = cursorPos.x * window.innerWidth;
+            const clientY = cursorPos.y * window.innerHeight;
+            const el = document.elementFromPoint(clientX, clientY);
+            
+            // UP = Zoom In (negative deltaY), DOWN = Zoom Out (positive deltaY)
+            const deltaY = cmd.payload === 'UP' ? -100 : 100;
+            
+            if (el) {
+                const ev = new WheelEvent('wheel', {
+                    bubbles: true,
+                    cancelable: true,
+                    view: window,
+                    clientX: clientX,
+                    clientY: clientY,
+                    deltaY: deltaY,
+                    ctrlKey: true // Often required for zoom on some widgets
+                });
+                el.dispatchEvent(ev);
+                addLog(`Chart Zoom: ${cmd.payload}`, "SYSTEM");
+            }
         } else {
-            // Page Scroll
-            const amount = cmd.payload === 'UP' ? -150 : 150;
+            // --- PAGE SCROLL ---
+            // Reduced step size for smoother animation feeling
+            const amount = cmd.payload === 'UP' ? -100 : 100;
             window.scrollBy({ top: amount, behavior: 'smooth' });
         }
         break;
         
       case 'ZOOM':
-        // --- TIMEFRAME ZOOM ---
+        // --- TIMEFRAME ZOOM (PINCH) ---
+        // Keeps timeframe functionality separate from visual scroll/zoom
         if (isChartOpen) {
             const currentInt = chartIntervalRef.current;
             const idx = INTERVALS.indexOf(currentInt);
@@ -154,6 +192,7 @@ export const SkyNetProvider = ({ children }) => {
       case 'CLICK':
         if (isChartOpen) {
             addLog("Interact: Chart", "SYSTEM");
+            // Could add click simulation here if needed
         } else {
             const x = window.innerWidth * cursorPos.x;
             const y = window.innerHeight * cursorPos.y;
@@ -191,7 +230,15 @@ export const SkyNetProvider = ({ children }) => {
       case 'CURSOR':
         setCursorPos({ x: cmd.payload.x, y: cmd.payload.y });
         setCursorState(cmd.payload.state || 'open');
-        if (cmd.payload.state === 'open') lastDragPos.current = null;
+        
+        // Handle Drag Release
+        if (cmd.payload.state === 'open' && isDragging.current) {
+            const clientX = cmd.payload.x * window.innerWidth;
+            const clientY = cmd.payload.y * window.innerHeight;
+            dispatchMouseEvent('mouseup', clientX, clientY);
+            isDragging.current = false;
+            lastDragPos.current = null;
+        }
         break;
 
       case 'RESET':
