@@ -24,3 +24,7 @@ firebase-admin
 robin_stocks
 pyotp
 tradingview-screener
+
+# Scheduling & Utilities
+apscheduler
+scipy
