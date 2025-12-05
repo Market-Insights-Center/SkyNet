@@ -4,6 +4,7 @@ import { PayPalScriptProvider } from "@paypal/react-paypal-js";
 import { AuthProvider } from './contexts/AuthContext';
 import { SkyNetProvider, useSkyNet } from './contexts/SkyNetContext';
 import SkyNetOverlay from './components/SkyNetOverlay';
+import { TradingViewWidget } from './components/MarketDashboard'; 
 
 import Layout from './components/Layout';
 import LandingPage from './pages/LandingPage';
@@ -36,45 +37,81 @@ const paypalOptions = {
 };
 
 /**
- * AppContent handles the routes and logic that requires the Router context.
+ * Dedicated Full Page Chart Component
  */
+const ActiveChartPage = () => {
+    const [searchParams] = useSearchParams();
+    const ticker = searchParams.get('ticker') || "SPY";
+    
+    // Auto-connect SkyNet for this tab if requested AND initialize chart state
+    const { connect, setChartTicker } = useSkyNet();
+    
+    useEffect(() => {
+        if (searchParams.get('skynet') === 'true') {
+            connect();
+        }
+        // CRITICAL: Initialize context with the ticker so SkyNet knows we are in Chart Mode
+        // This enables the specific Zoom/Pan/Click logic for charts instead of navigation.
+        if (ticker) {
+            setChartTicker(ticker);
+        }
+    }, [searchParams, connect, ticker, setChartTicker]);
+
+    return (
+        <div className="w-screen h-screen bg-black overflow-hidden relative">
+            <div className="absolute inset-0 z-0">
+                <TradingViewWidget 
+                    symbol={ticker} 
+                    theme="dark" 
+                    autosize 
+                    hide_side_toolbar={false}
+                />
+            </div>
+            <div className="absolute top-4 right-4 bg-black/50 text-cyan-400 p-2 rounded pointer-events-none z-50 text-xs font-mono border border-cyan-500/30">
+                ACTIVE CHART NODE: {ticker}
+            </div>
+        </div>
+    );
+};
+
 const AppContent = () => {
     const { connect } = useSkyNet();
     const [searchParams] = useSearchParams();
 
     useEffect(() => {
-        // If the URL has ?skynet=true, automatically connect to the Python backend
         if (searchParams.get('skynet') === 'true') {
             connect();
         }
     }, [searchParams, connect]);
 
     return (
-        <Layout>
-            <SkyNetOverlay /> {/* The Visual HUD for SkyNet */}
+        <>
+            <SkyNetOverlay /> 
             <Routes>
-                <Route path="/" element={<LandingPage />} />
-                <Route path="/products" element={<Products />} />
-                <Route path="/market-nexus" element={<MarketNexus />} />
-                <Route path="/portfolio-lab" element={<PortfolioLab />} />
-                <Route path="/custom" element={<Wizard />} />
-                <Route path="/invest" element={<Wizard />} />
-                <Route path="/cultivate" element={<Wizard />} />
-                <Route path="/tracking" element={<Wizard />} />
-                <Route path="/login" element={<Login />} />
-                <Route path="/signup" element={<SignUp />} />
-                <Route path="/profile" element={<Profile />} />
-                <Route path="/forum" element={<Forum />} />
-                <Route path="/news" element={<NewsPage />} />
-                <Route path="/knowledge-stream" element={<KnowledgeStream />} />
-                <Route path="/article/:id" element={<ArticleView />} />
-                <Route path="/admin" element={<AdminDashboard />} />
-                <Route path="/chat" element={<Chatbox />} />
-                <Route path="/ideas" element={<IdeasPage />} />
-                <Route path="/terms" element={<TermsOfService />} />
-                <Route path="/privacy" element={<PrivacyPolicy />} />
+                <Route path="/" element={<Layout><LandingPage /></Layout>} />
+                <Route path="/products" element={<Layout><Products /></Layout>} />
+                <Route path="/market-nexus" element={<Layout><MarketNexus /></Layout>} />
+                <Route path="/portfolio-lab" element={<Layout><PortfolioLab /></Layout>} />
+                <Route path="/custom" element={<Layout><Wizard /></Layout>} />
+                <Route path="/invest" element={<Layout><Wizard /></Layout>} />
+                <Route path="/cultivate" element={<Layout><Wizard /></Layout>} />
+                <Route path="/tracking" element={<Layout><Wizard /></Layout>} />
+                <Route path="/login" element={<Layout><Login /></Layout>} />
+                <Route path="/signup" element={<Layout><SignUp /></Layout>} />
+                <Route path="/profile" element={<Layout><Profile /></Layout>} />
+                <Route path="/forum" element={<Layout><Forum /></Layout>} />
+                <Route path="/news" element={<Layout><NewsPage /></Layout>} />
+                <Route path="/knowledge-stream" element={<Layout><KnowledgeStream /></Layout>} />
+                <Route path="/article/:id" element={<Layout><ArticleView /></Layout>} />
+                <Route path="/admin" element={<Layout><AdminDashboard /></Layout>} />
+                <Route path="/chat" element={<Layout><Chatbox /></Layout>} />
+                <Route path="/ideas" element={<Layout><IdeasPage /></Layout>} />
+                <Route path="/terms" element={<Layout><TermsOfService /></Layout>} />
+                <Route path="/privacy" element={<Layout><PrivacyPolicy /></Layout>} />
+                
+                <Route path="/active-chart" element={<ActiveChartPage />} />
             </Routes>
-        </Layout>
+        </>
     );
 };
 
@@ -88,21 +125,13 @@ function App() {
     return (
         <div className="min-h-screen bg-black text-white">
             <PayPalScriptProvider options={paypalOptions}>
-
-                {/* Startup Animation runs outside the Router/Providers context */}
                 {isLoading && (
                     <div className="fixed inset-0 z-[9999] bg-black">
                         <StartupAnimation onComplete={() => setIsLoading(false)} />
                     </div>
                 )}
 
-                {/* CRITICAL FIX: The <Router> must wrap AuthProvider and SkyNetProvider 
-                   because they use useNavigate/useSearchParams internally.
-                */}
-                <div
-                    className={`transition-opacity duration-1000 ease-in-out ${isLoading ? 'opacity-0 pointer-events-none' : 'opacity-100'
-                        }`}
-                >
+                <div className={`transition-opacity duration-1000 ease-in-out ${isLoading ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
                     <Router>
                         <AuthProvider>
                             <SkyNetProvider>
@@ -111,7 +140,6 @@ function App() {
                         </AuthProvider>
                     </Router>
                 </div>
-
             </PayPalScriptProvider>
         </div>
     );

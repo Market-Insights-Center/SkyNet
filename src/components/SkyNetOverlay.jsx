@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from 'react';
+import { useLocation } from 'react-router-dom';
 import { useSkyNet } from '../contexts/SkyNetContext';
-import { X, Activity, Cpu, Wifi, Radio, Hand, Grab, Maximize, MousePointer2, Power, ArrowUp, RefreshCw, Clock } from 'lucide-react';
+import { X, Activity, Cpu, Wifi, Radio, Hand, Grab, Maximize, MousePointer2, Power, ArrowUp, RefreshCw, Clock, Search } from 'lucide-react';
 
 const SkyNetOverlay = () => {
   const { 
@@ -9,10 +10,22 @@ const SkyNetOverlay = () => {
   } = useSkyNet();
   
   const logsEndRef = useRef(null);
+  const location = useLocation();
+
+  // Check if we are on the full-screen active chart page
+  const isFullPageChart = location.pathname.includes('/active-chart');
 
   useEffect(() => {
     logsEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [logs]);
+
+  // Function to manually open chart via sidebar
+  const handleManualChart = () => {
+    const ticker = window.prompt("Enter Ticker Symbol (e.g. SPY, BTCUSD):", "SPY");
+    if (ticker) {
+        setChartTicker(ticker.toUpperCase());
+    }
+  };
 
   if (!isConnected) return null;
 
@@ -20,7 +33,8 @@ const SkyNetOverlay = () => {
     <div className="fixed inset-0 pointer-events-none z-[9999] font-mono h-screen w-screen overflow-hidden">
       
       {/* 1. STATUS HEADER */}
-      <div className="absolute top-4 left-4 flex flex-col gap-1 z-[10005]">
+      {/* Positioned on Right if sidebar is Left, or Left if sidebar is Right to avoid overlap */}
+      <div className={`absolute top-4 ${isFullPageChart ? 'right-4' : 'left-4'} flex flex-col gap-1 z-[10005]`}>
         <div className="flex items-center gap-2 bg-black/80 border border-cyan-500/50 px-4 py-2 rounded text-cyan-400 shadow-md backdrop-blur-md">
           <Activity className="w-4 h-4 animate-pulse text-cyan-300" />
           <span className="font-bold tracking-widest text-sm">SKYNET: ONLINE</span>
@@ -45,7 +59,9 @@ const SkyNetOverlay = () => {
       </div>
 
       {/* 3. SIDEBAR */}
-      <div className="fixed top-24 right-4 w-72 bottom-4 bg-black/90 border border-cyan-500/30 pointer-events-auto flex flex-col shadow-2xl backdrop-blur-sm rounded-lg overflow-hidden z-[10005]">
+      {/* Dynamic Positioning: Left side for Full Chart, Right side for Normal */}
+      <div className={`fixed top-24 bottom-4 w-72 bg-black/90 border border-cyan-500/30 pointer-events-auto flex flex-col shadow-2xl backdrop-blur-sm rounded-lg overflow-hidden z-[10005] ${isFullPageChart ? 'left-4' : 'right-4'}`}>
+        
         <div className="p-2 border-b border-cyan-500/30 bg-cyan-900/10 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-2 text-cyan-400">
             <Cpu className="w-4 h-4" />
@@ -54,6 +70,7 @@ const SkyNetOverlay = () => {
           <Wifi className="w-3 h-3 text-green-500 animate-pulse" />
         </div>
 
+        {/* LOGS AREA */}
         <div className="flex-1 overflow-y-auto p-3 space-y-2 font-mono text-[10px] scrollbar-thin scrollbar-thumb-cyan-900">
           {logs.length === 0 && (
             <div className="text-gray-600 text-center mt-10">Awaiting Gestures...</div>
@@ -78,6 +95,17 @@ const SkyNetOverlay = () => {
           <div ref={logsEndRef} />
         </div>
 
+        {/* SIDEBAR ACTIONS */}
+        <div className="p-2 border-t border-cyan-500/30 bg-black/50 shrink-0">
+             <button 
+                onClick={handleManualChart}
+                className="w-full flex items-center justify-center gap-2 bg-cyan-900/30 hover:bg-cyan-900/50 text-cyan-400 py-2 rounded border border-cyan-500/30 transition-all text-xs font-bold"
+             >
+                <Search className="w-3 h-3" />
+                MANUAL CHART
+             </button>
+        </div>
+
         <div className="p-3 border-t border-cyan-500/30 text-[10px] text-gray-400 bg-black/90 shrink-0">
           {chartTicker ? (
             <div className="flex flex-col gap-2">
@@ -86,8 +114,8 @@ const SkyNetOverlay = () => {
                 <span className="font-bold">MODE: CHART INTERACT</span>
               </div>
               <div className="grid grid-cols-1 gap-1">
-                <div className="flex items-center gap-2"><ArrowUp className="w-3 h-3 text-cyan-500"/> <span>✌️/ W: ZOOM</span></div>
-                <div className="flex items-center gap-2"><Grab className="w-3 h-3 text-cyan-500"/> <span>FIST: PAN CHART</span></div>
+                <div className="flex items-center gap-2"><Hand className="w-3 h-3 text-cyan-500"/> <span>SPIDER-MAN: CLOSE</span></div>
+                <div className="flex items-center gap-2"><ArrowUp className="w-3 h-3 text-cyan-500"/> <span>2/3 FINGERS: ZOOM</span></div>
                 <div className="flex items-center gap-2"><Maximize className="w-3 h-3 text-cyan-500"/> <span>PINCH: TIMEFRAME</span></div>
                 <div className="flex items-center gap-2"><RefreshCw className="w-3 h-3 text-yellow-500"/> <span>SHAKA: RESET</span></div>
               </div>
@@ -109,8 +137,9 @@ const SkyNetOverlay = () => {
         </div>
       </div>
 
-      {/* 4. CHART MODAL (Resizable & Centered in Available Space) */}
-      {chartTicker && (
+      {/* 4. CHART MODAL (Resizable & Centered) */}
+      {/* CRITICAL: Do NOT render this modal if we are already on the Full Page Active Chart */}
+      {chartTicker && !isFullPageChart && (
         <div className="pointer-events-auto fixed z-[10000] left-[calc(50%-10rem)] top-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center justify-center m-4">
           <div 
             className="bg-gray-900 border border-cyan-500 rounded-lg flex flex-col shadow-[0_0_50px_rgba(6,182,212,0.2)] overflow-hidden resize-y min-w-[600px] min-h-[400px] w-[1000px] h-[700px] max-w-[calc(100vw-24rem)] max-h-[85vh] relative"

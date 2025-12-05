@@ -2,6 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { Calendar, TrendingUp, Activity } from 'lucide-react';
 
+// Get API Base URL from env or default to relative path (proxy)
+const API_BASE_URL = import.meta.env.VITE_API_URL || '';
+
 const CustomTooltip = ({ active, payload, label }) => {
     if (active && payload && payload.length) {
         return (
@@ -30,7 +33,8 @@ const HistoryTool = () => {
     useEffect(() => {
         const fetchData = async () => {
             try {
-                const response = await fetch('http://localhost:8000/api/history');
+                // Uses dynamic API URL
+                const response = await fetch(`${API_BASE_URL}/api/history`);
                 if (!response.ok) throw new Error('Failed to fetch history data');
                 const result = await response.json();
 

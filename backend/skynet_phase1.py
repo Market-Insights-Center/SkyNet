@@ -36,6 +36,7 @@ class SkyNetController:
         self.rock_sign_start_time = 0
         self.shaka_start_time = 0
         self.scroll_gesture_time = 0
+        self.spider_start_time = 0
         
         # MediaPipe
         self.mp_hands = mp.solutions.hands
@@ -201,6 +202,36 @@ class SkyNetController:
         pinky_up = landmarks[20].y < landmarks[18].y
         return index_down and middle_down and ring_down and pinky_up
 
+    def is_spider_man_sign(self, landmarks):
+        """
+        Spider-Man / ILY Sign: Thumb, Middle, Pinky UP. Index, Ring DOWN.
+        Used for CLOSING CHART.
+        """
+        thumb_tip = landmarks[4]
+        index_tip = landmarks[8]
+        middle_tip = landmarks[12]
+        ring_tip = landmarks[16]
+        pinky_tip = landmarks[20]
+
+        # Knuckles/PIP joints for reference
+        index_pip = landmarks[6]
+        middle_pip = landmarks[10]
+        ring_pip = landmarks[14]
+        pinky_pip = landmarks[18]
+
+        # Logic: Middle & Pinky UP, Index & Ring DOWN
+        middle_up = middle_tip.y < middle_pip.y
+        pinky_up = pinky_tip.y < pinky_pip.y
+        index_down = index_tip.y > index_pip.y
+        ring_down = ring_tip.y > ring_pip.y
+        
+        # Thumb extended (simple check: tip is far from index base)
+        # or just checking generic 'up-ness' relative to wrist isn't always reliable for thumb,
+        # but combined with others it's usually distinct.
+        
+        return middle_up and pinky_up and index_down and ring_down
+
+
     # --- GESTURE PROCESSING ---
     def process_gestures(self, landmarks):
         if not self.is_running: return
@@ -220,7 +251,7 @@ class SkyNetController:
 
         # 2. PRIORITY GESTURES
 
-        # KILL SWITCH (Rock On)
+        # KILL SWITCH (Rock On) - Global Terminate
         if self.is_rock_sign(landmarks):
             if self.rock_sign_start_time == 0:
                 self.rock_sign_start_time = time.time()
@@ -230,6 +261,17 @@ class SkyNetController:
             return
         else:
             self.rock_sign_start_time = 0
+
+        # CLOSE CHART (Spider-Man / Thumb-Middle-Pinky)
+        if self.is_spider_man_sign(landmarks):
+            if self.spider_start_time == 0:
+                self.spider_start_time = time.time()
+            elif (time.time() - self.spider_start_time) > 0.8:
+                self.broadcast_command("CLOSE_CHART", None, "Gesture: Close (Spider-Man)")
+                self.spider_start_time = 0
+            return
+        else:
+            self.spider_start_time = 0
 
         # RESET (Shaka)
         if self.is_shaka(landmarks):
@@ -245,14 +287,14 @@ class SkyNetController:
         # WHEEL UP (2 Fingers)
         if self.is_two_finger_point(landmarks):
             if (time.time() - self.scroll_gesture_time) > 0.15: 
-                self.broadcast_command("WHEEL", "UP", "Gesture: Scroll Up")
+                self.broadcast_command("WHEEL", "UP", "Gesture: Scroll/Zoom Up")
                 self.scroll_gesture_time = time.time()
             return
 
         # WHEEL DOWN (3 Fingers)
         if self.is_three_finger_point(landmarks):
             if (time.time() - self.scroll_gesture_time) > 0.15:
-                self.broadcast_command("WHEEL", "DOWN", "Gesture: Scroll Down")
+                self.broadcast_command("WHEEL", "DOWN", "Gesture: Scroll/Zoom Down")
                 self.scroll_gesture_time = time.time()
             return
 
@@ -278,8 +320,7 @@ class SkyNetController:
             self.is_pinching = True
             self.pinch_start_time = time.time()
             
-            # Double Click or Hold for Zoom? 
-            # We'll treat Double Tap as Timeframe Zoom IN
+            # Double Click check
             if (time.time() - self.last_pinch_release_time) < DOUBLE_CLICK_TIME:
                 self.broadcast_command("ZOOM", "IN", "Gesture: Timeframe In")
 

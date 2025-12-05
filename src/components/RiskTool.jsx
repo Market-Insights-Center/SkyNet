@@ -3,6 +3,9 @@ import { motion } from 'framer-motion';
 import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
 import { AlertTriangle, Activity, TrendingUp, HelpCircle } from 'lucide-react';
 
+// Get API Base URL from env or default to relative path (proxy)
+const API_BASE_URL = import.meta.env.VITE_API_URL || '';
+
 const Speedometer = ({ value, label, min = 0, max = 100, ranges }) => {
     // ranges: [{ max: 30, color: '#ef4444', label: 'Bearish' }, ...]
 
@@ -92,7 +95,8 @@ const RiskTool = () => {
     useEffect(() => {
         const fetchData = async () => {
             try {
-                const response = await fetch('http://localhost:8000/api/risk');
+                // Uses dynamic API URL
+                const response = await fetch(`${API_BASE_URL}/api/risk`);
                 if (!response.ok) throw new Error('Failed to fetch risk data');
                 const result = await response.json();
                 setData(result);

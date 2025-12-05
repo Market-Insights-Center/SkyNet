@@ -22,8 +22,6 @@ export const SkyNetProvider = ({ children }) => {
   const chartTickerRef = useRef(chartTicker);
   const chartIntervalRef = useRef(chartInterval);
   const lastDragPos = useRef(null);
-  
-  // Track dragging state for "Click and Drag" simulation
   const isDragging = useRef(false);
   
   useEffect(() => { chartTickerRef.current = chartTicker; }, [chartTicker]);
@@ -87,6 +85,8 @@ export const SkyNetProvider = ({ children }) => {
 
   const handleCommand = (cmd) => {
     const isChartOpen = !!chartTickerRef.current;
+    // Check if we are currently on the full-page active chart tab
+    const isActiveTab = window.location.pathname.includes('/active-chart');
     
     if (cmd.action === 'VOICE_HEARD') {
       addLog(`"${cmd.payload}"`, 'VOICE');
@@ -111,58 +111,61 @@ export const SkyNetProvider = ({ children }) => {
         const cy = cmd.payload.y;
         setCursorPos({ x: cx, y: cy });
 
-        if (isChartOpen) {
-            // --- CHART PAN: Simulate Click and Drag ---
+        if (isChartOpen || isActiveTab) {
+            // Standard Chart Drag (Pan)
             const clientX = cx * window.innerWidth;
             const clientY = cy * window.innerHeight;
-
             if (!isDragging.current) {
                 dispatchMouseEvent('mousedown', clientX, clientY);
                 isDragging.current = true;
             }
             dispatchMouseEvent('mousemove', clientX, clientY);
-            
             lastDragPos.current = { x: cx, y: cy };
-        } else {
-            // --- PAGE SCROLL REMOVED ---
-            // User requested two/three finger scrolling (WHEEL) for all scrolling.
-        }
+        } 
         break;
         
       case 'WHEEL':
         if (isChartOpen) {
-            // --- CHART ZOOM: Simulate Mouse Wheel ---
-            const clientX = cursorPos.x * window.innerWidth;
-            const clientY = cursorPos.y * window.innerHeight;
-            const el = document.elementFromPoint(clientX, clientY);
-            
-            // UP = Zoom In (negative deltaY), DOWN = Zoom Out (positive deltaY)
-            const deltaY = cmd.payload === 'UP' ? -100 : 100;
-            
-            if (el) {
-                const ev = new WheelEvent('wheel', {
-                    bubbles: true,
-                    cancelable: true,
-                    view: window,
-                    clientX: clientX,
-                    clientY: clientY,
-                    deltaY: deltaY,
-                    ctrlKey: true // Often required for zoom on some widgets
-                });
-                el.dispatchEvent(ev);
-                addLog(`Chart Zoom: ${cmd.payload}`, "SYSTEM");
+            if (!isActiveTab) {
+                // --- CASE A: Overlay is Open, but NOT in new tab yet ---
+                // Pop Out Logic
+                const ticker = chartTickerRef.current;
+                addLog("Opening Chart in Tab...", "SYSTEM");
+                setChartTicker(null); // Close overlay locally
+                window.open(`/active-chart?ticker=${ticker}&skynet=true`, '_blank');
+            } else {
+                 // --- CASE B: We ARE in the new Active Chart Tab ---
+                 // Zoom/Scroll Logic for the Chart itself
+                const clientX = cursorPos.x * window.innerWidth;
+                const clientY = cursorPos.y * window.innerHeight;
+                const el = document.elementFromPoint(clientX, clientY);
+                
+                // UP = Zoom In (negative deltaY), DOWN = Zoom Out (positive deltaY)
+                const deltaY = cmd.payload === 'UP' ? -100 : 100;
+                
+                if (el) {
+                    const ev = new WheelEvent('wheel', {
+                        bubbles: true,
+                        cancelable: true,
+                        view: window,
+                        clientX: clientX,
+                        clientY: clientY,
+                        deltaY: deltaY,
+                        ctrlKey: true // Often required for zoom on some widgets
+                    });
+                    el.dispatchEvent(ev);
+                    addLog(`Chart Zoom: ${cmd.payload}`, "SYSTEM");
+                }
             }
         } else {
-            // --- PAGE SCROLL ---
-            // Reduced step size for smoother animation feeling
+            // --- STANDARD PAGE SCROLL ---
             const amount = cmd.payload === 'UP' ? -100 : 100;
             window.scrollBy({ top: amount, behavior: 'smooth' });
         }
         break;
         
       case 'ZOOM':
-        // --- TIMEFRAME ZOOM (PINCH) ---
-        // Keeps timeframe functionality separate from visual scroll/zoom
+        // --- TIMEFRAME CHANGE ---
         if (isChartOpen) {
             const currentInt = chartIntervalRef.current;
             const idx = INTERVALS.indexOf(currentInt);
@@ -186,39 +189,77 @@ export const SkyNetProvider = ({ children }) => {
         break;
 
       case 'CLOSE_CHART':
-        setChartTicker(null);
+        if (isChartOpen && !isActiveTab) {
+             setChartTicker(null);
+             addLog("Chart Overlay Closed", "SYSTEM");
+        } else if (isActiveTab) {
+             // If we are in the dedicated tab, close the window
+             window.close();
+        }
         break;
 
       case 'CLICK':
-        if (isChartOpen) {
-            addLog("Interact: Chart", "SYSTEM");
-            // Could add click simulation here if needed
+        if (isChartOpen || isActiveTab) {
+             // Basic click on overlay/chart
+             const x = window.innerWidth * cursorPos.x;
+             const y = window.innerHeight * cursorPos.y;
+             
+             // Visual feedback helper
+             const el = document.elementFromPoint(x,y);
+             if(el) {
+                const prev = el.style.outline;
+                el.style.outline = "2px solid cyan";
+                setTimeout(()=>el.style.outline=prev, 150);
+             }
+             
+             dispatchMouseEvent('mousedown', x, y);
+             dispatchMouseEvent('mouseup', x, y);
+             dispatchMouseEvent('click', x, y);
+             addLog("Click Dispatch", "SYSTEM");
         } else {
+            // --- ROBUST CLICK HANDLING (Navigation Mode) ---
             const x = window.innerWidth * cursorPos.x;
             const y = window.innerHeight * cursorPos.y;
+            
             const cursorEl = document.getElementById('skynet-cursor');
             if (cursorEl) cursorEl.style.display = 'none';
+
             let el = document.elementFromPoint(x, y);
-            if (cursorEl) cursorEl.style.display = 'flex';
-
+            
             if (el) {
-                // Find Interactive Parent
                 let target = el;
-                let depth = 0;
-                while (target && depth < 5) {
-                    if (['BUTTON', 'A', 'INPUT'].includes(target.tagName) || target.onclick) break;
-                    target = target.parentElement;
-                    depth++;
-                }
-                if (!target) target = el;
+                let foundClickable = false;
 
-                target.click();
+                for(let i=0; i<5 && target; i++) {
+                    const styles = window.getComputedStyle(target);
+                    if (
+                        ['BUTTON', 'A', 'INPUT', 'SELECT', 'TEXTAREA'].includes(target.tagName) ||
+                        target.getAttribute('role') === 'button' ||
+                        styles.cursor === 'pointer' || 
+                        target.onclick
+                    ) {
+                        foundClickable = true;
+                        break;
+                    }
+                    target = target.parentElement;
+                }
                 
+                if (!foundClickable) target = el;
+
+                const eventOptions = { bubbles: true, cancelable: true, view: window, clientX: x, clientY: y, buttons: 1 };
+                target.dispatchEvent(new MouseEvent('mousedown', eventOptions));
+                target.dispatchEvent(new MouseEvent('mouseup', eventOptions));
+                target.dispatchEvent(new MouseEvent('click', eventOptions));
+                
+                if (target.click) target.click();
+
+                const originalOutline = target.style.outline;
                 target.style.outline = '2px solid cyan';
-                setTimeout(() => target.style.outline = 'none', 150);
+                setTimeout(() => target.style.outline = originalOutline, 150);
                 
                 addLog(`Clicked: ${target.tagName}`, "SYSTEM");
             }
+            if (cursorEl) cursorEl.style.display = 'flex';
         }
         break;
 
@@ -231,7 +272,6 @@ export const SkyNetProvider = ({ children }) => {
         setCursorPos({ x: cmd.payload.x, y: cmd.payload.y });
         setCursorState(cmd.payload.state || 'open');
         
-        // Handle Drag Release
         if (cmd.payload.state === 'open' && isDragging.current) {
             const clientX = cmd.payload.x * window.innerWidth;
             const clientY = cmd.payload.y * window.innerHeight;
