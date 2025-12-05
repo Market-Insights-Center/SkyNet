@@ -6,7 +6,9 @@ from typing import List, Dict, Optional
 import pandas as pd
 
 # --- Constants ---
-RISK_CSV_FILE = 'market_data.csv'
+# FIX: Use absolute path to ensure file is found regardless of CWD (integration/ -> backend/)
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+RISK_CSV_FILE = os.path.join(BASE_DIR, 'market_data.csv')
 
 # --- Core Logic ---
 
@@ -15,7 +17,7 @@ async def get_risk_history_data(is_called_by_ai: bool = False):
     Reads the market_data.csv and returns structured JSON data for the frontend charts.
     """
     if not os.path.exists(RISK_CSV_FILE):
-        return [] # Return empty list instead of error dict to prevent frontend crash
+        return [] # Return empty list if file doesn't exist
 
     try:
         df = pd.read_csv(RISK_CSV_FILE, on_bad_lines='skip')
@@ -26,14 +28,18 @@ async def get_risk_history_data(is_called_by_ai: bool = False):
         df['Timestamp'] = pd.to_datetime(df['Timestamp'], errors='coerce')
         df = df.sort_values(by='Timestamp').dropna(subset=['Timestamp'])
         
-        # Convert to list of dicts for JSON response
-        # We replace NaN with None (which becomes null in JSON)
-        result = df.where(pd.notnull(df), None).to_dict(orient='records')
+        # --- FIX: Serialization Issue ---
+        # df.to_dict() often preserves NumPy types (int64, float64) which fail to serialize 
+        # in FastAPI/Uvicorn, causing a 500 Error.
+        # Using df.to_json() with date_format='iso' converts everything to standard JSON-safe strings/numbers.
+        json_str = df.to_json(orient='records', date_format='iso')
+        result = json.loads(json_str)
         
         return result
 
     except Exception as e:
         print(f"❌ An error occurred reading history: {e}")
+        # Return a dictionary with error info instead of crashing
         return {"error": str(e)}
 
 # --- Main Command Handler ---
