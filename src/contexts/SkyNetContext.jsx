@@ -8,6 +8,25 @@ export const useSkyNet = () => useContext(SkyNetContext);
 // TradingView Intervals
 const INTERVALS = ['1M', '1W', 'D', '240', '60', '15'];
 
+// --- DYNAMIC CONNECTION LOGIC ---
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+
+const getWebSocketUrl = () => {
+    // If API_URL is https://myvps.com, WS should be wss://myvps.com:8001
+    // If API_URL is http://localhost:8000, WS should be ws://localhost:8001
+    try {
+        if (!import.meta.env.VITE_API_URL) return 'ws://localhost:8001';
+        
+        const url = new URL(import.meta.env.VITE_API_URL);
+        const protocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
+        // Assuming SkyNet script runs on port 8001 on the VPS
+        return `${protocol}//${url.hostname}:8001`;
+    } catch (e) {
+        console.warn("Error parsing VITE_API_URL, defaulting to localhost WS");
+        return 'ws://localhost:8001';
+    }
+};
+
 export const SkyNetProvider = ({ children }) => {
   const [isConnected, setIsConnected] = useState(false);
   const [logs, setLogs] = useState([]);
@@ -30,9 +49,15 @@ export const SkyNetProvider = ({ children }) => {
   const navigate = useNavigate();
   const ws = useRef(null);
 
+  // --- CONNECT TO WEBSOCKET ---
   const connect = () => {
     if (ws.current) return;
-    const socket = new WebSocket('ws://localhost:8001');
+    
+    // Auto-start backend if possible (via HTTP toggle)
+    toggleSkyNet('start');
+
+    const wsUrl = getWebSocketUrl();
+    const socket = new WebSocket(wsUrl);
 
     socket.onopen = () => {
       setIsConnected(true);
@@ -62,6 +87,20 @@ export const SkyNetProvider = ({ children }) => {
     }
   };
 
+  // --- TOGGLE BACKEND (FIXED FETCH URL) ---
+  const toggleSkyNet = async (action) => {
+    try {
+        // Uses the correct API base URL (localhost or VPS)
+        await fetch(`${API_BASE_URL}/api/skynet/toggle`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action })
+        });
+    } catch (error) {
+        console.error("SkyNet Toggle Error:", error);
+    }
+  };
+
   const addLog = (msg, type = "SYSTEM") => {
     const timestamp = new Date().toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
     setLogs(prev => [...prev, { message: msg, timestamp, type }].slice(-50));
@@ -85,7 +124,6 @@ export const SkyNetProvider = ({ children }) => {
 
   const handleCommand = (cmd) => {
     const isChartOpen = !!chartTickerRef.current;
-    // Check if we are currently on the full-page active chart tab
     const isActiveTab = window.location.pathname.includes('/active-chart');
     
     if (cmd.action === 'VOICE_HEARD') {
@@ -112,7 +150,6 @@ export const SkyNetProvider = ({ children }) => {
         setCursorPos({ x: cx, y: cy });
 
         if (isChartOpen || isActiveTab) {
-            // Standard Chart Drag (Pan)
             const clientX = cx * window.innerWidth;
             const clientY = cy * window.innerHeight;
             if (!isDragging.current) {
@@ -127,53 +164,38 @@ export const SkyNetProvider = ({ children }) => {
       case 'WHEEL':
         if (isChartOpen) {
             if (!isActiveTab) {
-                // --- CASE A: Overlay is Open, but NOT in new tab yet ---
-                // Pop Out Logic
                 const ticker = chartTickerRef.current;
                 addLog("Opening Chart in Tab...", "SYSTEM");
-                setChartTicker(null); // Close overlay locally
+                setChartTicker(null); 
                 window.open(`/active-chart?ticker=${ticker}&skynet=true`, '_blank');
             } else {
-                 // --- CASE B: We ARE in the new Active Chart Tab ---
-                 // Zoom/Scroll Logic for the Chart itself
                 const clientX = cursorPos.x * window.innerWidth;
                 const clientY = cursorPos.y * window.innerHeight;
                 const el = document.elementFromPoint(clientX, clientY);
-                
-                // UP = Zoom In (negative deltaY), DOWN = Zoom Out (positive deltaY)
                 const deltaY = cmd.payload === 'UP' ? -100 : 100;
                 
                 if (el) {
                     const ev = new WheelEvent('wheel', {
-                        bubbles: true,
-                        cancelable: true,
-                        view: window,
-                        clientX: clientX,
-                        clientY: clientY,
-                        deltaY: deltaY,
-                        ctrlKey: true // Often required for zoom on some widgets
+                        bubbles: true, cancelable: true, view: window,
+                        clientX: clientX, clientY: clientY, deltaY: deltaY, ctrlKey: true
                     });
                     el.dispatchEvent(ev);
                     addLog(`Chart Zoom: ${cmd.payload}`, "SYSTEM");
                 }
             }
         } else {
-            // --- STANDARD PAGE SCROLL ---
             const amount = cmd.payload === 'UP' ? -100 : 100;
             window.scrollBy({ top: amount, behavior: 'smooth' });
         }
         break;
         
       case 'ZOOM':
-        // --- TIMEFRAME CHANGE ---
         if (isChartOpen) {
             const currentInt = chartIntervalRef.current;
             const idx = INTERVALS.indexOf(currentInt);
             let newIdx = idx;
-            
             if (cmd.payload === 'IN') newIdx = Math.min(idx + 1, INTERVALS.length - 1);
             if (cmd.payload === 'OUT') newIdx = Math.max(idx - 1, 0); 
-            
             if (newIdx !== idx) {
                 setChartInterval(INTERVALS[newIdx]);
                 addLog(`Timeframe: ${INTERVALS[newIdx]}`, "SYSTEM");
@@ -193,18 +215,15 @@ export const SkyNetProvider = ({ children }) => {
              setChartTicker(null);
              addLog("Chart Overlay Closed", "SYSTEM");
         } else if (isActiveTab) {
-             // If we are in the dedicated tab, close the window
              window.close();
         }
         break;
 
       case 'CLICK':
         if (isChartOpen || isActiveTab) {
-             // Basic click on overlay/chart
              const x = window.innerWidth * cursorPos.x;
              const y = window.innerHeight * cursorPos.y;
              
-             // Visual feedback helper
              const el = document.elementFromPoint(x,y);
              if(el) {
                 const prev = el.style.outline;
@@ -217,10 +236,8 @@ export const SkyNetProvider = ({ children }) => {
              dispatchMouseEvent('click', x, y);
              addLog("Click Dispatch", "SYSTEM");
         } else {
-            // --- ROBUST CLICK HANDLING (Navigation Mode) ---
             const x = window.innerWidth * cursorPos.x;
             const y = window.innerHeight * cursorPos.y;
-            
             const cursorEl = document.getElementById('skynet-cursor');
             if (cursorEl) cursorEl.style.display = 'none';
 

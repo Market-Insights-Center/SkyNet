@@ -56,9 +56,12 @@ class SkyNetController:
 
         self.recognizer = sr.Recognizer()
         self.mic = sr.Microphone()
-        with self.mic as source:
-            print("Calibrating microphone...")
-            self.recognizer.adjust_for_ambient_noise(source, duration=1)
+        try:
+            with self.mic as source:
+                print("Calibrating microphone...")
+                self.recognizer.adjust_for_ambient_noise(source, duration=1)
+        except Exception as e:
+            print(f"Microphone init warning: {e}")
 
     # --- SHUTDOWN LOGIC ---
     def initiate_shutdown(self, trigger_source):
@@ -203,45 +206,30 @@ class SkyNetController:
         return index_down and middle_down and ring_down and pinky_up
 
     def is_spider_man_sign(self, landmarks):
-        """
-        Spider-Man / ILY Sign: Thumb, Middle, Pinky UP. Index, Ring DOWN.
-        Used for CLOSING CHART.
-        """
+        """Spider-Man / ILY Sign: Thumb, Middle, Pinky UP. Index, Ring DOWN."""
         thumb_tip = landmarks[4]
         index_tip = landmarks[8]
         middle_tip = landmarks[12]
         ring_tip = landmarks[16]
         pinky_tip = landmarks[20]
-
-        # Knuckles/PIP joints for reference
         index_pip = landmarks[6]
         middle_pip = landmarks[10]
         ring_pip = landmarks[14]
         pinky_pip = landmarks[18]
-
-        # Logic: Middle & Pinky UP, Index & Ring DOWN
         middle_up = middle_tip.y < middle_pip.y
         pinky_up = pinky_tip.y < pinky_pip.y
         index_down = index_tip.y > index_pip.y
         ring_down = ring_tip.y > ring_pip.y
-        
-        # Thumb extended (simple check: tip is far from index base)
-        # or just checking generic 'up-ness' relative to wrist isn't always reliable for thumb,
-        # but combined with others it's usually distinct.
-        
         return middle_up and pinky_up and index_down and ring_down
-
 
     # --- GESTURE PROCESSING ---
     def process_gestures(self, landmarks):
         if not self.is_running: return
 
-        # 1. CORE TRACKING
         index_tip = landmarks[8]
         raw_x = index_tip.x
         raw_y = index_tip.y
         
-        # Sensitivity Map
         cx = (raw_x - 0.5) * SENSITIVITY + 0.5
         cy = (raw_y - 0.5) * SENSITIVITY + 0.5
         cx = max(0.0, min(1.0, cx))
@@ -249,9 +237,7 @@ class SkyNetController:
         
         cursor_state = "open"
 
-        # 2. PRIORITY GESTURES
-
-        # KILL SWITCH (Rock On) - Global Terminate
+        # KILL SWITCH (Rock On)
         if self.is_rock_sign(landmarks):
             if self.rock_sign_start_time == 0:
                 self.rock_sign_start_time = time.time()
@@ -262,7 +248,7 @@ class SkyNetController:
         else:
             self.rock_sign_start_time = 0
 
-        # CLOSE CHART (Spider-Man / Thumb-Middle-Pinky)
+        # CLOSE CHART (Spider-Man)
         if self.is_spider_man_sign(landmarks):
             if self.spider_start_time == 0:
                 self.spider_start_time = time.time()
@@ -313,25 +299,20 @@ class SkyNetController:
         pinch_dist = self.calculate_distance(thumb, index)
         pinky_pinch_dist = self.calculate_distance(thumb, pinky)
 
-        # Index Pinch (Click / Timeframe Zoom In)
         is_pinching_now = pinch_dist < PINCH_THRESHOLD
 
         if is_pinching_now and not self.is_pinching:
             self.is_pinching = True
             self.pinch_start_time = time.time()
-            
-            # Double Click check
             if (time.time() - self.last_pinch_release_time) < DOUBLE_CLICK_TIME:
                 self.broadcast_command("ZOOM", "IN", "Gesture: Timeframe In")
 
         elif not is_pinching_now and self.is_pinching:
             self.is_pinching = False
             self.last_pinch_release_time = time.time()
-            # Short Tap = Click
             if (time.time() - self.pinch_start_time) < CLICK_DURATION:
                 self.broadcast_command("CLICK", None, "Gesture: Click")
 
-        # Pinky Pinch (Timeframe Zoom Out)
         is_pinky_now = pinky_pinch_dist < PINKY_THRESHOLD
         if is_pinky_now and not self.is_pinky_pinching:
             self.is_pinky_pinching = True
@@ -375,8 +356,9 @@ class SkyNetController:
         threading.Thread(target=self.listen_loop, daemon=True).start()
         threading.Thread(target=self.start_camera, daemon=True).start()
 
+        # CRITICAL FIX: Bind to "0.0.0.0" to allow VPS connections
         print(f"\n=== SKYNET LISTENING ON {WS_PORT} ===")
-        async with websockets.serve(self.ws_handler, "localhost", WS_PORT):
+        async with websockets.serve(self.ws_handler, "0.0.0.0", WS_PORT):
             while self.is_running:
                 await asyncio.sleep(1)
 

@@ -12,6 +12,7 @@ const Layout = ({ children }) => {
     const [showSuggestions, setShowSuggestions] = useState(false);
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
     const searchRef = useRef(null);
+    const [hasUnread, setHasUnread] = useState(false);
 
     const [isMod, setIsMod] = useState(false);
 
@@ -39,11 +40,47 @@ const Layout = ({ children }) => {
         }
     }, [currentUser]);
 
+    // Check for unread messages
+    useEffect(() => {
+        if (!currentUser) return;
+        
+        const checkUnread = async () => {
+            try {
+                const res = await fetch(`/api/chat/list?email=${currentUser.email}`);
+                if (res.ok) {
+                    const chats = await res.json();
+                    let unreadFound = false;
+                    for (const chat of chats) {
+                        if (chat.last_updated) {
+                            const lastRead = chat.last_read && chat.last_read[currentUser.email];
+                            if (!lastRead) {
+                                unreadFound = true;
+                                break;
+                            }
+                            if (new Date(chat.last_updated) > new Date(lastRead)) {
+                                unreadFound = true;
+                                break;
+                            }
+                        }
+                    }
+                    setHasUnread(unreadFound);
+                }
+            } catch (e) {
+                console.error("Unread check failed", e);
+            }
+        };
+
+        checkUnread();
+        const interval = setInterval(checkUnread, 10000); // Check every 10 seconds
+        return () => clearInterval(interval);
+
+    }, [currentUser]);
+
     const navItems = [
         { name: 'Home', path: '/', icon: Home },
         { name: 'Products', path: '/products', icon: Briefcase },
         { name: 'Forum', path: '/forum', icon: Users },
-        { name: 'Chatbox', path: '/chat', icon: MessageSquare },
+        { name: 'Chatbox', path: '/chat', icon: MessageSquare, hasNotification: hasUnread },
         { name: 'Profile', path: '/profile', icon: User },
         // Only render Admin tab if explicitly authorized
         ...(isMod ? [{ name: 'Admin', path: '/admin', icon: Shield }] : [])
@@ -170,6 +207,9 @@ const Layout = ({ children }) => {
                                                 }`}
                                         >
                                             {item.name}
+                                            {item.hasNotification && (
+                                                <div className="absolute top-2 right-1 w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
+                                            )}
                                             {isActive && (
                                                 <motion.div
                                                     layoutId="nav-underline"
@@ -221,10 +261,13 @@ const Layout = ({ children }) => {
                                         key={item.name}
                                         to={item.path}
                                         onClick={() => setIsMobileMenuOpen(false)}
-                                        className={`block px-3 py-3 rounded-md text-base font-medium flex items-center gap-3 ${location.pathname === item.path ? 'text-gold bg-white/5' : 'text-gray-300 hover:text-white hover:bg-white/5'}`}
+                                        className={`block px-3 py-3 rounded-md text-base font-medium flex items-center gap-3 relative ${location.pathname === item.path ? 'text-gold bg-white/5' : 'text-gray-300 hover:text-white hover:bg-white/5'}`}
                                     >
                                         <item.icon size={18} />
                                         {item.name}
+                                        {item.hasNotification && (
+                                            <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse ml-auto"></div>
+                                        )}
                                     </Link>
                                 ))}
                                 <div className="border-t border-white/10 pt-2 mt-2">

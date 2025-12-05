@@ -121,6 +121,13 @@ class ChatDeleteRequest(BaseModel):
     chat_id: str
     email: str
 
+class ChatReadRequest(BaseModel):
+    chat_id: str
+    email: str
+
+class UsernameCheckRequest(BaseModel):
+    username: str
+
 class MarketDataRequest(BaseModel):
     tickers: List[str]
 
@@ -270,27 +277,51 @@ def toggle_skynet(req: SkynetToggleRequest):
     raise HTTPException(status_code=400, detail="Invalid action")
 
 # -----------------------------
+# AUTH & USER CHECK ENDPOINTS
+# -----------------------------
+@app.post("/api/auth/check-username")
+def check_username_availability(req: UsernameCheckRequest):
+    users = get_all_users_from_db()
+    requested = req.username.strip().lower()
+    
+    if not requested:
+        return {"available": False, "message": "Username cannot be empty"}
+        
+    for u in users:
+        existing = (u.get('username') or "").lower()
+        if existing == requested:
+             return {"available": False, "message": "Username already taken"}
+             
+    return {"available": True, "message": "Username is available"}
+
+# -----------------------------
 # CHAT ENDPOINTS 
 # -----------------------------
 
 @app.post("/api/chat/create")
 def create_chat(req: ChatCreateRequest):
     chats = read_chats()
+    
+    # Initialize last_read with current time for creator so it doesn't show as unread
+    now = datetime.utcnow().isoformat()
+    
     new_chat = {
         "id": str(uuid.uuid4()), "type": req.type,
         "participants": list(set(req.participants + [req.creator_email])),
-        "messages": [], "last_updated": datetime.utcnow().isoformat(),
-        "last_message_preview": req.initial_message or "New conversation"
+        "messages": [], 
+        "last_updated": now,
+        "last_message_preview": req.initial_message or "New conversation",
+        "last_read": {req.creator_email: now}
     }
     if req.initial_message:
-        new_chat["messages"].append({"sender": req.creator_email, "text": req.initial_message, "timestamp": new_chat["last_updated"]})
+        new_chat["messages"].append({"sender": req.creator_email, "text": req.initial_message, "timestamp": now})
     chats.append(new_chat)
     save_chats(chats)
     return new_chat
 
 @app.get("/api/chat/list")
-def list_user_chats(email: str):
-    return get_chats(email)
+def list_user_chats(email: str, all_chats: bool = False):
+    return get_chats(email, all_chats)
 
 @app.get("/api/chat/{chat_id}/messages")
 def get_messages(chat_id: str, email: str):
@@ -309,12 +340,34 @@ def send_message(chat_id: str, req: ChatMessageRequest):
     chats = read_chats()
     for chat in chats:
         if chat["id"] == chat_id:
-            msg = {"sender": req.sender, "text": req.text, "timestamp": datetime.utcnow().isoformat()}
+            now = datetime.utcnow().isoformat()
+            msg = {"sender": req.sender, "text": req.text, "timestamp": now}
             chat.setdefault("messages", []).append(msg)
             chat["last_updated"] = msg["timestamp"]
             chat["last_message_preview"] = req.text
+            
+            # Update last_read for the sender automatically
+            if "last_read" not in chat: chat["last_read"] = {}
+            chat["last_read"][req.sender] = now
+            
             save_chats(chats)
             return {"status": "success"}
+    raise HTTPException(status_code=404, detail="Chat not found")
+
+@app.post("/api/chat/{chat_id}/read")
+def mark_chat_read(chat_id: str, req: ChatReadRequest):
+    chats = read_chats()
+    found = False
+    for chat in chats:
+        if chat["id"] == chat_id:
+            if "last_read" not in chat: chat["last_read"] = {}
+            chat["last_read"][req.email] = datetime.utcnow().isoformat()
+            found = True
+            break
+            
+    if found:
+        save_chats(chats)
+        return {"status": "success"}
     raise HTTPException(status_code=404, detail="Chat not found")
 
 @app.post("/api/chat/delete")

@@ -49,8 +49,14 @@ const Chatbox = () => {
         // Clear messages immediately when switching chats to prevent ghosting
         setMessages([]); 
 
+        // Mark as read immediately when opening
+        markChatRead(selectedChat.id);
+
         fetchChatMessages(selectedChat.id);
-        const interval = setInterval(() => fetchChatMessages(selectedChat.id), 2000);
+        const interval = setInterval(() => {
+            fetchChatMessages(selectedChat.id);
+            markChatRead(selectedChat.id); // Keep marking read while open
+        }, 2000);
         return () => clearInterval(interval);
     }, [selectedChat]);
 
@@ -87,6 +93,32 @@ const Chatbox = () => {
         return '';
     };
 
+    const isChatUnread = (chat) => {
+        if (!chat.last_updated) return false;
+        
+        // If last_read exists for user, compare. If not, assume unread if last_updated exists
+        const lastRead = chat.last_read && chat.last_read[currentUser.email];
+        
+        if (!lastRead) return true; // Never read
+        
+        return new Date(chat.last_updated) > new Date(lastRead);
+    };
+
+    const markChatRead = async (chatId) => {
+        try {
+            await fetch(`/api/chat/${chatId}/read`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    chat_id: chatId,
+                    email: currentUser.email
+                })
+            });
+        } catch (e) {
+            console.error("Failed to mark read", e);
+        }
+    };
+
     const fetchConversations = async () => {
         try {
             const url = adminViewAll
@@ -97,6 +129,7 @@ const Chatbox = () => {
             if (res.ok) {
                 const data = await res.json();
                 setConversations(prev => {
+                    // Simple deep compare to avoid redraws
                     if (JSON.stringify(prev) !== JSON.stringify(data)) return data;
                     return prev;
                 });
@@ -352,41 +385,49 @@ If everything looks correct, please reply with "Confirm" to proceed with the cus
                                     <div className="px-4 py-2 text-xs font-bold text-gray-500 uppercase tracking-wider bg-white/5">
                                         {groupName}
                                     </div>
-                                    {chats.map(chat => (
-                                        <div
-                                            key={chat.id}
-                                            onClick={() => setSelectedChat(chat)}
-                                            className={`group relative p-4 border-b border-white/5 cursor-pointer hover:bg-white/5 transition-colors ${selectedChat?.id === chat.id ? 'bg-white/10' : ''}`}
-                                        >
-                                            <div className="flex items-center gap-3">
-                                                <div className={`w-10 h-10 rounded-full flex items-center justify-center ${chat.type === 'admin_support' ? 'bg-gold/20 text-gold' : chat.type === 'custom_portfolio' ? 'bg-blue-500/20 text-blue-400' : 'bg-purple-500/20 text-purple-400'}`}>
-                                                    {chat.type === 'admin_support' ? <Shield size={18} /> :
-                                                        chat.type === 'custom_portfolio' ? <Briefcase size={18} /> :
-                                                            (chat.participants || []).length > 2 ? <Users size={18} /> : <User size={18} />}
-                                                </div>
-                                                <div className="flex-1 min-w-0 pr-8">
-                                                    <div className="font-medium text-gray-200 truncate">{getChatName(chat)}</div>
-                                                    <div className="text-xs text-gray-500 truncate">
-                                                        {chat.last_message_preview || 'No messages'}
-                                                    </div>
-                                                </div>
-                                                {chat.last_updated && (
-                                                    <div className="text-[10px] text-gray-600 absolute right-2 top-2">
-                                                        {formatDisplayDate(chat.last_updated, 'sidebar')}
-                                                    </div>
-                                                )}
-                                            </div>
-
-                                            <button
-                                                type="button"
-                                                onClick={(e) => deleteConversation(e, chat.id)}
-                                                className="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-gray-500 hover:text-red-500 hover:bg-white/10 rounded-full transition-all z-20"
-                                                title="Delete Conversation"
+                                    {chats.map(chat => {
+                                        const unread = isChatUnread(chat);
+                                        return (
+                                            <div
+                                                key={chat.id}
+                                                onClick={() => setSelectedChat(chat)}
+                                                className={`group relative p-4 border-b border-white/5 cursor-pointer hover:bg-white/5 transition-colors ${selectedChat?.id === chat.id ? 'bg-white/10' : ''}`}
                                             >
-                                                <Trash2 size={16} />
-                                            </button>
-                                        </div>
-                                    ))}
+                                                <div className="flex items-center gap-3">
+                                                    <div className={`relative w-10 h-10 rounded-full flex items-center justify-center ${chat.type === 'admin_support' ? 'bg-gold/20 text-gold' : chat.type === 'custom_portfolio' ? 'bg-blue-500/20 text-blue-400' : 'bg-purple-500/20 text-purple-400'}`}>
+                                                        {chat.type === 'admin_support' ? <Shield size={18} /> :
+                                                            chat.type === 'custom_portfolio' ? <Briefcase size={18} /> :
+                                                                (chat.participants || []).length > 2 ? <Users size={18} /> : <User size={18} />}
+                                                        
+                                                        {/* Red Dot for Unread Messages */}
+                                                        {unread && selectedChat?.id !== chat.id && (
+                                                            <div className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full border border-black"></div>
+                                                        )}
+                                                    </div>
+                                                    <div className="flex-1 min-w-0 pr-8">
+                                                        <div className={`font-medium truncate ${unread ? 'text-white font-bold' : 'text-gray-200'}`}>{getChatName(chat)}</div>
+                                                        <div className={`text-xs truncate ${unread ? 'text-white' : 'text-gray-500'}`}>
+                                                            {chat.last_message_preview || 'No messages'}
+                                                        </div>
+                                                    </div>
+                                                    {chat.last_updated && (
+                                                        <div className="text-[10px] text-gray-600 absolute right-2 top-2">
+                                                            {formatDisplayDate(chat.last_updated, 'sidebar')}
+                                                        </div>
+                                                    )}
+                                                </div>
+
+                                                <button
+                                                    type="button"
+                                                    onClick={(e) => deleteConversation(e, chat.id)}
+                                                    className="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-gray-500 hover:text-red-500 hover:bg-white/10 rounded-full transition-all z-20"
+                                                    title="Delete Conversation"
+                                                >
+                                                    <Trash2 size={16} />
+                                                </button>
+                                            </div>
+                                        );
+                                    })}
                                 </div>
                             )
                         ))

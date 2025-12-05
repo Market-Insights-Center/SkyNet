@@ -8,8 +8,9 @@ export default function SignUp() {
     const emailRef = useRef();
     const passwordRef = useRef();
     const passwordConfirmRef = useRef();
+    const usernameRef = useRef();
     // Get currentUser and global loading state
-    const { signup, loginWithGoogle, currentUser, loading: authLoading } = useAuth();
+    const { signup, loginWithGoogle, updateUsername, currentUser, loading: authLoading } = useAuth();
     const [error, setError] = useState("");
     const [loading, setLoading] = useState(false);
     const navigate = useNavigate();
@@ -28,10 +29,34 @@ export default function SignUp() {
             return setError("Passwords do not match");
         }
 
+        const username = usernameRef.current.value.trim();
+        if (!username) {
+            return setError("Username is required");
+        }
+
         try {
             setError("");
             setLoading(true);
+
+            // 1. Check Username Uniqueness
+            const checkRes = await fetch('/api/auth/check-username', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username })
+            });
+            const checkData = await checkRes.json();
+            
+            if (!checkData.available) {
+                setLoading(false);
+                return setError(checkData.message || "Username is already taken");
+            }
+
+            // 2. Create Auth User
             await signup(emailRef.current.value, passwordRef.current.value);
+            
+            // 3. Update Username (Display Name)
+            await updateUsername(username);
+
             navigate("/profile");
         } catch (err) {
             console.error(err);
@@ -88,6 +113,16 @@ export default function SignUp() {
                 )}
 
                 <form onSubmit={handleSubmit} className="space-y-4">
+                    <div>
+                        <label className="block text-sm font-medium text-gray-300 mb-1">Username</label>
+                        <input
+                            type="text"
+                            ref={usernameRef}
+                            required
+                            className="w-full bg-black/50 border border-white/10 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-purple-500 transition-colors"
+                            placeholder="Choose a unique username"
+                        />
+                    </div>
                     <div>
                         <label className="block text-sm font-medium text-gray-300 mb-1">Email</label>
                         <input

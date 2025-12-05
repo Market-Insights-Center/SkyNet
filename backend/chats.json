@@ -1,1 +1,40 @@
-[]
+[
+    {
+        "id": "02a5b446-bc01-4f71-b044-a68ecba25bb8",
+        "type": "general",
+        "participants": [
+            "marketinsightscenter@gmail.com"
+        ],
+        "messages": [
+            {
+                "sender": "marketinsightscenter@gmail.com",
+                "text": "Started a new conversation",
+                "timestamp": "2025-12-05T07:24:27.904739"
+            }
+        ],
+        "last_updated": "2025-12-05T07:24:27.904739",
+        "last_message_preview": "Started a new conversation",
+        "last_read": {
+            "marketinsightscenter@gmail.com": "2025-12-05T07:24:27.904739"
+        }
+    },
+    {
+        "id": "6c53ef01-60e9-4f2d-ac13-a0d6b1ee6f74",
+        "type": "general",
+        "participants": [
+            "marketinsightscenter@gmail.com"
+        ],
+        "messages": [
+            {
+                "sender": "marketinsightscenter@gmail.com",
+                "text": "Started a new conversation",
+                "timestamp": "2025-12-05T07:24:31.148932"
+            }
+        ],
+        "last_updated": "2025-12-05T07:24:31.148932",
+        "last_message_preview": "Started a new conversation",
+        "last_read": {
+            "marketinsightscenter@gmail.com": "2025-12-05T07:24:31.148932"
+        }
+    }
+]
