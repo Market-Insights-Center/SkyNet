@@ -1,0 +1,11 @@
+--- EMA Invest Output ---
+SPY: Result=(685.6900024414062, 57.2762639150723)
+  > Valid Score: 57.2762639150723
+AAPL: Result=(278.7799987792969, 74.78928927670142)
+  > Valid Score: 74.78928927670142
+
+--- Breakout Output ---
+SPY: Result=(14.212932972059864, None)
+  > INVALID Pct (None)
+AAPL: Result=(15.238404664909277, None)
+  > INVALID Pct (None)

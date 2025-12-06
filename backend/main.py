@@ -19,17 +19,8 @@ import signal
 import asyncio
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
-
-# Ensure we can import from local folders
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-
-# Load environment variables
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-load_dotenv(os.path.join(BASE_DIR, '.env'))
-load_dotenv(os.path.join(BASE_DIR, '..', '.env'))
-
 # Import your command modules
-from integration import invest_command, cultivate_command, custom_command, tracking_command, risk_command, history_command
+from integration import invest_command, cultivate_command, custom_command, tracking_command, risk_command, history_command, quickscore_command, market_command, breakout_command
 
 # Database imports
 from database import (
@@ -48,7 +39,7 @@ from database import (
     get_all_coupons,   
     validate_coupon,   
     delete_coupon,
-    verify_access_and_limits, # <--- FIXED: Replaced 'check_and_increment_limit' with correct name
+    verify_access_and_limits,
     delete_user_full,
     delete_article,
     delete_idea,
@@ -70,8 +61,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Mount static directory
-STATIC_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static")
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+STATIC_DIR = os.path.join(BASE_DIR, "static")
 if not os.path.exists(STATIC_DIR):
     os.makedirs(STATIC_DIR)
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
@@ -207,6 +198,18 @@ class IdeaDeleteRequest(BaseModel):
 class SkynetToggleRequest(BaseModel):
     action: str # "start" or "stop"
 
+class QuickscoreRequest(BaseModel):
+    ticker: str
+    email: str
+
+class MarketRequest(BaseModel):
+    email: str
+    market_type: str = "sp500"
+    sensitivity: int = 2
+
+class BreakoutRequest(BaseModel):
+    email: str
+
 # --- HELPER FUNCTIONS ---
 def get_mod_list():
     mods = []
@@ -241,7 +244,7 @@ def get_chats(email: str, all_chats: bool = False):
 def toggle_skynet(req: SkynetToggleRequest):
     global SKYNET_PROCESS
     
-    script_path = os.path.join(BASE_DIR, "skynet_phase1.py")
+    script_path = os.path.join(BASE_DIR, "skynet_v2.py")
     
     if req.action == "start":
         if SKYNET_PROCESS and SKYNET_PROCESS.poll() is None:
@@ -301,10 +304,7 @@ def check_username_availability(req: UsernameCheckRequest):
 @app.post("/api/chat/create")
 def create_chat(req: ChatCreateRequest):
     chats = read_chats()
-    
-    # Initialize last_read with current time for creator so it doesn't show as unread
     now = datetime.utcnow().isoformat()
-    
     new_chat = {
         "id": str(uuid.uuid4()), "type": req.type,
         "participants": list(set(req.participants + [req.creator_email])),
@@ -328,11 +328,9 @@ def get_messages(chat_id: str, email: str):
     chats = read_chats()
     chat = next((c for c in chats if c["id"] == chat_id), None)
     if not chat: raise HTTPException(status_code=404, detail="Chat not found")
-    
     mods = get_mod_list()
     if email not in chat["participants"] and email not in mods:
         raise HTTPException(status_code=403, detail="Access denied")
-        
     return chat.get("messages", [])
 
 @app.post("/api/chat/{chat_id}/message")
@@ -345,11 +343,8 @@ def send_message(chat_id: str, req: ChatMessageRequest):
             chat.setdefault("messages", []).append(msg)
             chat["last_updated"] = msg["timestamp"]
             chat["last_message_preview"] = req.text
-            
-            # Update last_read for the sender automatically
             if "last_read" not in chat: chat["last_read"] = {}
             chat["last_read"][req.sender] = now
-            
             save_chats(chats)
             return {"status": "success"}
     raise HTTPException(status_code=404, detail="Chat not found")
@@ -364,7 +359,6 @@ def mark_chat_read(chat_id: str, req: ChatReadRequest):
             chat["last_read"][req.email] = datetime.utcnow().isoformat()
             found = True
             break
-            
     if found:
         save_chats(chats)
         return {"status": "success"}
@@ -376,7 +370,6 @@ def delete_chat(req: ChatDeleteRequest):
     updated_chats = []
     found = False
     mods = get_mod_list()
-    
     for chat in chats:
         if chat["id"] == req.chat_id:
             if req.email in chat["participants"] or req.email in mods:
@@ -386,16 +379,10 @@ def delete_chat(req: ChatDeleteRequest):
                 updated_chats.append(chat)
         else:
             updated_chats.append(chat)
-            
     if found:
         save_chats(updated_chats)
         return {"status": "success"}
-    
-    chat_exists = any(c["id"] == req.chat_id for c in chats)
-    if not chat_exists:
-        raise HTTPException(status_code=404, detail="Chat not found")
-        
-    raise HTTPException(status_code=403, detail="Not authorized to delete this chat")
+    raise HTTPException(status_code=404, detail="Chat not found")
 
 @app.post("/api/market-data")
 async def get_market_data(request: MarketDataRequest):
@@ -895,6 +882,43 @@ async def api_history():
     except Exception as e:
         logger.error(f"Error in /api/history: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/quickscore")
+async def run_quickscore(req: QuickscoreRequest):
+    # Check limits
+    limit_check = verify_access_and_limits(req.email, "quickscore")
+    if not limit_check["allowed"]:
+         raise HTTPException(status_code=403, detail=limit_check["message"])
+    
+    # Run command
+    result = await quickscore_command.handle_quickscore_command([], ai_params={"ticker": req.ticker}, is_called_by_ai=True)
+    return result
+
+@app.post("/api/market")
+async def run_market(req: MarketRequest):
+    limit_check = verify_access_and_limits(req.email, "market")
+    if not limit_check["allowed"]:
+        raise HTTPException(status_code=403, detail=limit_check["message"])
+    
+    result = await market_command.handle_market_command(
+        [], 
+        ai_params={"action": "display", "market_type": req.market_type, "sensitivity": req.sensitivity},
+        is_called_by_ai=True
+    )
+    return result
+
+@app.post("/api/breakout")
+async def run_breakout(req: BreakoutRequest):
+    limit_check = verify_access_and_limits(req.email, "breakout")
+    if not limit_check["allowed"]:
+        raise HTTPException(status_code=403, detail=limit_check["message"])
+        
+    result = await breakout_command.handle_breakout_command(
+        [],
+        ai_params={"action": "run"},
+        is_called_by_ai=True
+    )
+    return result
 
 if __name__ == "__main__":
     import uvicorn

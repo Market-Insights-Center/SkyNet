@@ -65,7 +65,6 @@ async def _download_with_retry(tickers: List[str], timeout: int, **kwargs) -> pd
 # --- Helper Functions ---
 
 def get_sp500_symbols_singularity() -> List[str]:
-    print("[RISK_DEBUG] Fetching S&P 500 symbols...")
     try:
         url = 'https://en.wikipedia.org/wiki/List_of_S%26P_500_companies'
         headers = {'User-Agent': 'Mozilla/5.0'}
@@ -73,14 +72,12 @@ def get_sp500_symbols_singularity() -> List[str]:
         response.raise_for_status()
         df = pd.read_html(StringIO(response.text))[0]
         symbols = [str(s).replace('.', '-') for s in df['Symbol'].tolist() if isinstance(s, str)]
-        print(f"[RISK_DEBUG] Successfully fetched {len(symbols)} S&P 500 symbols.")
         return sorted(list(set(symbols)))
     except Exception as e:
         print(f"[RISK_DEBUG] FAILED to fetch S&P 500 symbols: {e}")
         return []
 
 def get_sp100_symbols_risk() -> list:
-    print("[RISK_DEBUG] Fetching S&P 100 symbols...")
     try:
         url = 'https://en.wikipedia.org/wiki/S%26P_100'
         headers = {'User-Agent': 'Mozilla/5.0'}
@@ -88,24 +85,20 @@ def get_sp100_symbols_risk() -> list:
         response.raise_for_status()
         df = pd.read_html(StringIO(response.text))[2]
         symbols = df['Symbol'].tolist()
-        print(f"[RISK_DEBUG] Successfully fetched {len(symbols)} S&P 100 symbols.")
         return [s.replace('.', '-') for s in symbols if isinstance(s, str)]
     except Exception as e:
         print(f"[RISK_DEBUG] FAILED to fetch S&P 100 symbols: {e}")
         return []
 
 async def fetch_and_cache_data(symbols: List[str], cache_filename: str, period: str):
-    print(f"[RISK_DEBUG] Managing cache for {cache_filename}...")
     
     cached_tickers = set()
     if os.path.exists(cache_filename):
-        print(f"[RISK_DEBUG] Reading existing cache file: {cache_filename}")
         cached_df = pd.read_csv(cache_filename, header=[0, 1], index_col=0, parse_dates=True)
         cached_tickers = set(cached_df.columns.get_level_values(1))
         
         last_date = cached_df.index.max()
         if last_date.date() >= datetime.now().date() - timedelta(days=1) and len(cached_tickers) >= len(symbols):
-            print("[RISK_DEBUG] Cache is complete and up to date. Skipping download.")
             return cached_df
 
     symbols_to_download = [s for s in symbols if s not in cached_tickers]
@@ -115,7 +108,6 @@ async def fetch_and_cache_data(symbols: List[str], cache_filename: str, period: 
         chunk_size = 50
         for i in range(0, len(symbols_to_download), chunk_size):
             chunk = symbols_to_download[i:i + chunk_size]
-            print(f"[RISK_DEBUG]   Downloading and caching chunk {i//chunk_size + 1}/{(len(symbols_to_download) + chunk_size - 1)//chunk_size}...")
             
             chunk_data = await _download_with_retry(tickers=chunk, timeout=60, period=period)
             
@@ -130,17 +122,14 @@ async def fetch_and_cache_data(symbols: List[str], cache_filename: str, period: 
                 combined_data.to_csv(cache_filename)
             else:
                 chunk_data.to_csv(cache_filename)
-            print(f"[RISK_DEBUG]     Successfully saved chunk to {cache_filename}.")
             await asyncio.sleep(1)
 
     if os.path.exists(cache_filename):
-        print(f"[RISK_DEBUG] Loading final data from {cache_filename}.")
         return pd.read_csv(cache_filename, header=[0, 1], index_col=0, parse_dates=True)
     else:
         return pd.DataFrame()
 
 def _calculate_ma_percentage_from_data(symbols: List[str], data: pd.DataFrame, ma_window: int) -> float:
-    print(f"[RISK_DEBUG] Calculating MA% for {len(symbols)} symbols, MA Window: {ma_window}")
     if not symbols or data.empty:
         print("[RISK_DEBUG] MA% calculation skipped: No symbols or data.")
         return 0.0
@@ -168,11 +157,9 @@ def _calculate_ma_percentage_from_data(symbols: List[str], data: pd.DataFrame, m
                     above_ma_count += 1
     
     result = (above_ma_count / valid_stocks_count) * 100 if valid_stocks_count > 0 else 0.0
-    print(f"[RISK_DEBUG] MA% calculation complete. Result: {result:.2f}%")
     return result
 
 async def get_live_price_and_ma_risk(ticker: str, ma_windows: List[int], is_called_by_ai: bool = False) -> tuple[Optional[float], Dict[int, Optional[float]]]:
-    print(f"[RISK_DEBUG] Fetching live price & MAs for {ticker}...")
     ma_values = {ma: None for ma in ma_windows}
     try:
         period = '2y' if max(ma_windows, default=0) >= 200 else '1y'
@@ -185,14 +172,12 @@ async def get_live_price_and_ma_risk(ticker: str, ma_windows: List[int], is_call
         for window in ma_windows:
             if len(hist) >= window:
                 ma_values[window] = hist['Close'].rolling(window=window).mean().iloc[-1]
-        print(f"[RISK_DEBUG] Success for {ticker}. Price: {price:.2f}")
         return price, ma_values
     except Exception as e:
         print(f"[RISK_DEBUG] FAILED for {ticker}: {e}")
         return None, ma_values
 
 def calculate_ema_score_risk(ticker: str ="SPY", is_called_by_ai: bool = False) -> Optional[float]:
-    print(f"[RISK_DEBUG] Calculating EMA score for {ticker}...")
     try:
         data = yf.Ticker(ticker).history(period="1y")
         if data.empty or len(data) < 55: return None
@@ -201,14 +186,12 @@ def calculate_ema_score_risk(ticker: str ="SPY", is_called_by_ai: bool = False) 
         ema_8, ema_55 = data['EMA_8'].iloc[-1], data['EMA_55'].iloc[-1]
         if pd.isna(ema_55) or ema_55 == 0: return None
         score = (((ema_8 - ema_55) / ema_55) * 5 + 0.5) * 100
-        print(f"[RISK_DEBUG] EMA score for {ticker} is {score:.2f}")
         return float(np.clip(score, 0, 100))
     except Exception as e:
         print(f"[RISK_DEBUG] FAILED EMA score calculation for {ticker}: {e}")
         return None
 
 async def calculate_risk_scores_singularity(is_called_by_ai: bool = False) -> tuple:
-    print("[RISK_DEBUG] --- Starting calculate_risk_scores_singularity ---")
     
     sp500_symbols = get_sp500_symbols_singularity()
     sp100_symbols = get_sp100_symbols_risk()
@@ -221,14 +204,12 @@ async def calculate_risk_scores_singularity(is_called_by_ai: bool = False) -> tu
     s1fd_val = _calculate_ma_percentage_from_data(sp100_symbols, sp100_data, 5)
     s1tw_val = _calculate_ma_percentage_from_data(sp100_symbols, sp100_data, 20)
     
-    print("[RISK_DEBUG] Fetching individual index MAs...")
     (spy_live_price, spy_mas), (vix_live_price, _), (rut_live_price, rut_mas), (oex_live_price, oex_mas) = await asyncio.gather(
         get_live_price_and_ma_risk('SPY', [20, 50], is_called_by_ai=True),
         get_live_price_and_ma_risk('^VIX', [], is_called_by_ai=True),
         get_live_price_and_ma_risk('^RUT', [20, 50], is_called_by_ai=True),
         get_live_price_and_ma_risk('^OEX', [20, 50], is_called_by_ai=True)
     )
-    print("[RISK_DEBUG] Individual index MAs fetched.")
     
     critical_data_map = {'SPY Price': spy_live_price, 'VIX Price': vix_live_price}
     if any(v is None for v in critical_data_map.values()):
@@ -236,7 +217,6 @@ async def calculate_risk_scores_singularity(is_called_by_ai: bool = False) -> tu
         return None, None, None, None, spy_live_price, vix_live_price
         
     try:
-        print("[RISK_DEBUG] Calculating component scores...")
         spy20 = np.clip(((spy_live_price - spy_mas.get(20, spy_live_price)) / 20) + 50, 0, 100)
         spy50 = np.clip(((spy_live_price - spy_mas.get(50, spy_live_price) - 150) / 20) + 50, 0, 100)
         vix_score = np.clip((((vix_live_price - 15) * -5) + 50), 0, 100)
@@ -248,7 +228,6 @@ async def calculate_risk_scores_singularity(is_called_by_ai: bool = False) -> tu
         oex50_score = np.clip(((oex_live_price - oex_mas.get(50, oex_live_price) - 25) / 100) + 50, 0, 100)
         s1fd_score = np.clip(((s1fd_val - 60) + 50), 0, 100)
         s1tw_score = np.clip(((s1tw_val - 70) + 50), 0, 100)
-        print("[RISK_DEBUG] Component scores calculated.")
     except (TypeError, KeyError):
         print("[RISK_DEBUG] FAILED: Type or Key error during component score calculation.")
         return None, None, None, None, spy_live_price, vix_live_price
@@ -256,11 +235,9 @@ async def calculate_risk_scores_singularity(is_called_by_ai: bool = False) -> tu
     ema_score_val_risk = await asyncio.to_thread(calculate_ema_score_risk, "SPY", is_called_by_ai=True)
     if ema_score_val_risk is None: ema_score_val_risk = 50.0
     
-    print("[RISK_DEBUG] Calculating final weighted scores...")
     general_score = np.clip(((3*spy20)+spy50+(3*vix_score)+(3*rut50)+rut20+(2*s5tw_score)+s5th_score)/13.0, 0, 100)
     large_cap_score = np.clip(((3*oex20_score)+oex50_score+(2*s1fd_score)+s1tw_score)/7.0, 0, 100)
     combined_score = np.clip((general_score + large_cap_score + ema_score_val_risk) / 3.0, 0, 100)
-    print(f"[RISK_DEBUG] Final scores: General={general_score:.2f}, LargeCap={large_cap_score:.2f}, Combined={combined_score:.2f}")
     
     return general_score, large_cap_score, ema_score_val_risk, combined_score, spy_live_price, vix_live_price
 
@@ -347,12 +324,13 @@ def calculate_iv_and_ivr_risk(is_called_by_ai: bool = False) -> tuple[Optional[f
     """
     try:
         # Step 1: Fetch current implied volatility from live SPY options
-        spy_options = yf.Ticker('SPY').option_chain()
-        calls, puts = spy_options.calls, spy_options.puts
-        if calls.empty or puts.empty:
+        # Step 1: Fetch current VIX as Market IV
+        vix = yf.Ticker('^VIX')
+        hist = vix.history(period='5d')
+        if hist.empty:
             return None, None
         
-        current_iv = (calls['impliedVolatility'].mean() + puts['impliedVolatility'].mean()) / 2 * 100
+        current_iv = hist['Close'].iloc[-1]
         
         # Step 2: Use market_data.csv for historical data
         if not os.path.exists(RISK_CSV_FILE):
@@ -399,22 +377,17 @@ def calculate_iv_and_ivr_risk(is_called_by_ai: bool = False) -> tuple[Optional[f
     
 # --- Replace the existing perform_risk_calculations_singularity function in risk_command.py ---
 async def perform_risk_calculations_singularity(is_eod_save: bool = False, is_called_by_ai: bool = False):
-    print("[RISK_DEBUG] --- Starting perform_risk_calculations_singularity ---")
     risk_logger.info(f"--- Singularity: Performing R.I.S.K. calculations cycle (EOD Save: {is_eod_save}) ---")
     
     general, large_cap, ema, combined, spy_p, vix_p = await calculate_risk_scores_singularity(is_called_by_ai=True)
-    print("[RISK_DEBUG] Main risk scores calculated. Now calculating recession likelihoods.")
     
     likelihood_ema_val = await asyncio.to_thread(calculate_recession_likelihood_ema_risk, is_called_by_ai=True)
     likelihood_vix_val = calculate_recession_likelihood_vix_risk(vix_p, is_called_by_ai=True)
     uncapped_mis, capped_mis_signal, _ = calculate_market_invest_score_risk(likelihood_vix_val, likelihood_ema_val, is_called_by_ai=True)
-    print("[RISK_DEBUG] Recession likelihoods and Market Invest Score calculated.")
 
     # --- NEW: Calculate Percentile and IV/IVR ---
-    print("[RISK_DEBUG] Calculating percentile and IV/IVR.")
     market_percentile = await asyncio.to_thread(calculate_market_score_percentile_risk, capped_mis_signal, is_called_by_ai=True)
     market_iv, market_ivr = await asyncio.to_thread(calculate_iv_and_ivr_risk, is_called_by_ai=True)
-    print("[RISK_DEBUG] Percentile and IV/IVR calculated.")
 
     # Dictionary for screen display (and API response)
     results_summary = {
@@ -447,7 +420,6 @@ async def perform_risk_calculations_singularity(is_eod_save: bool = False, is_ca
         "Market IVR": f"{market_ivr:.1f}%" if market_ivr is not None else 'N/A'
     }
     
-    print("[RISK_DEBUG] --- Finished perform_risk_calculations_singularity ---")
     return results_summary, data_for_csv
 
 # --- Replace the existing handle_risk_command function in risk_command.py ---

@@ -14,6 +14,12 @@ pytz
 lxml
 requests
 websockets
+mediapipe
+opencv-python
+SpeechRecognition
+pyttsx3
+
+# Visualization & Formatting
 
 # Visualization & Formatting
 matplotlib
@@ -24,6 +30,12 @@ firebase-admin
 robin_stocks
 pyotp
 tradingview-screener
+
+# System Control
+pyautogui
+pycaw
+comtypes
+screeninfo
 
 # Scheduling & Utilities
 apscheduler

@@ -4,7 +4,7 @@ import { PayPalScriptProvider } from "@paypal/react-paypal-js";
 import { AuthProvider } from './contexts/AuthContext';
 import { SkyNetProvider, useSkyNet } from './contexts/SkyNetContext';
 import SkyNetOverlay from './components/SkyNetOverlay';
-import { TradingViewWidget } from './components/MarketDashboard'; 
+import { TradingViewWidget } from './components/MarketDashboard';
 
 import Layout from './components/Layout';
 import LandingPage from './pages/LandingPage';
@@ -25,6 +25,8 @@ import Chatbox from './pages/Chatbox';
 import IdeasPage from './pages/IdeasPage';
 import TermsOfService from './pages/TermsOfService';
 import PrivacyPolicy from './pages/PrivacyPolicy';
+import AssetEvaluator from './pages/AssetEvaluator';
+import ComparisonMatrix from './pages/ComparisonMatrix';
 
 // --- PayPal Configuration (Safety Mode) ---
 const clientId = import.meta.env.VITE_PAYPAL_CLIENT_ID;
@@ -42,10 +44,10 @@ const paypalOptions = {
 const ActiveChartPage = () => {
     const [searchParams] = useSearchParams();
     const ticker = searchParams.get('ticker') || "SPY";
-    
+
     // Auto-connect SkyNet for this tab if requested AND initialize chart state
     const { connect, setChartTicker } = useSkyNet();
-    
+
     useEffect(() => {
         if (searchParams.get('skynet') === 'true') {
             connect();
@@ -60,10 +62,10 @@ const ActiveChartPage = () => {
     return (
         <div className="w-screen h-screen bg-black overflow-hidden relative">
             <div className="absolute inset-0 z-0">
-                <TradingViewWidget 
-                    symbol={ticker} 
-                    theme="dark" 
-                    autosize 
+                <TradingViewWidget
+                    symbol={ticker}
+                    theme="dark"
+                    autosize
                     hide_side_toolbar={false}
                 />
             </div>
@@ -86,10 +88,12 @@ const AppContent = () => {
 
     return (
         <>
-            <SkyNetOverlay /> 
+            <SkyNetOverlay />
             <Routes>
                 <Route path="/" element={<Layout><LandingPage /></Layout>} />
                 <Route path="/products" element={<Layout><Products /></Layout>} />
+                <Route path="/asset-evaluator" element={<Layout><AssetEvaluator /></Layout>} />
+                <Route path="/products/comparison-matrix" element={<Layout><ComparisonMatrix /></Layout>} />
                 <Route path="/market-nexus" element={<Layout><MarketNexus /></Layout>} />
                 <Route path="/portfolio-lab" element={<Layout><PortfolioLab /></Layout>} />
                 <Route path="/custom" element={<Layout><Wizard /></Layout>} />
@@ -97,7 +101,6 @@ const AppContent = () => {
                 <Route path="/cultivate" element={<Layout><Wizard /></Layout>} />
                 <Route path="/tracking" element={<Layout><Wizard /></Layout>} />
                 <Route path="/login" element={<Layout><Login /></Layout>} />
-                <Route path="/signup" element={<Layout><SignUp /></Layout>} />
                 <Route path="/profile" element={<Layout><Profile /></Layout>} />
                 <Route path="/forum" element={<Layout><Forum /></Layout>} />
                 <Route path="/news" element={<Layout><NewsPage /></Layout>} />
@@ -108,9 +111,9 @@ const AppContent = () => {
                 <Route path="/ideas" element={<Layout><IdeasPage /></Layout>} />
                 <Route path="/terms" element={<Layout><TermsOfService /></Layout>} />
                 <Route path="/privacy" element={<Layout><PrivacyPolicy /></Layout>} />
-                
+
                 <Route path="/active-chart" element={<ActiveChartPage />} />
-            </Routes>
+            </Routes >
         </>
     );
 };

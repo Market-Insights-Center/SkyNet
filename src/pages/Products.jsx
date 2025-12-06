@@ -3,11 +3,18 @@ import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Bot, ChevronRight, Search, Scale, Siren, ToggleLeft, ToggleRight, ExternalLink } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import { useSkyNet } from '../contexts/SkyNetContext';
 
 const Products = () => {
     const { userProfile } = useAuth();
+    const { connect, disconnect, isConnected } = useSkyNet();
     const [skynetActive, setSkynetActive] = useState(false);
     const [isProcessing, setIsProcessing] = useState(false);
+
+    // Sync local state with global isConnected
+    useEffect(() => {
+        setSkynetActive(isConnected);
+    }, [isConnected]);
 
     // Check if we are inside the popup
     useEffect(() => {
@@ -24,20 +31,12 @@ const Products = () => {
         try {
             if (skynetActive) {
                 // STOP Logic
-                if (!window.opener) {
-                    // Only close if we are in the popup
-                    window.close();
-                } else {
-                    // We are in popup, just close self
-                    window.close();
-                }
-
-                // Also tell backend to stop
                 await fetch('http://localhost:8000/api/skynet/toggle', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ action: 'stop' })
                 });
+                disconnect();
 
             } else {
                 // START Logic
@@ -51,17 +50,8 @@ const Products = () => {
                 const data = await response.json();
 
                 if (response.ok) {
-                    // 2. Open popup
-                    const width = 1200;
-                    const height = 800;
-                    const left = (window.screen.width / 2) - (width / 2);
-                    const top = (window.screen.height / 2) - (height / 2);
-
-                    window.open(
-                        `${window.location.origin}/?skynet=true`,
-                        'SkyNetInterface',
-                        `width=${width},height=${height},top=${top},left=${left},toolbar=no,menubar=no`
-                    );
+                    // 2. Connect directly (No Popup)
+                    connect();
                 } else {
                     alert(`Error starting SkyNet: ${data.detail || 'Unknown error'}`);
                 }
@@ -111,8 +101,8 @@ const Products = () => {
                             onClick={toggleSkyNet}
                             disabled={isProcessing}
                             className={`flex items-center gap-2 px-6 py-3 rounded-full font-bold transition-all border ${skynetActive
-                                    ? 'bg-red-500/10 text-red-400 border-red-500/50 hover:bg-red-500/20'
-                                    : 'bg-cyan-500/10 text-cyan-400 border-cyan-500/50 hover:bg-cyan-500/20 shadow-[0_0_10px_rgba(6,182,212,0.2)]'
+                                ? 'bg-red-500/10 text-red-400 border-red-500/50 hover:bg-red-500/20'
+                                : 'bg-cyan-500/10 text-cyan-400 border-cyan-500/50 hover:bg-cyan-500/20 shadow-[0_0_10px_rgba(6,182,212,0.2)]'
                                 } ${isProcessing ? 'opacity-50 cursor-not-allowed' : ''}`}
                         >
                             {isProcessing ? (
@@ -155,47 +145,57 @@ const Products = () => {
                         </motion.div>
                     </Link>
 
-                    {/* Asset Evaluator - Locked */}
-                    <div className="group relative">
+                    {/* Asset Evaluator - Active */}
+                    <Link to="/asset-evaluator" className="group">
                         <motion.div
                             initial={{ opacity: 0, y: 20 }}
                             animate={{ opacity: 1, y: 0 }}
                             transition={{ delay: 0.3 }}
-                            className="h-full bg-white/5 border border-white/10 rounded-2xl p-8 opacity-75 grayscale hover:grayscale-0 transition-all duration-500"
+                            className="h-full bg-white/5 border border-purple-500/30 rounded-2xl p-8 hover:bg-white/10 hover:border-purple-500 transition-all duration-300 relative overflow-hidden"
                         >
-                            <div className="w-12 h-12 bg-white/10 rounded-lg flex items-center justify-center mb-6 text-gray-400">
-                                <Search size={24} />
+                            <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+                                <Search size={120} />
                             </div>
-                            <h3 className="text-2xl font-bold mb-2 text-gray-300">Asset Evaluator</h3>
-                            <p className="text-gray-500 mb-6">
-                                Tools for scoring the strength of portfolios and assets, generating investment recommendations.
-                            </p>
-                            <div className="inline-block px-3 py-1 rounded-full bg-white/10 text-xs font-bold text-gray-400 border border-white/10">
-                                COMING SOON
+                            <div className="relative z-10">
+                                <div className="w-12 h-12 bg-purple-500/20 rounded-lg flex items-center justify-center mb-6 text-purple-400">
+                                    <Search size={24} />
+                                </div>
+                                <h3 className="text-2xl font-bold mb-2 group-hover:text-purple-400 transition-colors">Asset Evaluator</h3>
+                                <p className="text-gray-400 mb-6">
+                                    Tools for scoring the strength of portfolios and assets, generating investment recommendations.
+                                </p>
+                                <div className="flex items-center text-purple-400 font-bold">
+                                    Launch Application <ChevronRight size={20} className="ml-2 group-hover:translate-x-1 transition-transform" />
+                                </div>
                             </div>
                         </motion.div>
-                    </div>
+                    </Link>
 
-                    {/* Comparison Matrix - Locked */}
-                    <div className="group relative">
+                    {/* Comparison Matrix - Active */}
+                    <Link to="/products/comparison-matrix" className="group">
                         <motion.div
                             initial={{ opacity: 0, y: 20 }}
                             animate={{ opacity: 1, y: 0 }}
                             transition={{ delay: 0.4 }}
-                            className="h-full bg-white/5 border border-white/10 rounded-2xl p-8 opacity-75 grayscale hover:grayscale-0 transition-all duration-500"
+                            className="h-full bg-white/5 border border-cyan-500/30 rounded-2xl p-8 hover:bg-white/10 hover:border-cyan-500 transition-all duration-300 relative overflow-hidden"
                         >
-                            <div className="w-12 h-12 bg-white/10 rounded-lg flex items-center justify-center mb-6 text-gray-400">
-                                <Scale size={24} />
+                            <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+                                <Scale size={120} />
                             </div>
-                            <h3 className="text-2xl font-bold mb-2 text-gray-300">Comparison Matrix</h3>
-                            <p className="text-gray-500 mb-6">
-                                Products that produce lists of the strongest assets with the highest growth potential based on tested formulas.
-                            </p>
-                            <div className="inline-block px-3 py-1 rounded-full bg-white/10 text-xs font-bold text-gray-400 border border-white/10">
-                                COMING SOON
+                            <div className="relative z-10">
+                                <div className="w-12 h-12 bg-cyan-500/20 rounded-lg flex items-center justify-center mb-6 text-cyan-400">
+                                    <Scale size={24} />
+                                </div>
+                                <h3 className="text-2xl font-bold mb-2 group-hover:text-cyan-400 transition-colors">Comparison Matrix</h3>
+                                <p className="text-gray-400 mb-6">
+                                    Products that produce lists of the strongest assets with the highest growth potential based on tested formulas.
+                                </p>
+                                <div className="flex items-center text-cyan-400 font-bold">
+                                    Launch Application <ChevronRight size={20} className="ml-2 group-hover:translate-x-1 transition-transform" />
+                                </div>
                             </div>
                         </motion.div>
-                    </div>
+                    </Link>
 
                     {/* Market Nexus - Active */}
                     <Link to="/market-nexus" className="group">

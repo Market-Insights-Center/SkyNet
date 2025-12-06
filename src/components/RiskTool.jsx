@@ -124,8 +124,8 @@ const RiskTool = () => {
     ];
 
     const bearishRanges = [
-        { max: 40, color: '#22c55e', label: 'Low Risk' },
-        { max: 60, color: '#eab308', label: 'Moderate' },
+        { max: 15, color: '#22c55e', label: 'Low Risk' },
+        { max: 25, color: '#eab308', label: 'Moderate' },
         { max: 100, color: '#ef4444', label: 'High Risk' }
     ];
 
@@ -188,7 +188,7 @@ const RiskTool = () => {
 
             {/* SPY Scores */}
             <div>
-                <h2 className="text-xl font-bold text-cyan-400 mb-6 flex items-center gap-2">
+                <h2 className="text-xl font-bold text-purple-400 mb-6 flex items-center gap-2">
                     <TrendingUp size={20} /> SPY Scores
                 </h2>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">

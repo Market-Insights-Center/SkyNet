@@ -100,7 +100,7 @@ const HistoryTool = () => {
                             <Legend />
                             <Line type="monotone" dataKey="General Market Score" stroke="#eab308" strokeWidth={2} dot={false} />
                             <Line type="monotone" dataKey="Large Market Cap Score" stroke="#22c55e" strokeWidth={2} dot={false} />
-                            <Line type="monotone" dataKey="Combined Score" stroke="#06b6d4" strokeWidth={3} dot={false} />
+                            <Line type="monotone" dataKey="Combined Score" stroke="#8b5cf6" strokeWidth={3} dot={false} />
                             <Line type="monotone" dataKey="EMA Score" stroke="#a855f7" strokeWidth={2} dot={false} />
                         </LineChart>
                     </ResponsiveContainer>
@@ -109,7 +109,7 @@ const HistoryTool = () => {
 
             {/* Chart 2: SPY vs VIX */}
             <div className="bg-white/5 p-6 rounded-2xl border border-white/10">
-                <h3 className="text-xl font-bold text-cyan-400 mb-6 flex items-center gap-2">
+                <h3 className="text-xl font-bold text-purple-400 mb-6 flex items-center gap-2">
                     <TrendingUp size={20} /> SPY vs VIX Price Action
                 </h3>
                 <div className="h-[400px] w-full">
@@ -137,7 +137,7 @@ const HistoryTool = () => {
             {/* Chart 3: Recession Chances */}
             <div className="bg-white/5 p-6 rounded-2xl border border-white/10">
                 <h3 className="text-xl font-bold text-red-400 mb-6 flex items-center gap-2">
-                    <Calendar size={20} /> Recession Probability History
+                    <Calendar size={20} /> Contraction Probability History
                 </h3>
                 <div className="h-[400px] w-full">
                     <ResponsiveContainer width="100%" height="100%">

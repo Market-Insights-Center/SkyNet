@@ -42,7 +42,7 @@ const MarketNexus = () => {
                     className="mb-12"
                 >
                     <div className="flex items-center gap-4 mb-4">
-                        <div className="w-12 h-12 bg-cyan-500/20 rounded-xl flex items-center justify-center text-cyan-400">
+                        <div className="w-12 h-12 bg-gold/20 rounded-xl flex items-center justify-center text-gold">
                             <Siren size={24} />
                         </div>
                         <div>
@@ -56,7 +56,7 @@ const MarketNexus = () => {
                         <button
                             onClick={() => setActiveTab('risk')}
                             className={`flex items-center gap-2 px-6 py-3 font-bold transition-all border-b-2 ${activeTab === 'risk'
-                                ? 'border-cyan-400 text-cyan-400'
+                                ? 'border-gold text-gold'
                                 : 'border-transparent text-gray-400 hover:text-gray-200'
                                 }`}
                         >
@@ -66,7 +66,7 @@ const MarketNexus = () => {
                         <button
                             onClick={() => setActiveTab('history')}
                             className={`flex items-center gap-2 px-6 py-3 font-bold transition-all border-b-2 ${activeTab === 'history'
-                                ? 'border-gold text-gold'
+                                ? 'border-purple-500 text-purple-400'
                                 : 'border-transparent text-gray-400 hover:text-gray-200'
                                 }`}
                         >
