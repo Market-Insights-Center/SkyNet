@@ -44,7 +44,9 @@ from database import (
     delete_article,
     delete_idea,
     delete_comment,
-    create_user_profile
+    create_user_profile,
+    check_username_taken,
+    update_user_username
 )
 
 logging.basicConfig(level=logging.INFO)
@@ -117,6 +119,10 @@ class ChatReadRequest(BaseModel):
     email: str
 
 class UsernameCheckRequest(BaseModel):
+    username: str
+
+class UsernameUpdateRequest(BaseModel):
+    email: str
     username: str
 
 class MarketDataRequest(BaseModel):
@@ -564,6 +570,19 @@ def api_get_user_profile(email: str, uid: Optional[str] = None):
     if profile:
         return profile
     return {"email": email, "tier": "Basic", "subscription_status": "none"}
+
+@app.post("/api/check-username")
+def api_check_username(req: UsernameCheckRequest):
+    is_taken = check_username_taken(req.username)
+    return {"taken": is_taken}
+
+@app.post("/api/user/username")
+def api_update_username(req: UsernameUpdateRequest):
+    result = update_user_username(req.email, req.username)
+    if result["success"]:
+        return {"status": "success"}
+    else:
+        raise HTTPException(status_code=400, detail=result["message"])
 
 # --- ADMIN ROUTES ---
 @app.get("/api/admin/coupons")

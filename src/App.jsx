@@ -5,6 +5,8 @@ import { AuthProvider } from './contexts/AuthContext';
 import { SkyNetProvider, useSkyNet } from './contexts/SkyNetContext';
 import SkyNetOverlay from './components/SkyNetOverlay';
 import { TradingViewWidget } from './components/MarketDashboard';
+import UsernameSetupModal from './components/UsernameSetupModal';
+import { useAuth } from './contexts/AuthContext';
 
 import Layout from './components/Layout';
 import LandingPage from './pages/LandingPage';
@@ -80,7 +82,18 @@ const ActiveChartPage = () => {
 
 const AppContent = () => {
     const { connect } = useSkyNet();
+    const { userProfile } = useAuth();
     const [searchParams] = useSearchParams();
+    const [showUsernameModal, setShowUsernameModal] = useState(false);
+
+    useEffect(() => {
+        // If user is logged in (has userProfile) AND has default username (User_...)
+        if (userProfile && (!userProfile.username || userProfile.username.startsWith("User_"))) {
+            setShowUsernameModal(true);
+        } else {
+            setShowUsernameModal(false);
+        }
+    }, [userProfile]);
 
     useEffect(() => {
         if (searchParams.get('skynet') === 'true') {
@@ -90,6 +103,7 @@ const AppContent = () => {
 
     return (
         <>
+            <UsernameSetupModal isOpen={showUsernameModal} onClose={() => setShowUsernameModal(false)} />
             <SkyNetOverlay />
             <Routes>
                 <Route path="/" element={<Layout><LandingPage /></Layout>} />

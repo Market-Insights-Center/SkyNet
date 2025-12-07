@@ -25,7 +25,7 @@ const Products = () => {
             if (skynetActive) {
                 // STOP
                 const host = window.location.hostname;
-                await fetch(`http://${host}:8000/api/skynet/toggle`, {
+                await fetch(`/api/skynet/toggle`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ action: 'stop' })
@@ -36,7 +36,7 @@ const Products = () => {
             } else {
                 // START
                 const host = window.location.hostname;
-                const response = await fetch(`http://${host}:8000/api/skynet/toggle`, {
+                const response = await fetch(`/api/skynet/toggle`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ action: 'start' })

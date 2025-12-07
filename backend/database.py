@@ -173,7 +173,7 @@ def update_user_tier(email, tier, subscription_id=None, status="active"):
         print(f"Error updating tier: {e}")
         return False
 
-def create_user_profile(email, uid):
+def create_user_profile(email, uid, username=None):
     """Creates a new user profile in Firestore."""
     try:
         db = get_db()
@@ -182,9 +182,14 @@ def create_user_profile(email, uid):
         doc = doc_ref.get()
         
         if not doc.exists:
+            # If no username provided, generate a temp one
+            if not username:
+                username = f"User_{int(time.time())}"
+
             data = {
                 'email': email,
                 'uid': uid,
+                'username': username,
                 'tier': 'Basic',
                 'subscription_status': 'none',
                 'created_at': firestore.SERVER_TIMESTAMP,
@@ -198,6 +203,31 @@ def create_user_profile(email, uid):
     except Exception as e:
         print(f"Error creating user profile: {e}")
         return False
+
+def check_username_taken(username):
+    """Checks if a username is already taken by ANOTHER user."""
+    try:
+        db = get_db()
+        # Query users collection where username == username
+        docs = db.collection('users').where('username', '==', username).stream()
+        for _ in docs:
+            return True # Found a match
+        return False
+    except Exception as e:
+        print(f"Error checking username: {e}")
+        return True # Fail safe: assume taken if error to prevent dupes
+
+def update_user_username(email, new_username):
+    """Updates username if unique."""
+    if check_username_taken(new_username):
+        return {"success": False, "message": "Username already taken"}
+        
+    try:
+        db = get_db()
+        db.collection('users').document(email).update({'username': new_username})
+        return {"success": True, "message": "Username updated"}
+    except Exception as e:
+        return {"success": False, "message": str(e)}
 
 def get_all_users_from_db():
     """Fetches ALL users from Auth and merges with Firestore Tier data."""

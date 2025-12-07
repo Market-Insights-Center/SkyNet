@@ -311,7 +311,7 @@ export const SkyNetProvider = ({ children }) => {
   const shutdownSystem = async () => {
     try {
       const host = window.location.hostname;
-      await fetch(`http://${host}:8000/api/skynet/toggle`, {
+      await fetch(`/api/skynet/toggle`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'stop' })

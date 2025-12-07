@@ -110,6 +110,7 @@ export function AuthProvider({ children }) {
         updateUserPassword,
         updateUsername,
         refreshUserProfile,
+        fetchUserProfile: refreshUserProfile,
         loading, // Expose loading state
         userProfile: currentUser // Expose currentUser as userProfile for compatibility
     };
