@@ -18,7 +18,6 @@ mediapipe
 opencv-python
 SpeechRecognition
 pyttsx3
-pyaudio
 
 # Visualization & Formatting
 

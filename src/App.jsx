@@ -4,7 +4,6 @@ import { PayPalScriptProvider } from "@paypal/react-paypal-js";
 import { AuthProvider } from './contexts/AuthContext';
 import { SkyNetProvider, useSkyNet } from './contexts/SkyNetContext';
 import SkyNetOverlay from './components/SkyNetOverlay';
-import SkyNetVision from './components/SkyNetVision';
 import { TradingViewWidget } from './components/MarketDashboard';
 import UsernameSetupModal from './components/UsernameSetupModal';
 import { useAuth } from './contexts/AuthContext';
@@ -106,7 +105,6 @@ const AppContent = () => {
         <>
             <UsernameSetupModal isOpen={showUsernameModal} onClose={() => setShowUsernameModal(false)} />
             <SkyNetOverlay />
-            <SkyNetVision />
             <Routes>
                 <Route path="/" element={<Layout><LandingPage /></Layout>} />
                 <Route path="/products" element={<Layout><Products /></Layout>} />
