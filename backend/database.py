@@ -224,7 +224,7 @@ def update_user_username(email, new_username):
         
     try:
         db = get_db()
-        db.collection('users').document(email).update({'username': new_username})
+        db.collection('users').document(email).set({'username': new_username}, merge=True)
         return {"success": True, "message": "Username updated"}
     except Exception as e:
         return {"success": False, "message": str(e)}
