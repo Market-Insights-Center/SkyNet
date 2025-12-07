@@ -45,7 +45,7 @@ export const SkyNetProvider = ({ children }) => {
 
       if (cmd.action === "OPEN_SIDEBAR") {
         if (!sidebarWindowRef.current || sidebarWindowRef.current.closed) {
-          sidebarWindowRef.current = window.open('/sidebar', 'SkyNetSidebar', 'width=320,height=600,menubar=no,toolbar=no,location=no,status=no,resizable=yes,scrollbars=yes,left=' + (window.screen.width - 350));
+          sidebarWindowRef.current = window.open(window.location.origin + '/sidebar', 'SkyNetSidebar', 'width=320,height=600,menubar=no,toolbar=no,location=no,status=no,resizable=yes,scrollbars=yes,left=' + (window.screen.width - 350));
           addLog("Opened Detached Sidebar", "SYSTEM");
         }
       }
@@ -58,7 +58,7 @@ export const SkyNetProvider = ({ children }) => {
       }
       if (cmd.action === "TOGGLE_SIDEBAR") {
         if (!sidebarWindowRef.current || sidebarWindowRef.current.closed) {
-          sidebarWindowRef.current = window.open('/sidebar', 'SkyNetSidebar', 'width=320,height=600,menubar=no,toolbar=no,location=no,status=no,resizable=yes,scrollbars=yes,left=' + (window.screen.width - 350));
+          sidebarWindowRef.current = window.open(window.location.origin + '/sidebar', 'SkyNetSidebar', 'width=320,height=600,menubar=no,toolbar=no,location=no,status=no,resizable=yes,scrollbars=yes,left=' + (window.screen.width - 350));
           addLog("Opened Detached Sidebar", "SYSTEM");
         } else {
           sidebarWindowRef.current.close();
@@ -70,7 +70,7 @@ export const SkyNetProvider = ({ children }) => {
 
     if (cmd.action === 'OPEN_CONTROLS') {
       if (!controlsWindowRef.current || controlsWindowRef.current.closed) {
-        controlsWindowRef.current = window.open('/controls', 'SkyNetControls', 'width=900,height=600,menubar=no,toolbar=no,location=no,status=no,resizable=yes,scrollbars=yes');
+        controlsWindowRef.current = window.open(window.location.origin + '/controls', 'SkyNetControls', 'width=900,height=600,menubar=no,toolbar=no,location=no,status=no,resizable=yes,scrollbars=yes');
         addLog("Opened Global Controls", "SYSTEM");
       }
       return;
@@ -274,9 +274,16 @@ export const SkyNetProvider = ({ children }) => {
   const connect = () => {
     if (ws.current) return;
 
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const host = window.location.hostname;
-    const socketUrl = `${protocol}//${host}:8001`;
+    // SKYNET V2 ARCHITECTURE FIX:
+    // The Python Script (SkyNet V2) runs LOCALLY on the user's machine (Hardware Bridge).
+    // Therefore, the frontend (even if hosted on VPS) must connect to the LOCALHOST of the user.
+    // We use 127.0.0.1 to avoid some browser resolution issues.
+    const socketUrl = 'ws://127.0.0.1:8001';
+
+    // Previous "Dynamic" Logic (Incorrect for Hardware Bridge):
+    // const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    // const host = window.location.hostname;
+    // const socketUrl = `${protocol}//${host}:8001`;
 
     const socket = new WebSocket(socketUrl);
 
