@@ -1,3 +1,4 @@
+
 # Logs
 logs
 *.log
@@ -57,6 +58,10 @@ backend/*_cache.csv
 # Ignoring this prevents the local key from overwriting the VPS key.
 backend/serviceAccountKey.json
 serviceAccountKey.json
+
+# 5. Environment Variables
+.env
+backend/.env
 
 # Exception: We DO want to track the schema definitions if any
 !backend/data/tier_limits.csv
