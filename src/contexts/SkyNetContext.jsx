@@ -10,6 +10,7 @@ const INTERVALS = ['1M', '1W', 'D', '240', '60', '15'];
 
 export const SkyNetProvider = ({ children }) => {
   const [isConnected, setIsConnected] = useState(false);
+  const [connectionError, setConnectionError] = useState(null);
   const [logs, setLogs] = useState([]);
 
   const [cursorPos, setCursorPos] = useState({ x: 0.5, y: 0.5 });
@@ -289,7 +290,13 @@ export const SkyNetProvider = ({ children }) => {
 
     socket.onopen = () => {
       setIsConnected(true);
+      setConnectionError(null);
       addLog("System Connected", "SYSTEM");
+    };
+
+    socket.onerror = (error) => {
+      console.error("SkyNet WebSocket Error:", error);
+      setConnectionError("Failed to connect to local SkyNet Core (127.0.0.1:8001). Ensure skynet_v2.py is running locally.");
     };
 
     socket.onclose = () => {
@@ -353,7 +360,7 @@ export const SkyNetProvider = ({ children }) => {
 
   return (
     <SkyNetContext.Provider value={{
-      connect, disconnect, shutdownSystem, isConnected, logs, cursorPos, cursorState,
+      connect, disconnect, shutdownSystem, isConnected, connectionError, logs, cursorPos, cursorState,
       chartTicker, setChartTicker, chartInterval
     }}>
       {children}

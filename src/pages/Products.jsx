@@ -7,7 +7,7 @@ import { useSkyNet } from '../contexts/SkyNetContext';
 
 const Products = () => {
     const { userProfile } = useAuth();
-    const { connect, disconnect, isConnected } = useSkyNet();
+    const { connect, disconnect, isConnected, connectionError } = useSkyNet();
     const [skynetActive, setSkynetActive] = useState(false);
     const [isProcessing, setIsProcessing] = useState(false);
     const [showControls, setShowControls] = useState(false);
@@ -16,6 +16,14 @@ const Products = () => {
     useEffect(() => {
         setSkynetActive(isConnected);
     }, [isConnected]);
+
+    // Handle Connection Errors
+    useEffect(() => {
+        if (connectionError && isProcessing) {
+            alert(connectionError);
+            setIsProcessing(false);
+        }
+    }, [connectionError, isProcessing]);
 
     const toggleSkyNet = async () => {
         if (isProcessing) return;
