@@ -558,13 +558,28 @@ def get_users():
 
 @app.get("/api/user/profile")
 def api_get_user_profile(email: str, uid: Optional[str] = None):
-    if email.lower() == SUPER_ADMIN_EMAIL:
-        return {"email": email, "tier": "Singularity", "subscription_status": "active", "risk_tolerance": 10, "trading_frequency": "Daily", "portfolio_types": ["All"]}
-        
+    # Fetch actual profile first to get username/uid
     profile = get_user_profile(email)
     
+    # If Super Admin, enforce privileges but keep other data (like username)
+    if email.lower() == SUPER_ADMIN_EMAIL:
+        if not profile:
+             profile = {"email": email}
+        # Force Admin Privileges
+        profile.update({
+            "tier": "Singularity", 
+            "subscription_status": "active", 
+            "risk_tolerance": 10, 
+            "trading_frequency": "Daily", 
+            "portfolio_types": ["All"]
+        })
+        # If username is missing in DB for admin, set a default to prevent loop
+        if "username" not in profile:
+             profile["username"] = "SkyNet_Admin"
+
     if not profile and uid:
         if create_user_profile(email, uid):
+             profile = get_user_profile(email)
              profile = get_user_profile(email)
              
     if profile:
