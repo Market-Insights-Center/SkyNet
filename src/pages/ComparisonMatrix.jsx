@@ -169,7 +169,7 @@ const ComparisonMatrix = () => {
                     animate={{ opacity: 1, y: 0 }}
                     className="mb-8 text-center"
                 >
-                    <div className="inline-flex items-center justify-center p-3 bg-white/10 rounded-xl mb-4 text-white border border-white/20">
+                    <div className="inline-flex items-center justify-center p-3 bg-gold/10 rounded-xl mb-4 text-gold border border-gold/20">
                         <Scale size={32} />
                     </div>
                     <h1 className="text-4xl font-bold mb-2">Comparison Matrix</h1>

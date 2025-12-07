@@ -27,6 +27,8 @@ import TermsOfService from './pages/TermsOfService';
 import PrivacyPolicy from './pages/PrivacyPolicy';
 import AssetEvaluator from './pages/AssetEvaluator';
 import ComparisonMatrix from './pages/ComparisonMatrix';
+import ControlsPage from './pages/ControlsPage';
+import SidebarPage from './pages/SidebarPage';
 
 // --- PayPal Configuration (Safety Mode) ---
 const clientId = import.meta.env.VITE_PAYPAL_CLIENT_ID;
@@ -111,7 +113,11 @@ const AppContent = () => {
                 <Route path="/ideas" element={<Layout><IdeasPage /></Layout>} />
                 <Route path="/terms" element={<Layout><TermsOfService /></Layout>} />
                 <Route path="/privacy" element={<Layout><PrivacyPolicy /></Layout>} />
+                <Route path="/social" element={<Layout><Forum /></Layout>} />
 
+                {/* --- SKYNET DETACHED CONTROLS & SIDEBAR --- */}
+                <Route path="/controls" element={<ControlsPage />} />
+                <Route path="/sidebar" element={<SidebarPage />} />
                 <Route path="/active-chart" element={<ActiveChartPage />} />
             </Routes >
         </>
@@ -119,7 +125,12 @@ const AppContent = () => {
 };
 
 function App() {
-    const [isLoading, setIsLoading] = useState(true);
+    // Skip animation for detached windows (controls, sidebar, active-chart)
+    const [isLoading, setIsLoading] = useState(() => {
+        const path = window.location.pathname;
+        const skipPaths = ['/controls', '/sidebar', '/active-chart'];
+        return !skipPaths.includes(path);
+    });
 
     if (!clientId) {
         console.warn("⚠️ VITE_PAYPAL_CLIENT_ID is missing. PayPal features will be in 'Safety Mode'.");

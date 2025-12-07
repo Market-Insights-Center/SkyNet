@@ -60,7 +60,7 @@ const AssetEvaluator = () => {
                 </motion.div>
 
                 {/* Input Section */}
-                <div className="bg-white/5 border border-white/10 rounded-2xl p-6 mb-8">
+                <div className="bg-white/5 border border-white/10 rounded-2xl p-6 mb-8 transition-colors duration-300 hover:border-gold/50">
                     <form onSubmit={handleAnalyze} className="flex gap-4">
                         <input
                             type="text"
@@ -94,13 +94,13 @@ const AssetEvaluator = () => {
                         className="space-y-8"
                     >
                         {/* Score Summary */}
-                        <div className="bg-white/5 border border-white/10 rounded-2xl p-6">
+                        <div className="bg-white/5 border border-white/10 rounded-2xl p-6 hover:border-gold/30 transition-colors">
                             <h2 className="text-2xl font-bold mb-6 flex items-center gap-2 text-gold">
                                 <Activity size={24} /> Analysis Results: {result.ticker}
                             </h2>
 
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                                <div className="p-4 bg-black/30 rounded-xl border border-white/5">
+                                <div className="p-4 bg-black/30 rounded-xl border border-white/5 hover:border-gold/20 transition-colors">
                                     <div className="text-gray-400 text-sm mb-1">Live Price (Daily)</div>
                                     <div className="text-2xl font-bold text-white">{result.live_price}</div>
                                 </div>
@@ -112,7 +112,7 @@ const AssetEvaluator = () => {
                                     else if (score >= 40) scoreColor = 'text-yellow-400';
 
                                     return (
-                                        <div key={key} className="p-4 bg-black/30 rounded-xl border border-white/5">
+                                        <div key={key} className="p-4 bg-black/30 rounded-xl border border-white/5 hover:border-gold/20 transition-colors">
                                             <div className="text-gray-400 text-sm mb-1">
                                                 {key === '1' ? 'Weekly (5Y)' : key === '2' ? 'Daily (1Y)' : 'Hourly (6M)'} Score
                                             </div>
@@ -127,7 +127,7 @@ const AssetEvaluator = () => {
 
                         {/* Charts Grid */}
                         <div>
-                            <h3 className="text-xl font-bold mb-4 flex items-center gap-2 text-purple-400">
+                            <h3 className="text-xl font-bold mb-4 flex items-center gap-2 text-gold">
                                 <BarChart2 size={24} /> Technical Charts
                             </h3>
                             <div className="grid grid-cols-1 gap-6">
