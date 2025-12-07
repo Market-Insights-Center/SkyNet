@@ -17,7 +17,7 @@ server {
     server_name marketinsightscenter.com www.marketinsightscenter.com;
 
     # Point to the DIST folder containing the built React app
-    root /var/www/marketinsightscenter/dist;
+    root /var/www/marketinsights/dist;
     index index.html;
 
     # 1. Frontend Routing
@@ -40,6 +40,6 @@ server {
     # 3. Serve Static Files from Backend
     # Matches the mount path in your main.py
     location /static {
-        alias /var/www/marketinsightscenter/backend/static;
+        alias /var/www/marketinsights/backend/static;
     }
 }

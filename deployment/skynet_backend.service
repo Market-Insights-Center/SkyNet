@@ -8,13 +8,13 @@ User=root
 Group=www-data
 
 # Pointing to your specific backend folder on the VPS
-WorkingDirectory=/var/www/marketinsightscenter/backend
+WorkingDirectory=/var/www/marketinsights/backend
 
 # Ensure we use the virtual environment created on the server
-Environment="PATH=/var/www/marketinsightscenter/backend/venv/bin"
+Environment="PATH=/var/www/marketinsights/backend/venv/bin"
 
 # Runs the app on localhost:8000
-ExecStart=/var/www/marketinsightscenter/backend/venv/bin/uvicorn main:app --host 127.0.0.1 --port 8000
+ExecStart=/var/www/marketinsights/backend/venv/bin/uvicorn main:app --host 127.0.0.1 --port 8000
 
 [Install]
 WantedBy=multi-user.target
