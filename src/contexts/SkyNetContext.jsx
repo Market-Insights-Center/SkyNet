@@ -11,6 +11,7 @@ const INTERVALS = ['1M', '1W', 'D', '240', '60', '15'];
 export const SkyNetProvider = ({ children }) => {
   const [isConnected, setIsConnected] = useState(false);
   const [connectionError, setConnectionError] = useState(null);
+  const [isElectron, setIsElectron] = useState(false);
   const [logs, setLogs] = useState([]);
 
   const [cursorPos, setCursorPos] = useState({ x: 0.5, y: 0.5 });
@@ -272,47 +273,31 @@ export const SkyNetProvider = ({ children }) => {
     }
   };
 
+  // CHECK FOR ELECTRON ENVIRONMENT
+  useEffect(() => {
+    if (window.electronAPI) {
+      setIsElectron(true);
+      addLog("Native Bridge Detected", "SYSTEM");
+    }
+  }, []);
+
   const connect = () => {
     if (ws.current) return;
 
-    // SKYNET V2 ARCHITECTURE FIX:
-    // The Python Script (SkyNet V2) runs LOCALLY on the user's machine (Hardware Bridge).
-    // Therefore, the frontend (even if hosted on VPS) must connect to the LOCALHOST of the user.
-    // We use 127.0.0.1 to avoid some browser resolution issues.
-    const socketUrl = 'ws://127.0.0.1:8001';
+    // IF NOT ELECTRON, DISABLE (User Constraint)
+    if (!window.electronAPI) {
+      setConnectionError("SkyNet requires the Desktop App. Please download it to use this feature.");
+      return;
+    }
 
-    // Previous "Dynamic" Logic (Incorrect for Hardware Bridge):
-    // const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    // const host = window.location.hostname;
-    // const socketUrl = `${protocol}//${host}:8001`;
+    // SIMULATED CONNECTION FOR ELECTRON
+    // The "Server" is the Native Main Process, always available.
+    setIsConnected(true);
+    setConnectionError(null);
+    addLog("System Online", "SYSTEM");
 
-    const socket = new WebSocket(socketUrl);
-
-    socket.onopen = () => {
-      setIsConnected(true);
-      setConnectionError(null);
-      addLog("System Connected", "SYSTEM");
-    };
-
-    socket.onerror = (error) => {
-      console.error("SkyNet WebSocket Error:", error);
-      setConnectionError("Failed to connect to local SkyNet Core (127.0.0.1:8001). Ensure skynet_v2.py is running locally.");
-    };
-
-    socket.onclose = () => {
-      setIsConnected(false);
-      ws.current = null;
-      addLog("System Disconnected", "ERROR");
-    };
-
-    socket.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data);
-        handleCommand(data);
-      } catch (e) { }
-    };
-
-    ws.current = socket;
+    // Note: Actual CV Logic will be handled by the SkyNetVision component
+    // which starts when isConnected is true.
   };
 
   const disconnect = () => {
@@ -361,7 +346,7 @@ export const SkyNetProvider = ({ children }) => {
   return (
     <SkyNetContext.Provider value={{
       connect, disconnect, shutdownSystem, isConnected, connectionError, logs, cursorPos, cursorState,
-      chartTicker, setChartTicker, chartInterval
+      chartTicker, setChartTicker, chartInterval, isElectron, handleCommand
     }}>
       {children}
     </SkyNetContext.Provider>

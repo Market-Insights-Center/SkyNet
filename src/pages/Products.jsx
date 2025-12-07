@@ -7,7 +7,7 @@ import { useSkyNet } from '../contexts/SkyNetContext';
 
 const Products = () => {
     const { userProfile } = useAuth();
-    const { connect, disconnect, isConnected, connectionError } = useSkyNet();
+    const { connect, disconnect, isConnected, connectionError, isElectron } = useSkyNet();
     const [skynetActive, setSkynetActive] = useState(false);
     const [isProcessing, setIsProcessing] = useState(false);
     const [showControls, setShowControls] = useState(false);
@@ -116,26 +116,37 @@ const Products = () => {
                                     VIEW CONTROLS
                                 </button>
 
-                                <button
-                                    onClick={toggleSkyNet}
-                                    disabled={isProcessing}
-                                    className={`flex items-center gap-2 px-6 py-3 rounded-full font-bold transition-all border ${skynetActive
-                                        ? 'bg-red-500/10 text-red-400 border-red-500/50 hover:bg-red-500/20'
-                                        : 'bg-purple-500/10 text-purple-400 border-purple-500/50 hover:bg-purple-500/20 shadow-[0_0_10px_rgba(168,85,247,0.2)]'
-                                        } ${isProcessing ? 'opacity-50 cursor-not-allowed' : ''}`}
-                                >
-                                    {isProcessing ? (
-                                        <div className="flex items-center gap-2">
-                                            <Loader2 className="w-5 h-5 animate-spin" />
-                                            <span>{skynetActive ? "TERMINATING..." : "ESTABLISHING UPLINK..."}</span>
-                                        </div>
-                                    ) : (
-                                        <>
-                                            {skynetActive ? <ToggleRight className="w-6 h-6" /> : <ToggleLeft className="w-6 h-6" />}
-                                            {skynetActive ? 'DISENGAGE SYSTEM' : 'INITIALIZE SYSTEM'}
-                                        </>
-                                    )}
-                                </button>
+                                {/* SKYNET OR DOWNLOAD BUTTON */}
+                                {isElectron ? (
+                                    <button
+                                        onClick={toggleSkyNet}
+                                        disabled={isProcessing}
+                                        className={`flex items-center gap-2 px-6 py-3 rounded-full font-bold transition-all border ${skynetActive
+                                            ? 'bg-red-500/10 text-red-400 border-red-500/50 hover:bg-red-500/20'
+                                            : 'bg-purple-500/10 text-purple-400 border-purple-500/50 hover:bg-purple-500/20 shadow-[0_0_10px_rgba(168,85,247,0.2)]'
+                                            } ${isProcessing ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                    >
+                                        {isProcessing ? (
+                                            <div className="flex items-center gap-2">
+                                                <Loader2 className="w-5 h-5 animate-spin" />
+                                                <span>{skynetActive ? "TERMINATING..." : "ESTABLISHING UPLINK..."}</span>
+                                            </div>
+                                        ) : (
+                                            <>
+                                                {skynetActive ? <ToggleRight className="w-6 h-6" /> : <ToggleLeft className="w-6 h-6" />}
+                                                {skynetActive ? 'DISENGAGE SYSTEM' : 'INITIALIZE SYSTEM'}
+                                            </>
+                                        )}
+                                    </button>
+                                ) : (
+                                    <button
+                                        onClick={() => alert("Please verify you are running the Desktop Client.")}
+                                        className="flex items-center gap-2 px-6 py-3 rounded-full font-bold border border-gray-600 bg-gray-800 text-gray-400 hover:bg-gray-700 transition-all cursor-not-allowed opacity-80"
+                                    >
+                                        <ExternalLink className="w-5 h-5" />
+                                        DESKTOP APP REQUIRED
+                                    </button>
+                                )}
                             </div>
                         </motion.div>
                     </div>
