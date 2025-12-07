@@ -140,11 +140,11 @@ const Products = () => {
                                     </button>
                                 ) : (
                                     <button
-                                        onClick={() => alert("Please verify you are running the Desktop Client.")}
-                                        className="flex items-center gap-2 px-6 py-3 rounded-full font-bold border border-gray-600 bg-gray-800 text-gray-400 hover:bg-gray-700 transition-all cursor-not-allowed opacity-80"
+                                        onClick={() => window.location.href = "/download/SkyNet-Setup.exe"}
+                                        className="flex items-center gap-2 px-6 py-3 rounded-full font-bold border border-cyan-500/50 bg-cyan-900/20 text-cyan-400 hover:bg-cyan-900/40 hover:scale-105 transition-all"
                                     >
                                         <ExternalLink className="w-5 h-5" />
-                                        DESKTOP APP REQUIRED
+                                        DOWNLOAD DESKTOP APP
                                     </button>
                                 )}
                             </div>

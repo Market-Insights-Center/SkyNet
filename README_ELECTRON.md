@@ -40,3 +40,4 @@ npm run build
 - **Webcam Access**: The first time you run the app, it may ask for Camera permissions. Allow it.
 - **Mouse Not Moving?**: Ensure the app is running as Administrator if you are trying to control Admin windows (like Task Manager).
 - **"Initialize System" Button Missing?**: The button only appears if the website detects it is running inside the SkyNet App. If you open Chrome, it will say "Desktop App Required".
+- **Module Version / Rebuild Error?**: If you see "NODE_MODULE_VERSION mismatch", just run the `fix_desktop_app.bat` file in the main folder. It will reinstall and rebuild the native dependencies for you.

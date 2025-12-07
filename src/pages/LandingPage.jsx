@@ -149,9 +149,9 @@ const PerformanceModal = ({ isOpen, onClose }) => {
                 <div className="p-8 overflow-y-auto custom-scrollbar">
                     {/* UPDATED: Added Image at the top */}
                     <div className="mb-8 rounded-xl overflow-hidden border border-white/10 shadow-lg">
-                        <img 
-                            src="/cultivatebacktest.png" 
-                            alt="Performance Visualization" 
+                        <img
+                            src="/cultivatebacktest.png"
+                            alt="Performance Visualization"
                             className="w-full h-auto object-cover"
                         />
                     </div>
@@ -715,6 +715,25 @@ const LandingPage = () => {
             {/* FAQ Section */}
             <ErrorBoundary>
                 <FAQSection />
+            </ErrorBoundary>
+
+            {/* Desktop App CTA */}
+            <ErrorBoundary>
+                <section className="py-16 px-4 bg-gradient-to-r from-cyan-900/10 to-blue-900/10 border-t border-white/5">
+                    <div className="max-w-4xl mx-auto flex flex-col md:flex-row items-center justify-between gap-8">
+                        <div className="text-left">
+                            <h3 className="text-2xl font-bold text-white mb-2">Monitor Markets Native-ly</h3>
+                            <p className="text-gray-400">Download the SkyNet Desktop App for full hardware acceleration, OS-level gesture control, and background monitoring.</p>
+                        </div>
+                        <a
+                            href="/download/SkyNet-Setup.exe"
+                            className="bg-cyan-500 hover:bg-cyan-400 text-black font-bold py-3 px-8 rounded-full transition-all flex items-center gap-2"
+                        >
+                            <img src="/logo.png" className="w-6 h-6 hue-rotate-180 invert" alt="" />
+                            Download App
+                        </a>
+                    </div>
+                </section>
             </ErrorBoundary>
 
             {/* Footer */}

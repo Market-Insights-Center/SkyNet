@@ -1,3 +1,4 @@
+```json
 {
     "name": "skynet-desktop",
     "version": "1.0.0",
@@ -5,13 +6,16 @@
     "main": "main.js",
     "scripts": {
         "start": "electron .",
-        "build": "electron-builder"
+        "build": "electron-builder",
+        "rebuild": "@electron/rebuild"
     },
     "dependencies": {
         "robotjs": "^0.6.0"
     },
     "devDependencies": {
         "electron": "^28.0.0",
-        "electron-builder": "^24.9.1"
+        "electron-builder": "^24.9.1",
+        "@electron/rebuild": "^3.2.9"
     }
 }
+```
