@@ -2,27 +2,34 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     Users, TrendingUp, Shield, Activity, Search, Edit2,
-    Save, X, Check, Trash2, Tag, Plus, FileText, Lightbulb
+    Save, X, Check, Trash2, Tag, Plus, FileText, Lightbulb, Megaphone
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
+import CreateArticleModal from '../components/CreateArticleModal';
+import CreateIdeaModal from '../components/CreateIdeaModal';
 
 const AdminDashboard = () => {
     const { currentUser } = useAuth();
     const navigate = useNavigate();
     const [activeTab, setActiveTab] = useState('overview');
 
+    // Simple cache to prevent reload on revisit (persists during session unless page refresh)
+    const [cacheLoaded, setCacheLoaded] = useState(false);
+
     const [users, setUsers] = useState([]);
     const [coupons, setCoupons] = useState([]);
     const [articles, setArticles] = useState([]);
     const [ideas, setIdeas] = useState([]);
     const [mods, setMods] = useState([]);
+    const [banners, setBanners] = useState([]);
+
     const [stats, setStats] = useState({ totalUsers: 0, proUsers: 0, activeTrials: 0 });
-    
+
     // Unified Search Term for all tabs
     const [searchTerm, setSearchTerm] = useState('');
     const [newModEmail, setNewModEmail] = useState('');
-    
+
     const [loadingUsers, setLoadingUsers] = useState(false);
     const [errorUsers, setErrorUsers] = useState(null);
 
@@ -30,6 +37,15 @@ const AdminDashboard = () => {
     const [newTier, setNewTier] = useState('');
     const [showCouponModal, setShowCouponModal] = useState(false);
     const [newCoupon, setNewCoupon] = useState({ code: '', plan_id: '', tier: 'Pro', discount_label: '20% OFF' });
+
+    // Banners State
+    const [showBannerModal, setShowBannerModal] = useState(false);
+    const [editingBanner, setEditingBanner] = useState(null);
+    const [bannerForm, setBannerForm] = useState({ text: '', link: '', type: 'info', active: true });
+
+    // Create Content Modals State
+    const [showCreateArticleModal, setShowCreateArticleModal] = useState(false);
+    const [showCreateIdeaModal, setShowCreateIdeaModal] = useState(false);
 
     // --- SECURITY CHECK ---
     useEffect(() => {
@@ -44,8 +60,9 @@ const AdminDashboard = () => {
             .catch(() => navigate('/'));
     }, [currentUser, navigate]);
 
-    // Fetch Users helper
-    const fetchUsers = () => {
+    // Fetch Helpers with Caching
+    const fetchUsers = (force = false) => {
+        if (!force && users.length > 0) return; // Use cached
         setLoadingUsers(true);
         setErrorUsers(null);
         fetch('/api/users')
@@ -69,18 +86,35 @@ const AdminDashboard = () => {
             .finally(() => setLoadingUsers(false));
     };
 
+    const fetchArticles = () => {
+        fetch('/api/articles').then(res => res.json()).then(data => setArticles(Array.isArray(data) ? data : [])).catch(() => setArticles([]));
+    };
+
+    const fetchIdeas = () => {
+        fetch('/api/ideas').then(res => res.json()).then(data => setIdeas(Array.isArray(data) ? data : [])).catch(() => setIdeas([]));
+    };
+
+    const fetchBanners = () => {
+        if (currentUser) {
+            fetch(`/api/admin/banners?email=${currentUser.email}`).then(res => res.json()).then(data => setBanners(Array.isArray(data) ? data : [])).catch(() => setBanners([]));
+        }
+    };
+
     useEffect(() => {
         if (!currentUser) return;
 
         fetchUsers();
 
-        if (currentUser) {
+        if (currentUser && !cacheLoaded) {
+            fetchUsers();
             fetch(`/api/admin/coupons?email=${currentUser.email}`).then(res => res.json()).then(data => setCoupons(Array.isArray(data) ? data : [])).catch(() => setCoupons([]));
-            fetch('/api/articles').then(res => res.json()).then(data => setArticles(Array.isArray(data) ? data : [])).catch(() => setArticles([]));
-            fetch('/api/ideas').then(res => res.json()).then(data => setIdeas(Array.isArray(data) ? data : [])).catch(() => setIdeas([]));
+            fetchArticles();
+            fetchIdeas();
             fetch('/api/mods').then(res => res.json()).then(data => setMods(Array.isArray(data.mods) ? data.mods : [])).catch(() => setMods([]));
+            fetchBanners();
+            setCacheLoaded(true); // Mark as loaded so we don't refetch on tab switch/remount during same session unless desired
         }
-    }, [currentUser]);
+    }, [currentUser, cacheLoaded]);
 
     const handleUpdateTier = async () => {
         const res = await fetch('/api/admin/users/update', {
@@ -155,10 +189,10 @@ const AdminDashboard = () => {
                 body: JSON.stringify({ email, action, requester_email: currentUser.email })
             });
             const data = await res.json();
-            
+
             if (data.status === 'success') {
-                if(action === 'add') alert(`${email} added to moderators.`);
-                
+                if (action === 'add') alert(`${email} added to moderators.`);
+
                 if (data.mods && Array.isArray(data.mods)) {
                     setMods(data.mods);
                 } else {
@@ -171,15 +205,59 @@ const AdminDashboard = () => {
             } else {
                 alert(data.detail || "Action failed");
             }
-        } catch (error) { 
+        } catch (error) {
             console.error(error);
-            alert("Action failed - check console"); 
+            alert("Action failed - check console");
         }
     };
 
+    const handleSaveBanner = async () => {
+        const url = editingBanner ? '/api/admin/banners' : '/api/admin/banners';
+        const method = editingBanner ? 'PUT' : 'POST';
+        const body = { ...bannerForm, requester_email: currentUser.email };
+        if (editingBanner) body.id = editingBanner.id;
+
+        const res = await fetch(url, {
+            method,
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
+        });
+
+        if (res.ok) {
+            setShowBannerModal(false);
+            setEditingBanner(null);
+            setBannerForm({ text: '', link: '', type: 'info', active: true });
+            fetchBanners();
+        } else {
+            alert("Failed to save banner");
+        }
+    };
+
+    const handleDeleteBanner = async (id) => {
+        if (!window.confirm("Delete this banner?")) return;
+        const res = await fetch('/api/admin/banners/delete', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id, requester_email: currentUser.email })
+        });
+        if (res.ok) {
+            setBanners(banners.filter(b => b.id !== id));
+        }
+    };
+
+    const openBannerModal = (banner = null) => {
+        if (banner) {
+            setEditingBanner(banner);
+            setBannerForm({ text: banner.text, link: banner.link || '', type: banner.type, active: banner.active });
+        } else {
+            setEditingBanner(null);
+            setBannerForm({ text: '', link: '', type: 'info', active: true });
+        }
+        setShowBannerModal(true);
+    };
+
     // Filter Logic for Users Tab
-    const filteredUsers = users.filter(u => 
-        u.email.toLowerCase().includes(searchTerm.toLowerCase()) || 
+    const filteredUsers = users.filter(u =>
+        u.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
         (u.username || '').toLowerCase().includes(searchTerm.toLowerCase())
     );
 
@@ -189,8 +267,8 @@ const AdminDashboard = () => {
         return user ? { username: user.username, email: user.email } : { username: 'Unknown', email: email };
     };
 
-    const filteredMods = (mods || []).map(getModDetails).filter(m => 
-        m.email.toLowerCase().includes(searchTerm.toLowerCase()) || 
+    const filteredMods = (mods || []).map(getModDetails).filter(m =>
+        m.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
         m.username.toLowerCase().includes(searchTerm.toLowerCase())
     );
 
@@ -214,6 +292,7 @@ const AdminDashboard = () => {
                         <TabButton id="coupons" label="Coupons" icon={Tag} />
                         <TabButton id="articles" label="Articles" icon={FileText} />
                         <TabButton id="ideas" label="Ideas" icon={Lightbulb} />
+                        <TabButton id="banners" label="Banners" icon={Megaphone} />
                         <TabButton id="mods" label="Moderators" icon={Shield} />
                     </div>
                 </div>
@@ -241,10 +320,10 @@ const AdminDashboard = () => {
                             <Search className="text-gray-400" size={20} />
                             <input type="text" placeholder="Search by username or email..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="bg-transparent border-none outline-none text-white w-full" />
                         </div>
-                        
+
                         {loadingUsers && <div className="p-8 text-center text-gray-400">Loading users...</div>}
                         {errorUsers && <div className="p-8 text-center text-red-500 font-bold">Error: {errorUsers}</div>}
-                        
+
                         {!loadingUsers && !errorUsers && (
                             <div className="overflow-x-auto">
                                 <table className="w-full text-left">
@@ -305,7 +384,10 @@ const AdminDashboard = () => {
 
                 {activeTab === 'articles' && (
                     <div className="bg-white/5 rounded-xl border border-white/10 p-6">
-                        <h2 className="text-xl font-bold mb-4">Published Articles</h2>
+                        <div className="flex justify-between items-center mb-4">
+                            <h2 className="text-xl font-bold">Published Articles</h2>
+                            <button onClick={() => setShowCreateArticleModal(true)} className="bg-gold text-black px-4 py-2 rounded-lg font-bold flex items-center gap-2 hover:bg-yellow-500"><Plus size={18} /> Creative Article</button>
+                        </div>
                         <div className="space-y-2">
                             {articles.map(a => (
                                 <div key={a.id} className="p-4 bg-black/40 rounded border border-white/5 flex justify-between items-center">
@@ -322,7 +404,10 @@ const AdminDashboard = () => {
 
                 {activeTab === 'ideas' && (
                     <div className="bg-white/5 rounded-xl border border-white/10 p-6">
-                        <h2 className="text-xl font-bold mb-4">Community Ideas</h2>
+                        <div className="flex justify-between items-center mb-4">
+                            <h2 className="text-xl font-bold">Community Ideas</h2>
+                            <button onClick={() => setShowCreateIdeaModal(true)} className="bg-gold text-black px-4 py-2 rounded-lg font-bold flex items-center gap-2 hover:bg-yellow-500"><Plus size={18} /> Create Idea</button>
+                        </div>
                         <div className="space-y-2">
                             {ideas.map(i => (
                                 <div key={i.id} className="p-4 bg-black/40 rounded border border-white/5 flex justify-between items-center">
@@ -330,6 +415,40 @@ const AdminDashboard = () => {
                                     <button onClick={() => handleDeleteIdea(i.id)} className="text-red-500 hover:text-red-400"><Trash2 size={18} /></button>
                                 </div>
                             ))}
+                        </div>
+                    </div>
+                )}
+
+                {activeTab === 'banners' && (
+                    <div className="bg-white/5 rounded-xl border border-white/10 p-6">
+                        <div className="flex justify-between items-center mb-6">
+                            <h2 className="text-xl font-bold">Landing Page Banners</h2>
+                            <button onClick={() => openBannerModal()} className="bg-gold text-black px-4 py-2 rounded-lg font-bold flex items-center gap-2 hover:bg-yellow-500">
+                                <Plus size={18} /> Add Banner
+                            </button>
+                        </div>
+                        <div className="space-y-4">
+                            {banners.map(banner => (
+                                <div key={banner.id} className={`p-4 rounded border ${banner.active ? 'border-white/20 bg-black/40' : 'border-red-900/50 bg-red-900/10'} flex flex-col md:flex-row justify-between items-center gap-4`}>
+                                    <div className="flex items-center gap-4">
+                                        <div className={`p-2 rounded ${banner.type === 'sale' ? 'bg-green-500/20 text-green-500' : banner.type === 'launch' ? 'bg-purple-500/20 text-purple-500' : 'bg-blue-500/20 text-blue-500'}`}>
+                                            <Tag size={16} />
+                                        </div>
+                                        <div>
+                                            <div className="font-bold text-white flex items-center gap-2">
+                                                {banner.text}
+                                                {!banner.active && <span className="text-xs bg-red-500/20 text-red-500 px-2 rounded">INACTIVE</span>}
+                                            </div>
+                                            {banner.link && <div className="text-sm text-gray-500">{banner.link}</div>}
+                                        </div>
+                                    </div>
+                                    <div className="flex gap-2">
+                                        <button onClick={() => openBannerModal(banner)} className="p-2 hover:bg-white/10 rounded-lg text-gold"><Edit2 size={16} /></button>
+                                        <button onClick={() => handleDeleteBanner(banner.id)} className="p-2 hover:bg-white/10 rounded-lg text-red-500"><Trash2 size={16} /></button>
+                                    </div>
+                                </div>
+                            ))}
+                            {banners.length === 0 && <div className="text-center text-gray-500 py-8">No banners found.</div>}
                         </div>
                     </div>
                 )}
@@ -401,6 +520,73 @@ const AdminDashboard = () => {
                     </div>
                 )}
             </AnimatePresence>
+
+            {/* Banner Modal */}
+            <AnimatePresence>
+                {showBannerModal && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
+                        <div className="bg-gray-900 border border-white/10 p-8 rounded-xl w-full max-w-md">
+                            <h3 className="text-xl font-bold mb-6">{editingBanner ? 'Edit Banner' : 'Create Banner'}</h3>
+                            <div className="space-y-4 mb-8">
+                                <div>
+                                    <label className="block text-sm text-gray-400 mb-1">Banner Text</label>
+                                    <input value={bannerForm.text} onChange={e => setBannerForm({ ...bannerForm, text: e.target.value })} className="w-full bg-black border border-white/10 rounded px-3 py-2 text-white" placeholder="e.g. Big Sale this Weekend!" />
+                                </div>
+                                <div>
+                                    <label className="block text-sm text-gray-400 mb-1">Link (Optional)</label>
+                                    <input value={bannerForm.link} onChange={e => setBannerForm({ ...bannerForm, link: e.target.value })} className="w-full bg-black border border-white/10 rounded px-3 py-2 text-white" placeholder="/products" />
+                                </div>
+                                <div>
+                                    <label className="block text-sm text-gray-400 mb-1">Countdown Target (Optional)</label>
+                                    <input
+                                        type="datetime-local"
+                                        value={bannerForm.countdown_target || ''}
+                                        onChange={e => setBannerForm({ ...bannerForm, countdown_target: e.target.value })}
+                                        className="w-full bg-black border border-white/10 rounded px-3 py-2 text-white"
+                                    />
+                                    <p className="text-xs text-gray-500 mt-1">Leave empty for no countdown</p>
+                                </div>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-sm text-gray-400 mb-1">Type</label>
+                                        <select value={bannerForm.type} onChange={e => setBannerForm({ ...bannerForm, type: e.target.value })} className="w-full bg-black border border-white/10 rounded px-3 py-2 text-white">
+                                            <option value="info">Info (Blue)</option>
+                                            <option value="sale">Sale (Green)</option>
+                                            <option value="launch">Launch (Purple)</option>
+                                        </select>
+                                    </div>
+                                    <div className="flex items-center pt-6">
+                                        <label className="flex items-center gap-2 cursor-pointer">
+                                            <input type="checkbox" checked={bannerForm.active} onChange={e => setBannerForm({ ...bannerForm, active: e.target.checked })} />
+                                            <span className="text-white select-none">Active</span>
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                            <div className="flex justify-end gap-3">
+                                <button onClick={() => setShowBannerModal(false)} className="px-4 py-2 text-gray-400">Cancel</button>
+                                <button onClick={handleSaveBanner} className="px-4 py-2 bg-gold text-black rounded font-bold">Save</button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+            </AnimatePresence>
+
+            {/* Create Article Modal */}
+            <CreateArticleModal
+                isOpen={showCreateArticleModal}
+                onClose={() => setShowCreateArticleModal(false)}
+                onArticleCreated={() => fetchArticles()}
+                user={currentUser}
+            />
+
+            {/* Create Idea Modal */}
+            <CreateIdeaModal
+                isOpen={showCreateIdeaModal}
+                onClose={() => setShowCreateIdeaModal(false)}
+                onIdeaCreated={() => fetchIdeas()}
+                user={currentUser}
+            />
         </div>
     );
 };

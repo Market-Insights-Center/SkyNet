@@ -15,6 +15,8 @@ COMMENTS_CSV = os.path.join(DATA_DIR, 'comments.csv')
 TIER_LIMITS_CSV = os.path.join(DATA_DIR, 'tier_limits.csv')
 CHATS_FILE = os.path.join(BASE_DIR, 'chats.json')
 USER_PROFILES_CSV = os.path.join(BASE_DIR, 'user_profiles.csv')
+BANNERS_FILE = os.path.join(DATA_DIR, 'banners.json')
+BANNERS_DEFAULT_FILE = os.path.join(DATA_DIR, 'banners_default.json')
 
 # Ensure data dir exists
 if not os.path.exists(DATA_DIR):
@@ -592,3 +594,96 @@ def save_chats(chats):
         return True
     except:
         return False
+
+# --- BANNERS HELPERS ---
+
+BANNERS_FILE = os.path.join(BASE_DIR, 'banners.json')
+BANNERS_DEFAULT_FILE = os.path.join(BASE_DIR, 'banners_default.json')
+
+def get_banners(include_inactive=False):
+    """
+    Reads banners from banners.json.
+    If banners.json is missing, it copies from banners_default.json.
+    """
+    # Auto-initialize if missing
+    if not os.path.exists(BANNERS_FILE):
+        if os.path.exists(BANNERS_DEFAULT_FILE):
+            try:
+                with open(BANNERS_DEFAULT_FILE, 'r') as src, open(BANNERS_FILE, 'w') as dst:
+                    dst.write(src.read())
+            except Exception as e:
+                print(f"Error initializing banners.json: {e}")
+                return []
+        else:
+            # Fallback if default is also missing
+            with open(BANNERS_FILE, 'w') as f:
+                f.write('[]')
+    
+    try:
+        with open(BANNERS_FILE, 'r') as f:
+            banners = json.load(f)
+            if not include_inactive:
+                return [b for b in banners if b.get('active', True)]
+            return banners
+    except Exception as e:
+        print(f"Error reading banners.json: {e}")
+        return []
+
+def save_banners(banners):
+    """Writes list of banners to banners.json."""
+    try:
+        with open(BANNERS_FILE, 'w') as f:
+            json.dump(banners, f, indent=4)
+        return True
+    except Exception as e:
+        print(f"Error saving banners.json: {e}")
+        return False
+
+def create_banner(banner_data):
+    """Adds a new banner."""
+    banners = get_banners(include_inactive=True)
+    
+    # Generate ID
+    new_id = 1
+    if banners:
+        new_id = max([int(b.get('id', 0)) for b in banners]) + 1
+    
+    new_banner = {
+        "id": new_id,
+        "text": banner_data.get('text', ''),
+        "link": banner_data.get('link', ''),
+        "type": banner_data.get('type', 'info'), # info, sale, launch
+        "active": banner_data.get('active', True),
+        "countdown_target": banner_data.get('countdown_target'),
+        "created_at": datetime.utcnow().isoformat()
+    }
+    
+    banners.append(new_banner)
+    return save_banners(banners)
+
+def update_banner(banner_id, banner_data):
+    """Updates an existing banner."""
+    banners = get_banners(include_inactive=True)
+    found = False
+    
+    for b in banners:
+        if str(b.get('id')) == str(banner_id):
+            b.update(banner_data)
+            # Ensure ID doesn't change
+            b['id'] = int(banner_id)
+            found = True
+            break
+            
+    if found:
+        return save_banners(banners)
+    return False
+
+def delete_banner(banner_id):
+    """Deletes a banner."""
+    banners = get_banners(include_inactive=True)
+    initial_len = len(banners)
+    banners = [b for b in banners if str(b.get('id')) != str(banner_id)]
+    
+    if len(banners) < initial_len:
+        return save_banners(banners)
+    return False

@@ -85,12 +85,12 @@ export function AuthProvider({ children }) {
     useEffect(() => {
         const unsubscribe = onAuthStateChanged(auth, async (user) => {
             if (user) {
-                // OPTIMIZATION: Set user immediately to unblock UI
+                // Fetch extra data (Tier) in background BEFORE setting loading to false
+                // This ensures components don't redirect due to missing profile data
+                await refreshUserProfile(user);
+
                 setCurrentUser(user);
                 setLoading(false);
-
-                // Fetch extra data (Tier) in background
-                await refreshUserProfile(user);
             } else {
                 setCurrentUser(null);
                 setLoading(false);

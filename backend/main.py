@@ -50,7 +50,11 @@ from backend.database import (
     delete_comment,
     create_user_profile,
     check_username_taken,
-    update_user_username
+    update_user_username,
+    get_banners,
+    create_banner,
+    update_banner,
+    delete_banner
 )
 
 logging.basicConfig(level=logging.INFO)
@@ -254,6 +258,27 @@ class AssessRequest(BaseModel):
 class MLForecastRequest(BaseModel):
     email: str
     ticker: str
+
+class BannerCreateRequest(BaseModel):
+    text: str
+    link: Optional[str] = None
+    countdown_target: Optional[str] = None
+    type: str  # info, sale, launch
+    active: bool = True
+    requester_email: str
+
+class BannerUpdateRequest(BaseModel):
+    id: int
+    text: str
+    link: Optional[str] = None
+    countdown_target: Optional[str] = None
+    type: str # info, sale, launch
+    active: bool
+    requester_email: str
+
+class BannerDeleteRequest(BaseModel):
+    id: int
+    requester_email: str
 
 # --- HELPER FUNCTIONS ---
 def get_mod_list():
@@ -821,6 +846,62 @@ def vote_idea(idea_id: int, req: VoteRequest):
     disliked_by = idea.get('disliked_by', [])
 
 # -----------------------------
+# BANNER ENDPOINTS
+# -----------------------------
+
+@app.get("/banners")
+def get_public_banners():
+    """Public endpoint for landing page banners"""
+    # Only return active banners for public view
+    all_banners = get_banners()
+    return [b for b in all_banners if b.get('active')]
+
+@app.get("/api/admin/banners")
+def get_admin_banners(email: str):
+    """Admin endpoint to see all banners including inactive"""
+    # Simple check if requester is a mod/admin
+    mods = get_mod_list()
+    if email.lower() not in mods:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    return get_banners(include_inactive=True)
+
+@app.post("/api/admin/banners")
+def create_new_banner(req: BannerCreateRequest):
+    mods = get_mod_list()
+    if req.requester_email.lower() not in mods:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    
+    success = create_banner(req.dict())
+    if not success:
+        raise HTTPException(status_code=500, detail="Failed to create banner")
+    return {"status": "success"}
+
+@app.put("/api/admin/banners")
+def update_existing_banner(req: BannerUpdateRequest):
+    mods = get_mod_list()
+    if req.requester_email.lower() not in mods:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    
+    # Exclude id and requester_email from update data
+    update_data = req.dict(exclude={'id', 'requester_email'})
+    success = update_banner(req.id, update_data)
+    if not success:
+        raise HTTPException(status_code=404, detail="Banner not found or update failed")
+    return {"status": "success"}
+
+@app.post("/api/admin/banners/delete")
+def delete_existing_banner(req: BannerDeleteRequest):
+    mods = get_mod_list()
+    if req.requester_email.lower() not in mods:
+        raise HTTPException(status_code=403, detail="Not authorized")
+        
+    success = delete_banner(req.id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Banner not found or delete failed")
+    return {"status": "success"}
+
+
+# -----------------------------
 # ASSESS & MLFORECAST ENDPOINTS
 # -----------------------------
 @app.post("/api/assess")
@@ -1133,6 +1214,45 @@ async def run_breakout(req: BreakoutRequest):
         is_called_by_ai=True
     )
     return result
+
+
+# --- BANNER ENDPOINTS ---
+@app.get("/api/banners")
+def get_public_banners():
+    return get_banners(include_inactive=False)
+
+@app.get("/api/admin/banners")
+def get_admin_banners(email: str):
+    mods = get_mod_list()
+    if email.lower() not in mods: raise HTTPException(status_code=403, detail="Not authorized")
+    return get_banners(include_inactive=True)
+
+@app.post("/api/admin/banners")
+def create_new_banner(req: BannerCreateRequest):
+    mods = get_mod_list()
+    if req.requester_email.lower() not in mods: raise HTTPException(status_code=403, detail="Not authorized")
+    
+    if create_banner(req.dict()):
+        return {"status": "success"}
+    raise HTTPException(status_code=500, detail="Failed to create banner")
+
+@app.put("/api/admin/banners")
+def update_existing_banner(req: BannerUpdateRequest):
+    mods = get_mod_list()
+    if req.requester_email.lower() not in mods: raise HTTPException(status_code=403, detail="Not authorized")
+    
+    if update_banner(req.id, req.dict()):
+        return {"status": "success"}
+    raise HTTPException(status_code=500, detail="Failed to update banner")
+
+@app.post("/api/admin/banners/delete")
+def delete_existing_banner(req: BannerDeleteRequest):
+    mods = get_mod_list()
+    if req.requester_email.lower() not in mods: raise HTTPException(status_code=403, detail="Not authorized")
+    
+    if delete_banner(req.id):
+        return {"status": "success"}
+    raise HTTPException(status_code=500, detail="Failed to delete banner")
 
 
 if __name__ == "__main__":

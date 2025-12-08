@@ -444,36 +444,157 @@ const FAQItem = ({ question, answer }) => {
     );
 };
 
+// --- Countdown Timer Component ---
+const CountdownTimer = ({ targetDate }) => {
+    const calculateTimeLeft = () => {
+        const difference = +new Date(targetDate) - +new Date();
+        let timeLeft = {};
+
+        if (difference > 0) {
+            timeLeft = {
+                days: Math.floor(difference / (1000 * 60 * 60 * 24)),
+                hours: Math.floor((difference / (1000 * 60 * 60)) % 24),
+                minutes: Math.floor((difference / 1000 / 60) % 60),
+                seconds: Math.floor((difference / 1000) % 60)
+            };
+        }
+        return timeLeft;
+    };
+
+    const [timeLeft, setTimeLeft] = useState(calculateTimeLeft());
+
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            setTimeLeft(calculateTimeLeft());
+        }, 1000);
+        return () => clearTimeout(timer);
+    });
+
+    const formatTime = (value) => String(value || 0).padStart(2, '0');
+
+    if (Object.keys(timeLeft).length === 0) {
+        return <span className="text-xl font-bold ml-4">EXPIRED</span>;
+    }
+
+    return (
+        <div className="flex items-center gap-4 text-xl font-mono font-bold ml-4 bg-black/20 px-4 py-1 rounded-lg backdrop-blur-sm border border-white/10">
+            <div className="flex flex-col items-center">
+                <span className="text-2xl">{formatTime(timeLeft.days)}</span>
+                <span className="text-[10px] uppercase tracking-wider text-white/50">Days</span>
+            </div>
+            <span className="text-white/30 text-2xl -mt-4">:</span>
+            <div className="flex flex-col items-center">
+                <span className="text-2xl">{formatTime(timeLeft.hours)}</span>
+                <span className="text-[10px] uppercase tracking-wider text-white/50">Hrs</span>
+            </div>
+            <span className="text-white/30 text-2xl -mt-4">:</span>
+            <div className="flex flex-col items-center">
+                <span className="text-2xl">{formatTime(timeLeft.minutes)}</span>
+                <span className="text-[10px] uppercase tracking-wider text-white/50">Mins</span>
+            </div>
+            <span className="text-white/30 text-2xl -mt-4">:</span>
+            <div className="flex flex-col items-center">
+                <span className="text-2xl">{formatTime(timeLeft.seconds)}</span>
+                <span className="text-[10px] uppercase tracking-wider text-white/50">Secs</span>
+            </div>
+        </div>
+    );
+};
+
 const LandingPage = () => {
     const { currentUser } = useAuth();
+    const [banners, setBanners] = useState([]);
     const [recentIdeas, setRecentIdeas] = useState([]);
     const [recentArticles, setRecentArticles] = useState([]);
     const [showCommunityStream, setShowCommunityStream] = useState(false);
+    const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        // Fetch Recent Ideas
-        fetch('/api/ideas?limit=3')
-            .then(res => res.json())
-            .then(data => {
-                if (Array.isArray(data)) setRecentIdeas(data);
-                else setRecentIdeas([]);
-            })
-            .catch(err => console.error("Error fetching ideas:", err));
+        const fetchData = async () => {
+            try {
+                // Fetch Banners
+                const bannerRes = await fetch('http://localhost:8000/banners');
+                if (bannerRes.ok) {
+                    const data = await bannerRes.json();
+                    setBanners(data.filter(b => b.active));
+                }
 
-        // Fetch Recent Articles
-        fetch('/api/articles?limit=3')
-            .then(res => res.json())
-            .then(data => {
-                if (Array.isArray(data)) setRecentArticles(data);
-                else setRecentArticles([]);
-            })
-            .catch(err => console.error("Error fetching articles:", err));
+                // Fetch Recent Ideas
+                const ideaRes = await fetch('http://localhost:8000/ideas');
+                if (ideaRes.ok) {
+                    const data = await ideaRes.json();
+                    setRecentIdeas(data.slice(0, 3));
+                }
+
+                // Fetch Recent Articles
+                const newsRes = await fetch('http://localhost:8000/news');
+                if (newsRes.ok) {
+                    const data = await newsRes.json();
+                    setRecentArticles(data.slice(0, 3));
+                }
+
+            } catch (error) {
+                console.error("Error fetching landing page data:", error);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        fetchData();
     }, []);
 
+    const getBannerStyles = (type) => {
+        switch (type) {
+            case 'sale': return "from-green-500/20 via-green-500/10 to-transparent border-green-500/30 text-green-100";
+            case 'launch': return "from-purple-500/20 via-purple-500/10 to-transparent border-purple-500/30 text-purple-100";
+            case 'info': default: return "from-blue-500/20 via-blue-500/10 to-transparent border-blue-500/30 text-blue-100";
+        }
+    };
+
     return (
-        <div className="min-h-screen bg-black text-white">
-            {/* Hero Section */}
+        <div className="min-h-screen bg-black text-white font-sans selection:bg-gold selection:text-black overflow-x-hidden">
             <ErrorBoundary>
+
+                {/* Banners Section - Clearing Navbar (h-20) */}
+                <div className="fixed top-24 left-0 right-0 z-40 flex flex-col items-center pointer-events-none px-4">
+                    {banners.map(banner => (
+                        <motion.div
+                            key={banner.id}
+                            initial={{ y: -100, opacity: 0 }}
+                            animate={{ y: 0, opacity: 1 }}
+                            className={`pointer-events-auto w-full max-w-7xl mx-auto mt-4 rounded-xl backdrop-blur-2xl border overflow-hidden shadow-[0_8px_32px_rgba(0,0,0,0.5)] bg-gradient-to-r ${getBannerStyles(banner.type)}`}
+                        >
+                            <div className="absolute inset-0 bg-white/5 animate-[pulse_4s_ease-in-out_infinite]"></div>
+                            <div className="relative z-10 p-4 md:p-6 flex flex-col md:flex-row items-center justify-between text-center md:text-left gap-4">
+                                <div className="flex-1 flex flex-col md:flex-row items-center gap-4">
+                                    <span className={`text-2xl md:text-3xl font-black tracking-widest uppercase drop-shadow-[0_2px_10px_rgba(0,0,0,0.5)] bg-clip-text text-transparent bg-gradient-to-r ${banner.type === 'sale' ? 'from-green-100 via-white to-green-100' :
+                                        banner.type === 'launch' ? 'from-purple-100 via-white to-purple-100' :
+                                            'from-blue-100 via-white to-blue-100'
+                                        }`}>
+                                        {banner.text}
+                                    </span>
+                                    {banner.countdown_target && (
+                                        <CountdownTimer targetDate={banner.countdown_target} />
+                                    )}
+                                </div>
+
+                                {banner.link && (
+                                    <a
+                                        href={banner.link}
+                                        target={banner.link.startsWith('http') ? "_blank" : "_self"}
+                                        rel="noopener noreferrer"
+                                        className="bg-white/10 hover:bg-white/20 text-white px-6 py-2 rounded-full font-bold transition-all flex items-center gap-2 group whitespace-nowrap"
+                                    >
+                                        Learn More <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" />
+                                    </a>
+                                )}
+                            </div>
+                        </motion.div>
+                    ))}
+                </div>
+
+
+                {/* Hero Section */}
                 <section className="relative h-screen flex items-center justify-center overflow-hidden">
                     <div className="absolute inset-0 z-0">
                         <video
@@ -515,7 +636,7 @@ const LandingPage = () => {
             </ErrorBoundary>
 
             {/* Engineered to Fit Any Investor (Formerly Features) */}
-            <ErrorBoundary>
+            < ErrorBoundary >
                 <section className="py-24 px-4 bg-black relative z-10">
                     <div className="max-w-7xl mx-auto">
                         <div className="text-center mb-16">
@@ -565,20 +686,20 @@ const LandingPage = () => {
                         </div>
                     </div>
                 </section>
-            </ErrorBoundary>
+            </ErrorBoundary >
 
             {/* Wealth Calculator */}
-            <ErrorBoundary>
+            < ErrorBoundary >
                 <WealthCalculator />
-            </ErrorBoundary>
+            </ErrorBoundary >
 
             {/* Market Dashboard */}
-            <ErrorBoundary>
+            < ErrorBoundary >
                 <MarketDashboard />
-            </ErrorBoundary>
+            </ErrorBoundary >
 
             {/* Watchlist & Community Stream Section */}
-            <ErrorBoundary>
+            < ErrorBoundary >
                 <section className="py-12 px-4 bg-black">
                     <div className="max-w-7xl mx-auto">
                         <div className="flex justify-between items-center mb-8">
@@ -671,10 +792,10 @@ const LandingPage = () => {
                         </AnimatePresence>
                     </div>
                 </section>
-            </ErrorBoundary>
+            </ErrorBoundary >
 
             {/* Pricing Section */}
-            <ErrorBoundary>
+            < ErrorBoundary >
                 <section className="py-24 px-4 bg-deep-black">
                     <div className="max-w-7xl mx-auto">
                         <div className="text-center mb-16">
@@ -710,12 +831,12 @@ const LandingPage = () => {
                         </div>
                     </div>
                 </section>
-            </ErrorBoundary>
+            </ErrorBoundary >
 
             {/* FAQ Section */}
-            <ErrorBoundary>
+            < ErrorBoundary >
                 <FAQSection />
-            </ErrorBoundary>
+            </ErrorBoundary >
 
             {/* Footer */}
             <ErrorBoundary>
