@@ -40,3 +40,5 @@ screeninfo
 # Scheduling & Utilities
 apscheduler
 scipy
+python-dotenv
+scikit-learn
