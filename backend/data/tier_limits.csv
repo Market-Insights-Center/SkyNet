@@ -67,3 +67,11 @@ Basic,mlforecast,NA
 Pro,mlforecast,5/day
 Enterprise,mlforecast,10/day
 Singularity,mlforecast,NL
+Basic,sentiment,NA
+Pro,sentiment,3/day
+Enterprise,sentiment,5/day
+Singularity,sentiment,NL
+Basic,powerscore,NA
+Pro,powerscore,NA
+Enterprise,powerscore,5/day
+Singularity,powerscore,NL

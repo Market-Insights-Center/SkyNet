@@ -510,37 +510,45 @@ const LandingPage = () => {
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        const fetchData = async () => {
+        const fetchBanners = async () => {
             try {
-                // Fetch Banners
                 const bannerRes = await fetch('http://localhost:8000/banners');
                 if (bannerRes.ok) {
                     const data = await bannerRes.json();
                     setBanners(data.filter(b => b.active));
                 }
+            } catch (error) {
+                console.error("Error fetching banners:", error);
+            }
+        };
 
-                // Fetch Recent Ideas
-                const ideaRes = await fetch('http://localhost:8000/ideas');
+        const fetchContent = async () => {
+            try {
+                // Run these in parallel as well
+                const [ideaRes, newsRes] = await Promise.all([
+                    fetch('http://localhost:8000/ideas'),
+                    fetch('http://localhost:8000/news')
+                ]);
+
                 if (ideaRes.ok) {
                     const data = await ideaRes.json();
                     setRecentIdeas(data.slice(0, 3));
                 }
 
-                // Fetch Recent Articles
-                const newsRes = await fetch('http://localhost:8000/news');
                 if (newsRes.ok) {
                     const data = await newsRes.json();
                     setRecentArticles(data.slice(0, 3));
                 }
-
             } catch (error) {
-                console.error("Error fetching landing page data:", error);
+                console.error("Error fetching content:", error);
             } finally {
                 setLoading(false);
             }
         };
 
-        fetchData();
+        // Fire both tasks immediately
+        fetchBanners();
+        fetchContent();
     }, []);
 
     const getBannerStyles = (type) => {

@@ -42,6 +42,7 @@ backend/data/*.csv
 backend/data/articles.csv
 backend/data/ideas.csv
 backend/data/comments.csv
+backend/data/banners.json
 
 # 2. User & Mod Data
 backend/chats.json

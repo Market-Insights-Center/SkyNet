@@ -20,3 +20,5 @@ pyautogui
 comtypes
 pycaw
 scikit-learn
+google-generativeai
+scipy

@@ -6,17 +6,29 @@ import FundamentalsTool from '../components/FundamentalsTool';
 import AssessTool from '../components/AssessTool';
 import MLForecastTool from '../components/MLForecastTool';
 import UpgradePopup from '../components/UpgradePopup';
+import SentimentTool from '../components/SentimentTool';
+import PowerScoreTool from '../components/PowerScoreTool';
+import { useLocation } from 'react-router-dom';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '';
 
 const AssetEvaluator = () => {
     const { userProfile } = useAuth();
+    const location = useLocation();
     const [activeTab, setActiveTab] = useState('quickscore');
     const [ticker, setTicker] = useState('');
     const [loading, setLoading] = useState(false);
     const [result, setResult] = useState(null);
     const [error, setError] = useState(null);
     const [showUpgradePopup, setShowUpgradePopup] = useState(false);
+
+    useEffect(() => {
+        const params = new URLSearchParams(location.search);
+        const tabParam = params.get('tab');
+        if (tabParam) {
+            setActiveTab(tabParam);
+        }
+    }, [location]);
 
     // --- TIER CHECK ---
     // Fundamentals is available to all (Basic has limits), so we don't block the tab.
@@ -81,9 +93,13 @@ const AssetEvaluator = () => {
                                 <h1 className="text-4xl font-bold">Asset Evaluator</h1>
                                 <a
                                     href={`/help#${activeTab === 'quickscore' ? 'quickscore' :
-                                            activeTab === 'fundamentals' ? 'fundamentals' :
-                                                activeTab === 'assess' ? 'asset-evaluator' :
-                                                    activeTab === 'mlforecast' ? 'ml-forecast' : 'asset-evaluator'
+                                        activeTab === 'fundamentals' ? 'fundamentals' :
+                                            activeTab === 'assess' ? 'asset-evaluator' :
+                                                activeTab === 'fundamentals' ? 'fundamentals' :
+                                                    activeTab === 'assess' ? 'asset-evaluator' :
+                                                        activeTab === 'mlforecast' ? 'ml-forecast' :
+                                                            activeTab === 'sentiment' ? 'sentiment' :
+                                                                activeTab === 'powerscore' ? 'powerscore' : 'asset-evaluator'
                                         }`}
                                     target="_blank"
                                     rel="noopener noreferrer"
@@ -138,6 +154,26 @@ const AssetEvaluator = () => {
                             <TrendingUp size={18} />
                             ML Forecast
                         </button>
+                        <button
+                            onClick={() => setActiveTab('sentiment')}
+                            className={`flex items-center gap-2 px-6 py-3 font-bold transition-all border-b-2 ${activeTab === 'sentiment'
+                                ? 'border-pink-400 text-pink-400'
+                                : 'border-transparent text-gray-400 hover:text-gray-200'
+                                }`}
+                        >
+                            <Activity size={18} />
+                            Sentiment
+                        </button>
+                        <button
+                            onClick={() => setActiveTab('powerscore')}
+                            className={`flex items-center gap-2 px-6 py-3 font-bold transition-all border-b-2 ${activeTab === 'powerscore'
+                                ? 'border-yellow-400 text-yellow-400'
+                                : 'border-transparent text-gray-400 hover:text-gray-200'
+                                }`}
+                        >
+                            <Layers size={18} />
+                            PowerScore
+                        </button>
                     </div>
                 </motion.div>
 
@@ -150,6 +186,8 @@ const AssetEvaluator = () => {
                     {activeTab === 'fundamentals' && <FundamentalsTool email={userProfile?.email} />}
                     {activeTab === 'assess' && <AssessTool />}
                     {activeTab === 'mlforecast' && <MLForecastTool />}
+                    {activeTab === 'sentiment' && <SentimentTool email={userProfile?.email} />}
+                    {activeTab === 'powerscore' && <PowerScoreTool email={userProfile?.email} />}
 
                     {activeTab === 'quickscore' && (
                         <>

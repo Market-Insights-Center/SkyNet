@@ -161,6 +161,27 @@ const Help = () => {
                         { name: "End Date", desc: "End of the simulation period." }
                     ],
                     usage: "Test how your strategy would have performed during specific market conditions (e.g., the 2020 crash)."
+                },
+                {
+                    id: 'sentiment',
+                    title: "Sentiment Analysis",
+                    icon: Activity,
+                    desc: "AI-driven sentiment analysis aggregating data from news, social media, and financial reports.",
+                    inputs: [
+                        { name: "Ticker", desc: "Symbol to analyze." }
+                    ],
+                    usage: "Gauge the market's psychological state towards an asset to identify potential contrarian or momentum plays."
+                },
+                {
+                    id: 'powerscore',
+                    title: "PowerScore",
+                    icon: Layers,
+                    desc: "Composite multi-factor scoring model combining Fundamentals, Technicals, Sentiment, and Volatility.",
+                    inputs: [
+                        { name: "Ticker", desc: "Symbol to score." },
+                        { name: "Sensitivity", desc: "Level 1 (Long Term), 2 (Mid Term), 3 (Short Term)." }
+                    ],
+                    usage: "Get a comprehensive, single-number rating (0-100) for an asset's overall health and potential."
                 }
             ]
         },

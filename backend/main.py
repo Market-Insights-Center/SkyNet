@@ -24,7 +24,7 @@ import asyncio
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 # Import your command modules
-from backend.integration import invest_command, cultivate_command, custom_command, tracking_command, risk_command, history_command, quickscore_command, market_command, breakout_command, briefing_command, fundamentals_command, assess_command, mlforecast_command
+from backend.integration import invest_command, cultivate_command, custom_command, tracking_command, risk_command, history_command, quickscore_command, market_command, breakout_command, briefing_command, fundamentals_command, assess_command, mlforecast_command, sentiment_command, powerscore_command
 
 # Database imports
 from backend.database import (
@@ -258,6 +258,15 @@ class AssessRequest(BaseModel):
 class MLForecastRequest(BaseModel):
     email: str
     ticker: str
+
+class SentimentRequest(BaseModel):
+    email: str
+    ticker: str
+
+class PowerScoreRequest(BaseModel):
+    email: str
+    ticker: str
+    sensitivity: int = 2
 
 class BannerCreateRequest(BaseModel):
     text: str
@@ -1254,6 +1263,52 @@ def delete_existing_banner(req: BannerDeleteRequest):
         return {"status": "success"}
     raise HTTPException(status_code=500, detail="Failed to delete banner")
 
+
+# --- NEW COMMAND ENDPOINTS ---
+
+@app.post("/api/sentiment")
+async def run_sentiment(req: SentimentRequest):
+    # Tier Check
+    limit_check = verify_access_and_limits(req.email, "sentiment")
+    if not limit_check["allowed"]:
+        raise HTTPException(status_code=403, detail=limit_check["message"])
+
+    # Run command
+    result = await sentiment_command.handle_sentiment_command(
+        ai_params={"ticker": req.ticker},
+        is_called_by_ai=True
+    )
+    
+    if not result:
+        raise HTTPException(status_code=500, detail="Sentiment analysis failed to produce a result.")
+    
+    if result.get("status") == "error":
+        raise HTTPException(status_code=400, detail=result.get("message"))
+
+    return result
+
+@app.post("/api/powerscore")
+async def run_powerscore(req: PowerScoreRequest):
+    # Tier Check
+    limit_check = verify_access_and_limits(req.email, "powerscore")
+    if not limit_check["allowed"]:
+        raise HTTPException(status_code=403, detail=limit_check["message"])
+
+    # Run command
+    result = await powerscore_command.handle_powerscore_command(
+        ai_params={"ticker": req.ticker, "sensitivity": req.sensitivity},
+        is_called_by_ai=True
+    )
+
+    if not result:
+        raise HTTPException(status_code=500, detail="PowerScore analysis failed.")
+
+    if result.get("status") == "error":
+         raise HTTPException(status_code=400, detail=result.get("message"))
+         
+    return result
+
+# --- END NEW COMMAND ENDPOINTS ---
 
 if __name__ == "__main__":
     import uvicorn
