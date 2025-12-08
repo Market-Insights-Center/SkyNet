@@ -15,8 +15,8 @@ import glob
 import datetime
 
 # --- Key Imports ---
-from integration.invest_command import process_custom_portfolio, calculate_ema_invest
-from integration.execution_command import execute_portfolio_rebalance, get_robinhood_equity
+from backend.integration.invest_command import process_custom_portfolio, calculate_ema_invest
+from backend.integration.execution_command import execute_portfolio_rebalance, get_robinhood_equity
 
 # --- Constants ---
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -300,7 +300,7 @@ async def _send_tracking_email_html(recipient_email: str, subject: str, portfoli
 # --- Main Handler ---
 async def handle_tracking_command(args: List[str], ai_params: Optional[Dict] = None, is_called_by_ai: bool = False):
     try:
-        from integration.custom_command import save_portfolio_to_csv, _save_custom_portfolio_run_to_csv
+        from backend.integration.custom_command import save_portfolio_to_csv, _save_custom_portfolio_run_to_csv
 
         if not ai_params: return "Error: AI Params required."
         action = ai_params.get("action", "run_analysis")

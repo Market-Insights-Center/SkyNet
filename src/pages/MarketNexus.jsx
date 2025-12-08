@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useSearchParams } from 'react-router-dom';
-import { Siren, History, Activity, Lock } from 'lucide-react';
+import { Siren, History, Activity, Lock, Globe } from 'lucide-react';
 import RiskTool from '../components/RiskTool';
 import HistoryTool from '../components/HistoryTool';
+import BriefingTool from '../components/BriefingTool';
 import UpgradePopup from '../components/UpgradePopup';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -16,34 +17,33 @@ const MarketNexus = () => {
 
     useEffect(() => {
         const tab = searchParams.get('tab');
-        if (tab === 'history' || tab === 'risk') {
+        if (tab === 'history' || tab === 'risk' || tab === 'briefing') {
             setActiveTab(tab);
         }
     }, [searchParams]);
 
     // --- TIER ACCESS LOGIC ---
-    // Basic: Risk (YES), History (NO)
-    // Pro/Enterprise/Singularity: Risk (YES), History (YES)
+    // Basic: Risk (YES), History (NO), Briefing (NO - based on csv NA)
+    // Pro/Enterprise/Singularity: Risk (YES), History (YES), Briefing (YES)
 
-    const tier = userProfile?.tier || 'Basic'; // Default to Basic if undefined
+    const tier = userProfile?.tier || 'Basic';
 
     // Define capabilities
     const hasRiskAccess = ['Basic', 'Pro', 'Enterprise', 'Singularity', 'Visionary', 'Institutional'].includes(tier);
     const hasHistoryAccess = ['Pro', 'Enterprise', 'Singularity', 'Visionary', 'Institutional'].includes(tier);
+    const hasBriefingAccess = ['Pro', 'Enterprise', 'Singularity', 'Visionary', 'Institutional'].includes(tier);
 
-    // Initial check: If user has NO access to either, block them.
-    const hasAnyAccess = hasRiskAccess || hasHistoryAccess;
-
-    // Set default tab based on access
-    useEffect(() => {
-        if (!hasRiskAccess && hasHistoryAccess) {
-            setActiveTab('history');
-        }
-    }, [hasRiskAccess, hasHistoryAccess]);
+    // Initial check: If user has NO access to ANY, block them.
+    const hasAnyAccess = hasRiskAccess || hasHistoryAccess || hasBriefingAccess;
 
     const handleTabChange = (tab) => {
         if (tab === 'history' && !hasHistoryAccess) {
             setTargetFeature('History Command');
+            setShowUpgradePopup(true);
+            return;
+        }
+        if (tab === 'briefing' && !hasBriefingAccess) {
+            setTargetFeature('Market Briefing');
             setShowUpgradePopup(true);
             return;
         }
@@ -96,15 +96,15 @@ const MarketNexus = () => {
                         </div>
                         <div>
                             <h1 className="text-4xl font-bold">Market Nexus</h1>
-                            <p className="text-gray-400">Advanced market risk analysis and historical tracking.</p>
+                            <p className="text-gray-400">Advanced market risk analysis, historical tracking, and daily intelligence.</p>
                         </div>
                     </div>
 
                     {/* Navigation Tabs */}
-                    <div className="flex gap-4 border-b border-white/10 pb-1">
+                    <div className="flex gap-4 border-b border-white/10 pb-1 overflow-x-auto">
                         <button
                             onClick={() => handleTabChange('risk')}
-                            className={`flex items-center gap-2 px-6 py-3 font-bold transition-all border-b-2 ${activeTab === 'risk'
+                            className={`flex items-center gap-2 px-6 py-3 font-bold transition-all border-b-2 whitespace-nowrap ${activeTab === 'risk'
                                 ? 'border-gold text-gold'
                                 : 'border-transparent text-gray-400 hover:text-gray-200'
                                 }`}
@@ -114,13 +114,23 @@ const MarketNexus = () => {
                         </button>
                         <button
                             onClick={() => handleTabChange('history')}
-                            className={`flex items-center gap-2 px-6 py-3 font-bold transition-all border-b-2 ${activeTab === 'history'
+                            className={`flex items-center gap-2 px-6 py-3 font-bold transition-all border-b-2 whitespace-nowrap ${activeTab === 'history'
                                 ? 'border-purple-500 text-purple-400'
                                 : 'border-transparent text-gray-400 hover:text-gray-200'
                                 }`}
                         >
                             {hasHistoryAccess ? <History size={18} /> : <Lock size={14} />}
                             History Command
+                        </button>
+                        <button
+                            onClick={() => handleTabChange('briefing')}
+                            className={`flex items-center gap-2 px-6 py-3 font-bold transition-all border-b-2 whitespace-nowrap ${activeTab === 'briefing'
+                                ? 'border-blue-400 text-blue-400'
+                                : 'border-transparent text-gray-400 hover:text-gray-200'
+                                }`}
+                        >
+                            {hasBriefingAccess ? <Globe size={18} /> : <Lock size={14} />}
+                            Briefing
                         </button>
                     </div>
                 </motion.div>
@@ -132,7 +142,9 @@ const MarketNexus = () => {
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ duration: 0.3 }}
                 >
-                    {activeTab === 'risk' ? <RiskTool /> : <HistoryTool />}
+                    {activeTab === 'risk' && <RiskTool />}
+                    {activeTab === 'history' && <HistoryTool />}
+                    {activeTab === 'briefing' && <BriefingTool email={userProfile.email} />}
                 </motion.div>
             </div>
         </div>

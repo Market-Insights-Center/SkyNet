@@ -17,7 +17,7 @@ from tabulate import tabulate
 from tradingview_screener import Query, Column
 
 # --- Imports from other command modules ---
-from integration.invest_command import calculate_ema_invest
+from backend.integration.invest_command import calculate_ema_invest
 
 # --- Constants ---
 BREAKOUT_TICKERS_FILE = 'breakout_tickers.csv'

@@ -5,6 +5,10 @@ from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
 import sys
 import os
+
+# Fix for direct script execution
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 import csv
 import json
 import logging
@@ -20,10 +24,10 @@ import asyncio
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 # Import your command modules
-from integration import invest_command, cultivate_command, custom_command, tracking_command, risk_command, history_command, quickscore_command, market_command, breakout_command
+from backend.integration import invest_command, cultivate_command, custom_command, tracking_command, risk_command, history_command, quickscore_command, market_command, breakout_command, briefing_command, fundamentals_command
 
 # Database imports
-from database import (
+from backend.database import (
     read_articles_from_csv, 
     save_articles_to_csv, 
     read_ideas_from_csv, 
@@ -215,6 +219,20 @@ class MarketRequest(BaseModel):
 
 class BreakoutRequest(BaseModel):
     email: str
+
+class BriefingRequest(BaseModel):
+    email: str
+
+class FundamentalsRequest(BaseModel):
+    ticker: str
+    email: str
+
+class UsernameCheckRequest(BaseModel):
+    username: str
+
+class UsernameUpdateRequest(BaseModel):
+    email: str
+    username: str
 
 # --- HELPER FUNCTIONS ---
 def get_mod_list():
@@ -557,7 +575,7 @@ def get_users():
     return users
 
 @app.get("/api/user/profile")
-def api_get_user_profile(email: str, uid: Optional[str] = None):
+def api_get_user_profile(email: str, uid: Optional[str] = None, username: Optional[str] = None):
     # Fetch actual profile first to get username/uid
     profile = get_user_profile(email)
     
@@ -578,8 +596,7 @@ def api_get_user_profile(email: str, uid: Optional[str] = None):
              profile["username"] = "SkyNet_Admin"
 
     if not profile and uid:
-        if create_user_profile(email, uid):
-             profile = get_user_profile(email)
+        if create_user_profile(email, uid, username):
              profile = get_user_profile(email)
              
     if profile:
@@ -797,6 +814,56 @@ def vote_idea(idea_id: int, req: VoteRequest):
     idea['dislikes'] = len(disliked_by)
     save_ideas_to_csv(ideas)
     return {"status": "success", "likes": idea['likes'], "dislikes": idea['dislikes']}
+    save_ideas_to_csv(ideas)
+    return {"status": "success", "likes": idea['likes'], "dislikes": idea['dislikes']}
+
+# --- NEW COMMAND ENDPOINTS ---
+
+@app.post("/api/briefing")
+async def api_briefing(req: BriefingRequest):
+    # Tier Check for Briefing (Using 'briefing' product key)
+    access = verify_access_and_limits(req.email, "briefing")
+    if not access["allowed"]:
+        raise HTTPException(status_code=403, detail=access["message"])
+        
+    try:
+        data = await briefing_command.handle_briefing_command([], is_called_by_ai=True)
+        return data
+    except Exception as e:
+        logger.error(f"Briefing Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/fundamentals")
+async def api_fundamentals(req: FundamentalsRequest):
+    # Tier Check for Fundamentals (Using 'fundamentals' product key)
+    access = verify_access_and_limits(req.email, "fundamentals")
+    if not access["allowed"]:
+         # Note: verify_access_and_limits handles the incrementing if allowed
+        raise HTTPException(status_code=403, detail=access["message"])
+        
+    try:
+        data = await fundamentals_command.handle_fundamentals_command([], ai_params={"ticker": req.ticker}, is_called_by_ai=True)
+        if data and "error" in data:
+             raise HTTPException(status_code=404, detail=data["error"])
+        return data
+    except HTTPException: raise
+    except Exception as e:
+        logger.error(f"Fundamentals Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+# --- USERNAME ENDPOINTS ---
+
+@app.post("/api/check-username")
+def check_username(req: UsernameCheckRequest):
+    is_taken = check_username_taken(req.username)
+    return {"taken": is_taken}
+
+@app.post("/api/user/username")
+def update_username(req: UsernameUpdateRequest):
+    result = update_user_username(req.email, req.username)
+    if not result['success']:
+        raise HTTPException(status_code=400, detail=result['message'])
+    return {"status": "success", "username": req.username}
 
 @app.post("/api/comments")
 def create_comment(req: CommentCreateRequest):

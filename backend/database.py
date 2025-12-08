@@ -4,7 +4,7 @@ import json
 import time
 from datetime import datetime
 from firebase_admin import firestore, auth
-from firebase_admin_setup import get_db, get_auth
+from backend.firebase_admin_setup import get_db, get_auth
 
 # --- Paths ---
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -69,11 +69,16 @@ def verify_access_and_limits(email, product):
         db = get_db()
         
         # 1. Get User Tier
-        user_ref = db.collection('users').document(email)
-        user_doc = user_ref.get()
-        tier = 'Basic'
-        if user_doc.exists:
-            tier = user_doc.to_dict().get('tier', 'Basic')
+        # Hardcode Super Admin to Singularity to avoid DB sync issues
+        SUPER_ADMIN_EMAIL = "marketinsightscenter@gmail.com"
+        if email.lower() == SUPER_ADMIN_EMAIL:
+            tier = "Singularity"
+        else:
+            user_ref = db.collection('users').document(email)
+            user_doc = user_ref.get()
+            tier = 'Basic'
+            if user_doc.exists:
+                tier = user_doc.to_dict().get('tier', 'Basic')
             
         # 2. Get Limit for Tier/Product
         all_limits = load_tier_limits()
@@ -185,6 +190,13 @@ def create_user_profile(email, uid, username=None):
             # If no username provided, generate a temp one
             if not username:
                 username = f"User_{int(time.time())}"
+            else:
+                 # Ensure uniqueness for provided username
+                 original_username = username
+                 count = 1
+                 while check_username_taken(username):
+                      username = f"{original_username} {count}"
+                      count += 1
 
             data = {
                 'email': email,

@@ -63,8 +63,9 @@ export function AuthProvider({ children }) {
     async function refreshUserProfile(user) {
         if (!user || !user.email) return;
         try {
-            // Pass uid to allow auto-creation if missing
-            const res = await fetch(`/api/user/profile?email=${user.email}&uid=${user.uid}`);
+            // Pass uid to allow auto-creation if missing, and displayName as preferred username
+            const displayName = user.displayName ? encodeURIComponent(user.displayName) : "";
+            const res = await fetch(`/api/user/profile?email=${user.email}&uid=${user.uid}&username=${displayName}`);
             const profile = await res.json();
 
             // CRITICAL FIX: Do NOT spread the user object ({...user}).

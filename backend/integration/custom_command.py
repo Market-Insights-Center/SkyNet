@@ -15,7 +15,7 @@ PORTFOLIO_DB_FILE = os.path.join(BASE_DIR, 'portfolio_codes_database.csv')
 PORTFOLIO_OUTPUT_DIR = os.path.join(BASE_DIR, 'saved_runs')
 TRACKING_ORIGIN_FILE = os.path.join(BASE_DIR, 'tracking_origin.csv')
 
-from integration.invest_command import process_custom_portfolio
+from backend.integration.invest_command import process_custom_portfolio
 
 def safe_score(value) -> float:
     try:

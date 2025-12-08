@@ -1,16 +1,24 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Search, Activity, AlertTriangle, ChevronRight, BarChart2 } from 'lucide-react';
+import { Search, Activity, AlertTriangle, ChevronRight, BarChart2, PieChart } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import FundamentalsTool from '../components/FundamentalsTool';
+import UpgradePopup from '../components/UpgradePopup';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '';
 
 const AssetEvaluator = () => {
     const { userProfile } = useAuth();
+    const [activeTab, setActiveTab] = useState('quickscore');
     const [ticker, setTicker] = useState('');
     const [loading, setLoading] = useState(false);
     const [result, setResult] = useState(null);
     const [error, setError] = useState(null);
+    const [showUpgradePopup, setShowUpgradePopup] = useState(false);
+
+    // --- TIER CHECK ---
+    // Fundamentals is available to all (Basic has limits), so we don't block the tab.
+    // Quickscore is available to all.
 
     const handleAnalyze = async (e) => {
         e.preventDefault();
@@ -33,6 +41,10 @@ const AssetEvaluator = () => {
             const data = await response.json();
 
             if (!response.ok) {
+                if (response.status === 403 && data.detail?.includes('limit')) {
+                    setShowUpgradePopup(true);
+                    throw new Error(data.detail);
+                }
                 throw new Error(data.detail || 'Analysis failed');
             }
 
@@ -46,116 +58,160 @@ const AssetEvaluator = () => {
 
     return (
         <div className="min-h-screen bg-deep-black text-white pt-24 px-4 pb-12">
-            <div className="max-w-4xl mx-auto">
+            <UpgradePopup
+                isOpen={showUpgradePopup}
+                onClose={() => setShowUpgradePopup(false)}
+                featureName="Asset Evaluator Limit"
+            />
+
+            <div className="max-w-7xl mx-auto">
                 <motion.div
                     initial={{ opacity: 0, y: -20 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className="mb-8 text-center"
+                    className="mb-8"
                 >
-                    <div className="inline-flex items-center justify-center p-3 bg-gold/10 rounded-xl mb-4 text-gold border border-gold/20">
-                        <Search size={32} />
+                    <div className="flex items-center gap-4 mb-4">
+                        <div className="w-12 h-12 bg-gold/10 rounded-xl flex items-center justify-center text-gold border border-gold/20">
+                            <Search size={24} />
+                        </div>
+                        <div>
+                            <h1 className="text-4xl font-bold">Asset Evaluator</h1>
+                            <p className="text-gray-400">Rapidly score assets and visualize trends.</p>
+                        </div>
                     </div>
-                    <h1 className="text-4xl font-bold mb-2">Asset Evaluator</h1>
-                    <p className="text-gray-400">Rapidly score assets and visualize trends using the Quickscore algorithm.</p>
+
+                    {/* Navigation Tabs */}
+                    <div className="flex gap-4 border-b border-white/10 pb-1 mb-6">
+                        <button
+                            onClick={() => setActiveTab('quickscore')}
+                            className={`flex items-center gap-2 px-6 py-3 font-bold transition-all border-b-2 ${activeTab === 'quickscore'
+                                ? 'border-gold text-gold'
+                                : 'border-transparent text-gray-400 hover:text-gray-200'
+                                }`}
+                        >
+                            <Activity size={18} />
+                            Quickscore
+                        </button>
+                        <button
+                            onClick={() => setActiveTab('fundamentals')}
+                            className={`flex items-center gap-2 px-6 py-3 font-bold transition-all border-b-2 ${activeTab === 'fundamentals'
+                                ? 'border-green-400 text-green-400'
+                                : 'border-transparent text-gray-400 hover:text-gray-200'
+                                }`}
+                        >
+                            <PieChart size={18} />
+                            Fundamentals
+                        </button>
+                    </div>
                 </motion.div>
 
-                {/* Input Section */}
-                <div className="bg-white/5 border border-white/10 rounded-2xl p-6 mb-8 transition-colors duration-300 hover:border-gold/50">
-                    <form onSubmit={handleAnalyze} className="flex gap-4">
-                        <input
-                            type="text"
-                            value={ticker}
-                            onChange={(e) => setTicker(e.target.value)}
-                            placeholder="Enter Ticker (e.g. AAPL)"
-                            className="flex-1 bg-black/50 border border-gray-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-gold uppercase font-mono tracking-wider"
-                        />
-                        <button
-                            type="submit"
-                            disabled={loading || !ticker}
-                            className={`px-8 py-3 bg-gold text-black font-bold rounded-lg hover:bg-yellow-500 transition-colors flex items-center gap-2 ${loading ? 'opacity-50 cursor-not-allowed' : ''}`}
-                        >
-                            {loading ? <Activity className="animate-spin" /> : <Search size={20} />}
-                            {loading ? 'Analyzing...' : 'Analyze'}
-                        </button>
-                    </form>
-                    {error && (
-                        <div className="mt-4 p-3 bg-red-500/10 border border-red-500/30 rounded-lg text-red-400 flex items-center gap-2">
-                            <AlertTriangle size={18} />
-                            {error}
-                        </div>
+                <motion.div
+                    key={activeTab}
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ duration: 0.3 }}
+                >
+                    {activeTab === 'fundamentals' ? (
+                        <FundamentalsTool email={userProfile?.email} />
+                    ) : (
+                        <>
+                            {/* Input Section */}
+                            <div className="bg-white/5 border border-white/10 rounded-2xl p-6 mb-8 transition-colors duration-300 hover:border-gold/50">
+                                <form onSubmit={handleAnalyze} className="flex gap-4">
+                                    <input
+                                        type="text"
+                                        value={ticker}
+                                        onChange={(e) => setTicker(e.target.value)}
+                                        placeholder="Enter Ticker (e.g. AAPL)"
+                                        className="flex-1 bg-black/50 border border-gray-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-gold uppercase font-mono tracking-wider"
+                                    />
+                                    <button
+                                        type="submit"
+                                        disabled={loading || !ticker}
+                                        className={`px-8 py-3 bg-gold text-black font-bold rounded-lg hover:bg-yellow-500 transition-colors flex items-center gap-2 ${loading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                    >
+                                        {loading ? <Activity className="animate-spin" /> : <Search size={20} />}
+                                        {loading ? 'Analyzing...' : 'Analyze'}
+                                    </button>
+                                </form>
+                                {error && (
+                                    <div className="mt-4 p-3 bg-red-500/10 border border-red-500/30 rounded-lg text-red-400 flex items-center gap-2">
+                                        <AlertTriangle size={18} />
+                                        {error}
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Results Section */}
+                            {result && (
+                                <motion.div
+                                    initial={{ opacity: 0, y: 20 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    className="space-y-8"
+                                >
+                                    {/* Score Summary */}
+                                    <div className="bg-white/5 border border-white/10 rounded-2xl p-6 hover:border-gold/30 transition-colors">
+                                        <h2 className="text-2xl font-bold mb-6 flex items-center gap-2 text-gold">
+                                            <Activity size={24} /> Analysis Results: {result.ticker}
+                                        </h2>
+
+                                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                                            <div className="p-4 bg-black/30 rounded-xl border border-white/5 hover:border-gold/20 transition-colors">
+                                                <div className="text-gray-400 text-sm mb-1">Live Price (Daily)</div>
+                                                <div className="text-2xl font-bold text-white">{result.live_price}</div>
+                                            </div>
+
+                                            {Object.entries(result.scores).map(([key, value]) => {
+                                                const score = parseFloat(value);
+                                                let scoreColor = 'text-red-400';
+                                                if (score > 60) scoreColor = 'text-green-400';
+                                                else if (score >= 40) scoreColor = 'text-yellow-400';
+
+                                                return (
+                                                    <div key={key} className="p-4 bg-black/30 rounded-xl border border-white/5 hover:border-gold/20 transition-colors">
+                                                        <div className="text-gray-400 text-sm mb-1">
+                                                            {key === '1' ? 'Weekly (5Y)' : key === '2' ? 'Daily (1Y)' : 'Hourly (6M)'} Score
+                                                        </div>
+                                                        <div className={`text-2xl font-bold ${scoreColor}`}>
+                                                            {value}
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+
+                                    {/* Charts Grid */}
+                                    <div>
+                                        <h3 className="text-xl font-bold mb-4 flex items-center gap-2 text-gold">
+                                            <BarChart2 size={24} /> Technical Charts
+                                        </h3>
+                                        <div className="grid grid-cols-1 gap-6">
+                                            {result.graphs && result.graphs.map((graphStr, index) => {
+                                                const parts = graphStr.split(': data:image');
+                                                const label = parts[0];
+                                                const imgSrc = 'data:image' + parts[1];
+
+                                                return (
+                                                    <div key={index} className="bg-white/5 border border-white/10 rounded-2xl p-4 overflow-hidden">
+                                                        <div className="text-gray-400 font-bold mb-2 ml-1">{label}</div>
+                                                        <div className="w-full flex justify-center bg-black/50 rounded-lg p-2">
+                                                            <img
+                                                                src={imgSrc}
+                                                                alt={label}
+                                                                className="max-h-[300px] w-auto object-contain rounded"
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+                                </motion.div>
+                            )}
+                        </>
                     )}
-                </div>
-
-                {/* Results Section */}
-                {result && (
-                    <motion.div
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        className="space-y-8"
-                    >
-                        {/* Score Summary */}
-                        <div className="bg-white/5 border border-white/10 rounded-2xl p-6 hover:border-gold/30 transition-colors">
-                            <h2 className="text-2xl font-bold mb-6 flex items-center gap-2 text-gold">
-                                <Activity size={24} /> Analysis Results: {result.ticker}
-                            </h2>
-
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                                <div className="p-4 bg-black/30 rounded-xl border border-white/5 hover:border-gold/20 transition-colors">
-                                    <div className="text-gray-400 text-sm mb-1">Live Price (Daily)</div>
-                                    <div className="text-2xl font-bold text-white">{result.live_price}</div>
-                                </div>
-
-                                {Object.entries(result.scores).map(([key, value]) => {
-                                    const score = parseFloat(value);
-                                    let scoreColor = 'text-red-400';
-                                    if (score > 60) scoreColor = 'text-green-400';
-                                    else if (score >= 40) scoreColor = 'text-yellow-400';
-
-                                    return (
-                                        <div key={key} className="p-4 bg-black/30 rounded-xl border border-white/5 hover:border-gold/20 transition-colors">
-                                            <div className="text-gray-400 text-sm mb-1">
-                                                {key === '1' ? 'Weekly (5Y)' : key === '2' ? 'Daily (1Y)' : 'Hourly (6M)'} Score
-                                            </div>
-                                            <div className={`text-2xl font-bold ${scoreColor}`}>
-                                                {value}
-                                            </div>
-                                        </div>
-                                    );
-                                })}
-                            </div>
-                        </div>
-
-                        {/* Charts Grid */}
-                        <div>
-                            <h3 className="text-xl font-bold mb-4 flex items-center gap-2 text-gold">
-                                <BarChart2 size={24} /> Technical Charts
-                            </h3>
-                            <div className="grid grid-cols-1 gap-6">
-                                {result.graphs && result.graphs.map((graphStr, index) => {
-                                    // The command returns format "Label: data:image..."
-                                    // We need to split it carefully.
-                                    const parts = graphStr.split(': data:image');
-                                    const label = parts[0];
-                                    const imgSrc = 'data:image' + parts[1];
-
-                                    return (
-                                        <div key={index} className="bg-white/5 border border-white/10 rounded-2xl p-4 overflow-hidden">
-                                            <div className="text-gray-400 font-bold mb-2 ml-1">{label}</div>
-                                            <div className="w-full flex justify-center bg-black/50 rounded-lg p-2">
-                                                {/* Ensure image is not too huge, "slightly small" as requested */}
-                                                <img
-                                                    src={imgSrc}
-                                                    alt={label}
-                                                    className="max-h-[300px] w-auto object-contain rounded"
-                                                />
-                                            </div>
-                                        </div>
-                                    );
-                                })}
-                            </div>
-                        </div>
-                    </motion.div>
-                )}
+                </motion.div>
             </div>
         </div>
     );

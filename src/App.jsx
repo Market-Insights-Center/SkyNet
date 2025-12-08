@@ -87,8 +87,8 @@ const AppContent = () => {
     const [showUsernameModal, setShowUsernameModal] = useState(false);
 
     useEffect(() => {
-        // If user is logged in (has userProfile) AND has default username (User_...)
-        if (userProfile && (!userProfile.username || userProfile.username.startsWith("User_"))) {
+        // Only show modal if username is completely missing
+        if (userProfile && !userProfile.username) {
             setShowUsernameModal(true);
         } else {
             setShowUsernameModal(false);

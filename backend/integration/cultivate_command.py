@@ -18,7 +18,7 @@ from tabulate import tabulate
 from tradingview_screener import Column, Query
 
 # --- Local Imports ---
-from integration.invest_command import calculate_ema_invest, safe_score, get_allocation_score
+from backend.integration.invest_command import calculate_ema_invest, safe_score, get_allocation_score
 
 # --- Constants ---
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))

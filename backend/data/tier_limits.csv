@@ -35,3 +35,11 @@ Singularity,history,NL
 Singularity,quickscore,NL
 Singularity,market,NL
 Singularity,breakout,NL
+Basic,briefing,NA
+Basic,fundamentals,3/day
+Pro,briefing,3/day
+Pro,fundamentals,10/day
+Enterprise,briefing,5/day
+Enterprise,fundamentals,NL
+Singularity,briefing,NL
+Singularity,fundamentals,NL

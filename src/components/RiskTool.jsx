@@ -208,7 +208,7 @@ const RiskTool = () => {
                     <div className="group relative">
                         <HelpCircle size={18} className="text-gray-500 hover:text-gray-300 cursor-help" />
                         <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 w-64 p-3 bg-gray-900 border border-gray-700 rounded-lg text-sm text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 shadow-xl">
-                            Probability of a market contraction or recession based on momentum (EMA) and volatility (VIX) indicators. Higher percentages indicate higher risk.
+                            Likelihood of a pending market contraction based on two models: Price Momentum (EMA Ribbon Inversion) and Volatility Levels (VIX). High scores indicate elevated risk of downturn.
                             <div className="absolute left-1/2 -translate-x-1/2 top-full w-2 h-2 bg-gray-900 border-r border-b border-gray-700 transform rotate-45"></div>
                         </div>
                     </div>

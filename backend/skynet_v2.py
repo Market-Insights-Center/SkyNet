@@ -482,7 +482,9 @@ class SkyNetV2Controller:
             "tracking": "/tracking",
             "market": "/market-nexus",
             "risk": "/market-nexus?tab=risk",
-            "history": "/market-nexus?tab=history"
+            "history": "/market-nexus?tab=history",
+            "briefing": "/market-nexus?tab=briefing",
+            "fundamentals": "/asset-evaluator?tab=fundamentals"
         }
         for keyword, route in pages.items():
             if keyword in text:
