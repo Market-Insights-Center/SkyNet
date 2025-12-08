@@ -42,3 +42,4 @@ apscheduler
 scipy
 python-dotenv
 scikit-learn
+humanize
