@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Send, Plus, Search, User, Shield, MessageSquare, MoreVertical, X, Trash2, Check, Users, Briefcase, Paperclip, Bot, ArrowLeft } from 'lucide-react';
@@ -47,7 +48,7 @@ const Chatbox = () => {
         if (!selectedChat) return;
 
         // Clear messages immediately when switching chats to prevent ghosting
-        setMessages([]); 
+        setMessages([]);
 
         // Mark as read immediately when opening
         markChatRead(selectedChat.id);
@@ -59,6 +60,23 @@ const Chatbox = () => {
         }, 2000);
         return () => clearInterval(interval);
     }, [selectedChat]);
+
+    // Handle Contact Support Action from URL
+    const [searchParams] = useSearchParams();
+    useEffect(() => {
+        const action = searchParams.get('action');
+        if (action === 'contact_support' && !isLoading) {
+            // Check if we already have an admin chat open/selected
+            const hasAdminChat = conversations.find(c => c.type === 'admin_support');
+            if (hasAdminChat) {
+                setSelectedChat(hasAdminChat);
+            } else {
+                startAdminChat();
+            }
+            // Clear param to avoid re-triggering (optional but good UX)
+            // navigate('/chat', { replace: true }); // Requires useNavigate
+        }
+    }, [searchParams, isLoading, conversations]);
 
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -95,12 +113,12 @@ const Chatbox = () => {
 
     const isChatUnread = (chat) => {
         if (!chat.last_updated) return false;
-        
+
         // If last_read exists for user, compare. If not, assume unread if last_updated exists
         const lastRead = chat.last_read && chat.last_read[currentUser.email];
-        
+
         if (!lastRead) return true; // Never read
-        
+
         return new Date(chat.last_updated) > new Date(lastRead);
     };
 
@@ -322,7 +340,7 @@ If everything looks correct, please reply with "Confirm" to proceed with the cus
         const otherParticipants = participants.filter(p => p !== currentUser.email);
 
         if (otherParticipants.length === 0) return "Me (Draft)";
-        
+
         // Map emails to usernames
         const names = otherParticipants.map(email => getUsername(email));
 
@@ -398,7 +416,7 @@ If everything looks correct, please reply with "Confirm" to proceed with the cus
                                                         {chat.type === 'admin_support' ? <Shield size={18} /> :
                                                             chat.type === 'custom_portfolio' ? <Briefcase size={18} /> :
                                                                 (chat.participants || []).length > 2 ? <Users size={18} /> : <User size={18} />}
-                                                        
+
                                                         {/* Red Dot for Unread Messages */}
                                                         {unread && selectedChat?.id !== chat.id && (
                                                             <div className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full border border-black"></div>
@@ -444,7 +462,7 @@ If everything looks correct, please reply with "Confirm" to proceed with the cus
                     <>
                         <div className="h-16 border-b border-white/10 flex items-center justify-between px-4 md:px-6 bg-[#0a0a0a] shrink-0">
                             <div className="flex items-center gap-3">
-                                <button 
+                                <button
                                     onClick={() => setSelectedChat(null)}
                                     className="md:hidden p-2 -ml-2 text-gray-400 hover:text-white"
                                 >

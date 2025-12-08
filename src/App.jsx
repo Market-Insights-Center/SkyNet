@@ -31,6 +31,7 @@ import AssetEvaluator from './pages/AssetEvaluator';
 import ComparisonMatrix from './pages/ComparisonMatrix';
 import ControlsPage from './pages/ControlsPage';
 import SidebarPage from './pages/SidebarPage';
+import Help from './pages/Help';
 
 // --- PayPal Configuration (Safety Mode) ---
 const clientId = import.meta.env.VITE_PAYPAL_CLIENT_ID;
@@ -131,6 +132,7 @@ const AppContent = () => {
                 <Route path="/terms" element={<Layout><TermsOfService /></Layout>} />
                 <Route path="/privacy" element={<Layout><PrivacyPolicy /></Layout>} />
                 <Route path="/social" element={<Layout><Forum /></Layout>} />
+                <Route path="/help" element={<Layout><Help /></Layout>} />
 
                 {/* --- SKYNET DETACHED CONTROLS & SIDEBAR --- */}
                 <Route path="/controls" element={<ControlsPage />} />

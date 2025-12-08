@@ -94,7 +94,7 @@ const Wizard = () => {
         }
 
         // [FIX] Ensure user_id is a string
-        let body = { 
+        let body = {
             user_id: currentUser?.uid || "",
             email: currentUser?.email || "" // <--- CRITICAL: Send email for limit checks
         };
@@ -137,12 +137,12 @@ const Wizard = () => {
                     total_value: parseFloat(inputs.capital) || 10000,
                     use_fractional_shares: inputs.use_fractional_shares || false,
                     action: "run_analysis",
-                    sub_portfolios: [], 
-                    ema_sensitivity: 2, 
+                    sub_portfolios: [],
+                    ema_sensitivity: 2,
                     amplification: 1.0,
                     trades: [],
-                    rh_username: "", 
-                    rh_password: "", 
+                    rh_username: "",
+                    rh_password: "",
                     email_to: currentUser?.email || "", // Custom/Tracking uses email_to
                     risk_tolerance: 10,
                     vote_type: "stock",
@@ -167,7 +167,7 @@ const Wizard = () => {
 
     const executeAnalysis = async (body) => {
         setIsAnalyzing(true);
-        
+
         try {
             const endpoint = `/api/${toolType}`;
 
@@ -242,6 +242,18 @@ const Wizard = () => {
                         <span className="text-gold">{getToolTitle()}</span>
                         <ChevronRight className="text-gray-500" size={24} />
                         <span className="text-gray-400 text-xl font-light">Configuration</span>
+                        <a
+                            href={`/help#${toolType === 'custom' ? 'custom-builder' :
+                                    toolType === 'invest' ? 'quick-invest' :
+                                        toolType === 'cultivate' ? 'cultivate' :
+                                            toolType === 'tracking' ? 'portfolio-tracker' : 'portfolio-lab'
+                                }`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="ml-auto flex items-center gap-1 text-xs bg-white/10 hover:bg-gold/20 text-gold px-3 py-1 rounded-full transition-colors"
+                        >
+                            <span className="font-bold">?</span> Help
+                        </a>
                     </h1>
                     <p className="text-gray-400">Configure your parameters to generate an optimal strategy.</p>
                 </div>

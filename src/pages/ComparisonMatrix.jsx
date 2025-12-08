@@ -177,7 +177,7 @@ const ComparisonMatrix = () => {
                 </motion.div>
 
                 {/* Tab Navigation */}
-                <div className="flex justify-center mb-8">
+                <div className="flex justify-center items-center gap-4 mb-8">
                     <div className="bg-white/5 p-1 rounded-full flex">
                         <button
                             onClick={() => { setActiveTab('market'); setResult(null); setError(null); }}
@@ -192,6 +192,16 @@ const ComparisonMatrix = () => {
                             <Zap size={18} /> Breakout Detector
                         </button>
                     </div>
+
+                    <a
+                        href={`/help#${activeTab === 'market' ? 'market-heatmap' : 'breakout-detector'}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="w-10 h-10 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-gray-400 hover:text-gold hover:border-gold/50 transition-all"
+                        title="View Documentation"
+                    >
+                        <span className="text-lg font-bold">?</span>
+                    </a>
                 </div>
 
                 {/* Input Panel */}

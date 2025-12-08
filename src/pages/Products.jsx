@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Bot, ChevronRight, Search, Scale, Siren, ToggleLeft, ToggleRight, ExternalLink, HelpCircle, X, Hand, Mic, Activity, Loader2 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
@@ -7,6 +7,7 @@ import { useSkyNet } from '../contexts/SkyNetContext';
 
 const Products = () => {
     const { userProfile } = useAuth();
+    const navigate = useNavigate();
     const { connect, disconnect, isConnected, connectionError } = useSkyNet();
     const [skynetActive, setSkynetActive] = useState(false);
     const [isProcessing, setIsProcessing] = useState(false);
@@ -243,13 +244,20 @@ const Products = () => {
 
                 {/* Apps Grid */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                    <Link to="/portfolio-lab" className="group">
+                    <div onClick={() => navigate('/portfolio-lab')} className="group cursor-pointer block h-full">
                         <motion.div
                             initial={{ opacity: 0, y: 20 }}
                             animate={{ opacity: 1, y: 0 }}
                             transition={{ delay: 0.2 }}
                             className="h-full bg-white/5 border border-gold/30 rounded-2xl p-8 hover:bg-white/10 hover:border-gold transition-all duration-300 relative overflow-hidden"
                         >
+                            <button
+                                onClick={(e) => { e.stopPropagation(); navigate('/help#portfolio-lab'); }}
+                                className="absolute top-4 right-4 z-30 p-2 text-gray-500 hover:text-gold transition-colors"
+                                title="Learn details"
+                            >
+                                <HelpCircle size={24} />
+                            </button>
                             <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
                                 <Bot size={120} />
                             </div>
@@ -266,14 +274,21 @@ const Products = () => {
                                 </div>
                             </div>
                         </motion.div>
-                    </Link>
-                    <Link to="/asset-evaluator" className="group">
+                    </div>
+                    <div onClick={() => navigate('/asset-evaluator')} className="group cursor-pointer block h-full">
                         <motion.div
                             initial={{ opacity: 0, y: 20 }}
                             animate={{ opacity: 1, y: 0 }}
                             transition={{ delay: 0.3 }}
                             className="h-full bg-white/5 border border-gold/30 rounded-2xl p-8 hover:bg-white/10 hover:border-gold transition-all duration-300 relative overflow-hidden"
                         >
+                            <button
+                                onClick={(e) => { e.stopPropagation(); navigate('/help#asset-evaluator'); }}
+                                className="absolute top-4 right-4 z-30 p-2 text-gray-500 hover:text-gold transition-colors"
+                                title="Learn details"
+                            >
+                                <HelpCircle size={24} />
+                            </button>
                             <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
                                 <Search size={120} />
                             </div>
@@ -290,14 +305,21 @@ const Products = () => {
                                 </div>
                             </div>
                         </motion.div>
-                    </Link>
-                    <Link to="/products/comparison-matrix" className="group">
+                    </div>
+                    <div onClick={() => navigate('/products/comparison-matrix')} className="group cursor-pointer block h-full">
                         <motion.div
                             initial={{ opacity: 0, y: 20 }}
                             animate={{ opacity: 1, y: 0 }}
                             transition={{ delay: 0.4 }}
                             className="h-full bg-white/5 border border-gold/30 rounded-2xl p-8 hover:bg-white/10 hover:border-gold transition-all duration-300 relative overflow-hidden"
                         >
+                            <button
+                                onClick={(e) => { e.stopPropagation(); navigate('/help#comparison-matrix'); }}
+                                className="absolute top-4 right-4 z-30 p-2 text-gray-500 hover:text-gold transition-colors"
+                                title="Learn details"
+                            >
+                                <HelpCircle size={24} />
+                            </button>
                             <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
                                 <Scale size={120} />
                             </div>
@@ -314,14 +336,21 @@ const Products = () => {
                                 </div>
                             </div>
                         </motion.div>
-                    </Link>
-                    <Link to="/market-nexus" className="group">
+                    </div>
+                    <div onClick={() => navigate('/market-nexus')} className="group cursor-pointer block h-full">
                         <motion.div
                             initial={{ opacity: 0, y: 20 }}
                             animate={{ opacity: 1, y: 0 }}
                             transition={{ delay: 0.5 }}
                             className="h-full bg-white/5 border border-gold/30 rounded-2xl p-8 hover:bg-white/10 hover:border-gold transition-all duration-300 relative overflow-hidden"
                         >
+                            <button
+                                onClick={(e) => { e.stopPropagation(); navigate('/help#market-nexus'); }}
+                                className="absolute top-4 right-4 z-30 p-2 text-gray-500 hover:text-gold transition-colors"
+                                title="Learn details"
+                            >
+                                <HelpCircle size={24} />
+                            </button>
                             <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
                                 <Siren size={120} />
                             </div>
@@ -338,7 +367,7 @@ const Products = () => {
                                 </div>
                             </div>
                         </motion.div>
-                    </Link>
+                    </div>
                 </div>
             </div>
         </div>

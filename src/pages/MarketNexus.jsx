@@ -94,8 +94,21 @@ const MarketNexus = () => {
                         <div className="w-12 h-12 bg-gold/20 rounded-xl flex items-center justify-center text-gold border border-gold/20">
                             <Siren size={24} />
                         </div>
-                        <div>
-                            <h1 className="text-4xl font-bold">Market Nexus</h1>
+                        <div className="flex-1">
+                            <div className="flex items-center justify-between">
+                                <h1 className="text-4xl font-bold">Market Nexus</h1>
+                                <a
+                                    href={`/help#${activeTab === 'risk' ? 'risk-command' :
+                                            activeTab === 'history' ? 'history-command' :
+                                                activeTab === 'briefing' ? 'briefing' : 'market-nexus'
+                                        }`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-gold/10 text-gold rounded-lg border border-gold/20 transition-all text-sm font-bold"
+                                >
+                                    <span>?</span> Help
+                                </a>
+                            </div>
                             <p className="text-gray-400">Advanced market risk analysis, historical tracking, and daily intelligence.</p>
                         </div>
                     </div>

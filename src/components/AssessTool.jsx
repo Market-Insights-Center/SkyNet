@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Search, Activity, AlertTriangle, Layers, Briefcase, FileText, Database, TrendingUp, Settings, X, ChevronRight, Plus } from 'lucide-react';
+import { Search, Activity, AlertTriangle, Layers, Briefcase, FileText, Database, TrendingUp, Settings, X, ChevronRight, Plus, HelpCircle } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import UpgradePopup from './UpgradePopup';
 import { PortfolioConfigForm } from './WizardInputs';
@@ -261,6 +261,21 @@ const AssessTool = () => {
                         {tab.icon} {tab.name} (Code {tab.code})
                     </button>
                 ))}
+
+                {/* Contextual Help Button */}
+                <a
+                    href={`/help#${assessCode === 'A' ? 'quickscore' :
+                        assessCode === 'B' ? 'Code-B' :
+                            assessCode === 'C' ? 'Code-C' :
+                                assessCode === 'D' ? 'Code-D' :
+                                    assessCode === 'E' ? 'Code-E' : 'asset-evaluator'
+                        }`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="ml-auto flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 transition-colors border border-blue-500/30"
+                >
+                    <HelpCircle size={18} /> Help
+                </a>
             </div>
 
             {/* Input Explanations */}

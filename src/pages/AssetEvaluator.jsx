@@ -76,8 +76,22 @@ const AssetEvaluator = () => {
                         <div className="w-12 h-12 bg-gold/10 rounded-xl flex items-center justify-center text-gold border border-gold/20">
                             <Search size={24} />
                         </div>
-                        <div>
-                            <h1 className="text-4xl font-bold">Asset Evaluator</h1>
+                        <div className="flex-1">
+                            <div className="flex items-center justify-between">
+                                <h1 className="text-4xl font-bold">Asset Evaluator</h1>
+                                <a
+                                    href={`/help#${activeTab === 'quickscore' ? 'quickscore' :
+                                            activeTab === 'fundamentals' ? 'fundamentals' :
+                                                activeTab === 'assess' ? 'asset-evaluator' :
+                                                    activeTab === 'mlforecast' ? 'ml-forecast' : 'asset-evaluator'
+                                        }`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-gold/10 text-gold rounded-lg border border-gold/20 transition-all text-sm font-bold"
+                                >
+                                    <span>?</span> Help
+                                </a>
+                            </div>
                             <p className="text-gray-400">Rapidly score assets and visualize trends.</p>
                         </div>
                     </div>
