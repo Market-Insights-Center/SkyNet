@@ -24,7 +24,7 @@ import asyncio
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 # Import your command modules
-from backend.integration import invest_command, cultivate_command, custom_command, tracking_command, risk_command, history_command, quickscore_command, market_command, breakout_command, briefing_command, fundamentals_command
+from backend.integration import invest_command, cultivate_command, custom_command, tracking_command, risk_command, history_command, quickscore_command, market_command, breakout_command, briefing_command, fundamentals_command, assess_command, mlforecast_command
 
 # Database imports
 from backend.database import (
@@ -233,6 +233,27 @@ class UsernameCheckRequest(BaseModel):
 class UsernameUpdateRequest(BaseModel):
     email: str
     username: str
+
+class AssessRequest(BaseModel):
+    email: str
+    user_id: Optional[str] = None # Added for ownership check
+    assess_code: str
+    tickers_str: Optional[str] = None
+    timeframe_str: Optional[str] = None
+    risk_tolerance: Optional[int] = None
+    backtest_period_str: Optional[str] = None
+    manual_portfolio_holdings: Optional[List[Dict[str, Any]]] = None
+    custom_portfolio_code: Optional[str] = None
+    value_for_assessment: Optional[float] = None
+    cultivate_portfolio_code: Optional[str] = None
+    use_fractional_shares: Optional[bool] = None
+    portfolio_code: Optional[str] = None # For Code E
+    start_date: Optional[str] = None # For Code E
+    end_date: Optional[str] = None # For Code E
+
+class MLForecastRequest(BaseModel):
+    email: str
+    ticker: str
 
 # --- HELPER FUNCTIONS ---
 def get_mod_list():
@@ -798,6 +819,98 @@ def vote_idea(idea_id: int, req: VoteRequest):
     if not idea: raise HTTPException(status_code=404, detail="Idea not found")
     liked_by = idea.get('liked_by', [])
     disliked_by = idea.get('disliked_by', [])
+
+# -----------------------------
+# ASSESS & MLFORECAST ENDPOINTS
+# -----------------------------
+@app.post("/api/assess")
+async def api_assess_command(req: AssessRequest):
+    # Determine the specific permission key based on the code
+    code = req.assess_code.upper()
+    permission_key = f"assess_{code.lower()}"
+    
+    # Check permissions
+    # Check permissions
+    limit_check = verify_access_and_limits(req.email, permission_key)
+    if not limit_check["allowed"]:
+        raise HTTPException(status_code=403, detail=limit_check["message"])
+
+    # Prepare AI params
+    ai_params = {
+        "assess_code": code,
+        "tickers_str": req.tickers_str,
+        "timeframe_str": req.timeframe_str,
+        "risk_tolerance": req.risk_tolerance,
+        "backtest_period_str": req.backtest_period_str,
+        "manual_portfolio_holdings": req.manual_portfolio_holdings,
+        "custom_portfolio_code": req.custom_portfolio_code,
+        "value_for_assessment": req.value_for_assessment,
+        "cultivate_portfolio_code": req.cultivate_portfolio_code,
+        "use_fractional_shares": req.use_fractional_shares,
+        "portfolio_code": req.portfolio_code,
+        "start_date": req.start_date,
+        "end_date": req.end_date
+    }
+
+    # Handle based on code
+    try:
+        # NOTE: Assess command usually returns a string for AI or prints to CLI.
+        # We need to adapt it or capture the output. 
+        # Looking at assess_command.py, it returns a "summary_for_ai" string or None.
+        # Ideally, we should refactor it to return structured data, but for now we interpret the string or capture print output?
+        # The user instruction implies integration. The best way is if `assess_command` returns the data we need.
+        # Let's check assess_command again. It calculates things and then prints/returns a summary.
+        # For the frontend, we likely want structured data.
+        # Code E is CLI only ("This command is CLI-only for now"). We might skip E or try to implement it.
+        # The user said: "Please have the assess command sub divide on its page into Code A through E".
+        # So E is required.
+        
+        # We will call the command. Since assess_command is designed for CLI/AI text output, 
+        # we might need to rely on the return value which is a text summary. 
+        # IMPORTANT: Refactoring assess_command to return JSON would be better, but aggressive.
+        # Let's assume for now we call it and send back the text summary + any side effects (like generated graphs).
+        # Wait, usually these commands save graphs to disk. We might need to send those back.
+        
+        
+        result = await assess_command.handle_assess_command(
+            [], 
+            ai_params=ai_params, 
+            is_called_by_ai=True,
+            user_id=req.user_id
+        )
+        return {"result": result}
+        
+    except Exception as e:
+        logger.error(f"Assess Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/mlforecast")
+async def api_mlforecast_command(req: MLForecastRequest):
+    limit_check = verify_access_and_limits(req.email, "mlforecast")
+    if not limit_check["allowed"]:
+        raise HTTPException(status_code=403, detail=limit_check["message"])
+
+    try:
+        # Handle MLForecast
+        # mlforecast_command.handle_mlforecast_command returns a list of results (for AI) or None.
+        # It also generates a graph.
+        
+        results = await mlforecast_command.handle_mlforecast_command(ai_params={"ticker": req.ticker}, is_called_by_ai=True)
+        
+        if isinstance(results, dict) and "error" in results:
+             raise Exception(results["error"])
+             
+        # We also want the graph. The command prints the filename. 
+        # For this integration, we might need to search for the latest file or return it if the command was modified.
+        # The command returns `results` list (table data).
+        # It does NOT return the filename in the AI return path.
+        # We might need to modify mlforecast_command to return the filename too.
+        
+        return {"results": results}
+    except Exception as e:
+        logger.error(f"MLForecast Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
     if req.vote_type == 'up':
         if req.user_id in liked_by: liked_by.remove(req.user_id)
         else:
@@ -1021,3 +1134,8 @@ async def run_breakout(req: BreakoutRequest):
     )
     return result
 
+
+if __name__ == "__main__":
+    import uvicorn
+    # Use 0.0.0.0 to listen on all interfaces, typically on port 8000
+    uvicorn.run(app, host="0.0.0.0", port=8000)

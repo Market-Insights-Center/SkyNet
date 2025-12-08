@@ -15,11 +15,14 @@ from tabulate import tabulate
 from scipy.stats import percentileofscore
 
 # --- Imports from other command modules ---
-from invest_command import plot_ticker_graph, calculate_ema_invest, process_custom_portfolio
-from cultivate_command import run_cultivate_analysis_singularity
+# from invest_command import plot_ticker_graph, calculate_ema_invest, process_custom_portfolio
+from backend.integration.invest_command import calculate_ema_invest, process_custom_portfolio
+from backend.integration.quickscore_command import plot_ticker_graph
+from backend.integration.cultivate_command import run_cultivate_analysis_singularity
 
 # --- Constants (copied for self-containment) ---
-PORTFOLIO_DB_FILE = 'portfolio_codes_database.csv'
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+PORTFOLIO_DB_FILE = os.path.join(BASE_DIR, 'portfolio_codes_database.csv')
 
 # --- Helper Functions (copied or moved for self-containment) ---
 
@@ -143,35 +146,52 @@ def calculate_backtest_performance(portfolio_value_history: pd.Series) -> dict:
     return {"final_value": final, "total_return_pct": total_return, "max_drawdown_pct": drawdown.min() * 100}
 
 def plot_backtest_performance_graph(portfolio_history: pd.Series, spy_history: pd.Series):
-    plt.style.use('dark_background')
-    fig, ax = plt.subplots(figsize=(14, 8))
-    portfolio_norm = (portfolio_history / portfolio_history.iloc[0]) * 100
-    spy_norm = (spy_history / spy_history.iloc[0]) * 100
-    ax.plot(portfolio_norm.index, portfolio_norm, label='Your Portfolio', color='cyan')
-    ax.plot(spy_norm.index, spy_norm, label='SPY', color='red', linestyle='--')
-    ax.set_title('Backtest Performance vs. SPY', color='white')
-    ax.set_ylabel('Performance (Normalized to 100)', color='white')
-    ax.legend()
-    ax.grid(True, alpha=0.3)
-    filename = f"backtest_performance_{uuid.uuid4().hex[:6]}.png"
-    plt.savefig(filename, facecolor='black')
-    plt.close(fig)
-    print(f"📂 Performance graph saved: {filename}")
+    try:
+        plt.style.use('dark_background')
+        fig, ax = plt.subplots(figsize=(14, 8))
+        portfolio_norm = (portfolio_history / portfolio_history.iloc[0]) * 100
+        spy_norm = (spy_history / spy_history.iloc[0]) * 100
+        ax.plot(portfolio_norm.index, portfolio_norm, label='Your Portfolio', color='cyan')
+        ax.plot(spy_norm.index, spy_norm, label='SPY', color='red', linestyle='--')
+        ax.set_title('Backtest Performance vs. SPY', color='white')
+        ax.set_ylabel('Performance (Normalized to 100)', color='white')
+        ax.legend()
+        ax.grid(True, alpha=0.3)
+        
+        # Define Static Directory
+        BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        STATIC_DIR = os.path.join(BASE_DIR, "static")
+        if not os.path.exists(STATIC_DIR):
+            os.makedirs(STATIC_DIR)
+
+        filename = f"backtest_performance_{uuid.uuid4().hex[:6]}.png"
+        filepath = os.path.join(STATIC_DIR, filename)
+        
+        plt.savefig(filepath, facecolor='black', edgecolor='black', dpi=300)
+        plt.close(fig)
+        return filename
+    except Exception as e:
+        print(f"Graph Error: {e}")
+        return None
 
 async def run_portfolio_backtest(portfolio_code: str, start_date: str, end_date: str, initial_value: float = 10000.0, is_called_by_ai: bool = False):
     if not os.path.exists(PORTFOLIO_DB_FILE):
-        print(f"❌ Error: Portfolio database file '{PORTFOLIO_DB_FILE}' not found.")
-        return
+        return {"error": "Portfolio database not found."}
     try:
         df = pd.read_csv(PORTFOLIO_DB_FILE)
-        config = df[df['portfolio_code'].astype(str) == portfolio_code].iloc[0]
+        config_rows = df[df['portfolio_code'].astype(str) == portfolio_code]
+        if config_rows.empty:
+             return {"error": f"Portfolio '{portfolio_code}' not found."}
+        config = config_rows.iloc[0]
+        
         tickers = set()
         for i in range(1, int(config.get('num_portfolios', 0)) + 1):
             tickers.update([t.strip() for t in config.get(f'tickers_{i}', '').split(',') if t.strip()])
         
+        # Robust fetch
         fetch_start = (pd.to_datetime(start_date) - timedelta(weeks=75)).strftime('%Y-%m-%d')
         hist_data = await get_yf_data_singularity(list(tickers) + ['SPY'], start=fetch_start, end=end_date)
-        if hist_data.empty: return
+        if hist_data.empty: return {"error": "No historical data found."}
 
         sim_data = hist_data.loc[start_date:end_date].copy()
         buying_power = initial_value
@@ -182,29 +202,27 @@ async def run_portfolio_backtest(portfolio_code: str, start_date: str, end_date:
         for date, prices in sim_data.iterrows():
             if date.month != last_rebalance_month:
                 current_value = buying_power + sum(shares.get(t, 0) * prices.get(t, 0) for t in shares if pd.notna(prices.get(t)))
-                # This block now correctly defines the config and uses the is_called_by_ai flag
-                portfolio_config_for_rebalance = df[df['portfolio_code'].astype(str) == portfolio_code].iloc[0].to_dict()
+                portfolio_config_for_rebalance = config.to_dict()
                 portfolio_result = await process_custom_portfolio(    
                     portfolio_data_config=portfolio_config_for_rebalance,
                     tailor_portfolio_requested=True,
                     total_value_singularity=current_value,
                     frac_shares_singularity=True,
                     is_custom_command_simplified_output=True,
-                    is_called_by_ai=True # Internal call should be treated as AI
+                    is_called_by_ai=True 
                 )
 
                 if len(portfolio_result) == 5:
                     _, _, _, structured_holdings, _ = portfolio_result
-                    if structured_holdings:
-                        shares = {h['ticker']: h['shares'] for h in structured_holdings}
-                        buying_power = current_value - sum(h.get('actual_money_allocation', 0) for h in structured_holdings)
-                    else:
-                        shares = {}
-                        buying_power = current_value
+                elif len(portfolio_result) == 4:
+                    _, _, _, structured_holdings = portfolio_result
+                else: 
+                     structured_holdings = [] # Fallback
+
+                if structured_holdings:
+                    shares = {h['ticker']: h['shares'] for h in structured_holdings}
+                    buying_power = current_value - sum(h.get('actual_money_allocation', 0) for h in structured_holdings)
                 else:
-                    # This print statement now correctly uses the passed-in variable
-                    if not is_called_by_ai:
-                        print(f"⚠️ Warning: Rebalancing failed on {date.strftime('%Y-%m-%d')} due to missing data. Holding cash.")
                     shares = {}
                     buying_power = current_value
 
@@ -213,18 +231,33 @@ async def run_portfolio_backtest(portfolio_code: str, start_date: str, end_date:
             current_holdings_value = sum(shares.get(t, 0) * prices.get(t, 0) for t in shares if pd.notna(prices.get(t)))
             value_history[date] = buying_power + current_holdings_value
         
-        performance = calculate_backtest_performance(value_history.dropna())
-        print(f"\n--- Backtest Results for '{portfolio_code}' ---")
-        print(f"Final Value: ${performance['final_value']:,.2f} | Total Return: {performance['total_return_pct']:+.2f}%")
-        spy_hist = sim_data['SPY'].loc[value_history.dropna().index]
-        plot_backtest_performance_graph(value_history.dropna(), spy_hist)
+        final_series = value_history.dropna()
+        if final_series.empty: return {"error": "Backtest resulted in empty history."}
+        
+        performance = calculate_backtest_performance(final_series)
+        spy_hist = sim_data['SPY'].loc[final_series.index]
+        graph_file = plot_backtest_performance_graph(final_series, spy_hist)
+        
+        res_text = f"Final Value: ${performance['final_value']:,.2f} | Total Return: {performance['total_return_pct']:+.2f}%"
+        if not is_called_by_ai: print(res_text)
+        
+        return {
+            "summary": res_text,
+            "final_value": performance['final_value'],
+            "total_return_pct": performance['total_return_pct'],
+            "max_drawdown_pct": performance['max_drawdown_pct'],
+            "graph": graph_file
+        }
+
     except Exception as e:
-        print(f"❌ Error during backtest: {e}")
+        traceback.print_exc()
+        return {"error": str(e)}
 
 # --- Main Command Handler ---
-async def handle_assess_command(args: List[str], ai_params: Optional[Dict] = None, is_called_by_ai: bool = False):
+async def handle_assess_command(args: List[str], ai_params: Optional[Dict] = None, is_called_by_ai: bool = False, user_id: Optional[str] = None):
     """
     Handles the /assess command for CLI and AI.
+    Returns structured data for frontend integration (via ai_params) or text for CLI.
     """
     summary_for_ai = "Assessment initiated."
     assess_code_input, specific_params_dict = None, {}
@@ -237,7 +270,7 @@ async def handle_assess_command(args: List[str], ai_params: Optional[Dict] = Non
     else: 
         msg = "Usage: /assess <AssessCode A/B/C/D/E> [additional_args...]. Type /help for details."
         if not is_called_by_ai: print(msg)
-        return "Error: Assess code (A, B, C, D, or E) not specified." if is_called_by_ai else None
+        return {"error": "Assess code (A, B, C, D, or E) not specified."} if is_called_by_ai else None
 
     # --- Code A: Stock Volatility Assessment ---
     if assess_code_input == 'A':
@@ -315,22 +348,31 @@ async def handle_assess_command(args: List[str], ai_params: Optional[Dict] = Non
                     results_for_table_a.append([ticker_a_item, "CalcErr", "CalcErr", "CalcErr", "CalcErr", "CalcErr", f"Error"])
                     assessment_summaries_ai_list.append(f"{ticker_a_item}: Calculation Error ({e_item_a}).")
 
-            if results_for_table_a and not is_called_by_ai: 
-                print("\n**Stock Volatility Assessment Results (Code A)**")
-                results_for_table_a.sort(key=lambda x: x[3] if isinstance(x[3], (int,float)) else float('inf'))
-                
-                headers = ["Ticker", f"{timeframe_upper_a} Change", "AAPC (%)", "Vol Score (0-9)", "Current IV", "Volatility Rank", "Risk Match"]
-                print(tabulate(results_for_table_a, headers=headers, tablefmt="pretty"))
+            if results_for_table_a: 
+                if not is_called_by_ai: 
+                    print("\n**Stock Volatility Assessment Results (Code A)**")
+                    results_for_table_a.sort(key=lambda x: x[3] if isinstance(x[3], (int,float)) else float('inf'))
+                    headers = ["Ticker", f"{timeframe_upper_a} Change", "AAPC (%)", "Vol Score (0-9)", "Current IV", "Volatility Rank", "Risk Match"]
+                    print(tabulate(results_for_table_a, headers=headers, tablefmt="pretty"))
+                else:
+                    # Return structured table for frontend
+                    headers = ["Ticker", f"{timeframe_upper_a} Change", "AAPC (%)", "Vol Score", "IV", "Vol Rank", "Risk Match"]
+                    return {
+                        "type": "table", 
+                        "title": "Stock Volatility Assessment",
+                        "headers": headers,
+                        "rows": results_for_table_a,
+                        "summary": "Assess Code A Completed."
+                    }
                 
             summary_for_ai = "Assess A (Stock Volatility) results: " + " | ".join(assessment_summaries_ai_list) if assessment_summaries_ai_list else "No results for Assess A."
         
         except ValueError as ve_a:
-            summary_for_ai = f"Error (Assess A): Invalid parameter type (e.g., risk tolerance not a number). {ve_a}"
-            if not is_called_by_ai: print(summary_for_ai)
+            summary_for_ai = f"Error (Assess A): Invalid parameter type. {ve_a}"
         except Exception as e_assess_a:
             summary_for_ai = f"An unexpected error occurred in Assess Code A: {e_assess_a}"
-            if not is_called_by_ai: print(summary_for_ai); traceback.print_exc()
-        return summary_for_ai
+            traceback.print_exc()
+        return {"error": summary_for_ai} if is_called_by_ai else summary_for_ai
 
     # --- Code B: Manual Portfolio Assessment ---
     elif assess_code_input == 'B':
@@ -422,6 +464,18 @@ async def handle_assess_command(args: List[str], ai_params: Optional[Dict] = Non
                     print(f"  Backtest Period: {backtest_period_b_str}")
                     print(f"  Weighted Average Beta vs SPY: {weighted_beta_b:.4f}")
                     print(f"  Weighted Average Correlation to SPY: {weighted_corr_b:.4f}")
+                else:
+                    return {
+                        "type": "table",
+                        "title": "Manual Portfolio Risk",
+                        "headers": ["Metric", "Value"],
+                        "rows": [
+                            ["Portfolio Value", f"${total_value_b_calc:,.2f}"],
+                            ["Backtest Period", backtest_period_b_str],
+                            ["Weighted Beta (vs SPY)", f"{weighted_beta_b:.4f}"],
+                            ["Weighted Correlation (vs SPY)", f"{weighted_corr_b:.4f}"]
+                        ]
+                    }
                 summary_for_ai = result_text_b
             else:
                 summary_for_ai = f"Could not calculate Beta/Correlation for the manual portfolio (Period: {backtest_period_b_str}). Check holdings data or market conditions."
@@ -470,7 +524,20 @@ async def handle_assess_command(args: List[str], ai_params: Optional[Dict] = Non
                     if row_c_db.get('portfolio_code','').strip().lower() == custom_portfolio_code_c.lower():
                         custom_config_data_c = row_c_db; break
             if not custom_config_data_c:
-                return f"Error (Assess C): Custom portfolio code '{custom_portfolio_code_c}' not found in database."
+                 print(f"DEBUG [Assess C]: Portfolio '{custom_portfolio_code_c}' not found in DB '{PORTFOLIO_DB_FILE}'.")
+                 if is_called_by_ai: return {"error": "portfolio_not_found", "code": custom_portfolio_code_c}
+                 return f"Error (Assess C): Custom portfolio code '{custom_portfolio_code_c}' not found in database."
+            
+            # --- OWNERSHIP CHECK ---
+            if is_called_by_ai and user_id:
+                csv_uid = custom_config_data_c.get('user_id', '').strip()
+                # Debug log
+                print(f"DEBUG [Assess C]: Checking ownership. Input User: '{user_id}', CSV User: '{csv_uid}'")
+                
+                if csv_uid and csv_uid != user_id:
+                    print(f"DEBUG [Assess C]: Ownership mismatch! Denying access.")
+                    return {"error": "portfolio_not_found", "code": custom_portfolio_code_c}
+            # -----------------------
             
             csv_frac_shares_str_c = custom_config_data_c.get('frac_shares', 'false').strip().lower()
             frac_shares_from_config_c = csv_frac_shares_str_c in ['true', 'yes']
@@ -504,8 +571,19 @@ async def handle_assess_command(args: List[str], ai_params: Optional[Dict] = Non
 
             if beta_corr_tuple_c:
                 weighted_beta_c, weighted_corr_c = beta_corr_tuple_c
-                summary_for_ai = (f"Custom Portfolio '{custom_portfolio_code_c}' (Assessed Value ${value_for_assess_c_float:,.2f}, Period {backtest_period_c_str}): "
-                                  f"Weighted Avg Beta vs SPY: {weighted_beta_c:.4f}, Weighted Avg Correlation to SPY: {weighted_corr_c:.4f}.")
+                if is_called_by_ai:
+                    return {
+                        "type": "table",
+                        "title": f"Custom Portfolio Assessment ({custom_portfolio_code_c})",
+                        "headers": ["Metric", "Value"],
+                        "rows": [
+                            ["Portfolio Code", custom_portfolio_code_c],
+                            ["Assessed Value", f"${value_for_assess_c_float:,.2f}"],
+                            ["Backtest Period", backtest_period_c_str],
+                            ["Weighted Beta (vs SPY)", f"{weighted_beta_c:.4f}"],
+                            ["Weighted Correlation (vs SPY)", f"{weighted_corr_c:.4f}"]
+                        ]
+                    }
                 if not is_called_by_ai:
                     print("\n**Custom Portfolio Risk Assessment Results (Code C)**")
                     print(f"  Portfolio Code: {custom_portfolio_code_c}, Assessed Value: ${value_for_assess_c_float:,.2f}")
@@ -592,6 +670,19 @@ async def handle_assess_command(args: List[str], ai_params: Optional[Dict] = Non
                     print(f"  Backtest Period: {backtest_period_d_str}")
                     print(f"  Weighted Average Beta vs SPY: {weighted_beta_d:.4f}")
                     print(f"  Weighted Average Correlation to SPY: {weighted_corr_d:.4f}")
+                else:
+                    return {
+                        "type": "table",
+                        "title": f"Cultivate Risk Assessment (Code {cultivate_code_d_str})",
+                        "headers": ["Metric", "Value"],
+                        "rows": [
+                            ["Cultivate Code", f"{cultivate_code_d_str}"],
+                            ["Investment Value", f"${value_epsilon_d_float:,.2f}"],
+                            ["Backtest Period", backtest_period_d_str],
+                            ["Weighted Beta (vs SPY)", f"{weighted_beta_d:.4f}"],
+                            ["Weighted Correlation (vs SPY)", f"{weighted_corr_d:.4f}"]
+                        ]
+                    }
             else:
                 summary_for_ai = f"Could not calculate Beta/Correlation for Cultivate portfolio (Code {cultivate_code_d_str}, Period {backtest_period_d_str})."
                 if not is_called_by_ai: print(summary_for_ai)
@@ -607,6 +698,39 @@ async def handle_assess_command(args: List[str], ai_params: Optional[Dict] = Non
     elif assess_code_input == 'E':
         if not is_called_by_ai: print("--- Assess Code E: Portfolio Backtesting ---")
         try:
+            # AI / API Path
+            if ai_params:
+                portfolio_code_e = specific_params_dict.get('portfolio_code')
+                start_date_e = specific_params_dict.get('start_date')
+                end_date_e = specific_params_dict.get('end_date')
+                
+                if not portfolio_code_e or not start_date_e or not end_date_e:
+                    return {"error": "portfolio_code, start_date, and end_date required."}
+                
+                try:
+                    s_dt = pd.to_datetime(start_date_e)
+                    e_dt = pd.to_datetime(end_date_e)
+                    if s_dt >= e_dt: return {"error": "Start date must be before end date."}
+                    if e_dt > datetime.now(): return {"error": "End date cannot be in the future."}
+                except:
+                    return {"error": "Invalid date format."}
+
+                backtest_res = await run_portfolio_backtest(portfolio_code_e, start_date_e, end_date_e, is_called_by_ai=is_called_by_ai)
+                # Map backtest text summary to table if possible, or just return as is (Code E UI handles graphs)
+                if isinstance(backtest_res, dict) and "final_value" in backtest_res:
+                     backtest_res["type"] = "table"
+                     backtest_res["title"] = "Backtest Results"
+                     backtest_res["headers"] = ["Metric", "Value"]
+                     backtest_res["rows"] = [
+                         ["Start Date", start_date_e],
+                         ["End Date", end_date_e],
+                         ["Final Value", f"${backtest_res['final_value']:,.2f}"],
+                         ["Total Return", f"{backtest_res['total_return_pct']:.2f}%"],
+                         ["Max Drawdown", f"{backtest_res['max_drawdown_pct']:.2f}%"]
+                     ]
+                return backtest_res
+
+            # CLI Path
             if len(args) < 4:
                 print("CLI Usage: /assess E <portfolio_code> <start_date_YYYY-MM-DD> <end_date_YYYY-MM-DD>")
                 return
@@ -614,8 +738,8 @@ async def handle_assess_command(args: List[str], ai_params: Optional[Dict] = Non
             portfolio_code_e = args[1]
             start_date_e = args[2]
             end_date_e = args[3]
-
-            # Validate dates
+            
+            # Validate dates CLI
             try:
                 pd.to_datetime(start_date_e)
                 pd.to_datetime(end_date_e)
@@ -623,13 +747,28 @@ async def handle_assess_command(args: List[str], ai_params: Optional[Dict] = Non
                 print("❌ Error: Invalid date format. Please use YYYY-MM-DD.")
                 return
 
-            # Run the backtest using the new helper function
-            await run_portfolio_backtest(portfolio_code_e, start_date_e, end_date_e)
+            backtest_res = await run_portfolio_backtest(portfolio_code_e, start_date_e, end_date_e, is_called_by_ai=is_called_by_ai)
+            if is_called_by_ai:
+                return backtest_res
 
+            # CLI Path
+            if len(args) < 4:
+                print("CLI Usage: /assess E <portfolio_code> <start_date_YYYY-MM-DD> <end_date_YYYY-MM-DD>")
+                return
+            
+            portfolio_code_e = args[1]
+            start_date_e = args[2]
+            end_date_e = args[3]
+            
+            backtest_res = await run_portfolio_backtest(portfolio_code_e, start_date_e, end_date_e, is_called_by_ai=is_called_by_ai)
+            if is_called_by_ai:
+                return backtest_res
+            
         except Exception as e_assess_e:
             summary_for_ai = f"An unexpected error occurred in Assess Code E: {e_assess_e}"
             if not is_called_by_ai: print(summary_for_ai); traceback.print_exc()
-        return  # This command is CLI-only for now
+            return summary_for_ai
+        return # CLI Only return None
 
     else: 
         msg = f"Unknown or unsupported Assess Code: '{assess_code_input}'. Use A, B, C, D, or E."

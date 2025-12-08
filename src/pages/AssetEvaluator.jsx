@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Search, Activity, AlertTriangle, ChevronRight, BarChart2, PieChart } from 'lucide-react';
+import { Search, Activity, AlertTriangle, ChevronRight, BarChart2, PieChart, TrendingUp, Layers } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import FundamentalsTool from '../components/FundamentalsTool';
+import AssessTool from '../components/AssessTool';
+import MLForecastTool from '../components/MLForecastTool';
 import UpgradePopup from '../components/UpgradePopup';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '';
@@ -81,7 +83,7 @@ const AssetEvaluator = () => {
                     </div>
 
                     {/* Navigation Tabs */}
-                    <div className="flex gap-4 border-b border-white/10 pb-1 mb-6">
+                    <div className="flex flex-wrap gap-4 border-b border-white/10 pb-1 mb-6">
                         <button
                             onClick={() => setActiveTab('quickscore')}
                             className={`flex items-center gap-2 px-6 py-3 font-bold transition-all border-b-2 ${activeTab === 'quickscore'
@@ -102,6 +104,26 @@ const AssetEvaluator = () => {
                             <PieChart size={18} />
                             Fundamentals
                         </button>
+                        <button
+                            onClick={() => setActiveTab('assess')}
+                            className={`flex items-center gap-2 px-6 py-3 font-bold transition-all border-b-2 ${activeTab === 'assess'
+                                ? 'border-blue-400 text-blue-400'
+                                : 'border-transparent text-gray-400 hover:text-gray-200'
+                                }`}
+                        >
+                            <BarChart2 size={18} />
+                            Assess
+                        </button>
+                        <button
+                            onClick={() => setActiveTab('mlforecast')}
+                            className={`flex items-center gap-2 px-6 py-3 font-bold transition-all border-b-2 ${activeTab === 'mlforecast'
+                                ? 'border-purple-400 text-purple-400'
+                                : 'border-transparent text-gray-400 hover:text-gray-200'
+                                }`}
+                        >
+                            <TrendingUp size={18} />
+                            ML Forecast
+                        </button>
                     </div>
                 </motion.div>
 
@@ -111,9 +133,11 @@ const AssetEvaluator = () => {
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ duration: 0.3 }}
                 >
-                    {activeTab === 'fundamentals' ? (
-                        <FundamentalsTool email={userProfile?.email} />
-                    ) : (
+                    {activeTab === 'fundamentals' && <FundamentalsTool email={userProfile?.email} />}
+                    {activeTab === 'assess' && <AssessTool />}
+                    {activeTab === 'mlforecast' && <MLForecastTool />}
+
+                    {activeTab === 'quickscore' && (
                         <>
                             {/* Input Section */}
                             <div className="bg-white/5 border border-white/10 rounded-2xl p-6 mb-8 transition-colors duration-300 hover:border-gold/50">

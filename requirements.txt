@@ -19,3 +19,4 @@ pyttsx3
 pyautogui
 comtypes
 pycaw
+scikit-learn

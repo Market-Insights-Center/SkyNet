@@ -87,11 +87,14 @@ const AppContent = () => {
     const [showUsernameModal, setShowUsernameModal] = useState(false);
 
     useEffect(() => {
-        // Only show modal if username is completely missing
-        if (userProfile && !userProfile.username) {
-            setShowUsernameModal(true);
-        } else {
-            setShowUsernameModal(false);
+        // Only show modal if username is completely missing OR if it is a default "User_..." placeholder
+        // This ensures users set a custom username once.
+        if (userProfile) {
+            if (!userProfile.username || userProfile.username.startsWith("User_")) {
+                setShowUsernameModal(true);
+            } else {
+                setShowUsernameModal(false);
+            }
         }
     }, [userProfile]);
 

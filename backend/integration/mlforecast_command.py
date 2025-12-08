@@ -2,6 +2,7 @@
 import asyncio
 import uuid
 import traceback
+import os
 from datetime import datetime, timedelta
 from typing import List, Dict, Any
 
@@ -128,8 +129,16 @@ def plot_advanced_forecast_graph(ticker, historical_data, forecast_points, weekl
         
         fig.tight_layout()
 
+        # Define Static Directory
+        BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        STATIC_DIR = os.path.join(BASE_DIR, "static")
+        if not os.path.exists(STATIC_DIR):
+            os.makedirs(STATIC_DIR)
+            
         filename = f"ml_advanced_forecast_{ticker}_{uuid.uuid4().hex[:6]}.png"
-        plt.savefig(filename, facecolor='black', edgecolor='black', dpi=300, 
+        filepath = os.path.join(STATIC_DIR, filename)
+        
+        plt.savefig(filepath, facecolor='black', edgecolor='black', dpi=300, 
                    bbox_inches='tight')
         plt.close(fig)
         print(f"📂 Advanced forecast graph saved: {filename}")
@@ -270,7 +279,13 @@ async def handle_mlforecast_command(args: List[str] = None, ai_params: dict = No
             forecast_points.append({'date': forecast_date, 'price': forecast_price})
 
         if is_called_by_ai:
-            return results
+            # We need to generate the weekly forecast path even for AI to get the graph
+            # Or we can just return the table results if no graph is needed, but the UI usually wants the graph.
+            # The original code skipped the "Raw" Weekly Forecast Path logic for AI.
+            # However, `plot_advanced_forecast_graph` needs `adjusted_weekly_path`.
+            # We strictly need to run steps 3 and 4 to get the graph.
+            pass # Continue to step 3 instead of returning early
+
 
         # 3. Generate the "Raw" Weekly Forecast Path (CLI Only)
         print("\n-> Generating raw 52-week forecast path (this may take a moment)...")
@@ -328,12 +343,17 @@ async def handle_mlforecast_command(args: List[str] = None, ai_params: dict = No
         # 5. Output Final Results
         print("\n" + "="*80)
         print(f"--- Advanced Forecast Results for {ticker} (based on {successful_period_name} of data) ---")
+        graph_filename = None
         if results:
-            print(tabulate(results, headers="keys", tablefmt="pretty"))
-            print("\n-> Generating forecast graph...")
-            plot_advanced_forecast_graph(ticker, data_daily, forecast_points, adjusted_weekly_path)
+            if not is_called_by_ai: print(tabulate(results, headers="keys", tablefmt="pretty"))
+            if not is_called_by_ai: print("\n-> Generating forecast graph...")
+            graph_filename = plot_advanced_forecast_graph(ticker, data_daily, forecast_points, adjusted_weekly_path)
+            
+            if is_called_by_ai:
+                return {"table": results, "graph": graph_filename}
         else:
-            print("Could not generate any forecasts due to insufficient data across all time horizons.")
+            if not is_called_by_ai: print("Could not generate any forecasts due to insufficient data across all time horizons.")
+            if is_called_by_ai: return {"error": "Insufficient data"}
         print("="*80)
 
     except Exception as e:
