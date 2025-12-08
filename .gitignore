@@ -60,8 +60,8 @@ backend/serviceAccountKey.json
 serviceAccountKey.json
 
 # 5. Environment Variables
-.env
-backend/.env
-
 # Exception: We DO want to track the schema definitions if any
 !backend/data/tier_limits.csv
+
+# 6. Generated Prompt/Run Data
+backend/saved_runs/
