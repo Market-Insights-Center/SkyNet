@@ -260,14 +260,16 @@ const Products = () => {
                             <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
                                 <Bot size={120} />
                             </div>
-                            <div className="relative z-10">
-                                <div className="w-12 h-12 bg-gold/20 rounded-lg flex items-center justify-center mb-6 text-gold">
-                                    <Bot size={24} />
+                            <div className="relative z-10 p-8 flex flex-col h-full justify-between">
+                                <div>
+                                    <div className="w-12 h-12 bg-gold/20 rounded-lg flex items-center justify-center mb-6 text-gold">
+                                        <Bot size={24} />
+                                    </div>
+                                    <h3 className="text-2xl font-bold mb-2 group-hover:text-gold transition-colors">Portfolio Lab</h3>
+                                    <p className="text-gray-400 mb-6">
+                                        A tool that builds portfolios and portfolio allocations using advanced strategies and formulas backed by investment research.
+                                    </p>
                                 </div>
-                                <h3 className="text-2xl font-bold mb-2 group-hover:text-gold transition-colors">Portfolio Lab</h3>
-                                <p className="text-gray-400 mb-6">
-                                    A tool that builds portfolios and portfolio allocations using advanced strategies and formulas backed by investment research.
-                                </p>
                                 <div className="flex items-center text-gold font-bold">
                                     Launch Application <ChevronRight size={20} className="ml-2 group-hover:translate-x-1 transition-transform" />
                                 </div>
@@ -286,14 +288,16 @@ const Products = () => {
                             <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
                                 <Search size={120} />
                             </div>
-                            <div className="relative z-10">
-                                <div className="w-12 h-12 bg-gold/20 rounded-lg flex items-center justify-center mb-6 text-gold">
-                                    <Search size={24} />
+                            <div className="relative z-10 p-8 flex flex-col h-full justify-between">
+                                <div>
+                                    <div className="w-12 h-12 bg-gold/20 rounded-lg flex items-center justify-center mb-6 text-gold">
+                                        <Search size={24} />
+                                    </div>
+                                    <h3 className="text-2xl font-bold mb-2 group-hover:text-gold transition-colors">Asset Evaluator</h3>
+                                    <p className="text-gray-400 mb-6">
+                                        Tools for scoring the strength of portfolios and assets, generating investment recommendations.
+                                    </p>
                                 </div>
-                                <h3 className="text-2xl font-bold mb-2 group-hover:text-gold transition-colors">Asset Evaluator</h3>
-                                <p className="text-gray-400 mb-6">
-                                    Tools for scoring the strength of portfolios and assets, generating investment recommendations.
-                                </p>
                                 <div className="flex items-center text-gold font-bold">
                                     Launch Application <ChevronRight size={20} className="ml-2 group-hover:translate-x-1 transition-transform" />
                                 </div>
@@ -312,14 +316,16 @@ const Products = () => {
                             <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
                                 <Scale size={120} />
                             </div>
-                            <div className="relative z-10">
-                                <div className="w-12 h-12 bg-gold/20 rounded-lg flex items-center justify-center mb-6 text-gold">
-                                    <Scale size={24} />
+                            <div className="relative z-10 p-8 flex flex-col h-full justify-between">
+                                <div>
+                                    <div className="w-12 h-12 bg-gold/20 rounded-lg flex items-center justify-center mb-6 text-gold">
+                                        <Scale size={24} />
+                                    </div>
+                                    <h3 className="text-2xl font-bold mb-2 group-hover:text-gold transition-colors">Comparison Matrix</h3>
+                                    <p className="text-gray-400 mb-6">
+                                        Products that produce lists of the strongest assets with the highest growth potential based on tested formulas.
+                                    </p>
                                 </div>
-                                <h3 className="text-2xl font-bold mb-2 group-hover:text-gold transition-colors">Comparison Matrix</h3>
-                                <p className="text-gray-400 mb-6">
-                                    Products that produce lists of the strongest assets with the highest growth potential based on tested formulas.
-                                </p>
                                 <div className="flex items-center text-gold font-bold">
                                     Launch Application <ChevronRight size={20} className="ml-2 group-hover:translate-x-1 transition-transform" />
                                 </div>
@@ -338,14 +344,16 @@ const Products = () => {
                             <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
                                 <Siren size={120} />
                             </div>
-                            <div className="relative z-10">
-                                <div className="w-12 h-12 bg-gold/20 rounded-lg flex items-center justify-center mb-6 text-gold">
-                                    <Siren size={24} />
+                            <div className="relative z-10 p-8 flex flex-col h-full justify-between">
+                                <div>
+                                    <div className="w-12 h-12 bg-gold/20 rounded-lg flex items-center justify-center mb-6 text-gold">
+                                        <Siren size={24} />
+                                    </div>
+                                    <h3 className="text-2xl font-bold mb-2 group-hover:text-gold transition-colors">Market Nexus</h3>
+                                    <p className="text-gray-400 mb-6">
+                                        Score the strength of the market, forecast reversal likelihoods, and bring all relevant data into a single output.
+                                    </p>
                                 </div>
-                                <h3 className="text-2xl font-bold mb-2 group-hover:text-gold transition-colors">Market Nexus</h3>
-                                <p className="text-gray-400 mb-6">
-                                    Score the strength of the market, forecast reversal likelihoods, and bring all relevant data into a single output.
-                                </p>
                                 <div className="flex items-center text-gold font-bold">
                                     Launch Application <ChevronRight size={20} className="ml-2 group-hover:translate-x-1 transition-transform" />
                                 </div>

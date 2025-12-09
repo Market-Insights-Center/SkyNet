@@ -11,29 +11,32 @@ import UsernameSetupModal from './components/UsernameSetupModal';
 import { useAuth } from './contexts/AuthContext';
 
 import Layout from './components/Layout';
-import LandingPage from './pages/LandingPage';
-import PortfolioLab from './pages/PortfolioLab';
-import Products from './pages/Products';
-import MarketNexus from './pages/MarketNexus';
-import Wizard from './pages/Wizard';
-import Login from './pages/Login';
-import SignUp from './pages/SignUp';
-import Profile from './pages/Profile';
 import StartupAnimation from './components/StartupAnimation';
-import Forum from './pages/Forum';
-import NewsPage from './pages/NewsPage';
-import KnowledgeStream from './pages/KnowledgeStream';
-import ArticleView from './pages/ArticleView';
-import AdminDashboard from './pages/AdminDashboard';
-import Chatbox from './pages/Chatbox';
-import IdeasPage from './pages/IdeasPage';
-import TermsOfService from './pages/TermsOfService';
-import PrivacyPolicy from './pages/PrivacyPolicy';
-import AssetEvaluator from './pages/AssetEvaluator';
-import ComparisonMatrix from './pages/ComparisonMatrix';
-import ControlsPage from './pages/ControlsPage';
-import SidebarPage from './pages/SidebarPage';
-import Help from './pages/Help';
+import { Loader2 } from 'lucide-react';
+
+// Lazy Load Pages
+const LandingPage = React.lazy(() => import('./pages/LandingPage'));
+const PortfolioLab = React.lazy(() => import('./pages/PortfolioLab'));
+const Products = React.lazy(() => import('./pages/Products'));
+const MarketNexus = React.lazy(() => import('./pages/MarketNexus'));
+const Wizard = React.lazy(() => import('./pages/Wizard'));
+const Login = React.lazy(() => import('./pages/Login'));
+const SignUp = React.lazy(() => import('./pages/SignUp'));
+const Profile = React.lazy(() => import('./pages/Profile'));
+const Forum = React.lazy(() => import('./pages/Forum'));
+const NewsPage = React.lazy(() => import('./pages/NewsPage'));
+const KnowledgeStream = React.lazy(() => import('./pages/KnowledgeStream'));
+const ArticleView = React.lazy(() => import('./pages/ArticleView'));
+const AdminDashboard = React.lazy(() => import('./pages/AdminDashboard'));
+const Chatbox = React.lazy(() => import('./pages/Chatbox'));
+const IdeasPage = React.lazy(() => import('./pages/IdeasPage'));
+const TermsOfService = React.lazy(() => import('./pages/TermsOfService'));
+const PrivacyPolicy = React.lazy(() => import('./pages/PrivacyPolicy'));
+const AssetEvaluator = React.lazy(() => import('./pages/AssetEvaluator'));
+const ComparisonMatrix = React.lazy(() => import('./pages/ComparisonMatrix'));
+const ControlsPage = React.lazy(() => import('./pages/ControlsPage'));
+const SidebarPage = React.lazy(() => import('./pages/SidebarPage'));
+const Help = React.lazy(() => import('./pages/Help'));
 
 // --- PayPal Configuration (Safety Mode) ---
 const clientId = import.meta.env.VITE_PAYPAL_CLIENT_ID;
@@ -113,39 +116,46 @@ const AppContent = () => {
         <>
             <UsernameSetupModal isOpen={showUsernameModal} onClose={() => setShowUsernameModal(false)} />
             <SkyNetOverlay />
-            <AnimatePresence mode="wait">
-                <Routes location={location} key={location.pathname}>
-                    <Route path="/" element={<PageTransition><Layout><LandingPage /></Layout></PageTransition>} />
-                    <Route path="/products" element={<PageTransition><Layout><Products /></Layout></PageTransition>} />
-                    <Route path="/asset-evaluator" element={<PageTransition><Layout><AssetEvaluator /></Layout></PageTransition>} />
-                    <Route path="/products/comparison-matrix" element={<PageTransition><Layout><ComparisonMatrix /></Layout></PageTransition>} />
-                    <Route path="/market-nexus" element={<PageTransition><Layout><MarketNexus /></Layout></PageTransition>} />
-                    <Route path="/portfolio-lab" element={<PageTransition><Layout><PortfolioLab /></Layout></PageTransition>} />
-                    <Route path="/custom" element={<PageTransition><Layout><Wizard /></Layout></PageTransition>} />
-                    <Route path="/invest" element={<PageTransition><Layout><Wizard /></Layout></PageTransition>} />
-                    <Route path="/cultivate" element={<PageTransition><Layout><Wizard /></Layout></PageTransition>} />
-                    <Route path="/tracking" element={<PageTransition><Layout><Wizard /></Layout></PageTransition>} />
-                    <Route path="/login" element={<PageTransition><Layout><Login /></Layout></PageTransition>} />
-                    <Route path="/signup" element={<PageTransition><Layout><SignUp /></Layout></PageTransition>} />
-                    <Route path="/profile" element={<PageTransition><Layout><Profile /></Layout></PageTransition>} />
-                    <Route path="/forum" element={<PageTransition><Layout><Forum /></Layout></PageTransition>} />
-                    <Route path="/news" element={<PageTransition><Layout><NewsPage /></Layout></PageTransition>} />
-                    <Route path="/knowledge-stream" element={<PageTransition><Layout><KnowledgeStream /></Layout></PageTransition>} />
-                    <Route path="/article/:id" element={<PageTransition><Layout><ArticleView /></Layout></PageTransition>} />
-                    <Route path="/admin" element={<PageTransition><Layout><AdminDashboard /></Layout></PageTransition>} />
-                    <Route path="/chat" element={<PageTransition><Layout><Chatbox /></Layout></PageTransition>} />
-                    <Route path="/ideas" element={<PageTransition><Layout><IdeasPage /></Layout></PageTransition>} />
-                    <Route path="/terms" element={<PageTransition><Layout><TermsOfService /></Layout></PageTransition>} />
-                    <Route path="/privacy" element={<PageTransition><Layout><PrivacyPolicy /></Layout></PageTransition>} />
-                    <Route path="/social" element={<PageTransition><Layout><Forum /></Layout></PageTransition>} />
-                    <Route path="/help" element={<PageTransition><Layout><Help /></Layout></PageTransition>} />
+            <React.Suspense fallback={
+                <div className="h-screen w-full bg-black flex items-center justify-center">
+                    <Loader2 className="animate-spin text-gold" size={48} />
+                </div>
+            }>
+                <AnimatePresence mode="wait">
+                    <Routes location={location} key={location.pathname}>
+                        <Route path="/" element={<PageTransition><Layout><LandingPage /></Layout></PageTransition>} />
+                        <Route path="/products" element={<PageTransition><Layout><Products /></Layout></PageTransition>} />
+                        <Route path="/asset-evaluator" element={<PageTransition><Layout><AssetEvaluator /></Layout></PageTransition>} />
+                        <Route path="/products/comparison-matrix" element={<PageTransition><Layout><ComparisonMatrix /></Layout></PageTransition>} />
+                        <Route path="/market-nexus" element={<PageTransition><Layout><MarketNexus /></Layout></PageTransition>} />
+                        <Route path="/portfolio-lab" element={<PageTransition><Layout><PortfolioLab /></Layout></PageTransition>} />
+                        <Route path="/custom" element={<PageTransition><Layout><Wizard /></Layout></PageTransition>} />
+                        <Route path="/invest" element={<PageTransition><Layout><Wizard /></Layout></PageTransition>} />
+                        <Route path="/cultivate" element={<PageTransition><Layout><Wizard /></Layout></PageTransition>} />
+                        <Route path="/tracking" element={<PageTransition><Layout><Wizard /></Layout></PageTransition>} />
+                        <Route path="/login" element={<PageTransition><Layout><Login /></Layout></PageTransition>} />
+                        <Route path="/signup" element={<PageTransition><Layout><SignUp /></Layout></PageTransition>} />
+                        <Route path="/profile" element={<PageTransition><Layout><Profile /></Layout></PageTransition>} />
+                        <Route path="/forum" element={<PageTransition><Layout><Forum /></Layout></PageTransition>} />
+                        <Route path="/news" element={<PageTransition><Layout><NewsPage /></Layout></PageTransition>} />
+                        <Route path="/knowledge-stream" element={<PageTransition><Layout><KnowledgeStream /></Layout></PageTransition>} />
+                        <Route path="/article/:id" element={<PageTransition><Layout><ArticleView /></Layout></PageTransition>} />
+                        <Route path="/admin" element={<PageTransition><Layout><AdminDashboard /></Layout></PageTransition>} />
+                        <Route path="/chat" element={<PageTransition><Layout><Chatbox /></Layout></PageTransition>} />
+                        <Route path="/ideas" element={<PageTransition><Layout><IdeasPage /></Layout></PageTransition>} />
+                        <Route path="/terms" element={<PageTransition><Layout><TermsOfService /></Layout></PageTransition>} />
+                        <Route path="/privacy" element={<PageTransition><Layout><PrivacyPolicy /></Layout></PageTransition>} />
+                        <Route path="/social" element={<PageTransition><Layout><Forum /></Layout></PageTransition>} />
+                        <Route path="/help" element={<PageTransition><Layout><Help /></Layout></PageTransition>} />
 
-                    {/* --- SKYNET DETACHED CONTROLS & SIDEBAR (No Transition Wrapper needed as they pop up) --- */}
-                    <Route path="/controls" element={<ControlsPage />} />
-                    <Route path="/sidebar" element={<SidebarPage />} />
-                    <Route path="/active-chart" element={<ActiveChartPage />} />
-                </Routes>
-            </AnimatePresence>
+                        {/* --- SKYNET DETACHED CONTROLS & SIDEBAR (No Transition Wrapper needed as they pop up) --- */}
+                        {/* Note: lazy loaded components work fine here too */}
+                        <Route path="/controls" element={<ControlsPage />} />
+                        <Route path="/sidebar" element={<SidebarPage />} />
+                        <Route path="/active-chart" element={<ActiveChartPage />} />
+                    </Routes>
+                </AnimatePresence>
+            </React.Suspense>
         </>
     );
 };

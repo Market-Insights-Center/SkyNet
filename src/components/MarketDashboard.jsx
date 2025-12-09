@@ -94,24 +94,6 @@ const MarketDashboard = () => {
     return (
         <section className="py-12 px-4 bg-deep-black">
             <div className="max-w-7xl mx-auto">
-                <div className="mb-8 flex items-center justify-between border-b border-white/5 pb-4">
-                    <div className="flex items-center gap-4">
-                        <div className="w-1 h-12 bg-gold/50 rounded-sm" />
-                        <div>
-                            <h2 className="text-4xl font-black text-white tracking-tighter uppercase flex items-center gap-3">
-                                MARKET <span className="text-transparent bg-clip-text bg-gradient-to-r from-gold via-yellow-200 to-gold animate-shimmer">SNAPSHOT</span>
-                            </h2>
-                            <p className="text-xs text-gray-500 font-mono tracking-[0.2em] mt-1 pl-1">INSTITUTIONAL GRADE ANALYTICS</p>
-                        </div>
-                    </div>
-                    <div className="hidden md:flex items-center gap-4 text-[10px] font-mono text-gray-500 border-l border-white/5 pl-6">
-                        <div className="flex flex-col items-end">
-                            <span className="text-gold">DATA STREAM</span>
-                            <span className="text-green-500 flex items-center gap-1">● CONNECTED <span className="opacity-50">12ms</span></span>
-                        </div>
-                    </div>
-                </div>
-
                 {/* UPDATED: Flex-col for mobile (stacked), Grid for Desktop */}
                 <div className="flex flex-col lg:grid lg:grid-cols-3 gap-6 lg:h-[600px]">
 
@@ -138,8 +120,8 @@ const MarketDashboard = () => {
                         <div className="flex-1 glass-panel glass-panel-hover rounded-xl overflow-hidden p-1 relative flex flex-col h-[400px] lg:h-auto group">
                             <div className="absolute inset-0 bg-gradient-to-b from-red-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
                             <div className="absolute top-2 left-4 z-10 flex items-center gap-2">
-                                <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse shadow-[0_0_8px_rgba(239,68,68,0.5)]" />
-                                <span className="text-[10px] font-bold text-red-500 tracking-wider uppercase">Volatility Index</span>
+                                <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+                                <span className="text-xs font-bold text-gold tracking-wider">VOLATILITY INDEX</span>
                             </div>
 
                             <div className="flex-grow relative w-full h-full rounded-lg overflow-hidden bg-black/20">

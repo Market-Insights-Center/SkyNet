@@ -9,6 +9,7 @@ import UpgradePopup from '../components/UpgradePopup';
 import SentimentTool from '../components/SentimentTool';
 import PowerScoreTool from '../components/PowerScoreTool';
 import { useLocation } from 'react-router-dom';
+import MagneticButton from '../components/MagneticButton';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '';
 

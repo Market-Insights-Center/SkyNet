@@ -1,17 +1,21 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, Suspense } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Link } from 'react-router-dom';
-import { ArrowRight, Check, ChevronDown, ChevronUp, Shield, Zap, Globe, BarChart2, Users, Lightbulb, HelpCircle, X, Cpu, Eye, EyeOff } from 'lucide-react';
-import MarketDashboard from '../components/MarketDashboard';
-import Watchlist from '../components/Watchlist';
-import NewsFeed from '../components/NewsFeed';
-import IdeaCard from '../components/IdeaCard';
-import Footer from '../components/Footer';
-import SubscriptionCard from '../components/SubscriptionCard';
+import { ArrowRight, Check, ChevronDown, ChevronUp, Shield, Zap, Globe, BarChart2, Users, Lightbulb, HelpCircle, X, Cpu, Eye, EyeOff, Activity, Loader2 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import TiltCard from '../components/TiltCard';
 import TypewriterText from '../components/TypewriterText';
+
+// Lazy Load Heavy Components
+const MarketDashboard = React.lazy(() => import('../components/MarketDashboard'));
+const Watchlist = React.lazy(() => import('../components/Watchlist'));
+const NewsFeed = React.lazy(() => import('../components/NewsFeed'));
+const IdeaCard = React.lazy(() => import('../components/IdeaCard'));
+const Footer = React.lazy(() => import('../components/Footer'));
+const SubscriptionCard = React.lazy(() => import('../components/SubscriptionCard'));
+// WealthCalculator is defined locally
+
 
 class ErrorBoundary extends React.Component {
     constructor(props) {
@@ -724,10 +728,44 @@ const LandingPage = () => {
                 <WealthCalculator />
             </ErrorBoundary >
 
-            {/* Market Dashboard */}
-            < ErrorBoundary >
-                <MarketDashboard />
-            </ErrorBoundary >
+            {/* Market Snapshot (formerly Market Dashboard) */}
+            <ErrorBoundary>
+                <section className="py-12 px-4 bg-transparent relative z-10">
+                    <div className="max-w-7xl mx-auto">
+                        <div className="relative p-1 bg-gradient-to-r from-transparent via-purple-500/50 to-transparent rounded-xl overflow-hidden group">
+                            <div className="absolute inset-0 bg-black/80 backdrop-blur-md rounded-xl" />
+
+                            {/* Futuristic Background Animation */}
+                            <div className="absolute inset-0 overflow-hidden opacity-20 pointer-events-none">
+                                <div className="absolute top-0 right-[15%] w-[1px] h-[200%] bg-gradient-to-b from-transparent via-purple-400 to-transparent animate-data-stream" />
+                                <div className="absolute top-0 left-[25%] w-[1px] h-[200%] bg-gradient-to-b from-transparent via-gold to-transparent animate-data-stream" style={{ animationDelay: '3s' }} />
+                                <div className="grid grid-cols-[repeat(auto-fill,minmax(40px,1fr))] h-full w-full opacity-5">
+                                    {Array.from({ length: 150 }).map((_, i) => (
+                                        <div key={i} className="border-r border-b border-purple-500/10" />
+                                    ))}
+                                </div>
+                            </div>
+
+                            <div className="relative z-10 p-6 rounded-xl bg-black/40 border border-purple-500/20 shadow-[0_0_50px_rgba(168,85,247,0.1)]">
+                                <div className="flex justify-between items-center mb-6 border-b border-purple-500/30 pb-4">
+                                    <div className="flex items-center gap-4">
+                                        <div className="w-2 h-8 bg-purple-500 rounded-sm animate-pulse" />
+                                        <h2 className="text-3xl font-bold font-mono tracking-widest text-purple-100">
+                                            MARKET <span className="text-gold">SNAPSHOT</span>
+                                        </h2>
+                                    </div>
+                                    <div className="flex items-center gap-2 text-xs font-mono text-purple-400">
+                                        <Activity size={14} className="animate-pulse" /> LIVE DATA FEED
+                                    </div>
+                                </div>
+                                <Suspense fallback={<div className="h-[400px] flex items-center justify-center text-purple-500"><Loader2 className="animate-spin" /></div>}>
+                                    <MarketDashboard />
+                                </Suspense>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+            </ErrorBoundary>
 
             {/* Watchlist & Community Stream Section */}
             <ErrorBoundary>
@@ -777,7 +815,9 @@ const LandingPage = () => {
                                     </div>
                                 </div>
 
-                                <Watchlist />
+                                <Suspense fallback={<div className="h-[200px] flex items-center justify-center text-purple-500"><Loader2 className="animate-spin" /></div>}>
+                                    <Watchlist />
+                                </Suspense>
 
                                 {/* Toggle Button - Futuristic Switch Style */}
                                 <div className="flex justify-center mt-12 mb-8 relative">
@@ -822,14 +862,16 @@ const LandingPage = () => {
                                         {/* Ideas Grid or Empty State */}
                                         {recentIdeas.length > 0 ? (
                                             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-16">
-                                                {recentIdeas.map(idea => (
-                                                    <div key={idea.id} className="h-[400px]">
-                                                        <IdeaCard
-                                                            idea={idea}
-                                                            currentUser={currentUser}
-                                                        />
-                                                    </div>
-                                                ))}
+                                                <Suspense fallback={<div className="col-span-3 text-center text-gray-500 py-10">Loading ideas...</div>}>
+                                                    {recentIdeas.map(idea => (
+                                                        <div key={idea.id} className="h-[400px]">
+                                                            <IdeaCard
+                                                                idea={idea}
+                                                                currentUser={currentUser}
+                                                            />
+                                                        </div>
+                                                    ))}
+                                                </Suspense>
                                             </div>
                                         ) : (
                                             <div className="text-center py-12 bg-white/5 rounded-xl border border-white/10 mb-16">
@@ -849,7 +891,9 @@ const LandingPage = () => {
 
                                         {/* News Feed Grid or Empty State */}
                                         {recentArticles.length > 0 ? (
-                                            <NewsFeed limit={3} compact={true} articles={recentArticles} />
+                                            <Suspense fallback={<div className="text-center text-gray-500 py-10">Loading articles...</div>}>
+                                                <NewsFeed limit={3} compact={true} articles={recentArticles} />
+                                            </Suspense>
                                         ) : (
                                             <div className="text-center py-12 bg-white/5 rounded-xl border border-white/10 mb-16">
                                                 <p className="text-gray-400 mb-4">No recent articles.</p>
