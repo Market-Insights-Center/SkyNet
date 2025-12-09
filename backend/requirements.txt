@@ -43,3 +43,4 @@ scipy
 python-dotenv
 scikit-learn
 humanize
+google-generativeai
