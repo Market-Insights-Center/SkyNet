@@ -304,16 +304,8 @@ class SkyNetV2Controller:
             self.is_right_clicking = False
 
         # --- 4. BACK (L Shape) ---
-        if current_time - self.last_nav_time > self.nav_cooldown:
-            if lms[8].y < lms[6].y and lms[12].y > lms[10].y: 
-                if self.calculate_distance(lms[4], lms[17]) > 0.15: 
-                     self.gesture_counters["back"] += 1
-                     if self.gesture_counters["back"] > 8:
-                         pyautogui.hotkey('alt', 'left')
-                         self.speak("Go Back")
-                         self.last_nav_time = current_time
-                         self.gesture_counters["back"] = 0
-                else: self.gesture_counters["back"] = 0
+        # REMOVED PER USER REQUEST
+
 
 
     def process_left_hand(self, landmarks):
