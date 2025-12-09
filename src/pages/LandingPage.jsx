@@ -269,7 +269,7 @@ const WealthCalculator = () => {
     const savingsValue = calculateFV(initial, monthly, monthlyRateSavings, months);
 
     return (
-        <section className="py-24 px-4 bg-deep-black border-t border-white/5">
+        <section className="py-24 px-4 bg-transparent border-t border-white/5 backdrop-blur-sm">
             <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
                 <div>
                     <h2 className="text-4xl font-bold mb-6">Visualize Your <span className="text-gold">Potential</span></h2>
@@ -402,7 +402,7 @@ const FAQSection = () => {
     ];
 
     return (
-        <section className="py-24 px-4 bg-[#0a0a0a] border-t border-white/5">
+        <section className="py-24 px-4 bg-transparent border-t border-white/5">
             <div className="max-w-3xl mx-auto">
                 <h2 className="text-4xl font-bold text-center mb-12">Frequently Asked Questions</h2>
                 <div className="space-y-4">
@@ -614,7 +614,7 @@ const LandingPage = () => {
                         >
                             <source src="/landingpagestocks.mp4" type="video/mp4" />
                         </video>
-                        <div className="absolute inset-0 bg-gradient-to-b from-black/20 via-black/50 to-black"></div>
+                        <div className="absolute inset-0 bg-gradient-to-b from-black/20 via-black/50 to-black/80"></div>
                     </div>
 
                     <div className="relative z-10 text-center px-4 max-w-5xl mx-auto mt-16">
@@ -645,7 +645,7 @@ const LandingPage = () => {
 
             {/* Engineered to Fit Any Investor (Formerly Features) */}
             < ErrorBoundary >
-                <section className="py-24 px-4 bg-black relative z-10">
+                <section className="py-24 px-4 bg-transparent relative z-10">
                     <div className="max-w-7xl mx-auto">
                         <div className="text-center mb-16">
                             <h2 className="text-4xl md:text-5xl font-bold mb-6">Engineered to Fit <span className="text-gold">Any Investor</span></h2>
@@ -708,7 +708,7 @@ const LandingPage = () => {
 
             {/* Watchlist & Community Stream Section */}
             < ErrorBoundary >
-                <section className="py-12 px-4 bg-black">
+                <section className="py-12 px-4 bg-transparent">
                     <div className="max-w-7xl mx-auto">
                         <div className="flex justify-between items-center mb-8">
                             <h2 className="text-3xl font-bold text-center">Live <span className="text-gold">Watchlist</span></h2>

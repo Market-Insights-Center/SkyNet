@@ -59,7 +59,7 @@ const MarketNexus = () => {
 
     if (!hasAnyAccess) {
         return (
-            <div className="min-h-screen bg-deep-black text-white pt-24 px-4 flex items-center justify-center">
+            <div className="min-h-screen bg-transparent text-white pt-24 px-4 flex items-center justify-center">
                 <div className="text-center max-w-lg">
                     <div className="w-20 h-20 bg-white/5 rounded-2xl flex items-center justify-center mx-auto mb-6 border border-gold/20">
                         <Lock size={40} className="text-gold" />
@@ -99,8 +99,8 @@ const MarketNexus = () => {
                                 <h1 className="text-4xl font-bold">Market Nexus</h1>
                                 <a
                                     href={`/help#${activeTab === 'risk' ? 'risk-command' :
-                                            activeTab === 'history' ? 'history-command' :
-                                                activeTab === 'briefing' ? 'briefing' : 'market-nexus'
+                                        activeTab === 'history' ? 'history-command' :
+                                            activeTab === 'briefing' ? 'briefing' : 'market-nexus'
                                         }`}
                                     target="_blank"
                                     rel="noopener noreferrer"

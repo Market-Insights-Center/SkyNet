@@ -272,37 +272,51 @@ export const SkyNetProvider = ({ children }) => {
         }
     };
 
+    // Retry logic refs
+    const reconnectAttempts = useRef(0);
+    const maxReconnects = 5;
+    const reconnectTimeout = useRef(null);
+
     const connect = () => {
-        if (ws.current) return;
+        if (ws.current && (ws.current.readyState === WebSocket.OPEN || ws.current.readyState === WebSocket.CONNECTING)) return;
 
-        // SKYNET V2 ARCHITECTURE FIX:
-        // The Python Script (SkyNet V2) runs LOCALLY on the user's machine (Hardware Bridge).
-        // Therefore, the frontend (even if hosted on VPS) must connect to the LOCALHOST of the user.
-        // We use 127.0.0.1 to avoid some browser resolution issues.
+        // Clear any pending retry
+        if (reconnectTimeout.current) clearTimeout(reconnectTimeout.current);
+
         const socketUrl = 'ws://127.0.0.1:8001';
-
-        // Previous "Dynamic" Logic (Incorrect for Hardware Bridge):
-        // const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        // const host = window.location.hostname;
-        // const socketUrl = `${protocol}//${host}:8001`;
-
         const socket = new WebSocket(socketUrl);
 
         socket.onopen = () => {
             setIsConnected(true);
             setConnectionError(null);
+            reconnectAttempts.current = 0; // Reset retries on success
             addLog("System Connected", "SYSTEM");
         };
 
         socket.onerror = (error) => {
             console.error("SkyNet WebSocket Error:", error);
-            setConnectionError("Failed to connect to local SkyNet Core (127.0.0.1:8001). Ensure skynet_v2.py is running locally.");
+            // Don't set error visually yet if we are going to retry
         };
 
-        socket.onclose = () => {
+        socket.onclose = (event) => {
             setIsConnected(false);
             ws.current = null;
-            addLog("System Disconnected", "ERROR");
+
+            // Auto-reconnect if not explicitly closed and we haven't hit max retries
+            // We consider code 1000 ("Normal Closure") as an explicit disconnect
+            if (event.code !== 1000 && reconnectAttempts.current < maxReconnects) {
+                const delay = Math.min(1000 * (reconnectAttempts.current + 1), 5000); // Backoff
+                addLog(`Connection lost. Retrying in ${delay}ms...`, "SYSTEM");
+                reconnectAttempts.current += 1;
+                reconnectTimeout.current = setTimeout(connect, delay);
+            } else {
+                if (reconnectAttempts.current >= maxReconnects) {
+                    setConnectionError("Failed to connect to SkyNet Core after multiple attempts.");
+                    addLog("Connection Failed - Max Retries Reached", "ERROR");
+                } else {
+                    addLog("System Disconnected", "ERROR");
+                }
+            }
         };
 
         socket.onmessage = (event) => {
@@ -316,8 +330,23 @@ export const SkyNetProvider = ({ children }) => {
     };
 
     const disconnect = () => {
+        // Clear retries
+        reconnectAttempts.current = 0;
+        if (reconnectTimeout.current) clearTimeout(reconnectTimeout.current);
+
+        // Close Detached Windows
+        if (sidebarWindowRef.current) {
+            sidebarWindowRef.current.close();
+            sidebarWindowRef.current = null;
+        }
+        if (controlsWindowRef.current) {
+            controlsWindowRef.current.close();
+            controlsWindowRef.current = null;
+        }
+
         if (ws.current) {
-            ws.current.close();
+            // 1000 code indicates normal closure, preventing auto-reconnect in onclose
+            ws.current.close(1000, "User Disconnect");
             ws.current = null;
         }
     };

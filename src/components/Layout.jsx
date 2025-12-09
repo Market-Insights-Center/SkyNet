@@ -4,6 +4,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../contexts/AuthContext';
 import { User, Search, Home, Briefcase, MessageSquare, Users, Command, Shield, Menu, X } from 'lucide-react';
 
+import LiquidBackground from './LiquidBackground';
+
 const Layout = ({ children }) => {
     const location = useLocation();
     const navigate = useNavigate();
@@ -19,12 +21,12 @@ const Layout = ({ children }) => {
     // --- SECURITY FIX: Robust Admin Check ---
     useEffect(() => {
         if (currentUser && currentUser.email) {
-            fetch('/api/mods') 
+            fetch('/api/mods')
                 .then(res => res.json())
                 .then(data => {
                     const userEmail = currentUser.email.toLowerCase();
                     const modsList = data.mods.map(m => m.toLowerCase());
-                    
+
                     if (modsList.includes(userEmail)) {
                         setIsMod(true);
                     } else {
@@ -43,7 +45,7 @@ const Layout = ({ children }) => {
     // Check for unread messages
     useEffect(() => {
         if (!currentUser) return;
-        
+
         const checkUnread = async () => {
             try {
                 const res = await fetch(`/api/chat/list?email=${currentUser.email}`);
@@ -133,8 +135,11 @@ const Layout = ({ children }) => {
 
     return (
         <div className="min-h-screen bg-deep-black text-white font-sans selection:bg-gold selection:text-black">
+            {/* Liquid Background - Enhanced Glass Feel */}
+            <LiquidBackground />
+
             {/* Navigation Bar */}
-            <nav className="fixed top-0 left-0 right-0 z-50 bg-deep-black/80 backdrop-blur-md border-b border-white/10">
+            <nav className="fixed top-0 left-0 right-0 z-50 bg-black/60 backdrop-blur-xl border-b border-white/10 shadow-lg">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                     <div className="flex items-center justify-between h-20">
                         {/* Logo */}
@@ -290,10 +295,6 @@ const Layout = ({ children }) => {
 
             {/* Main Content */}
             <main className="pt-20 min-h-screen relative overflow-x-hidden">
-                <div className="absolute inset-0 z-0 pointer-events-none">
-                    <div className="absolute top-0 left-1/4 w-96 h-96 bg-royal-purple/20 rounded-full blur-[128px]" />
-                    <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-gold/10 rounded-full blur-[128px]" />
-                </div>
                 <div className="relative z-10">
                     {children}
                 </div>

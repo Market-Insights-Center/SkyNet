@@ -2,7 +2,7 @@ import React, { useRef, useState, useEffect } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import { Link, useNavigate } from "react-router-dom";
 import { AlertCircle, Loader2 } from "lucide-react";
-import WaveBackground from "../components/WaveBackground";
+import LiquidBackground from "../components/LiquidBackground";
 
 export default function SignUp() {
     const emailRef = useRef();
@@ -45,7 +45,7 @@ export default function SignUp() {
                 body: JSON.stringify({ username })
             });
             const checkData = await checkRes.json();
-            
+
             if (!checkData.available) {
                 setLoading(false);
                 return setError(checkData.message || "Username is already taken");
@@ -53,7 +53,7 @@ export default function SignUp() {
 
             // 2. Create Auth User
             await signup(emailRef.current.value, passwordRef.current.value);
-            
+
             // 3. Update Username (Display Name)
             await updateUsername(username);
 

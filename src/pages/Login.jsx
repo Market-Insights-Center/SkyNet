@@ -2,7 +2,7 @@ import React, { useRef, useState, useEffect } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import { Link, useNavigate } from "react-router-dom";
 import { AlertCircle, Loader2 } from "lucide-react";
-import WaveBackground from "../components/WaveBackground";
+import LiquidBackground from "../components/LiquidBackground";
 
 export default function Login() {
     const emailRef = useRef();

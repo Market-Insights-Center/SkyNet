@@ -48,10 +48,10 @@ export default function Profile() {
                     const docSnap = await getDoc(docRef);
                     if (docSnap.exists()) {
                         const data = docSnap.data();
-                        
+
                         // Populate state for the update modal
                         if (data.risk_tolerance) setRiskTolerance(data.risk_tolerance);
-                        
+
                         if (data.trading_frequency) {
                             const standardFreqs = ["Once A Quarter Or Less Often", "Once A Month", "Once A Week", "Every Other Day", "Every Day Or More Often"];
                             if (standardFreqs.includes(data.trading_frequency)) {
@@ -183,8 +183,7 @@ export default function Profile() {
     };
 
     return (
-        <div className="relative min-h-screen bg-black text-white flex flex-col items-center pt-24 pb-10 overflow-hidden">
-            <WaveBackground />
+        <div className="relative min-h-screen bg-transparent text-white flex flex-col items-center pt-24 pb-10 overflow-hidden">
 
             <div className="relative z-10 w-full max-w-2xl p-8 bg-gray-900/50 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl">
 
@@ -345,14 +344,14 @@ export default function Profile() {
                         >
                             <div className="flex justify-between items-center mb-4 shrink-0">
                                 <h2 className="text-2xl font-bold text-gold">Investment Profile</h2>
-                                <button 
+                                <button
                                     onClick={() => setShowQuestionnaire(false)}
                                     className="text-gray-400 hover:text-white"
                                 >
                                     <ArrowLeft size={20} />
                                 </button>
                             </div>
-                            
+
                             <p className="text-gray-400 mb-4 text-sm shrink-0">
                                 Customize your experience by updating your preferences.
                             </p>

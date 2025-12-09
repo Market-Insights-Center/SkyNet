@@ -6,22 +6,14 @@ import WaveBackground from '../components/WaveBackground';
 
 const Hero = () => {
     return (
-        <section className="relative h-[50vh] flex items-center justify-center overflow-hidden bg-[#2D1B4E]">
-            {/* Complex Fluid Background Animation */}
-            <div className="absolute inset-0 w-full h-full overflow-hidden z-0 pointer-events-none">
-                <WaveBackground />
-            </div>
-
-            {/* Overlay for readability - Reduced opacity */}
-            <div className="absolute inset-0 bg-black/10 z-0 backdrop-blur-[0px]" />
-
+        <section className="relative h-[40vh] flex items-center justify-center overflow-hidden bg-transparent">
             {/* Content */}
-            <div className="relative z-10 text-center px-4">
+            <div className="relative z-10 text-center px-4 mt-10">
                 <motion.h1
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.8, ease: "easeOut" }}
-                    className="text-5xl md:text-7xl font-bold text-white mb-4 tracking-tight drop-shadow-2xl"
+                    className="text-5xl md:text-7xl font-bold text-white mb-4 tracking-tight drop-shadow-[0_0_20px_rgba(255,255,255,0.3)]"
                 >
                     Portfolio Laboratory
                 </motion.h1>
@@ -34,9 +26,6 @@ const Hero = () => {
                     Design. Test. Execute.
                 </motion.p>
             </div>
-
-            {/* Fade gradient to next section */}
-            <div className="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-deep-black to-transparent z-10" />
         </section>
     );
 };

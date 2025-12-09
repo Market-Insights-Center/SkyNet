@@ -71,7 +71,7 @@ const AssetEvaluator = () => {
     };
 
     return (
-        <div className="min-h-screen bg-deep-black text-white pt-24 px-4 pb-12">
+        <div className="min-h-screen bg-transparent text-white pt-24 px-4 pb-12">
             <UpgradePopup
                 isOpen={showUpgradePopup}
                 onClose={() => setShowUpgradePopup(false)}

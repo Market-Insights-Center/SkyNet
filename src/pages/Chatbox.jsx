@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Send, Plus, Search, User, Shield, MessageSquare, MoreVertical, X, Trash2, Check, Users, Briefcase, Paperclip, Bot, ArrowLeft } from 'lucide-react';
+import { Send, Plus, Search, User, Shield, MessageSquare, MoreVertical, X, Trash2, Check, Users, Briefcase, Paperclip, Bot, ArrowLeft, Lightbulb } from 'lucide-react';
 
 const Chatbox = () => {
     const { currentUser } = useAuth();
@@ -262,6 +262,16 @@ If everything looks correct, please reply with "Confirm" to proceed with the cus
         createChat(payload);
     };
 
+    const startRecommendationsChat = async () => {
+        const payload = {
+            type: 'submission_recommendation',
+            participants: [currentUser.email],
+            creator_email: currentUser.email,
+            initial_message: "Here is my recommendation submission:"
+        };
+        createChat(payload);
+    };
+
     const createChat = async (payload) => {
         try {
             const res = await fetch('/api/chat/create', {
@@ -335,6 +345,7 @@ If everything looks correct, please reply with "Confirm" to proceed with the cus
         if (!chat) return "Unknown";
         if (chat.type === 'admin_support') return "Admin Support Team";
         if (chat.type === 'custom_portfolio') return "Custom Portfolio Request";
+        if (chat.type === 'submission_recommendation') return "Recommendation";
 
         const participants = chat.participants || [];
         const otherParticipants = participants.filter(p => p !== currentUser.email);
@@ -353,7 +364,8 @@ If everything looks correct, please reply with "Confirm" to proceed with the cus
     const groupedConversations = {
         'Custom Portfolio': conversations.filter(c => c.type === 'custom_portfolio'),
         'Support': conversations.filter(c => c.type === 'admin_support'),
-        'Direct Messages': conversations.filter(c => c.type !== 'custom_portfolio' && c.type !== 'admin_support')
+        'Recommendations': conversations.filter(c => c.type === 'submission_recommendation'),
+        'Direct Messages': conversations.filter(c => c.type !== 'custom_portfolio' && c.type !== 'admin_support' && c.type !== 'submission_recommendation')
     };
 
     return (
@@ -412,10 +424,11 @@ If everything looks correct, please reply with "Confirm" to proceed with the cus
                                                 className={`group relative p-4 border-b border-white/5 cursor-pointer hover:bg-white/5 transition-colors ${selectedChat?.id === chat.id ? 'bg-white/10' : ''}`}
                                             >
                                                 <div className="flex items-center gap-3">
-                                                    <div className={`relative w-10 h-10 rounded-full flex items-center justify-center ${chat.type === 'admin_support' ? 'bg-gold/20 text-gold' : chat.type === 'custom_portfolio' ? 'bg-blue-500/20 text-blue-400' : 'bg-purple-500/20 text-purple-400'}`}>
+                                                    <div className={`relative w-10 h-10 rounded-full flex items-center justify-center ${chat.type === 'admin_support' ? 'bg-gold/20 text-gold' : chat.type === 'custom_portfolio' ? 'bg-blue-500/20 text-blue-400' : chat.type === 'submission_recommendation' ? 'bg-green-500/20 text-green-400' : 'bg-purple-500/20 text-purple-400'}`}>
                                                         {chat.type === 'admin_support' ? <Shield size={18} /> :
                                                             chat.type === 'custom_portfolio' ? <Briefcase size={18} /> :
-                                                                (chat.participants || []).length > 2 ? <Users size={18} /> : <User size={18} />}
+                                                                chat.type === 'submission_recommendation' ? <Lightbulb size={18} /> :
+                                                                    (chat.participants || []).length > 2 ? <Users size={18} /> : <User size={18} />}
 
                                                         {/* Red Dot for Unread Messages */}
                                                         {unread && selectedChat?.id !== chat.id && (
@@ -469,8 +482,8 @@ If everything looks correct, please reply with "Confirm" to proceed with the cus
                                     <ArrowLeft size={20} />
                                 </button>
 
-                                <div className={`w-8 h-8 rounded-full flex items-center justify-center ${selectedChat.type === 'admin_support' ? 'bg-gold/20 text-gold' : selectedChat.type === 'custom_portfolio' ? 'bg-blue-500/20 text-blue-400' : 'bg-purple-500/20 text-purple-400'}`}>
-                                    {selectedChat.type === 'admin_support' ? <Shield size={16} /> : selectedChat.type === 'custom_portfolio' ? <Briefcase size={16} /> : <User size={16} />}
+                                <div className={`w-8 h-8 rounded-full flex items-center justify-center ${selectedChat.type === 'admin_support' ? 'bg-gold/20 text-gold' : selectedChat.type === 'custom_portfolio' ? 'bg-blue-500/20 text-blue-400' : selectedChat.type === 'submission_recommendation' ? 'bg-green-500/20 text-green-400' : 'bg-purple-500/20 text-purple-400'}`}>
+                                    {selectedChat.type === 'admin_support' ? <Shield size={16} /> : selectedChat.type === 'custom_portfolio' ? <Briefcase size={16} /> : selectedChat.type === 'submission_recommendation' ? <Lightbulb size={16} /> : <User size={16} />}
                                 </div>
                                 <div>
                                     <div className="font-bold text-gray-200">{getChatName(selectedChat)}</div>
@@ -554,6 +567,10 @@ If everything looks correct, please reply with "Confirm" to proceed with the cus
                                         <button onClick={startCustomPortfolioChat} className="w-full p-4 bg-gradient-to-r from-blue-500/10 to-transparent border border-blue-500/30 rounded-xl flex items-center gap-4 hover:border-blue-500 transition-all group">
                                             <div className="p-3 bg-blue-500/20 rounded-full text-blue-400 group-hover:bg-blue-500 group-hover:text-black transition-colors"><Briefcase size={24} /></div>
                                             <div className="text-left"><div className="font-bold text-blue-400">Request Custom Portfolio</div><div className="text-sm text-gray-400">Build a strategy tailored to you</div></div>
+                                        </button>
+                                        <button onClick={startRecommendationsChat} className="w-full p-4 bg-gradient-to-r from-green-500/10 to-transparent border border-green-500/30 rounded-xl flex items-center gap-4 hover:border-green-500 transition-all group">
+                                            <div className="p-3 bg-green-500/20 rounded-full text-green-400 group-hover:bg-green-500 group-hover:text-black transition-colors"><Lightbulb size={24} /></div>
+                                            <div className="text-left"><div className="font-bold text-green-400">Submit Recommendations</div><div className="text-sm text-gray-400">Share your ideas with the team</div></div>
                                         </button>
                                         <button onClick={() => setModalStep('users')} className="w-full p-4 bg-white/5 border border-white/10 rounded-xl flex items-center gap-4 hover:bg-white/10 transition-all group">
                                             <div className="p-3 bg-white/10 rounded-full text-gray-300 group-hover:bg-white group-hover:text-black transition-colors"><Users size={24} /></div>
