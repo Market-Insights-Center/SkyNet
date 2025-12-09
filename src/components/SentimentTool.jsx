@@ -81,63 +81,81 @@ const SentimentTool = ({ email }) => {
                             <Activity className="text-gold" /> Sentiment Analysis: {result.ticker}
                         </h2>
 
-                        <div className="flex flex-col md:flex-row gap-8 items-center justify-center mb-8 p-6 bg-black/30 rounded-xl border border-white/5">
+                        <div className="flex flex-col items-center justify-center mb-8 p-6 bg-black/30 rounded-xl border border-white/5">
                             <div className="text-center">
-                                <div className="text-sm text-gray-400 mb-1">Raw Sentiment Score</div>
-                                <div className="text-4xl font-bold text-white font-mono">{result.sentiment_score_raw?.toFixed(4)}</div>
-                            </div>
-                            <div className="h-12 w-[1px] bg-white/10 hidden md:block"></div>
-                            <div className="text-center">
-                                <div className="text-sm text-gray-400 mb-1">Score (Rounded 0.1)</div>
-                                <div className={`text-4xl font-bold font-mono ${result.sentiment_score_rounded_01 > 0 ? 'text-green-400' : result.sentiment_score_rounded_01 < 0 ? 'text-red-400' : 'text-gray-400'}`}>
-                                    {result.sentiment_score_rounded_01}
+                                <div className="text-sm text-gray-400 mb-1 tracking-wider uppercase">Sentiment Score</div>
+                                <div className={`text-5xl font-bold font-mono ${result.sentiment_score_raw > 0.2 ? 'text-green-500' :
+                                    result.sentiment_score_raw < -0.2 ? 'text-red-500' :
+                                        'text-yellow-500'
+                                    }`}>
+                                    {result.sentiment_score_raw?.toFixed(3)}
                                 </div>
                             </div>
                         </div>
 
-                        {/* Bull/Bear Intensity Bar */}
-                        <div className="mb-8 p-4 bg-black/30 rounded-xl border border-white/5">
-                            <div className="flex justify-between text-sm text-gray-400 mb-2">
-                                <span className="flex items-center gap-1 text-red-400"><TrendingDown size={14} /> Bearish Intensity</span>
-                                <span className="flex items-center gap-1 text-green-400">Bullish Intensity <TrendingUp size={14} /></span>
+                        {/* Sentiment Visualization Bar */}
+                        <div className="mb-8 p-6 bg-black/30 rounded-xl border border-white/5 relative">
+                            <div className="flex justify-between text-xs text-gray-500 mb-2 font-mono uppercase tracking-widest">
+                                <span>Bearish (-1.0)</span>
+                                <span>Neutral</span>
+                                <span>Bullish (+1.0)</span>
                             </div>
-                            <div className="h-4 bg-gray-800 rounded-full overflow-hidden flex relative">
+
+                            {/* Main Bar Track */}
+                            <div className="h-6 bg-gray-800/50 rounded-full relative w-full overflow-visible">
                                 {/* Center Marker */}
-                                <div className="absolute left-1/2 top-0 bottom-0 w-[2px] bg-white/20 z-10 transform -translate-x-1/2"></div>
+                                <div className="absolute left-1/2 top-0 bottom-0 w-[2px] bg-white/10 z-0 transform -translate-x-1/2 h-full"></div>
 
-                                {/* Bear Bar (Left) */}
-                                <motion.div
-                                    initial={{ width: 0 }}
-                                    animate={{ width: `${Math.max(0, ((-result.sentiment_score_raw + 1) / 2) * 50)}%` }} // Very rough viz logic, refining...
-                                    // Actually, let's stick to the CLI logic: 
-                                    // bear_intensity = ((-score + 1) / 2) * 10 (scale 0-10)
-                                    // If score is -0.5: (0.5+1)/2 * 100 = 75% bearishness? No.
-                                    // Let's just create two bars from center.
-                                    className=""
-                                />
+                                {/* Dynamic Fill Bar */}
+                                {/* Logic: Fill from center (0) to the score. Color depends on the value range. */}
+                                {(() => {
+                                    const score = result.sentiment_score_raw || 0;
+                                    const constrainedScore = Math.max(-1, Math.min(1, score));
+                                    const widthPercent = Math.abs(constrainedScore) * 50; // 0 to 50% width
 
-                                {/* Let's try a simpler centered bar approach */}
-                                <div className="w-1/2 flex justify-end">
-                                    {result.sentiment_score_raw < 0 && (
+                                    // Determine Color
+                                    let barColor = 'bg-yellow-500';
+                                    if (constrainedScore > 0.2) barColor = 'bg-green-500';
+                                    if (constrainedScore < -0.2) barColor = 'bg-red-500';
+
+                                    // Start Position: If positive, start at 50%. If negative, start at 50% - width.
+                                    const leftPercent = constrainedScore >= 0 ? 50 : 50 - widthPercent;
+
+                                    return (
                                         <motion.div
-                                            initial={{ width: 0 }}
-                                            animate={{ width: `${Math.abs(result.sentiment_score_raw) * 100}%` }}
-                                            className="h-full bg-red-500 rounded-l-full"
+                                            initial={{ width: 0, left: '50%' }}
+                                            animate={{ width: `${widthPercent}%`, left: `${leftPercent}%` }}
+                                            className={`absolute top-0 bottom-0 h-full rounded-full ${barColor} opacity-80`}
                                         />
-                                    )}
-                                </div>
-                                <div className="w-1/2 flex justify-start">
-                                    {result.sentiment_score_raw > 0 && (
-                                        <motion.div
-                                            initial={{ width: 0 }}
-                                            animate={{ width: `${result.sentiment_score_raw * 100}%` }}
-                                            className="h-full bg-green-500 rounded-r-full"
-                                        />
-                                    )}
-                                </div>
+                                    );
+                                })()}
+
+                                {/* Keyword Markers */}
+                                {result.keywords && result.keywords.map((kw, i) => {
+                                    const kScore = kw.score || 0;
+                                    const leftPos = ((kScore + 1) / 2) * 100; // Map -1..1 to 0..100
+
+                                    return (
+                                        <div
+                                            key={i}
+                                            className="absolute top-1/2 transform -translate-y-1/2 -translate-x-1/2 group z-10"
+                                            style={{ left: `${leftPos}%` }}
+                                        >
+                                            <div className={`w-2 h-2 rounded-full border border-black ${kScore > 0 ? 'bg-green-400' : 'bg-red-400'}`}></div>
+                                            {/* Tooltip */}
+                                            <div className="absolute bottom-full mb-2 left-1/2 transform -translate-x-1/2 bg-black border border-white/10 px-2 py-1 rounded text-xs whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-20">
+                                                <span className={`${kScore > 0 ? 'text-green-400' : 'text-red-400'}`}>{kw.term} ({kScore.toFixed(2)})</span>
+                                            </div>
+                                        </div>
+                                    )
+                                })}
                             </div>
-                            <div className="text-center text-xs text-gray-500 mt-2">
-                                -1.0 (Max Bear) &nbsp;&nbsp; 0 (Neutral) &nbsp;&nbsp; +1.0 (Max Bull)
+
+                            {/* Zone Indicators (Subtle background optional, or just rely on color logic) */}
+                            <div className="flex justify-between text-[10px] text-gray-600 mt-2 font-mono">
+                                <span className="text-red-900/50">High Bear</span>
+                                <span className="text-yellow-900/50">Mixed</span>
+                                <span className="text-green-900/50">High Bull</span>
                             </div>
                         </div>
 
@@ -150,13 +168,14 @@ const SentimentTool = ({ email }) => {
                             </div>
 
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                {/* Positive Keywords List */}
                                 <div>
-                                    <h3 className="text-lg font-bold text-green-400 mb-2">Positive Driver Keywords</h3>
+                                    <h3 className="text-lg font-bold text-green-400 mb-2">Positive Drivers</h3>
                                     <div className="flex flex-wrap gap-2">
-                                        {result.positive_keywords?.length > 0 ? (
-                                            result.positive_keywords.map((kw, i) => (
-                                                <span key={i} className="px-3 py-1 bg-green-500/10 text-green-300 border border-green-500/30 rounded-full text-sm">
-                                                    {kw}
+                                        {result.keywords?.filter(k => k.score > 0).length > 0 ? (
+                                            result.keywords.filter(k => k.score > 0).map((kw, i) => (
+                                                <span key={i} className="px-3 py-1 bg-green-500/10 text-green-300 border border-green-500/30 rounded-full text-xs flex items-center gap-1">
+                                                    {kw.term} <span className="opacity-50 text-[10px]">{kw.score.toFixed(3)}</span>
                                                 </span>
                                             ))
                                         ) : (
@@ -164,13 +183,14 @@ const SentimentTool = ({ email }) => {
                                         )}
                                     </div>
                                 </div>
+                                {/* Negative Keywords List */}
                                 <div>
-                                    <h3 className="text-lg font-bold text-red-400 mb-2">Negative Driver Keywords</h3>
+                                    <h3 className="text-lg font-bold text-red-400 mb-2">Negative Drivers</h3>
                                     <div className="flex flex-wrap gap-2">
-                                        {result.negative_keywords?.length > 0 ? (
-                                            result.negative_keywords.map((kw, i) => (
-                                                <span key={i} className="px-3 py-1 bg-red-500/10 text-red-300 border border-red-500/30 rounded-full text-sm">
-                                                    {kw}
+                                        {result.keywords?.filter(k => k.score < 0).length > 0 ? (
+                                            result.keywords.filter(k => k.score < 0).map((kw, i) => (
+                                                <span key={i} className="px-3 py-1 bg-red-500/10 text-red-300 border border-red-500/30 rounded-full text-xs flex items-center gap-1">
+                                                    {kw.term} <span className="opacity-50 text-[10px]">{kw.score.toFixed(3)}</span>
                                                 </span>
                                             ))
                                         ) : (

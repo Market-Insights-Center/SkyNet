@@ -30,6 +30,7 @@ dist/
 backend/venv/
 __pycache__/
 *.pyc
+config.ini
 
 # ---------------------------------------------------------
 # DATABASE & LIVE DATA (DO NOT TRACK)
