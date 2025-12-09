@@ -1,19 +1,20 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { TrendingUp, ThumbsUp, ThumbsDown, User, Calendar, MessageSquare, Send, Trash2, ShieldCheck } from 'lucide-react';
+import TiltCard from './TiltCard';
 
 const IdeaCard = ({ idea, currentUser, onVote }) => {
     const [showComments, setShowComments] = useState(false);
-    
+
     // UPDATED: Initialize comments sorted by date (Newest First)
     const [comments, setComments] = useState(
         (idea.comments || []).sort((a, b) => new Date(b.date) - new Date(a.date))
     );
-    
+
     const [commentText, setCommentText] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isMod, setIsMod] = useState(false);
-    
+
     // Hardcoded Admin Email for tagging
     const ADMIN_EMAIL = 'marketinsightscenter@gmail.com';
 
@@ -40,7 +41,7 @@ const IdeaCard = ({ idea, currentUser, onVote }) => {
 
     const handleCommentSubmit = async (e) => {
         e.preventDefault();
-        
+
         if (!currentUser) {
             alert("Please log in to post a comment.");
             return;
@@ -58,7 +59,7 @@ const IdeaCard = ({ idea, currentUser, onVote }) => {
             id: 0, // Dummy ID
             idea_id: parseInt(idea.id),
             user_id: currentUser.email,
-            user: currentUser.displayName || currentUser.email.split('@')[0], 
+            user: currentUser.displayName || currentUser.email.split('@')[0],
             email: currentUser.email,
             text: commentText,
             date: new Date().toISOString().split('T')[0]
@@ -73,11 +74,11 @@ const IdeaCard = ({ idea, currentUser, onVote }) => {
 
             if (res.ok) {
                 const data = await res.json();
-                const addedComment = data.comment || data; 
-                
+                const addedComment = data.comment || data;
+
                 // UPDATED: Prepend new comment to the top of the list
                 setComments(prev => [addedComment, ...prev]);
-                
+
                 setCommentText('');
             } else {
                 let errorData;
@@ -88,7 +89,7 @@ const IdeaCard = ({ idea, currentUser, onVote }) => {
                 }
 
                 console.error("Failed to post comment:", errorData);
-                
+
                 let errorMessage = `Server error ${res.status}`;
                 if (errorData.detail && Array.isArray(errorData.detail)) {
                     errorMessage += ": " + errorData.detail.map(e => `${e.loc[1]}: ${e.msg}`).join(', ');
@@ -132,14 +133,14 @@ const IdeaCard = ({ idea, currentUser, onVote }) => {
                 }
 
                 console.error("Delete failed:", res.status, errorData);
-                
+
                 let errorMessage = `Server error ${res.status}`;
                 if (errorData.detail && Array.isArray(errorData.detail)) {
-                     errorMessage += ": " + errorData.detail.map(e => `${e.loc[1]}: ${e.msg}`).join(', ');
+                    errorMessage += ": " + errorData.detail.map(e => `${e.loc[1]}: ${e.msg}`).join(', ');
                 } else if (errorData.detail) {
                     errorMessage += ": " + errorData.detail;
                 }
-                
+
                 alert(`Failed to delete comment. ${errorMessage}`);
             }
         } catch (error) {
@@ -154,10 +155,10 @@ const IdeaCard = ({ idea, currentUser, onVote }) => {
     };
 
     return (
-        <motion.div
+        <TiltCard
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="bg-white/5 border border-white/10 rounded-xl overflow-hidden hover:border-gold/50 transition-colors group h-full flex flex-col"
+            className="bg-white/5 border border-white/10 overflow-hidden hover:border-gold/50 transition-colors group h-full flex flex-col"
         >
             {/* Cover Image */}
             <div className="aspect-square bg-black/50 relative overflow-hidden shrink-0 border-b border-white/5">
@@ -259,7 +260,7 @@ const IdeaCard = ({ idea, currentUser, onVote }) => {
                                                     <div className="flex items-center gap-2">
                                                         <span className="text-[10px] text-gray-500">{comment.date}</span>
                                                         {(isMod || (currentUser?.email === comment.email)) && (
-                                                            <button 
+                                                            <button
                                                                 onClick={() => handleDeleteComment(comment.id)}
                                                                 className="text-gray-400 hover:text-red-500 transition-colors p-1"
                                                                 title="Delete Comment"
@@ -302,7 +303,7 @@ const IdeaCard = ({ idea, currentUser, onVote }) => {
                     )}
                 </AnimatePresence>
             </div>
-        </motion.div>
+        </TiltCard>
     );
 };
 

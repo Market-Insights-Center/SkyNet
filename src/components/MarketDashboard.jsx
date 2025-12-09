@@ -47,7 +47,7 @@ export const TradingViewWidget = memo(({
         loadTradingViewScript().then(() => {
             setTimeout(() => {
                 const containerElement = document.getElementById(uniqueId);
-                
+
                 if (containerElement && window.TradingView) {
                     containerElement.innerHTML = '';
 
@@ -70,7 +70,7 @@ export const TradingViewWidget = memo(({
                         "save_image": save_image
                     });
                 }
-            }, 50); 
+            }, 50);
         });
 
         return () => {
@@ -94,17 +94,35 @@ const MarketDashboard = () => {
     return (
         <section className="py-12 px-4 bg-deep-black">
             <div className="max-w-7xl mx-auto">
-                <div className="mb-8 flex items-center gap-4">
-                    <div className="h-px flex-grow bg-gradient-to-r from-transparent via-gold/50 to-transparent" />
-                    <h2 className="text-3xl font-bold text-gold tracking-widest uppercase">Market Intelligence</h2>
-                    <div className="h-px flex-grow bg-gradient-to-r from-transparent via-gold/50 to-transparent" />
+                <div className="mb-8 flex items-center justify-between border-b border-white/5 pb-4">
+                    <div className="flex items-center gap-4">
+                        <div className="w-1 h-12 bg-gold/50 rounded-sm" />
+                        <div>
+                            <h2 className="text-4xl font-black text-white tracking-tighter uppercase flex items-center gap-3">
+                                MARKET <span className="text-transparent bg-clip-text bg-gradient-to-r from-gold via-yellow-200 to-gold animate-shimmer">SNAPSHOT</span>
+                            </h2>
+                            <p className="text-xs text-gray-500 font-mono tracking-[0.2em] mt-1 pl-1">INSTITUTIONAL GRADE ANALYTICS</p>
+                        </div>
+                    </div>
+                    <div className="hidden md:flex items-center gap-4 text-[10px] font-mono text-gray-500 border-l border-white/5 pl-6">
+                        <div className="flex flex-col items-end">
+                            <span className="text-gold">DATA STREAM</span>
+                            <span className="text-green-500 flex items-center gap-1">● CONNECTED <span className="opacity-50">12ms</span></span>
+                        </div>
+                    </div>
                 </div>
 
                 {/* UPDATED: Flex-col for mobile (stacked), Grid for Desktop */}
                 <div className="flex flex-col lg:grid lg:grid-cols-3 gap-6 lg:h-[600px]">
-                    
+
                     {/* Primary Chart - SPY */}
-                    <div className="lg:col-span-2 bg-white/5 border border-gold/20 rounded-xl overflow-hidden shadow-[0_0_30px_rgba(0,0,0,0.5)] flex flex-col h-[500px] lg:h-auto">
+                    <div className="lg:col-span-2 glass-panel glass-panel-hover rounded-xl overflow-hidden relative group flex flex-col h-[500px] lg:h-auto">
+                        {/* Decorative Corner Accents */}
+                        <div className="absolute top-0 left-0 w-4 h-4 border-t-2 border-l-2 border-gold/30 rounded-tl-lg z-20" />
+                        <div className="absolute top-0 right-0 w-4 h-4 border-t-2 border-r-2 border-gold/30 rounded-tr-lg z-20" />
+                        <div className="absolute bottom-0 left-0 w-4 h-4 border-b-2 border-l-2 border-gold/30 rounded-bl-lg z-20" />
+                        <div className="absolute bottom-0 right-0 w-4 h-4 border-b-2 border-r-2 border-gold/30 rounded-br-lg z-20" />
+
                         <div className="flex-grow relative w-full h-full">
                             <TradingViewWidget
                                 symbol="AMEX:SPY"
@@ -117,12 +135,14 @@ const MarketDashboard = () => {
                     {/* Secondary Charts Container */}
                     <div className="flex flex-col gap-6 h-auto lg:h-full">
                         {/* VIXCLS */}
-                        <div className="flex-1 bg-white/5 border border-white/10 rounded-xl overflow-hidden hover:border-gold/30 transition-colors p-4 relative flex flex-col h-[400px] lg:h-auto">
-                            <h3 className="text-gold font-bold mb-2 flex items-center gap-2 z-10 bg-black/50 px-2 rounded w-fit">
-                                <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
-                                VIXCLS (Volatility)
-                            </h3>
-                            <div className="flex-grow relative w-full h-full">
+                        <div className="flex-1 glass-panel glass-panel-hover rounded-xl overflow-hidden p-1 relative flex flex-col h-[400px] lg:h-auto group">
+                            <div className="absolute inset-0 bg-gradient-to-b from-red-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
+                            <div className="absolute top-2 left-4 z-10 flex items-center gap-2">
+                                <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse shadow-[0_0_8px_rgba(239,68,68,0.5)]" />
+                                <span className="text-[10px] font-bold text-red-500 tracking-wider uppercase">Volatility Index</span>
+                            </div>
+
+                            <div className="flex-grow relative w-full h-full rounded-lg overflow-hidden bg-black/20">
                                 <TradingViewWidget
                                     symbol="FRED:VIXCLS"
                                     theme="dark"
@@ -139,12 +159,14 @@ const MarketDashboard = () => {
                         </div>
 
                         {/* BTC */}
-                        <div className="flex-1 bg-white/5 border border-white/10 rounded-xl overflow-hidden hover:border-gold/30 transition-colors p-4 relative flex flex-col h-[400px] lg:h-auto">
-                            <h3 className="text-gold font-bold mb-2 flex items-center gap-2 z-10 bg-black/50 px-2 rounded w-fit">
-                                <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-                                Bitcoin (BTCUSD)
-                            </h3>
-                            <div className="flex-grow relative w-full h-full">
+                        <div className="flex-1 glass-panel glass-panel-hover rounded-xl overflow-hidden p-1 relative flex flex-col h-[400px] lg:h-auto group">
+                            <div className="absolute inset-0 bg-gradient-to-b from-green-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
+                            <div className="absolute top-2 left-4 z-10 flex items-center gap-2">
+                                <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse shadow-[0_0_8px_rgba(34,197,94,0.5)]" />
+                                <span className="text-[10px] font-bold text-green-500 tracking-wider uppercase">Bitcoin Market</span>
+                            </div>
+
+                            <div className="flex-grow relative w-full h-full rounded-lg overflow-hidden bg-black/20">
                                 <TradingViewWidget
                                     symbol="COINBASE:BTCUSD"
                                     theme="dark"

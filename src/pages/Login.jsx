@@ -3,6 +3,7 @@ import { useAuth } from "../contexts/AuthContext";
 import { Link, useNavigate } from "react-router-dom";
 import { AlertCircle, Loader2 } from "lucide-react";
 import LiquidBackground from "../components/LiquidBackground";
+import MagneticButton from '../components/MagneticButton';
 
 export default function Login() {
     const emailRef = useRef();
@@ -117,13 +118,13 @@ export default function Login() {
                         />
                     </div>
 
-                    <button
+                    <MagneticButton
                         type="submit"
                         disabled={loading}
                         className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 text-white font-bold py-2 px-4 rounded-lg transition-all transform hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
                     >
                         {loading ? <Loader2 className="animate-spin" /> : "Log In"}
-                    </button>
+                    </MagneticButton>
                 </form>
 
                 <div className="mt-4">

@@ -201,14 +201,14 @@ const AssetEvaluator = () => {
                                         placeholder="Enter Ticker (e.g. AAPL)"
                                         className="flex-1 bg-black/50 border border-gray-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-gold uppercase font-mono tracking-wider"
                                     />
-                                    <button
+                                    <MagneticButton
                                         type="submit"
                                         disabled={loading || !ticker}
                                         className={`px-8 py-3 bg-gold text-black font-bold rounded-lg hover:bg-yellow-500 transition-colors flex items-center gap-2 ${loading ? 'opacity-50 cursor-not-allowed' : ''}`}
                                     >
                                         {loading ? <Activity className="animate-spin" /> : <Search size={20} />}
                                         {loading ? 'Analyzing...' : 'Analyze'}
-                                    </button>
+                                    </MagneticButton>
                                 </form>
                                 {error && (
                                     <div className="mt-4 p-3 bg-red-500/10 border border-red-500/30 rounded-lg text-red-400 flex items-center gap-2">
@@ -269,9 +269,12 @@ const AssetEvaluator = () => {
                                                 const imgSrc = 'data:image' + parts[1];
 
                                                 return (
-                                                    <div key={index} className="bg-white/5 border border-white/10 rounded-2xl p-4 overflow-hidden">
-                                                        <div className="text-gray-400 font-bold mb-2 ml-1">{label}</div>
-                                                        <div className="w-full flex justify-center bg-black/50 rounded-lg p-2">
+                                                    <div key={index} className="relative bg-black/40 border border-gold/20 rounded-2xl p-4 overflow-hidden shadow-[0_0_15px_rgba(212,175,55,0.1)] hover:shadow-[0_0_30px_rgba(212,175,55,0.3)] hover:border-gold/50 transition-all duration-500 group">
+                                                        <div className="absolute inset-0 bg-gradient-to-b from-transparent via-gold/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700 pointer-events-none" />
+                                                        <div className="text-gold font-bold mb-2 ml-1 flex items-center gap-2">
+                                                            <Activity size={16} /> {label}
+                                                        </div>
+                                                        <div className="w-full flex justify-center bg-black/60 rounded-lg p-2 border border-white/5 backdrop-blur-sm relative z-10">
                                                             <img
                                                                 src={imgSrc}
                                                                 alt={label}

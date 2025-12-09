@@ -4,6 +4,7 @@ import { Check, Lock, ArrowRight } from 'lucide-react';
 import { PayPalButtons } from "@paypal/react-paypal-js";
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
+import TiltCard from './TiltCard';
 
 // Get the default plan ID from environment variables as a fallback/default
 const DEFAULT_PLAN_ID = import.meta.env.VITE_PAYPAL_DEFAULT_PLAN_ID; //
@@ -78,12 +79,12 @@ const SubscriptionCard = ({ title, price, period, planId, features, isPopular, d
     }
 
     return (
-        <motion.div
+        <TiltCard
             initial={{ opacity: 0, y: 50 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
             transition={{ duration: 0.5, delay: delay }}
-            className={`relative p-8 rounded-2xl border ${isPopular ? 'border-gold bg-gold/5' : 'border-white/10 bg-white/5'} flex flex-col h-full hover:transform hover:-translate-y-2 transition-all duration-300`}
+            className={`relative p-8 border ${isPopular ? 'border-gold bg-gold/5' : 'border-white/10 bg-white/5'} flex flex-col h-full hover:transform hover:-translate-y-2 transition-all duration-300`}
         >
             {isPopular && (
                 <div className="absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-gold text-black px-4 py-1 rounded-full text-sm font-bold">
@@ -183,7 +184,7 @@ const SubscriptionCard = ({ title, price, period, planId, features, isPopular, d
                 )}
                 {error && <p className="text-red-500 text-xs mt-2 text-center">{error}</p>}
             </div>
-        </motion.div>
+        </TiltCard>
     );
 };
 

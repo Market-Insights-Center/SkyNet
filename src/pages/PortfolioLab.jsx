@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
 import { Layers, Zap, Sprout, Activity, ArrowRight } from 'lucide-react';
 import WaveBackground from '../components/WaveBackground';
+import TiltCard from '../components/TiltCard';
 
 const Hero = () => {
     return (
@@ -33,20 +34,18 @@ const Hero = () => {
 const CommandCard = ({ title, desc, icon: Icon, path, delay }) => {
     return (
         <Link to={path} className="block group h-full relative z-20">
-            <motion.div
+            <TiltCard
                 initial={{ opacity: 0, y: 50 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
                 transition={{ duration: 0.6, delay: delay }}
-                whileHover={{ scale: 1.02, translateY: -5 }}
-                // UPDATED: Removed bg-white/5 to eliminate the "shaded box" effect
-                className="relative h-full p-6 bg-transparent border border-white/10 rounded-xl overflow-hidden transition-all duration-300 group-hover:border-gold group-hover:shadow-[0_0_20px_rgba(212,175,55,0.6)]"
+                className="h-full p-6 text-left group-hover:border-gold group-hover:shadow-[0_0_20px_rgba(212,175,55,0.6)]"
             >
                 {/* Slight internal gold glow layer */}
-                <div className="absolute inset-0 bg-gold/0 group-hover:bg-gold/5 transition-colors duration-300 z-0" />
+                <div className="absolute inset-0 bg-gold/0 group-hover:bg-gold/5 transition-colors duration-300 z-0 rounded-2xl" />
 
                 <div className="relative z-10 flex flex-col h-full">
-                    <div className="mb-4 p-3 bg-transparent border border-white/10 rounded-lg w-fit text-gold transition-all duration-300 group-hover:text-white group-hover:bg-gold group-hover:shadow-[0_0_15px_rgba(212,175,55,0.5)]">
+                    <div className="mb-4 p-3 bg-white/5 border border-white/10 rounded-lg w-fit text-gold transition-all duration-300 group-hover:text-white group-hover:bg-gold group-hover:shadow-[0_0_15px_rgba(212,175,55,0.5)]">
                         <Icon size={32} />
                     </div>
                     <h3 className="text-2xl font-bold text-white mb-2 group-hover:text-gold transition-colors duration-300">{title}</h3>
@@ -57,7 +56,7 @@ const CommandCard = ({ title, desc, icon: Icon, path, delay }) => {
                         Activate Protocol <ArrowRight size={16} className="ml-2" />
                     </div>
                 </div>
-            </motion.div>
+            </TiltCard>
         </Link>
     );
 };
@@ -65,17 +64,17 @@ const CommandCard = ({ title, desc, icon: Icon, path, delay }) => {
 const PortfolioLab = () => {
     const cards = [
         {
-            title: "Custom Builder",
-            desc: "Build complex, multi-layered strategies from the ground up.",
-            icon: Layers,
-            path: "/custom",
-            delay: 0.1
-        },
-        {
             title: "Quick Invest",
             desc: "Rapidly generate weighted allocations for a basket of assets.",
             icon: Zap,
             path: "/invest",
+            delay: 0.1
+        },
+        {
+            title: "Custom Builder",
+            desc: "Build complex, multi-layered strategies from the ground up.",
+            icon: Layers,
+            path: "/custom",
             delay: 0.2
         },
         {

@@ -1,21 +1,49 @@
 @import "tailwindcss";
 
-@theme {
+:root {
+  color-scheme: dark;
   --color-deep-black: #0a0a0a;
   --color-gold: #D4AF37;
   --color-royal-purple: #6A0DAD;
-
-  --font-sans: Inter, Roboto, sans-serif;
 }
 
-:root {
-  color-scheme: dark;
+/* Explicit Utilities to ensure availability */
+.text-gold {
+  color: var(--color-gold);
+}
+
+.bg-gold {
+  background-color: var(--color-gold);
+}
+
+.border-gold {
+  border-color: var(--color-gold);
+}
+
+.shadow-gold {
+  --tw-shadow-color: var(--color-gold);
+}
+
+.text-deep-black {
+  color: var(--color-deep-black);
+}
+
+.bg-deep-black {
+  background-color: var(--color-deep-black);
+}
+
+.text-royal-purple {
+  color: var(--color-royal-purple);
+}
+
+.bg-royal-purple {
+  background-color: var(--color-royal-purple);
 }
 
 body {
   background-color: var(--color-deep-black);
   color: #ffffff;
-  font-family: var(--font-sans);
+  font-family: Inter, Roboto, sans-serif;
   overflow-x: hidden;
 }
 
@@ -37,10 +65,55 @@ body {
   background: #555;
 }
 
-@utility glass-panel {
-  @apply bg-white/5 backdrop-blur-xl border border-white/10 shadow-[0_8px_32px_0_rgba(0,0,0,0.36)];
+/* Glass Panel Utilities */
+.glass-panel {
+  background-color: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(24px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.36);
 }
 
-@utility glass-panel-hover {
-  @apply hover:bg-white/10 hover:border-white/20 hover:shadow-[0_8px_32px_0_rgba(212,175,55,0.1)] transition-all duration-300;
+.glass-panel-hover {
+  transition-property: all;
+  transition-duration: 300ms;
+}
+
+.glass-panel-hover:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.2);
+  box-shadow: 0 8px 32px 0 rgba(212, 175, 55, 0.1);
+}
+
+@keyframes scan {
+  from {
+    left: -100%;
+  }
+
+  to {
+    left: 200%;
+  }
+}
+
+.animate-scan {
+  animation: scan 4s linear infinite;
+}
+
+@keyframes data-stream {
+  0% {
+    transform: translateY(-100%);
+    opacity: 0;
+  }
+
+  50% {
+    opacity: 0.5;
+  }
+
+  100% {
+    transform: translateY(100%);
+    opacity: 0;
+  }
+}
+
+.animate-data-stream {
+  animation: data-stream 20s linear infinite;
 }

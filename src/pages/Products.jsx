@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import NeonWrapper from '../components/NeonWrapper';
+import TiltCard from '../components/TiltCard';
 import { motion } from 'framer-motion';
 import { Bot, ChevronRight, Search, Scale, Siren, ToggleLeft, ToggleRight, ExternalLink, HelpCircle, X, Hand, Mic, Activity, Loader2 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
@@ -122,26 +124,28 @@ const Products = () => {
                                     VIEW CONTROLS
                                 </button>
 
-                                <button
-                                    onClick={toggleSkyNet}
-                                    disabled={isProcessing}
-                                    className={`flex items-center gap-2 px-6 py-3 rounded-full font-bold transition-all border ${skynetActive
-                                        ? 'bg-red-500/10 text-red-400 border-red-500/50 hover:bg-red-500/20'
-                                        : 'bg-purple-500/10 text-purple-400 border-purple-500/50 hover:bg-purple-500/20 shadow-[0_0_10px_rgba(168,85,247,0.2)]'
-                                        } ${isProcessing ? 'opacity-50 cursor-not-allowed' : ''}`}
-                                >
-                                    {isProcessing ? (
-                                        <div className="flex items-center gap-2">
-                                            <Loader2 className="w-5 h-5 animate-spin" />
-                                            <span>{skynetActive ? "TERMINATING..." : "ESTABLISHING UPLINK..."}</span>
-                                        </div>
-                                    ) : (
-                                        <>
-                                            {skynetActive ? <ToggleRight className="w-6 h-6" /> : <ToggleLeft className="w-6 h-6" />}
-                                            {skynetActive ? 'DISENGAGE SYSTEM' : 'INITIALIZE SYSTEM'}
-                                        </>
-                                    )}
-                                </button>
+                                <NeonWrapper className="rounded-full" color={skynetActive ? "red" : "purple"}>
+                                    <button
+                                        onClick={toggleSkyNet}
+                                        disabled={isProcessing}
+                                        className={`relative z-10 flex items-center gap-2 px-6 py-3 rounded-full font-bold transition-all border bg-black ${skynetActive
+                                            ? 'text-red-400 border-red-500/50 hover:bg-red-500/10'
+                                            : 'text-purple-400 border-purple-500/50 hover:bg-purple-500/10'
+                                            } ${isProcessing ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                    >
+                                        {isProcessing ? (
+                                            <div className="flex items-center gap-2">
+                                                <Loader2 className="w-5 h-5 animate-spin" />
+                                                <span>{skynetActive ? "TERMINATING..." : "ESTABLISHING UPLINK..."}</span>
+                                            </div>
+                                        ) : (
+                                            <>
+                                                {skynetActive ? <ToggleRight className="w-6 h-6" /> : <ToggleLeft className="w-6 h-6" />}
+                                                {skynetActive ? 'DISENGAGE SYSTEM' : 'INITIALIZE SYSTEM'}
+                                            </>
+                                        )}
+                                    </button>
+                                </NeonWrapper>
                             </div>
                         </motion.div>
                     </div>
@@ -245,12 +249,7 @@ const Products = () => {
                 {/* Apps Grid */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                     <div onClick={() => navigate('/portfolio-lab')} className="group cursor-pointer block h-full">
-                        <motion.div
-                            initial={{ opacity: 0, y: 20 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ delay: 0.2 }}
-                            className="h-full bg-white/5 border border-gold/30 rounded-2xl p-8 hover:bg-white/10 hover:border-gold transition-all duration-300 relative overflow-hidden"
-                        >
+                        <TiltCard delay={0.2} className="h-full">
                             <button
                                 onClick={(e) => { e.stopPropagation(); navigate('/help#portfolio-lab'); }}
                                 className="absolute top-4 right-4 z-30 p-2 text-gray-500 hover:text-gold transition-colors"
@@ -273,15 +272,10 @@ const Products = () => {
                                     Launch Application <ChevronRight size={20} className="ml-2 group-hover:translate-x-1 transition-transform" />
                                 </div>
                             </div>
-                        </motion.div>
+                        </TiltCard>
                     </div>
                     <div onClick={() => navigate('/asset-evaluator')} className="group cursor-pointer block h-full">
-                        <motion.div
-                            initial={{ opacity: 0, y: 20 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ delay: 0.3 }}
-                            className="h-full bg-white/5 border border-gold/30 rounded-2xl p-8 hover:bg-white/10 hover:border-gold transition-all duration-300 relative overflow-hidden"
-                        >
+                        <TiltCard delay={0.3} className="h-full">
                             <button
                                 onClick={(e) => { e.stopPropagation(); navigate('/help#asset-evaluator'); }}
                                 className="absolute top-4 right-4 z-30 p-2 text-gray-500 hover:text-gold transition-colors"
@@ -304,15 +298,10 @@ const Products = () => {
                                     Launch Application <ChevronRight size={20} className="ml-2 group-hover:translate-x-1 transition-transform" />
                                 </div>
                             </div>
-                        </motion.div>
+                        </TiltCard>
                     </div>
                     <div onClick={() => navigate('/products/comparison-matrix')} className="group cursor-pointer block h-full">
-                        <motion.div
-                            initial={{ opacity: 0, y: 20 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ delay: 0.4 }}
-                            className="h-full bg-white/5 border border-gold/30 rounded-2xl p-8 hover:bg-white/10 hover:border-gold transition-all duration-300 relative overflow-hidden"
-                        >
+                        <TiltCard delay={0.4} className="h-full">
                             <button
                                 onClick={(e) => { e.stopPropagation(); navigate('/help#comparison-matrix'); }}
                                 className="absolute top-4 right-4 z-30 p-2 text-gray-500 hover:text-gold transition-colors"
@@ -335,15 +324,10 @@ const Products = () => {
                                     Launch Application <ChevronRight size={20} className="ml-2 group-hover:translate-x-1 transition-transform" />
                                 </div>
                             </div>
-                        </motion.div>
+                        </TiltCard>
                     </div>
                     <div onClick={() => navigate('/market-nexus')} className="group cursor-pointer block h-full">
-                        <motion.div
-                            initial={{ opacity: 0, y: 20 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ delay: 0.5 }}
-                            className="h-full bg-white/5 border border-gold/30 rounded-2xl p-8 hover:bg-white/10 hover:border-gold transition-all duration-300 relative overflow-hidden"
-                        >
+                        <TiltCard delay={0.5} className="h-full">
                             <button
                                 onClick={(e) => { e.stopPropagation(); navigate('/help#market-nexus'); }}
                                 className="absolute top-4 right-4 z-30 p-2 text-gray-500 hover:text-gold transition-colors"
@@ -366,7 +350,7 @@ const Products = () => {
                                     Launch Application <ChevronRight size={20} className="ml-2 group-hover:translate-x-1 transition-transform" />
                                 </div>
                             </div>
-                        </motion.div>
+                        </TiltCard>
                     </div>
                 </div>
             </div>

@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, useSearchParams } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, useSearchParams, useLocation } from 'react-router-dom';
+import { AnimatePresence } from 'framer-motion';
+import PageTransition from './components/PageTransition';
 import { PayPalScriptProvider } from "@paypal/react-paypal-js";
 import { AuthProvider } from './contexts/AuthContext';
 import { SkyNetProvider, useSkyNet } from './contexts/SkyNetContext';
@@ -105,40 +107,45 @@ const AppContent = () => {
         }
     }, [searchParams, connect]);
 
+    const location = useLocation();
+
     return (
         <>
             <UsernameSetupModal isOpen={showUsernameModal} onClose={() => setShowUsernameModal(false)} />
             <SkyNetOverlay />
-            <Routes>
-                <Route path="/" element={<Layout><LandingPage /></Layout>} />
-                <Route path="/products" element={<Layout><Products /></Layout>} />
-                <Route path="/asset-evaluator" element={<Layout><AssetEvaluator /></Layout>} />
-                <Route path="/products/comparison-matrix" element={<Layout><ComparisonMatrix /></Layout>} />
-                <Route path="/market-nexus" element={<Layout><MarketNexus /></Layout>} />
-                <Route path="/portfolio-lab" element={<Layout><PortfolioLab /></Layout>} />
-                <Route path="/custom" element={<Layout><Wizard /></Layout>} />
-                <Route path="/invest" element={<Layout><Wizard /></Layout>} />
-                <Route path="/cultivate" element={<Layout><Wizard /></Layout>} />
-                <Route path="/tracking" element={<Layout><Wizard /></Layout>} />
-                <Route path="/login" element={<Layout><Login /></Layout>} />
-                <Route path="/profile" element={<Layout><Profile /></Layout>} />
-                <Route path="/forum" element={<Layout><Forum /></Layout>} />
-                <Route path="/news" element={<Layout><NewsPage /></Layout>} />
-                <Route path="/knowledge-stream" element={<Layout><KnowledgeStream /></Layout>} />
-                <Route path="/article/:id" element={<Layout><ArticleView /></Layout>} />
-                <Route path="/admin" element={<Layout><AdminDashboard /></Layout>} />
-                <Route path="/chat" element={<Layout><Chatbox /></Layout>} />
-                <Route path="/ideas" element={<Layout><IdeasPage /></Layout>} />
-                <Route path="/terms" element={<Layout><TermsOfService /></Layout>} />
-                <Route path="/privacy" element={<Layout><PrivacyPolicy /></Layout>} />
-                <Route path="/social" element={<Layout><Forum /></Layout>} />
-                <Route path="/help" element={<Layout><Help /></Layout>} />
+            <AnimatePresence mode="wait">
+                <Routes location={location} key={location.pathname}>
+                    <Route path="/" element={<PageTransition><Layout><LandingPage /></Layout></PageTransition>} />
+                    <Route path="/products" element={<PageTransition><Layout><Products /></Layout></PageTransition>} />
+                    <Route path="/asset-evaluator" element={<PageTransition><Layout><AssetEvaluator /></Layout></PageTransition>} />
+                    <Route path="/products/comparison-matrix" element={<PageTransition><Layout><ComparisonMatrix /></Layout></PageTransition>} />
+                    <Route path="/market-nexus" element={<PageTransition><Layout><MarketNexus /></Layout></PageTransition>} />
+                    <Route path="/portfolio-lab" element={<PageTransition><Layout><PortfolioLab /></Layout></PageTransition>} />
+                    <Route path="/custom" element={<PageTransition><Layout><Wizard /></Layout></PageTransition>} />
+                    <Route path="/invest" element={<PageTransition><Layout><Wizard /></Layout></PageTransition>} />
+                    <Route path="/cultivate" element={<PageTransition><Layout><Wizard /></Layout></PageTransition>} />
+                    <Route path="/tracking" element={<PageTransition><Layout><Wizard /></Layout></PageTransition>} />
+                    <Route path="/login" element={<PageTransition><Layout><Login /></Layout></PageTransition>} />
+                    <Route path="/signup" element={<PageTransition><Layout><SignUp /></Layout></PageTransition>} />
+                    <Route path="/profile" element={<PageTransition><Layout><Profile /></Layout></PageTransition>} />
+                    <Route path="/forum" element={<PageTransition><Layout><Forum /></Layout></PageTransition>} />
+                    <Route path="/news" element={<PageTransition><Layout><NewsPage /></Layout></PageTransition>} />
+                    <Route path="/knowledge-stream" element={<PageTransition><Layout><KnowledgeStream /></Layout></PageTransition>} />
+                    <Route path="/article/:id" element={<PageTransition><Layout><ArticleView /></Layout></PageTransition>} />
+                    <Route path="/admin" element={<PageTransition><Layout><AdminDashboard /></Layout></PageTransition>} />
+                    <Route path="/chat" element={<PageTransition><Layout><Chatbox /></Layout></PageTransition>} />
+                    <Route path="/ideas" element={<PageTransition><Layout><IdeasPage /></Layout></PageTransition>} />
+                    <Route path="/terms" element={<PageTransition><Layout><TermsOfService /></Layout></PageTransition>} />
+                    <Route path="/privacy" element={<PageTransition><Layout><PrivacyPolicy /></Layout></PageTransition>} />
+                    <Route path="/social" element={<PageTransition><Layout><Forum /></Layout></PageTransition>} />
+                    <Route path="/help" element={<PageTransition><Layout><Help /></Layout></PageTransition>} />
 
-                {/* --- SKYNET DETACHED CONTROLS & SIDEBAR --- */}
-                <Route path="/controls" element={<ControlsPage />} />
-                <Route path="/sidebar" element={<SidebarPage />} />
-                <Route path="/active-chart" element={<ActiveChartPage />} />
-            </Routes >
+                    {/* --- SKYNET DETACHED CONTROLS & SIDEBAR (No Transition Wrapper needed as they pop up) --- */}
+                    <Route path="/controls" element={<ControlsPage />} />
+                    <Route path="/sidebar" element={<SidebarPage />} />
+                    <Route path="/active-chart" element={<ActiveChartPage />} />
+                </Routes>
+            </AnimatePresence>
         </>
     );
 };

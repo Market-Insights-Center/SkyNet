@@ -10,6 +10,8 @@ import IdeaCard from '../components/IdeaCard';
 import Footer from '../components/Footer';
 import SubscriptionCard from '../components/SubscriptionCard';
 import { useAuth } from '../contexts/AuthContext';
+import TiltCard from '../components/TiltCard';
+import TypewriterText from '../components/TypewriterText';
 
 class ErrorBoundary extends React.Component {
     constructor(props) {
@@ -25,19 +27,19 @@ class ErrorBoundary extends React.Component {
 }
 
 const FeatureCard = ({ icon: Icon, title, desc, delay }) => (
-    <motion.div
+    <TiltCard
         initial={{ opacity: 0, y: 20 }}
         whileInView={{ opacity: 1, y: 0 }}
         viewport={{ once: true }}
         transition={{ duration: 0.5, delay: delay }}
-        className="bg-white/5 p-8 rounded-2xl border border-white/10 hover:border-gold/50 transition-colors group h-full flex flex-col"
+        className="h-full p-8 flex flex-col group hover:border-gold/50 transition-colors"
     >
         <div className="w-14 h-14 rounded-xl bg-gold/10 flex items-center justify-center mb-6 group-hover:bg-gold/20 transition-colors">
             <Icon size={32} className="text-gold" />
         </div>
         <h3 className="text-2xl font-bold mb-4 text-white">{title}</h3>
         <p className="text-gray-400 leading-relaxed flex-grow">{desc}</p>
-    </motion.div>
+    </TiltCard>
 );
 
 // --- Portal-based Tooltip Component ---
@@ -565,40 +567,61 @@ const LandingPage = () => {
 
                 {/* Banners Section - Clearing Navbar (h-20) */}
                 <div className="fixed top-24 left-0 right-0 z-40 flex flex-col items-center pointer-events-none px-4">
-                    {banners.map(banner => (
-                        <motion.div
-                            key={banner.id}
-                            initial={{ y: -100, opacity: 0 }}
-                            animate={{ y: 0, opacity: 1 }}
-                            className={`pointer-events-auto w-full max-w-7xl mx-auto mt-4 rounded-xl backdrop-blur-2xl border overflow-hidden shadow-[0_8px_32px_rgba(0,0,0,0.5)] bg-gradient-to-r ${getBannerStyles(banner.type)}`}
-                        >
-                            <div className="absolute inset-0 bg-white/5 animate-[pulse_4s_ease-in-out_infinite]"></div>
-                            <div className="relative z-10 p-4 md:p-6 flex flex-col md:flex-row items-center justify-between text-center md:text-left gap-4">
-                                <div className="flex-1 flex flex-col md:flex-row items-center gap-4">
-                                    <span className={`text-2xl md:text-3xl font-black tracking-widest uppercase drop-shadow-[0_2px_10px_rgba(0,0,0,0.5)] bg-clip-text text-transparent bg-gradient-to-r ${banner.type === 'sale' ? 'from-green-100 via-white to-green-100' :
-                                        banner.type === 'launch' ? 'from-purple-100 via-white to-purple-100' :
-                                            'from-blue-100 via-white to-blue-100'
-                                        }`}>
-                                        {banner.text}
-                                    </span>
-                                    {banner.countdown_target && (
-                                        <CountdownTimer targetDate={banner.countdown_target} />
+                    <AnimatePresence>
+                        {banners.map(banner => (
+                            <motion.div
+                                key={banner.id}
+                                initial={{ y: -100, opacity: 0, scale: 0.9, rotateX: -20 }}
+                                animate={{ y: 0, opacity: 1, scale: 1, rotateX: 0 }}
+                                exit={{ y: -100, opacity: 0, scale: 0.9 }}
+                                transition={{ type: "spring", stiffness: 100, damping: 15 }}
+                                className={`pointer-events-auto w-full max-w-7xl mx-auto mt-4 rounded-xl backdrop-blur-2xl border overflow-hidden shadow-[0_0_50px_rgba(0,0,0,0.8)] bg-gradient-to-r ${getBannerStyles(banner.type)} relative group`}
+                            >
+                                {/* Futuristic Animated Grid Overlay */}
+                                <div className="absolute inset-0 bg-[url('/grid.svg')] opacity-10 animate-pulse-slow pointer-events-none" />
+
+                                {/* Scanning Line Effect */}
+                                <div className="absolute top-0 left-[-100%] w-1/2 h-full bg-gradient-to-r from-transparent via-white/20 to-transparent skew-x-12 animate-scan pointer-events-none" />
+
+                                {/* Shimmering Border Glare */}
+                                <div className="absolute inset-x-0 top-0 h-[1px] bg-gradient-to-r from-transparent via-white/50 to-transparent opacity-50" />
+                                <div className="absolute inset-x-0 bottom-0 h-[1px] bg-gradient-to-r from-transparent via-white/50 to-transparent opacity-50" />
+
+                                <div className="relative z-10 p-4 md:p-6 flex flex-col md:flex-row items-center justify-between text-center md:text-left gap-4">
+                                    <div className="flex-1 flex flex-col md:flex-row items-center gap-4">
+                                        <div className="flex items-center justify-center w-12 h-12 rounded-full bg-white/10 border border-white/20 shadow-[0_0_15px_rgba(255,255,255,0.2)] animate-pulse">
+                                            <Zap size={24} className={banner.type === 'sale' ? 'text-green-400' : banner.type === 'launch' ? 'text-purple-400' : 'text-blue-400'} />
+                                        </div>
+                                        <span className={`text-xl md:text-3xl font-black tracking-widest uppercase drop-shadow-[0_2px_10px_rgba(0,0,0,0.5)] bg-clip-text text-transparent bg-gradient-to-r ${banner.type === 'sale' ? 'from-green-100 via-white to-green-100' :
+                                            banner.type === 'launch' ? 'from-purple-100 via-white to-purple-100' :
+                                                'from-blue-100 via-white to-blue-100'
+                                            }`}>
+                                            <TypewriterText text={banner.text} className="inline-block" />
+                                        </span>
+                                        {banner.countdown_target && (
+                                            <div className="scale-90 md:scale-100">
+                                                <CountdownTimer targetDate={banner.countdown_target} />
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {banner.link && (
+                                        <a
+                                            href={banner.link}
+                                            target={banner.link.startsWith('http') ? "_blank" : "_self"}
+                                            rel="noopener noreferrer"
+                                            className="relative overflow-hidden bg-white/20 hover:bg-white/30 text-white px-8 py-3 rounded-full font-bold transition-all flex items-center gap-2 group whitespace-nowrap shadow-[0_0_20px_rgba(255,255,255,0.1)] hover:shadow-[0_0_30px_rgba(255,255,255,0.3)] border border-white/40"
+                                        >
+                                            <span className="relative z-10 flex items-center gap-2">
+                                                INITIALIZE <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" />
+                                            </span>
+                                            <div className="absolute inset-0 bg-white/20 translate-y-[100%] group-hover:translate-y-0 transition-transform duration-300" />
+                                        </a>
                                     )}
                                 </div>
-
-                                {banner.link && (
-                                    <a
-                                        href={banner.link}
-                                        target={banner.link.startsWith('http') ? "_blank" : "_self"}
-                                        rel="noopener noreferrer"
-                                        className="bg-white/10 hover:bg-white/20 text-white px-6 py-2 rounded-full font-bold transition-all flex items-center gap-2 group whitespace-nowrap"
-                                    >
-                                        Learn More <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" />
-                                    </a>
-                                )}
-                            </div>
-                        </motion.div>
-                    ))}
+                            </motion.div>
+                        ))}
+                    </AnimatePresence>
                 </div>
 
 
@@ -707,35 +730,73 @@ const LandingPage = () => {
             </ErrorBoundary >
 
             {/* Watchlist & Community Stream Section */}
-            < ErrorBoundary >
-                <section className="py-12 px-4 bg-transparent">
+            <ErrorBoundary>
+                <section className="py-12 px-4 bg-transparent relative z-10">
                     <div className="max-w-7xl mx-auto">
-                        <div className="flex justify-between items-center mb-8">
-                            <h2 className="text-3xl font-bold text-center">Live <span className="text-gold">Watchlist</span></h2>
-                        </div>
-                        <Watchlist />
+                        <div className="relative p-1 bg-gradient-to-r from-transparent via-purple-500/50 to-transparent rounded-xl overflow-hidden group">
+                            <div className="absolute inset-0 bg-black/80 backdrop-blur-md rounded-xl" />
 
-                        {/* Toggle Button */}
-                        <div className="flex justify-center mt-12 mb-8">
-                            <motion.button
-                                whileHover={{ scale: 1.05 }}
-                                whileTap={{ scale: 0.95 }}
-                                onClick={() => setShowCommunityStream(!showCommunityStream)}
-                                className={`flex items-center gap-2 px-6 py-3 rounded-full font-bold transition-all ${showCommunityStream
-                                    ? "bg-white/10 text-white hover:bg-white/20 border border-white/10"
-                                    : "bg-gold/10 text-gold hover:bg-gold/20 border border-gold/30"
-                                    }`}
-                            >
-                                {showCommunityStream ? (
-                                    <>
-                                        <EyeOff size={18} /> Hide Community Stream
-                                    </>
-                                ) : (
-                                    <>
-                                        <Eye size={18} /> Show Community Stream
-                                    </>
-                                )}
-                            </motion.button>
+                            {/* Futuristic Background Animation */}
+                            <div className="absolute inset-0 overflow-hidden opacity-20 pointer-events-none">
+                                <div className="absolute top-0 left-[10%] w-[1px] h-[200%] bg-gradient-to-b from-transparent via-purple-400 to-transparent animate-data-stream" />
+                                <div className="absolute top-0 right-[20%] w-[1px] h-[200%] bg-gradient-to-b from-transparent via-fuchsia-400 to-transparent animate-data-stream" style={{ animationDelay: '2s' }} />
+                                <div className="absolute top-0 left-[40%] w-[1px] h-[200%] bg-gradient-to-b from-transparent via-gold to-transparent animate-data-stream" style={{ animationDelay: '5s' }} />
+                                <div className="grid grid-cols-[repeat(auto-fill,minmax(50px,1fr))] h-full w-full opacity-10">
+                                    {Array.from({ length: 100 }).map((_, i) => (
+                                        <div key={i} className="border-r border-b border-purple-500/20" />
+                                    ))}
+                                </div>
+                            </div>
+
+                            <div className="relative z-10 p-8 rounded-xl bg-black/40 border border-purple-500/20 shadow-[0_0_50px_rgba(168,85,247,0.1)]">
+                                <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 border-b border-purple-500/30 pb-4 gap-4">
+                                    <div className="flex items-center gap-4">
+                                        <div className="w-2 h-10 bg-purple-500 rounded-sm animate-pulse shadow-[0_0_10px_#a855f7]" />
+                                        <div>
+                                            <h2 className="text-3xl font-bold font-mono tracking-widest text-purple-100 flex items-center gap-2">
+                                                MARKET <span className="text-gold">INTELLIGENCE</span>
+                                            </h2>
+                                            <p className="text-xs text-purple-400/70 font-mono tracking-wider mt-1">REAL-TIME GLOBAL INTELLIGENCE</p>
+                                        </div>
+                                    </div>
+
+                                    <div className="flex items-center gap-6">
+                                        {/* Tech Stats */}
+                                        <div className="hidden md:flex items-center gap-4 text-[10px] font-mono text-purple-300/50">
+                                            <div className="px-2 py-1 border border-purple-500/20 rounded bg-purple-500/5">LATENCY: 12ms</div>
+                                            <div className="px-2 py-1 border border-purple-500/20 rounded bg-purple-500/5">ENCRYPTION: AES-256</div>
+                                        </div>
+
+                                        <div className="flex items-center gap-2 text-xs font-mono text-purple-400 bg-purple-900/20 px-3 py-1 rounded-full border border-purple-500/20 shadow-[0_0_15px_rgba(168,85,247,0.2)]">
+                                            <span className="relative flex h-2 w-2">
+                                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-purple-400 opacity-75"></span>
+                                                <span className="relative inline-flex rounded-full h-2 w-2 bg-purple-500"></span>
+                                            </span>
+                                            LIVE DATA FEED
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <Watchlist />
+
+                                {/* Toggle Button - Futuristic Switch Style */}
+                                <div className="flex justify-center mt-12 mb-8 relative">
+                                    <div className="absolute inset-x-0 top-1/2 h-[1px] bg-purple-500/30 -z-10" />
+                                    <motion.button
+                                        whileHover={{ scale: 1.05 }}
+                                        whileTap={{ scale: 0.95 }}
+                                        onClick={() => setShowCommunityStream(!showCommunityStream)}
+                                        className={`relative overflow-hidden flex items-center gap-3 px-8 py-3 rounded-none font-bold font-mono tracking-widest transition-all clip-path-polygon ${showCommunityStream
+                                            ? "bg-purple-900/50 text-purple-100 border border-purple-400 shadow-[0_0_20px_rgba(168,85,247,0.4)]"
+                                            : "bg-black text-gray-500 border border-gray-700 hover:text-purple-400 hover:border-purple-500"
+                                            }`}
+                                        style={{ clipPath: "polygon(10% 0, 100% 0, 100% 70%, 90% 100%, 0 100%, 0 30%)" }}
+                                    >
+                                        <div className={`w-2 h-2 rounded-full ${showCommunityStream ? 'bg-purple-400 animate-pulse' : 'bg-gray-600'}`} />
+                                        {showCommunityStream ? "TERMINATE STREAM" : "ACTIVATE COMMUNITY FEED"}
+                                    </motion.button>
+                                </div>
+                            </div>
                         </div>
 
                         {/* Conditional Community Content */}
