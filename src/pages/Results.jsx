@@ -277,11 +277,12 @@ const Results = ({ toolType, onBack }) => {
             <div className="flex justify-between mb-8">
                 <button onClick={onBack} className="flex items-center gap-2 text-gray-400 hover:text-white"><ArrowLeft size={20} /> Back</button>
                 <div className="flex gap-3">
-                    {toolType === 'tracking' && (
+                    {/* Execution Actions moved to Inputs */
+                    /* {toolType === 'tracking' && (
                         <button onClick={() => setShowExecModal(true)} className="flex items-center gap-2 px-4 py-2 bg-royal-purple text-white font-bold rounded-lg hover:bg-purple-700 transition-colors shadow-lg">
                             <Activity size={20} /> Execute Actions
                         </button>
-                    )}
+                    )} */}
                 </div>
             </div>
 

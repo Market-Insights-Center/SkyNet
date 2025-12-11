@@ -142,6 +142,8 @@ async def process_custom_portfolio(
     try:
         is_top_level_call = all_portfolio_configs_passed is None
         suppress_prints = (is_custom_command_simplified_output or is_called_by_ai) and is_top_level_call
+        
+        print(f"[DEBUG INVEST] process_custom_portfolio called. ID={portfolio_data_config.get('portfolio_code')} Tailor={tailor_portfolio_requested} Value={total_value_singularity}")
 
         user_id = portfolio_data_config.get('user_id')
 
@@ -215,6 +217,7 @@ async def process_custom_portfolio(
                     cost = final_shares * price
                     
                     if cost > 0:
+                        # print(f"[DEBUG INVEST] Allocating {entry['ticker']}: {final_shares} shares @ ${price} = ${cost}")
                         tailored_data.append({
                             'ticker': entry['ticker'],
                             'shares': final_shares,
@@ -228,7 +231,10 @@ async def process_custom_portfolio(
                         total_spent += cost
             final_cash = max(0, total_val - total_spent)
 
-        return [], final_combined_portfolio_data_calc, final_cash, tailored_data
+        print(f"[DEBUG INVEST] Portfolio Calc Complete. Tailored Count: {len(tailored_data)}, Cash: ${final_cash:.2f}")
+        # RETURN FIXED: Put tailored_data at Index 0 for Nexus/Tracking compatibility
+        # Original: return [], final_combined_portfolio_data_calc, final_cash, tailored_data
+        return tailored_data, final_combined_portfolio_data_calc, final_cash, tailored_data
 
     except Exception as e:
         print(f"Error in process_custom_portfolio: {e}")

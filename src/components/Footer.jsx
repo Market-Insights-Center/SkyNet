@@ -23,7 +23,7 @@ const Footer = () => {
                         <ul className="space-y-3 text-sm">
                             <li><Link to="/products" className="text-gray-400 hover:text-gold transition-colors flex items-center gap-2 hover:translate-x-1 duration-200">Products Suite</Link></li>
                             <li><Link to="/portfolio-lab" className="text-gray-400 hover:text-gold transition-colors flex items-center gap-2 hover:translate-x-1 duration-200">Portfolio Lab</Link></li>
-                            <li><Link to="/market-nexus" className="text-gray-400 hover:text-gold transition-colors flex items-center gap-2 hover:translate-x-1 duration-200">Market Nexus</Link></li>
+                            <li><Link to="/market-junction" className="text-gray-400 hover:text-cyan-400 transition-colors flex items-center gap-2 hover:translate-x-1 duration-200">Market Junction</Link></li>
                             <li><Link to="/asset-evaluator" className="text-gray-400 hover:text-gold transition-colors flex items-center gap-2 hover:translate-x-1 duration-200">Asset Evaluator</Link></li>
                             <li><Link to="/products/comparison-matrix" className="text-gray-400 hover:text-gold transition-colors flex items-center gap-2 hover:translate-x-1 duration-200">Comparison Matrix</Link></li>
                         </ul>

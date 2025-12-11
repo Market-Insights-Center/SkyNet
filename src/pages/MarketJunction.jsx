@@ -66,7 +66,7 @@ const MarketNexus = () => {
                     </div>
                     <h1 className="text-3xl font-bold mb-4">Access Restricted</h1>
                     <p className="text-gray-400 mb-8">
-                        The Market Nexus is available to subscribed members. Please upgrade your plan to unlock these advanced market analysis tools.
+                        The Market Junction is available to subscribed members. Please upgrade your plan to unlock these advanced market analysis tools.
                     </p>
                     <button className="px-8 py-3 bg-gold text-black font-bold rounded-full hover:bg-yellow-500 transition-colors">
                         Upgrade Plan
@@ -96,11 +96,11 @@ const MarketNexus = () => {
                         </div>
                         <div className="flex-1">
                             <div className="flex items-center justify-between">
-                                <h1 className="text-4xl font-bold">Market Nexus</h1>
+                                <h1 className="text-4xl font-bold">Market Junction</h1>
                                 <a
                                     href={`/help#${activeTab === 'risk' ? 'risk-command' :
                                         activeTab === 'history' ? 'history-command' :
-                                            activeTab === 'briefing' ? 'briefing' : 'market-nexus'
+                                            activeTab === 'briefing' ? 'briefing' : 'market-junction'
                                         }`}
                                     target="_blank"
                                     rel="noopener noreferrer"

@@ -141,12 +141,14 @@ const Wizard = () => {
                     ema_sensitivity: 2,
                     amplification: 1.0,
                     trades: [],
-                    rh_username: "",
-                    rh_password: "",
-                    email_to: currentUser?.email || "", // Custom/Tracking uses email_to
+                    rh_username: inputs.rh_user || "",
+                    rh_password: inputs.rh_pass || "",
+                    email_to: inputs.send_email ? (inputs.email_to || currentUser?.email) : "",
                     risk_tolerance: 10,
                     vote_type: "stock",
-                    overwrite: false
+                    execute_actions: inputs.execute_actions || false,
+                    execute_rh: inputs.execute_rh || false,
+                    overwrite: inputs.overwrite || false
                 };
                 if (type === 'custom') body.action = "run_existing_portfolio";
 
@@ -165,11 +167,11 @@ const Wizard = () => {
         return body;
     };
 
-    const executeAnalysis = async (body) => {
+    const executeAnalysis = async (body, typeOverride = null) => {
         setIsAnalyzing(true);
 
         try {
-            const endpoint = `/api/${toolType}`;
+            const endpoint = `/api/${typeOverride || toolType}`;
 
             const response = await fetch(endpoint, {
                 method: 'POST',
@@ -226,8 +228,16 @@ const Wizard = () => {
     const handleConfigSubmit = () => {
         setShowConfigModal(false);
         setIsAnalyzing(true);
-        const body = getRequestBody(toolType, newConfig);
-        executeAnalysis(body);
+
+        // Force 'create_and_run' action and ensure we use the 'custom' endpoint 
+        // because only the custom command knows how to save new portfolio configs to the DB.
+        const body = getRequestBody('custom', newConfig);
+        body.portfolio_code = missingPortfolioCode;
+        body.action = "create_and_run";
+
+        // We assume tracking/custom inputs are compatible for creation
+        // but we must send this to /api/custom to trigger the creation logic
+        executeAnalysis(body, 'custom');
     };
 
     if (showResults) {
@@ -244,9 +254,9 @@ const Wizard = () => {
                         <span className="text-gray-400 text-xl font-light">Configuration</span>
                         <a
                             href={`/help#${toolType === 'custom' ? 'custom-builder' :
-                                    toolType === 'invest' ? 'quick-invest' :
-                                        toolType === 'cultivate' ? 'cultivate' :
-                                            toolType === 'tracking' ? 'portfolio-tracker' : 'portfolio-lab'
+                                toolType === 'invest' ? 'quick-invest' :
+                                    toolType === 'cultivate' ? 'cultivate' :
+                                        toolType === 'tracking' ? 'portfolio-tracker' : 'portfolio-lab'
                                 }`}
                             target="_blank"
                             rel="noopener noreferrer"

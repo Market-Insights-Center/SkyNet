@@ -1,7 +1,7 @@
 import React, { useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Bot, Search, Scale, Siren, HelpCircle, Terminal, Layers, Zap, Sprout, Activity, PieChart, BarChart2, TrendingUp, History, Globe, Briefcase, Settings, Database, AlertTriangle } from 'lucide-react';
+import { Bot, Search, Scale, Siren, HelpCircle, Terminal, Layers, Zap, Sprout, Activity, PieChart, BarChart2, TrendingUp, History, Globe, Briefcase, Settings, Database, AlertTriangle, Network } from 'lucide-react';
 
 const Help = () => {
     const { hash } = useLocation();
@@ -71,7 +71,8 @@ const Help = () => {
                     icon: Activity,
                     desc: "Real-time monitoring dashboard for your saved strategies.",
                     inputs: [
-                        { name: "Portfolio Code Name", desc: "The ID of the portfolio you want to track (e.g., EXISTING_PORTFOLIO)." }
+                        { name: "Portfolio Code Name", desc: "The ID of the portfolio you want to track (e.g., EXISTING_PORTFOLIO)." },
+                        { name: "Execution Options", desc: "Send recommendations to Email, execute on Robinhood, or overwrite saved data." }
                     ],
                     usage: "Enter the code of a portfolio you previously built to see its live performance, risk metrics, and drift from target allocation."
                 }
@@ -216,11 +217,11 @@ const Help = () => {
             ]
         },
         {
-            id: 'market-nexus',
-            title: 'Market Nexus',
+            id: 'market-junction',
+            title: 'Market Junction',
             icon: Siren,
             color: 'text-gold',
-            description: 'Market Nexus is the macro-intelligence hub. It forecasts broad market trends and assesses systemic risk.',
+            description: 'Market Junction is the macro-intelligence hub. It forecasts broad market trends and assesses systemic risk.',
             subProducts: [
                 {
                     id: 'risk-command',
@@ -251,6 +252,28 @@ const Help = () => {
                         { name: "N/A", desc: "Automatic generation." }
                     ],
                     usage: "Read this every morning to stay informed on key market drivers, treasury yields, and economic releases."
+                }
+            ]
+        },
+        {
+            id: 'portfolio-nexus',
+            title: 'Portfolio Nexus',
+            icon: Network,
+            color: 'text-purple-400',
+            description: 'The Portfolio Nexus is the central nervous system for advanced capital allocation. It operates as a "Fund of Funds" manager, allowing you to stitch together disparate strategies—whether from the Portfolio Lab, Market Junction, or external ideas—into one unified master portfolio. It handles the complex mathematics of weighting, fractional shares, and rebalancing across these layers to ensure your total capital is perfectly aligned with your high-level allocation goals.',
+            subProducts: [
+                {
+                    id: 'nexus-execution',
+                    title: "Nexus Engine",
+                    icon: Network,
+                    desc: "Allocates capital across multiple sub-portfolios according to defined weights, handling all fractional share math and rebalancing logic.",
+                    inputs: [
+                        { name: "Nexus Code", desc: "Unique identifier for this master configuration (e.g., MASTER_FUND_V1)." },
+                        { name: "Total Value ($)", desc: "Total capital to distribute across all sub-strategies." },
+                        { name: "Components", desc: "List of Portfolios (by code) or Commands (Market, Breakout, Cultivate)." },
+                        { name: "Execution Options", desc: "Send trades to Email, execute on Robinhood, or overwrite last save." }
+                    ],
+                    usage: "1. Define Components: Identify portfolio codes created in Portfolio Lab (e.g., 'TECH_GROWTH') or standard commands.\n2. Assign Weights: Determine what percentage of your total capital goes to each strategy.\n3. Execute: The Nexus recursively calculates share counts for every underlying ticker, aggregating duplicates.\n4. Rebalance: Run periodically to ensure your master allocation remains true to targets."
                 }
             ]
         }

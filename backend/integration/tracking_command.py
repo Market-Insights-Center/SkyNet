@@ -1,549 +1,502 @@
+# tracking_command.py
+
+# --- Imports ---
 import asyncio
 import os
 import csv
-import json
 from typing import List, Dict, Any, Optional
+from collections import defaultdict
 import pandas as pd
+from tabulate import tabulate
+import matplotlib.pyplot as plt
 import numpy as np
-import math
+import uuid
+import traceback
+import re
 import smtplib
+import configparser
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
-import configparser
-import traceback
-import glob
-import datetime
-
-# --- Key Imports ---
-from backend.integration.invest_command import process_custom_portfolio, calculate_ema_invest
-from backend.integration.execution_command import execute_portfolio_rebalance, get_robinhood_equity
+import math
 
 # --- Constants ---
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+SUBPORTFOLIO_NAMES_FILE = os.path.join(BASE_DIR, 'portfolio_subportfolio_names.csv')
 CONFIG_FILE = os.path.join(BASE_DIR, 'config.ini')
-TRACKING_ORIGIN_FILE = os.path.join(BASE_DIR, 'tracking_origin.csv')
-PORTFOLIO_DB_FILE = os.path.join(BASE_DIR, 'portfolio_codes_database.csv')
-PORTFOLIO_OUTPUT_DIR = os.path.join(BASE_DIR, 'saved_runs')
+
+config = configparser.ConfigParser()
+config.read(CONFIG_FILE)
+
+# --- Local Imports from other command modules ---
+from backend.integration.custom_command import (
+    _get_custom_portfolio_run_csv_filepath, 
+    _save_custom_portfolio_run_to_csv, 
+    TRACKING_ORIGIN_FILE,
+    load_portfolio_config, 
+    PORTFOLIO_DB_FILE,
+    PORTFOLIO_DB_FILE,
+    safe_score,
+    _load_all_subportfolio_names
+)
+from backend.integration.invest_command import calculate_ema_invest, process_custom_portfolio
+
+# Try importing execution logic, fallback if missing
+try:
+    from backend.integration.execution_command import execute_portfolio_rebalance, get_robinhood_equity, get_robinhood_holdings
+except ImportError:
+    def execute_portfolio_rebalance(trades, known_holdings=None): 
+        print("Execution module not found.")
+        return []
+    def get_robinhood_equity(): return 0.0
+    def get_robinhood_holdings(): return {}
 
 # --- Helper Functions ---
-def _get_custom_portfolio_run_csv_filepath(portfolio_code: str, user_id: str = None) -> str:
-    uid_suffix = f"_{user_id}" if user_id else ""
-    safe_code = str(portfolio_code).lower().replace(' ', '_')
-    return os.path.join(PORTFOLIO_OUTPUT_DIR, f"run_data_portfolio_{safe_code}{uid_suffix}.csv")
-
-def _get_temp_run_filepath(portfolio_code: str, user_id: str = None) -> str:
-    uid_suffix = f"_{user_id}" if user_id else ""
-    safe_code = str(portfolio_code).lower().replace(' ', '_')
-    if not os.path.exists(PORTFOLIO_OUTPUT_DIR):
-        os.makedirs(PORTFOLIO_OUTPUT_DIR)
-    return os.path.join(PORTFOLIO_OUTPUT_DIR, f"temp_latest_{safe_code}{uid_suffix}.json")
-
-def floor_with_precision(value: float, precision: int) -> float:
-    if precision < 0: precision = 0
-    factor = 10 ** precision
-    return math.floor(value * factor) / factor
-
-async def _load_portfolio_run(portfolio_code: str, user_id: str = None) -> List[Dict[str, Any]]:
-    filepath = _get_custom_portfolio_run_csv_filepath(portfolio_code, user_id)
-    print(f"DEBUG: Loading portfolio run from: {filepath}")
-    if not os.path.exists(filepath):
-        print("DEBUG: File does not exist.")
-        return []
+async def _send_tracking_email(subject: str, html_body: str, recipient_email: str):
+    """Sends an HTML email notification."""
     try:
-        with open(filepath, 'r', encoding='utf-8') as f:
-            lines = f.readlines()
-        data_lines = [line for line in lines if not line.startswith('#')]
-        if not data_lines: return []
-        reader = csv.DictReader(data_lines)
-        return list(reader)
-    except Exception as e:
-        print(f"DEBUG: Error loading run: {e}")
-        return []
+        smtp_server = config.get('EMAIL_CONFIG', 'SMTP_SERVER')
+        smtp_port = config.getint('EMAIL_CONFIG', 'SMTP_PORT')
+        sender_email = config.get('EMAIL_CONFIG', 'SENDER_EMAIL')
+        sender_password = config.get('EMAIL_CONFIG', 'SENDER_PASSWORD')
 
-async def _load_portfolio_origin_data(portfolio_code: str, user_id: str = None) -> Dict[str, Dict[str, float]]:
+        if not all([smtp_server, smtp_port, sender_email, sender_password, recipient_email]):
+            print("⚠️ Email config incomplete. Cannot send notification.")
+            return
+
+        msg = MIMEMultipart()
+        msg['From'], msg['To'], msg['Subject'] = sender_email, recipient_email, subject
+        msg.attach(MIMEText(html_body, 'html'))
+
+        def _send_email_sync():
+            with smtplib.SMTP(smtp_server, smtp_port) as server:
+                server.starttls()
+                server.login(sender_email, sender_password)
+                server.send_message(msg)
+        
+        await asyncio.to_thread(_send_email_sync)
+        
+    except Exception as e:
+        print(f"❌ Failed to send tracking email: {e}")
+
+async def _load_portfolio_run(portfolio_code: str) -> Optional[List[Dict[str, Any]]]:
+    filepath = _get_custom_portfolio_run_csv_filepath(portfolio_code)
+    if not os.path.exists(filepath):
+        return None
+    try:
+        run_data = []
+        with open(filepath, 'r', encoding='utf-8') as f:
+            for line in f:
+                if line.strip() == "# ---BEGIN_DATA---":
+                    break
+            reader = csv.DictReader(f)
+            for row in reader:
+                run_data.append(row)
+        return run_data
+    except Exception as e:
+        return None
+
+def _get_subportfolio_map_from_config(portfolio_config: Dict[str, Any]) -> Dict[str, str]:
+    ticker_map = {}
+    num_portfolios = int(safe_score(portfolio_config.get('num_portfolios', 0)))
+    for i in range(1, num_portfolios + 1):
+        sub_portfolio_id = f'Sub-Portfolio {i}'
+        tickers_str = portfolio_config.get(f'tickers_{i}', '')
+        for ticker in tickers_str.split(','):
+            if ticker.strip():
+                ticker_map[ticker.strip().upper()] = sub_portfolio_id
+    return ticker_map
+
+def _load_all_subportfolio_names() -> Dict[str, str]:
+    if not os.path.exists(SUBPORTFOLIO_NAMES_FILE):
+        return {}
+    names = {}
+    try:
+        with open(SUBPORTFOLIO_NAMES_FILE, 'r', newline='', encoding='utf-8') as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                composite_key = f"{row['PortfolioCode'].lower().strip()}|{row['SubPortfolioID'].strip()}"
+                names[composite_key] = row['SubPortfolioName']
+    except Exception:
+        pass 
+    return names
+
+async def _load_portfolio_origin_data(portfolio_code: str) -> Dict[str, Dict[str, float]]:
     origin_data = {}
     if not os.path.exists(TRACKING_ORIGIN_FILE):
-        print(f"[DEBUG] Origin file not found at {TRACKING_ORIGIN_FILE}")
         return origin_data
-        
-    print(f"[DEBUG] Scanning Origin Data for Code: {portfolio_code} | Target User: {user_id}")
-    
     try:
-        with open(TRACKING_ORIGIN_FILE, 'r', newline='', encoding='utf-8-sig') as f:
+        with open(TRACKING_ORIGIN_FILE, 'r', newline='', encoding='utf-8') as f:
             reader = csv.DictReader(f)
-            
-            # Create a map to handle case-insensitivity
-            key_map = {}
-            if reader.fieldnames:
-                for field in reader.fieldnames:
-                    # Clean key: remove BOM, whitespace, lowercase
-                    clean = field.encode('utf-8').decode('utf-8-sig').strip().lower()
-                    key_map[clean] = field
-            
-            p_code_key = key_map.get('portfoliocode')
-            if not p_code_key:
-                print(f"[CRITICAL] 'PortfolioCode' header missing. Found: {reader.fieldnames}")
-                return {} 
-
-            count = 0
             for row in reader:
-                # 1. Get Code
-                row_code = row.get(p_code_key, '').strip().lower()
-                
-                # 2. Get User
-                user_key = key_map.get('userid')
-                row_user = row.get(user_key, '').strip() if user_key else ''
-                
-                target_user = user_id.strip() if user_id else ''
-
-                if row_code == portfolio_code.lower():
-                    # Logic: Match specific user OR legacy global entry (empty user)
-                    if row_user == target_user or row_user == "":
-                        try:
-                            # 3. Get Data (Robustly)
-                            t_key = key_map.get('ticker')
-                            s_key = key_map.get('shares')
-                            p_key = key_map.get('price')
-
-                            if t_key and s_key and p_key:
-                                ticker = row.get(t_key)
-                                shares = float(row.get(s_key, 0))
-                                price = float(row.get(p_key, 0))
-                                
-                                origin_data[ticker] = {'shares': shares, 'price': price}
-                                count += 1
-                        except (ValueError, TypeError):
-                            # This catches rows where Price/Shares are strings (e.g. from previous bad writes)
-                            continue
-            print(f"[DEBUG] Found {count} origin rows for {portfolio_code}.")
+                if row['PortfolioCode'] == portfolio_code:
+                    try:
+                        origin_data[row['Ticker']] = {
+                            'shares': float(row['Shares']),
+                            'price': float(row['Price'])
+                        }
+                    except (ValueError, TypeError):
+                        continue
     except Exception as e:
-        print(f"[DEBUG] Error reading origin data: {e}")
+        print(f"[DEBUG TRACKING] ⚠️ Warning: Could not process origin data file: {e}")
+        import traceback
         traceback.print_exc()
     return origin_data
 
-async def _ensure_origin_data_exists(portfolio_code: str, run_data: List[Dict], user_id: str):
-    print(f"[DEBUG] Ensuring origin data exists for {portfolio_code}...")
-    
-    # Check if we already have valid data
-    existing = await _load_portfolio_origin_data(portfolio_code, user_id)
-    if existing:
-        print(f"[DEBUG] Origin data found ({len(existing)} records). No action needed.")
-        return
+# --- NEW HIERARCHICAL PERFORMANCE FUNCTIONS ---
 
-    print(f"[DEBUG] No origin data found (or corrupt). Creating baseline...")
+def _build_nested_performance_dict(run_data: List[Dict[str, Any]], live_prices: Dict[str, float]) -> Dict:
+    print(f"[DEBUG TRACKING] Building Nested Perf Dict from {len(run_data)} rows...")
+    """Builds a nested dictionary from the flat run data."""
+    root = {'children': {}, 'positions': [], 'initial_value': 0.0, 'current_value': 0.0}
 
-    # --- CRITICAL FIX: DETECT HEADER ORDER FROM FILE ---
-    # Default headers if file is new
-    detected_headers = ['PortfolioCode', 'Ticker', 'Shares', 'Price', 'UserId']
-    file_exists = os.path.exists(TRACKING_ORIGIN_FILE)
-    is_new_file = True
+    for row in run_data:
+        ticker = row.get('Ticker')
+        if not ticker or ticker == 'Cash':
+            continue
 
-    if file_exists and os.stat(TRACKING_ORIGIN_FILE).st_size > 0:
-        is_new_file = False
         try:
-            with open(TRACKING_ORIGIN_FILE, 'r', encoding='utf-8-sig') as f:
-                reader = csv.reader(f)
-                first_row = next(reader, None)
-                if first_row:
-                    # Use the actual headers from the file to ensure column alignment
-                    detected_headers = [h.strip() for h in first_row]
-                    print(f"[DEBUG] Detected existing file headers: {detected_headers}")
-        except Exception as e:
-            print(f"[DEBUG] Could not read existing headers, using default. Error: {e}")
-
-    rows_to_append = []
-    
-    for item in run_data:
-        ticker = item.get('ticker') or item.get('Ticker')
-        if not ticker or ticker == 'Cash': continue
-        
-        price = float(item.get('price') or item.get('live_price') or item.get('Price') or item.get('LivePriceAtEval') or 0.0)
-        shares = float(item.get('shares') or item.get('Shares') or 0.0)
-        
-        if shares > 0:
-            # We construct a dict. DictWriter will map these keys to the Detected Headers positions.
-            rows_to_append.append({
-                'PortfolioCode': portfolio_code,
-                'Ticker': ticker,
-                'Shares': shares,
-                'Price': price,
-                'UserId': user_id or ""
-            })
-
-    if rows_to_append:
-        try:
-            mode = 'w' if is_new_file else 'a'
+            path_str = row.get('SubPortfolioPath', '')
+            path_parts = [part.strip() for part in path_str.split('>') if part.strip()]
             
-            with open(TRACKING_ORIGIN_FILE, mode, newline='', encoding='utf-8-sig') as f:
-                # Initialize DictWriter with the HEADERS WE DETECTED ON DISK
-                writer = csv.DictWriter(f, fieldnames=detected_headers)
-                
-                if mode == 'w':
-                    print("[DEBUG] Writing fresh CSV Headers.")
-                    writer.writeheader()
-                
-                # DictWriter automatically handles the re-ordering of columns based on fieldnames
-                writer.writerows(rows_to_append)
-                f.flush()
-                os.fsync(f.fileno())
-                
-            print(f"[DEBUG] Successfully wrote {len(rows_to_append)} rows to tracking_origin.csv")
-        except Exception as e:
-            print(f"[ERROR] Failed to write origin file: {e}")
+            saved_shares = float(row['Shares'])
+            initial_value = float(row['ActualMoneyAllocation'])
+            
+            live_price = live_prices.get(ticker)
+            current_value = (saved_shares * live_price) if live_price is not None else initial_value
 
-async def generate_performance_data(portfolio_code: str, current_holdings: Dict[str, float], user_id: str = None) -> Dict[str, Any]:
-    origin_data = await _load_portfolio_origin_data(portfolio_code, user_id)
-    all_tickers = list(set(origin_data.keys()) | set(current_holdings.keys()))
+            pnl = current_value - initial_value
+            pnl_percent = (pnl / initial_value) * 100 if initial_value > 0 else 0
+
+            position_data = {
+                'ticker': ticker, 'initial_value': initial_value, 'current_value': current_value,
+                'pnl': pnl, 'pnl_percent': pnl_percent
+            }
+
+            current_node = root
+            for part in path_parts:
+                if part not in current_node['children']:
+                    current_node['children'][part] = {'children': {}, 'positions': [], 'initial_value': 0.0, 'current_value': 0.0}
+                current_node = current_node['children'][part]
+                current_node['initial_value'] += initial_value
+                current_node['current_value'] += current_value
+            
+            current_node['positions'].append(position_data)
+            root['initial_value'] += initial_value
+            root['current_value'] += current_value
+
+        except (ValueError, TypeError, KeyError) as e:
+            print(f"  -> ⚠️ Warning: Could not process saved row for '{ticker}'. Error: {e}. Skipping.")
     
-    if not all_tickers:
-        return {
-            "status": "success", "rows": [], "live_prices": {}, 
-            "total_pnl": 0.0, "total_pnl_percent": 0.0, "total_current_value": 0.0
-        }
+    print(f"[DEBUG TRACKING] Nested Perf Build Complete. Root Value: {root['current_value']}")
+    return root['children']
 
-    tasks = [calculate_ema_invest(ticker, 2, is_called_by_ai=True) for ticker in all_tickers]
-    results = await asyncio.gather(*tasks, return_exceptions=True)
+async def get_all_time_performance_data(
+    portfolio_code: str, 
+    new_run_data: List[Dict[str, Any]], 
+    old_run_data: Optional[List[Dict[str, Any]]], 
+    portfolio_config: Dict[str, Any], 
+    names_map: Dict[str, str],
+    live_rh_holdings: Optional[Dict[str, float]] = None
+) -> Dict[str, Any]:
+    print(f"[DEBUG TRACKING] Calculating All-Time Performance for {portfolio_code}...")
+    """Calculates all-time performance data for return to frontend."""
+    origin_data = await _load_portfolio_origin_data(portfolio_code)
+    if not origin_data:
+         print(f"[DEBUG TRACKING] No Origin Data found for {portfolio_code}")
+    else:
+         print(f"[DEBUG TRACKING] Loaded {len(origin_data)} origin records.")
     
-    live_prices = {}
-    for ticker, res in zip(all_tickers, results):
-        if res and not isinstance(res, Exception) and res[0] is not None:
-            live_prices[ticker] = res[0]
+    ticker_to_sub_id_map = _get_subportfolio_map_from_config(portfolio_config)
+    ticker_to_sub_name_map = {ticker: names_map.get(sub_id, sub_id) for ticker, sub_id in ticker_to_sub_id_map.items()}
 
-    table_rows = []
-    total_pnl = 0.0
-    total_origin_value = 0.0
-    total_current_value = 0.0
+    current_holdings = {}
+    if live_rh_holdings:
+        current_holdings = live_rh_holdings
+    else:
+        current_holdings = {h['ticker']: float(h.get('shares', 0)) for h in new_run_data if h.get('ticker') != 'Cash'}
+    
+    previous_holdings = {h['Ticker']: float(h.get('Shares', 0)) for h in old_run_data if h.get('Ticker') != 'Cash'} if old_run_data else {}
+    
+    all_held_tickers = set(current_holdings.keys()) | set(previous_holdings.keys())
+    if origin_data:
+        all_held_tickers = all_held_tickers | set(origin_data.keys())
 
-    for ticker in all_tickers:
+    tasks = [calculate_ema_invest(ticker, ema_interval=2, is_called_by_ai=True) for ticker in all_held_tickers]
+    live_price_results = await asyncio.gather(*tasks)
+    live_prices = {ticker: res[0] for ticker, res in zip(all_held_tickers, live_price_results) if res and res[0] is not None}
+
+    if not origin_data:
+        return {"all_time_data": [], "grand_total_pnl": 0.0, "live_prices": live_prices}
+
+    all_time_data_by_sub = defaultdict(list)
+    sub_portfolio_pnl_totals = defaultdict(float)
+    grand_total_pnl = 0.0
+    
+    formatted_data = []
+
+    for ticker in sorted(list(all_held_tickers)):
         origin = origin_data.get(ticker)
-        current_shares = current_holdings.get(ticker, 0.0)
-        live_price = live_prices.get(ticker, 0.0)
+        if not origin: continue
+
+        live_price = live_prices.get(ticker)
+        if live_price is None: continue
+
+        origin_shares = origin['shares']
+        origin_price = origin['price']
+        origin_value = origin_shares * origin_price
         
-        if origin:
-            origin_price = origin['price']
-            origin_shares = origin['shares']
+        current_shares = current_holdings.get(ticker, 0.0)
             
-            cost_basis = origin_shares * origin_price
-            current_val = origin_shares * live_price
+        all_time_pnl = (live_price - origin_price) * origin_shares
+        
+        all_time_pnl_pct = (all_time_pnl / origin_value) * 100 if origin_value > 0 else 0
+        share_change = current_shares - origin_shares
+        
+        sub_name = ticker_to_sub_name_map.get(ticker, "Unassigned")
+        
+        formatted_data.append({
+            "ticker": ticker,
+            "origin_price": origin_price,
+            "live_price": live_price,
+            "origin_shares": origin_shares,
+            "current_shares": current_shares,
+            "share_change": share_change,
+            "all_time_pnl": all_time_pnl,
+            "all_time_pnl_pct": all_time_pnl_pct,
+            "sub_portfolio": sub_name
+        })
+
+        sub_portfolio_pnl_totals[sub_name] += all_time_pnl
+        grand_total_pnl += all_time_pnl
+    
+    print(f"[DEBUG TRACKING] All-Time Calc Done. Total PnL: {grand_total_pnl}")
+    return {
+        "all_time_data": formatted_data, 
+        "grand_total_pnl": grand_total_pnl,
+        "sub_portfolio_totals": dict(sub_portfolio_pnl_totals),
+        "live_prices": live_prices
+    }
+
+# --- Main Handler (Backend /tracking) ---
+async def handle_tracking_command(args: List[str], ai_params: Optional[Dict] = None, is_called_by_ai: bool = False):
+    print(f"\n[DEBUG TRACKING] handle_tracking_command Called. Args={args}")
+    # If called via frontend/AI, args might be empty or come through ai_params
+    portfolio_code = None
+    execute_actions = False
+    
+    if ai_params:
+        portfolio_code = ai_params.get('portfolio_code')
+        execute_actions = str(ai_params.get('execute_actions', 'false')).lower() == 'true'
+    elif args:
+        portfolio_code = args[0]
+
+    if not portfolio_code:
+        return {"status": "error", "message": "Portfolio code is required."}
+
+    # Load Config
+    portfolio_config = await load_portfolio_config(portfolio_code)
+    if not portfolio_config:
+         # RETURN NOT FOUND so frontend can pop the modal
+        return {"status": "not_found", "message": f"Portfolio '{portfolio_code}' not found."}
+
+    # (Historical Cost Basis loaded later)
+    
+    # Calculate Live Values
+    execute_rh = str(ai_params.get('execute_rh', 'false')).lower() == 'true' if ai_params else False
+    rh_equity = 0.0
+    
+    if execute_rh:
+        try:
+            rh_equity = await asyncio.to_thread(get_robinhood_equity)
+        except: 
+            rh_equity = 0.0
+
+    suggested_value = math.floor(rh_equity * 0.98) if rh_equity > 0 else 10000.0
             
+    # Load Previous Run Data
+    old_run_data = await _load_portfolio_run(portfolio_code)
+    if not old_run_data:
+        print("[DEBUG TRACKING] No previous run data found.")
+
+    # Calculate "Target" data from current config + parameters
+    # But wait! Tracking usually just compares CURRENT vs SAVED. 
+    # If no 'new' data is generated, we are just viewing.
+    # HOWEVER, the CLI version usually re-runs the logic to see "What SHOULD it be now?"
+    
+    # We need to run process_custom_portfolio to get the IDEAL state
+    print("[DEBUG TRACKING] Generating IDEAL portfolio state for comparison...")
+    new_holdings_raw = []
+    final_cash = 0.0
+    if portfolio_config:
+         res = await process_custom_portfolio(
+            portfolio_data_config=portfolio_config,
+            tailor_portfolio_requested=True,
+            total_value_singularity=suggested_value,
+            frac_shares_singularity=True, # Tracking usually assumes fractional precision
+            is_custom_command_simplified_output=True,
+            is_called_by_ai=True
+        )
+         # Unwrap Tuple: (tailored_data, final_combined... , final_cash, tailored_data)
+         if isinstance(res, tuple):
+             new_holdings_raw = res[0] if len(res) > 0 else []
+             if len(res) > 2: final_cash = res[2]
+         elif isinstance(res, list):
+             new_holdings_raw = res
+    
+    print(f"[DEBUG TRACKING] Generated {len(new_holdings_raw)} ideal holdings. Cash=${final_cash:.2f}")
+    new_target_data = [] # Convert to standard dict list
+    for h in new_holdings_raw:
+         new_target_data.append({
+             'ticker': h.get('ticker'),
+             'shares': h.get('shares'),
+             'value': h.get('value') or h.get('actual_money_allocation'),
+             'price': h.get('live_price_at_eval') or h.get('price')
+         })
+         
+    # --- Compare Old vs New ---
+    # Map New Targets
+    target_holdings = {item['ticker']: float(item.get('shares', 0)) for item in new_target_data}
+
+    if old_run_data:
+        tickers_to_fetch = set([row['Ticker'] for row in old_run_data if row.get('Ticker') != 'Cash'])
+        # Add new target tickers too so we get prices for everything
+        tickers_to_fetch.update(target_holdings.keys())
+        
+        tasks = [calculate_ema_invest(ticker, ema_interval=2, is_called_by_ai=True) for ticker in tickers_to_fetch]
+        live_price_results = await asyncio.gather(*tasks, return_exceptions=True)
+        live_prices_temp = {
+            ticker: res[0]
+            for ticker, res in zip(tickers_to_fetch, live_price_results)
+            if not isinstance(res, Exception) and res and res[0] is not None
+        }
+        
+        # Simple Summary Calculation (Historical PnL)
+        total_pnl = 0
+        for row in old_run_data:
+            ticker = row.get('Ticker')
+            if ticker == 'Cash': continue
+            shares = float(safe_score(row.get('Shares')))
+            cost_basis = float(safe_score(row.get('ActualMoneyAllocation')))
+            current_price = live_prices_temp.get(ticker, 0)
+            current_val = shares * current_price
             pnl = current_val - cost_basis
-            
-            table_rows.append({
-                "ticker": ticker,
-                "origin_price": origin_price,
-                "live_price": live_price,
-                "origin_shares": origin_shares,
-                "current_shares": current_shares,
-                "pnl": pnl,
-                "pnl_percent": ((live_price - origin_price) / origin_price * 100) if origin_price > 0 else 0
-            })
             total_pnl += pnl
-            total_origin_value += cost_basis
-            total_current_value += current_val
+            
+            performance_summary.append({
+                "ticker": ticker,
+                "shares": shares,
+                "cost_basis": cost_basis,
+                "current_val": current_val,
+                "pnl": pnl,
+                "percent": (pnl/cost_basis)*100 if cost_basis > 0 else 0
+            })
+    elif new_target_data:
+        # If no old run, we can't show PnL, but we can show the "Target" or "Initial" view
+         performance_summary = [] # Keep empty to indicate "New" 
+
+    # Unpack Execution Params
+    rh_user = ai_params.get('rh_username') if ai_params else None
+    rh_pass = ai_params.get('rh_password') if ai_params else None
+    email_to = ai_params.get('email_to') if ai_params else None
+    execute_rh = str(ai_params.get('execute_rh', 'false')).lower() == 'true' if ai_params else False
+    
+    # Trade Recommendations (Rebalancing)
+    trade_recs = []
+    # If execute_actions is True OR meaningful execution params are provided, we calculate trades
+    if execute_actions or execute_rh or email_to:
+        # Compare Target vs Old Run
+        current_holdings_map = {row['Ticker']: float(safe_score(row.get('Shares'))) for row in (old_run_data or []) if row.get('Ticker') != 'Cash'}
+        all_tickers = set(current_holdings_map.keys()) | set(target_holdings.keys())
+        
+        for ticker in all_tickers:
+            curr_shares = current_holdings_map.get(ticker, 0)
+            target_shares = target_holdings.get(ticker, 0)
+            diff = target_shares - curr_shares
+            
+            if abs(diff) > 0.001: 
+                trade_recs.append({
+                    "ticker": ticker,
+                    "action": "Buy" if diff > 0 else "Sell",
+                    "diff": abs(diff),
+                    "reason": "Rebalance to Target"
+                })
+        
+        if not current_holdings_map and target_holdings:
+             for ticker, shares in target_holdings.items():
+                 if shares > 0:
+                     trade_recs.append({"ticker": ticker, "action": "Buy", "diff": shares, "reason": "Initial Buy"})
+    
+    # --- Performance Since Last Save (Nested) ---
+    nested_performance = {}
+    live_prices_perf = {}
+    if old_run_data:
+        tickers_to_fetch_perf = [row['Ticker'] for row in old_run_data if row.get('Ticker') != 'Cash']
+        tasks_perf = [calculate_ema_invest(ticker, ema_interval=2, is_called_by_ai=True) for ticker in tickers_to_fetch_perf]
+        live_res_perf = await asyncio.gather(*tasks_perf, return_exceptions=True)
+        live_prices_perf = {
+            t: r[0] for t, r in zip(tickers_to_fetch_perf, live_res_perf) 
+            if not isinstance(r, Exception) and r and r[0] is not None
+        }
+    nested_performance = _build_nested_performance_dict(old_run_data or [], live_prices_perf)
+
+    # --- All-Time Performance ---
+    all_names_map = _load_all_subportfolio_names()
+    all_time_results = await get_all_time_performance_data(
+        portfolio_code, new_target_data, old_run_data, portfolio_config, all_names_map, 
+        live_rh_holdings={k:v for k,v in (await asyncio.to_thread(get_robinhood_holdings)).items()} if execute_rh else None
+    )
+
+    # Execution Handling
+    execution_result_msg = ""
+    if trade_recs:
+        # 1. Send Email
+        if email_to:
+            try:
+                # Format simple HTML table
+                rows = "".join([f"<tr><td>{t['ticker']}</td><td>{t['action']}</td><td>{t['diff']:.4f}</td></tr>" for t in trade_recs])
+                html = f"<h2>Portfolio Rebalance: {portfolio_code}</h2><table border='1'><tr><th>Ticker</th><th>Action</th><th>Shares</th></tr>{rows}</table>"
+                await _send_tracking_email(f"Rebalance Alert: {portfolio_code}", html, email_to)
+                execution_result_msg += " Email sent."
+            except Exception as e:
+                execution_result_msg += f" Email failed: {e}."
+
+        # 2. Execute on Robinhood
+        if execute_rh and rh_user and rh_pass:
+            try:
+                rh_trades = [{"ticker": t['ticker'], "side": t['action'].lower(), "quantity": f"{float(t['diff']):.6f}"} for t in trade_recs]
+                await asyncio.to_thread(execute_portfolio_rebalance, rh_trades)
+                execution_result_msg += " Sent to Robinhood."
+            except Exception as e:
+                print(f"RH Exec Failed: {e}")
+                execution_result_msg += f" RH Exec Failed: {e}."
+
+    # --- Top Cards Summary Construction ---
+    summary_stats = [
+        {"label": "Portfolio Value", "value": f"${(suggested_value or 0):,.2f}"},
+        {"label": "Cash Balance", "value": f"${rh_equity:,.2f}" if rh_equity else f"${final_cash:,.2f}"}, # Use rh_equity if available (it means cash was removed from it?) No, rh_equity usually includes cash? Wait. rh_equity is usually total value.
+        # Let's use final_cash from raw results if available, else 0. 
+        # Actually rh_equity is passed in. In tracking it might be total account value.
+        # But we calculated final_cash earlier? No, tracking doesn't calc final_cash unless it's new.
+        # Let's just calculate Cash from holdings vs Total Value
+        {"label": "Holdings Count", "value": str(len(new_target_data))},
+        {"label": "Portfolio Code", "value": portfolio_code}
+    ]
 
     return {
         "status": "success",
-        "rows": table_rows,
-        "live_prices": live_prices, 
-        "total_pnl": total_pnl,
-        "total_pnl_percent": (total_pnl / total_origin_value * 100) if total_origin_value > 0 else 0,
-        "total_current_value": total_current_value
+        "portfolio_code": portfolio_code,
+        "rh_equity": rh_equity,
+        "suggested_value": suggested_value,
+        
+        # Frontend Mappings for Results.jsx
+        "summary": summary_stats,
+        "table": new_target_data,
+        "since_last_save": performance_summary, 
+        "performance": all_time_results.get("all_time_data", []), 
+        "comparison": trade_recs,
+        
+        # Extras
+        "nested_performance": nested_performance,
+        "all_time_results_raw": all_time_results, 
+        "message": "Tracking data loaded." + execution_result_msg
     }
-
-async def _send_tracking_email_html(recipient_email: str, subject: str, portfolio_code: str, total_value: float, trade_recs: List[Dict], new_run_data: List[Dict], new_cash: float):
-    # (Email logic remains unchanged)
-    print(f"DEBUG: Initiating Email Send to {recipient_email} for {portfolio_code}")
-    if not os.path.exists(CONFIG_FILE): return False
-    try:
-        config = configparser.ConfigParser()
-        config.read(CONFIG_FILE)
-        smtp_server = config.get('EMAIL_CONFIG', 'SMTP_SERVER', fallback=None)
-        smtp_port = config.getint('EMAIL_CONFIG', 'SMTP_PORT', fallback=587)
-        sender_email = config.get('EMAIL_CONFIG', 'SENDER_EMAIL', fallback=None)
-        sender_password = config.get('EMAIL_CONFIG', 'SENDER_PASSWORD', fallback=None)
-
-        if not all([smtp_server, smtp_port, sender_email, sender_password, recipient_email]): return False
-
-        info_blocks_html = ""
-        if trade_recs:
-            info_blocks_html += "<h2>Trade Recommendations</h2><pre style='font-family: monospace; background-color: #2c2f33; color: #DAA520; padding: 10px; border-radius: 5px;'>"
-            for rec in trade_recs:
-                info_blocks_html += f"Action: {rec.get('side', '').upper()}\nTicker: {rec.get('ticker', '')}\nAmount: {float(rec.get('quantity', 0)):.4f} Shares\n---------------------------------------------\n"
-            info_blocks_html += "</pre>"
-        else:
-            info_blocks_html = "<h2>No Trade Changes Recommended</h2>"
-
-        full_table_html = "<h2>Recommended Allocation</h2><table border='1' cellpadding='5' style='border-collapse: collapse; width: 100%; color: #f0f0f0; background-color: #333;'><tr style='background-color: #9400D3; color: white;'><th>Ticker</th><th>Shares</th><th>Value</th><th>%</th></tr>"
-        sorted_run = sorted(new_run_data, key=lambda x: x.get('ticker', ''))
-        for item in sorted_run:
-            if item.get('ticker') == 'Cash': continue
-            val = float(item.get('actual_money_allocation', 0))
-            pct = (val / total_value * 100) if total_value > 0 else 0
-            full_table_html += f"<tr><td>{item.get('ticker')}</td><td>{float(item.get('shares', 0)):.2f}</td><td>${val:,.2f}</td><td>{pct:.2f}%</td></tr>"
-        cash_pct = (new_cash / total_value * 100) if total_value > 0 else 0
-        full_table_html += f"<tr style='font-weight:bold;'><td>CASH</td><td>-</td><td>${new_cash:,.2f}</td><td>{cash_pct:.2f}%</td></tr></table>"
-
-        email_body = f"<html><body style='font-family: Arial, sans-serif; background-color: #1e1f22; color: #f0f0f0; padding: 20px;'><div style='background-color: #2c2f33; padding: 30px; border-radius: 8px;'><h1 style='color: #9400D3;'>Tracking Update: {portfolio_code}</h1><p>Total Portfolio Value: <strong>${total_value:,.2f}</strong></p>{info_blocks_html}<br>{full_table_html}</div></body></html>"
-
-        msg = MIMEMultipart(); msg['From'] = sender_email; msg['To'] = recipient_email; msg['Subject'] = subject
-        msg.attach(MIMEText(email_body, 'html'))
-
-        def _send():
-            with smtplib.SMTP(smtp_server, smtp_port) as server:
-                server.starttls(); server.login(sender_email, sender_password); server.send_message(msg)
-        await asyncio.to_thread(_send)
-        return True
-    except Exception as e:
-        print(f"DEBUG: Email Send Failed: {e}")
-        return False
-
-# --- Main Handler ---
-async def handle_tracking_command(args: List[str], ai_params: Optional[Dict] = None, is_called_by_ai: bool = False):
-    try:
-        from backend.integration.custom_command import save_portfolio_to_csv, _save_custom_portfolio_run_to_csv
-
-        if not ai_params: return "Error: AI Params required."
-        action = ai_params.get("action", "run_analysis")
-        portfolio_code = ai_params.get("portfolio_code")
-        user_id = ai_params.get("user_id")
-        
-        print(f"\n--- TRACKING COMMAND START ---\nAction: {action} | Code: {portfolio_code} | UserID: {user_id}")
-        
-        if not portfolio_code: return {"status": "error", "message": "Portfolio code is required."}
-
-        if action in ["run_analysis", "create_and_run"]:
-            portfolio_config = None
-            
-            # --- FRACTIONAL SHARES LOGIC ---
-            raw_frac_param = ai_params.get("use_fractional_shares", False)
-            if isinstance(raw_frac_param, str):
-                use_frac = raw_frac_param.lower() == 'true'
-            else:
-                use_frac = bool(raw_frac_param)
-            
-            print(f"[DEBUG] Fractional Shares Request: {raw_frac_param} -> Resolving to: {use_frac}")
-
-            # 2. Load Config from DB
-            if os.path.exists(PORTFOLIO_DB_FILE):
-                try:
-                    with open(PORTFOLIO_DB_FILE, 'r', encoding='utf-8') as f:
-                        reader = csv.DictReader(f)
-                        for row in reader:
-                            row_code = row.get('portfolio_code', '').lower().strip()
-                            row_user = row.get('user_id', '').strip()
-                            target_user = user_id.strip() if user_id else ''
-                            
-                            if row_code == portfolio_code.lower():
-                                if not row_user or (row_user == target_user):
-                                    portfolio_config = row
-                                    break
-                except Exception: pass
-            
-            # 3. Create Config if Not Found
-            if not portfolio_config:
-                sub_portfolios = ai_params.get("sub_portfolios")
-                if sub_portfolios:
-                    new_config = {
-                        'portfolio_code': portfolio_code,
-                        'ema_sensitivity': str(ai_params.get('ema_sensitivity', 2)),
-                        'amplification': str(ai_params.get('amplification', 1.0)),
-                        'num_portfolios': str(len(sub_portfolios)),
-                        'frac_shares': 'true' if use_frac else 'false', 
-                        'risk_tolerance': '10', 'risk_type': 'stock', 'remove_amplification_cap': 'true',
-                        'user_id': user_id
-                    }
-                    for i, sp in enumerate(sub_portfolios, 1):
-                        tickers = sp.get('tickers', [])
-                        if isinstance(tickers, list): tickers = ",".join(tickers)
-                        new_config[f'tickers_{i}'] = tickers.upper()
-                        new_config[f'weight_{i}'] = str(sp.get('weight', 0))
-                    
-                    await save_portfolio_to_csv(PORTFOLIO_DB_FILE, new_config, is_called_by_ai=True)
-                    portfolio_config = new_config
-                else:
-                    return {"status": "not_found", "message": f"Portfolio '{portfolio_code}' not found.", "code": portfolio_code}
-
-            if portfolio_config:
-                str_bool = 'true' if use_frac else 'false'
-                portfolio_config['frac_shares'] = str_bool
-                portfolio_config['FracShares'] = str_bool
-                portfolio_config['use_fractional_shares'] = str_bool
-
-            # 4. Load Previous Run
-            old_run_data = await _load_portfolio_run(portfolio_code, user_id)
-            
-            # [CRITICAL] Self-Heal Origin Data
-            if old_run_data:
-                 await _ensure_origin_data_exists(portfolio_code, old_run_data, user_id)
-
-            # 5. Execute Analysis
-            total_value = float(ai_params.get("total_value", 10000))
-            
-            _, _, final_cash, new_run_data = await process_custom_portfolio(
-                portfolio_data_config=portfolio_config,
-                tailor_portfolio_requested=True,
-                frac_shares_singularity=use_frac,
-                total_value_singularity=total_value,
-                is_custom_command_simplified_output=True,
-                is_called_by_ai=True
-            )
-            
-            # 6. Rounding Logic
-            asset_items = [item for item in new_run_data if item.get('ticker') != 'Cash']
-            num_assets = len(asset_items)
-            
-            total_invested_after_rounding = 0.0
-            
-            for item in new_run_data:
-                if item.get('ticker') == 'Cash': continue
-                try:
-                    raw_shares = float(item.get('shares', 0))
-                    price = float(item.get('price', 0)) or float(item.get('live_price_at_eval', 0))
-                    if price == 0 and raw_shares > 0: price = float(item.get('actual_money_allocation', 0)) / raw_shares
-                    
-                    if not use_frac:
-                        new_shares = math.floor(raw_shares)
-                    else:
-                        precision = 2 if (total_value < 1000 or (total_value/num_assets) < 250) else 1
-                        new_shares = floor_with_precision(raw_shares, precision)
-                        
-                    item['shares'] = new_shares
-                    new_val = new_shares * price
-                    item['actual_money_allocation'] = new_val
-                    item['value'] = new_val 
-                    total_invested_after_rounding += new_val
-                except: continue
-
-            final_cash = total_value - total_invested_after_rounding
-
-            # --- SAVE TEMP STATE ---
-            try:
-                temp_path = _get_temp_run_filepath(portfolio_code, user_id)
-                temp_state = {
-                    "new_run_data": new_run_data,
-                    "final_cash": final_cash,
-                    "total_value": total_value,
-                    "user_id": user_id,
-                    "timestamp": str(datetime.datetime.now())
-                }
-                with open(temp_path, 'w') as f:
-                    json.dump(temp_state, f, indent=4)
-            except Exception as e:
-                print(f"[ERROR] Could not save temp run state: {e}")
-
-            # 7. Trades Calculation
-            trades = []
-            old_holdings_map = {}
-            old_prices_at_save = {}
-
-            if old_run_data:
-                for row in old_run_data:
-                    ticker = row.get('Ticker')
-                    if ticker and ticker != 'Cash':
-                        try:
-                            old_holdings_map[ticker] = float(row.get('Shares', 0))
-                            old_prices_at_save[ticker] = float(row.get('LivePriceAtEval', 0))
-                        except: continue
-
-            new_holdings_map = {row['ticker']: float(row['shares']) for row in new_run_data if row['ticker'] != 'Cash'}
-            all_tickers = sorted(list(set(old_holdings_map.keys()) | set(new_holdings_map.keys())))
-            
-            comparison_table = []
-            for ticker in all_tickers:
-                old_s = old_holdings_map.get(ticker, 0.0)
-                new_s = new_holdings_map.get(ticker, 0.0)
-                diff = new_s - old_s
-                
-                if not math.isclose(diff, 0, abs_tol=0.001):
-                    status = "Buy" if diff > 0 else "Sell"
-                    comparison_table.append({
-                        "ticker": ticker, "old_shares": old_s, "new_shares": new_s,
-                        "diff": diff, "action": status
-                    })
-                    trades.append({"ticker": ticker, "side": status.lower(), "quantity": abs(diff)})
-
-            perf_data = await generate_performance_data(portfolio_code, old_holdings_map, user_id)
-            
-            live_prices = perf_data.get("live_prices", {})
-            since_last_save_table = []
-            for ticker, old_price in old_prices_at_save.items():
-                current_price = live_prices.get(ticker, 0.0)
-                shares_held = old_holdings_map.get(ticker, 0.0)
-                if current_price > 0 and shares_held > 0:
-                    pnl = (current_price - old_price) * shares_held
-                    pct = ((current_price - old_price) / old_price * 100) if old_price > 0 else 0
-                    since_last_save_table.append({
-                        "ticker": ticker, "shares": shares_held, "last_save_price": old_price,
-                        "current_price": current_price, "pnl": pnl, "pnl_percent": pct
-                    })
-
-            return {
-                "status": "success",
-                "summary": [
-                    {"label": "Target Value", "value": f"${total_value:,.2f}", "change": "Input"},
-                    {"label": "Est. Cash", "value": f"${final_cash:,.2f}", "change": "Allocated"},
-                    {"label": "All-Time P&L", "value": f"${perf_data.get('total_pnl', 0):,.2f}", "change": f"{perf_data.get('total_pnl_percent', 0):.2f}%"}
-                ],
-                "table": new_run_data,
-                "comparison": comparison_table,
-                "performance": perf_data.get("rows", []),
-                "since_last_save": since_last_save_table,
-                "raw_result": {"final_cash": final_cash, "trades": trades, "portfolio_code": portfolio_code, "new_run_data": new_run_data},
-            }
-
-        elif action == "execute_trades":
-            trades = ai_params.get("trades", [])
-            email_to = ai_params.get("email_to")
-            overwrite = ai_params.get("overwrite", False)
-            new_run_data = ai_params.get("new_run_data", [])
-            final_cash = ai_params.get("final_cash", 0.0)
-            total_value = ai_params.get("total_value", 0.0)
-
-            if not user_id:
-                safe_code = str(portfolio_code).lower().replace(' ', '_')
-                search_pattern = os.path.join(PORTFOLIO_OUTPUT_DIR, f"temp_latest_{safe_code}_*.json")
-                files = glob.glob(search_pattern)
-                if files:
-                    files.sort(key=os.path.getmtime, reverse=True)
-                    best_file = files[0]
-                    try:
-                        with open(best_file, 'r') as f:
-                            temp_state = json.load(f)
-                            if temp_state.get("user_id"): user_id = temp_state.get("user_id")
-                            if not new_run_data: new_run_data = temp_state.get("new_run_data", [])
-                            if not final_cash: final_cash = temp_state.get("final_cash", 0.0)
-                            if not total_value: total_value = temp_state.get("total_value", 0.0)
-                    except: pass
-            
-            execution_log = []
-            if ai_params.get("rh_username"):
-                success = await asyncio.to_thread(execute_portfolio_rebalance, trades, ai_params["rh_username"], ai_params["rh_password"])
-                execution_log.append("Trades executed on Robinhood." if success else "Robinhood execution failed.")
-
-            if email_to:
-                subject = f"Tracking Update: {portfolio_code}"
-                await _send_tracking_email_html(email_to, subject, portfolio_code, total_value, trades, new_run_data, final_cash)
-                execution_log.append(f"HTML Email sent to {email_to}.")
-
-            # Ensure Origin Data exists
-            if new_run_data:
-                await _ensure_origin_data_exists(portfolio_code, new_run_data, user_id)
-
-            if overwrite and new_run_data:
-                await _save_custom_portfolio_run_to_csv(
-                    portfolio_code=portfolio_code,
-                    tailored_stock_holdings=new_run_data,
-                    final_cash=final_cash,
-                    total_portfolio_value_for_percent_calc=total_value,
-                    is_called_by_ai=True,
-                    user_id=user_id
-                )
-                execution_log.append("Save file overwritten successfully.")
-            
-            return {"status": "success", "message": "Execution complete.", "log": execution_log}
-
-        return {"status": "error", "message": f"Unknown action: {action}"}
-
-    except Exception as e:
-        traceback.print_exc()
-        return {"status": "error", "message": f"Critical Tracking Error: {str(e)}"}

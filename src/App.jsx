@@ -18,7 +18,7 @@ import { Loader2 } from 'lucide-react';
 const LandingPage = React.lazy(() => import('./pages/LandingPage'));
 const PortfolioLab = React.lazy(() => import('./pages/PortfolioLab'));
 const Products = React.lazy(() => import('./pages/Products'));
-const MarketNexus = React.lazy(() => import('./pages/MarketNexus'));
+const MarketJunction = React.lazy(() => import('./pages/MarketJunction'));
 const Wizard = React.lazy(() => import('./pages/Wizard'));
 const Login = React.lazy(() => import('./pages/Login'));
 const SignUp = React.lazy(() => import('./pages/SignUp'));
@@ -37,6 +37,8 @@ const ComparisonMatrix = React.lazy(() => import('./pages/ComparisonMatrix'));
 const ControlsPage = React.lazy(() => import('./pages/ControlsPage'));
 const SidebarPage = React.lazy(() => import('./pages/SidebarPage'));
 const Help = React.lazy(() => import('./pages/Help'));
+const PortfolioNexus = React.lazy(() => import('./pages/PortfolioNexus'));
+const Briefing = React.lazy(() => import('./pages/Briefing'));
 
 // --- PayPal Configuration (Safety Mode) ---
 const clientId = import.meta.env.VITE_PAYPAL_CLIENT_ID;
@@ -125,9 +127,9 @@ const AppContent = () => {
                     <Routes location={location} key={location.pathname}>
                         <Route path="/" element={<PageTransition><Layout><LandingPage /></Layout></PageTransition>} />
                         <Route path="/products" element={<PageTransition><Layout><Products /></Layout></PageTransition>} />
-                        <Route path="/asset-evaluator" element={<PageTransition><Layout><AssetEvaluator /></Layout></PageTransition>} />
+                        {/* <Route path="/asset-evaluator" element={<PageTransition><Layout><AssetEvaluator /></Layout></PageTransition>} /> */}
                         <Route path="/products/comparison-matrix" element={<PageTransition><Layout><ComparisonMatrix /></Layout></PageTransition>} />
-                        <Route path="/market-nexus" element={<PageTransition><Layout><MarketNexus /></Layout></PageTransition>} />
+                        <Route path="/market-junction" element={<PageTransition><Layout><MarketJunction /></Layout></PageTransition>} />
                         <Route path="/portfolio-lab" element={<PageTransition><Layout><PortfolioLab /></Layout></PageTransition>} />
                         <Route path="/custom" element={<PageTransition><Layout><Wizard /></Layout></PageTransition>} />
                         <Route path="/invest" element={<PageTransition><Layout><Wizard /></Layout></PageTransition>} />
@@ -152,6 +154,9 @@ const AppContent = () => {
                         {/* Note: lazy loaded components work fine here too */}
                         <Route path="/controls" element={<ControlsPage />} />
                         <Route path="/sidebar" element={<SidebarPage />} />
+                        <Route path="/briefing" element={<Briefing />} />
+                        <Route path="/portfolio-nexus" element={<PortfolioNexus />} />
+                        <Route path="/asset-evaluator" element={<AssetEvaluator />} />
                         <Route path="/active-chart" element={<ActiveChartPage />} />
                     </Routes>
                 </AnimatePresence>

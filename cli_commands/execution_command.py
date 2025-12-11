@@ -6,14 +6,10 @@ import time
 import pyotp
 from typing import List, Dict, Any, Optional
 import math
-import os
 
 # Load Configuration
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-CONFIG_FILE = os.path.join(BASE_DIR, 'config.ini')
-
 config = configparser.ConfigParser()
-config.read(CONFIG_FILE)
+config.read('config.ini')
 
 def login_to_robinhood():
     """Logs into Robinhood using credentials and auto-generates 2FA token."""
@@ -74,7 +70,7 @@ def get_robinhood_holdings() -> Dict[str, float]:
                     continue
         
         return holdings_map
-    
+
     except Exception as e:
         print(f"❌ Error fetching Robinhood holdings: {e}")
         return {}
@@ -82,6 +78,10 @@ def get_robinhood_holdings() -> Dict[str, float]:
 def _get_single_holding(ticker: str) -> float:
     """Helper to fetch the exact shares held for a single ticker."""
     try:
+        # 'build_holdings' is heavy, let's use account positions or build_holdings if needed
+        # simpler: just use build_holdings again or filter. 
+        # robin_stocks doesn't have a cheap 'get_shares(ticker)' so we reuse build_holdings
+        # or we can try get_open_stock_positions
         data = r.build_holdings()
         if ticker in data:
             return float(data[ticker].get('quantity', 0.0))
@@ -91,8 +91,10 @@ def _get_single_holding(ticker: str) -> float:
 
 def execute_portfolio_rebalance(trades: List[Dict[str, Any]], known_holdings: Optional[Dict[str, float]] = None) -> List[Dict[str, Any]]:
     """
-    Executes trades with full retry logic, precision handling, and error management.
-    ADAPTED FOR BACKEND: No interactive input() calls. Assumes execution is requested if called.
+    Executes trades. 
+    - Sells: If fail due to count, retries with max available.
+    - Buys: If fail due to funds, retries after all other trades.
+    Returns the list of trades with UPDATED quantities if changes were made.
     """
     if not trades:
         print("No trades to execute.")
@@ -100,9 +102,11 @@ def execute_portfolio_rebalance(trades: List[Dict[str, Any]], known_holdings: Op
 
     print(f"\n--- 🏹 Robinhood Trade Execution ({len(trades)} orders) ---")
     
-    # Backend Safety: We rely on the caller to have obtained user consent.
-    # No 'input()' check here.
-    
+    confirm = input(f"⚠️  Are you sure you want to execute these {len(trades)} trades on Robinhood REAL MONEY account? (yes/no): ").lower().strip()
+    if confirm != 'yes':
+        print("🚫 Execution cancelled.")
+        return []
+
     if not login_to_robinhood():
         return []
 
@@ -110,7 +114,7 @@ def execute_portfolio_rebalance(trades: List[Dict[str, Any]], known_holdings: Op
     print("\n⏳ Fetching latest prices for all tickers to ensure accuracy...")
     price_map = {}
     try:
-        all_tickers = list(set([t.get('ticker') for t in trades]))
+        all_tickers = list(set([t['ticker'] for t in trades]))
         quotes = r.stocks.get_latest_price(all_tickers, includeExtendedHours=False)
         
         if len(quotes) == len(all_tickers):
@@ -130,17 +134,20 @@ def execute_portfolio_rebalance(trades: List[Dict[str, Any]], known_holdings: Op
     failed_trades = 0
 
     # Sort Sells first to free up cash
-    trades.sort(key=lambda x: x.get('side', '').lower() == 'buy') 
+    trades.sort(key=lambda x: x['side'] == 'buy') 
 
+    # Queue for buys that fail due to funding
     deferred_buys: List[int] = [] 
+
+    # We iterate by index to modify in place
+    # Using a while loop structure or just standard for loop. 
+    # Standard for loop is fine, we will handle deferreds after.
     
     for i, trade in enumerate(trades):
-        ticker = trade.get('ticker')
-        raw_qty = float(trade.get('quantity', 0))
-        side = trade.get('side', '').lower()
+        ticker = trade['ticker']
+        raw_qty = float(trade['quantity'])
+        side = trade['side']
         
-        if raw_qty <= 0: continue
-
         # --- 1. Enforce Integer constraints (BYDDY) ---
         is_integer_only = False
         if ticker.upper() == 'BYDDY':
@@ -177,6 +184,7 @@ def execute_portfolio_rebalance(trades: List[Dict[str, Any]], known_holdings: Op
              print(f"\n      ⚠️  Value < $1. Auto-adjusted to {qty} shares.", end=" ")
 
         while not trade_complete and adjustment_attempts < max_adjustments:
+            
             max_network_retries = 3
             
             for attempt in range(max_network_retries):
@@ -190,6 +198,7 @@ def execute_portfolio_rebalance(trades: List[Dict[str, Any]], known_holdings: Op
                     if order is None:
                         raise ValueError("API returned None (Rate Limit?)")
                     
+                    # Check throttled
                     if 'detail' in order and 'throttled' in str(order['detail']).lower():
                         raise ValueError(f"Rate Limited: {order['detail']}")
 
@@ -199,9 +208,9 @@ def execute_portfolio_rebalance(trades: List[Dict[str, Any]], known_holdings: Op
                         total_val = exec_price * qty
                         
                         print(f"\n   ✅ EXECUTED: {side.upper()} {qty} {ticker} @ ${exec_price:.2f}")
-                        
+                        print(f"      Total Value: ${total_val:.2f} | Order ID: {order['id']}")
                         successful_trades += 1
-                        trades[i]['quantity'] = qty
+                        trades[i]['quantity'] = qty # Update actual executed qty
                         trade_complete = True
                         break 
                     
@@ -215,23 +224,27 @@ def execute_portfolio_rebalance(trades: List[Dict[str, Any]], known_holdings: Op
                         if not is_integer_only: qty = round(qty, 6)
                         print(f"\n      ❌ Too small (<$1). Retrying with {qty}...", end=" ")
                         adjustment_attempts += 1
-                        break 
+                        break # Break network loop, retry in adjustment loop
 
                     # B. SELL ERROR: NOT ENOUGH SHARES
+                    # Common errors: "not enough shares", "holding", "sellable"
                     elif side == 'sell' and ("enough shares" in error_str or "shares" in error_str):
                         print(f"\n      ⚠️  Sell failed (Not enough shares). Checking live max...", end=" ")
+                        
+                        # Fetch authoritative quantity
                         actual_held = _get_single_holding(ticker)
                         if actual_held < qty and actual_held > 0:
                             qty = actual_held
                             print(f"Adjusted to {qty} (Max Available). Retrying...", end=" ")
-                            adjustment_attempts += 1
-                            break 
+                            adjustment_attempts += 1 # Count as adjustment
+                            break # Retry execution
                         elif actual_held <= 0:
                             print(f"\n      ❌ You do not own {ticker}. Skipping.")
                             failed_trades += 1
                             trade_complete = True
                             break
                         else:
+                            # We hold enough, but API rejected? 
                             print(f"\n      ❌ API rejected sell despite holdings. {order}")
                             failed_trades += 1
                             trade_complete = True
@@ -240,8 +253,8 @@ def execute_portfolio_rebalance(trades: List[Dict[str, Any]], known_holdings: Op
                     # C. BUY ERROR: INSUFFICIENT FUNDS
                     elif side == 'buy' and ("buying power" in error_str or "funds" in error_str):
                          print(f"\n      ⚠️  Insufficient Funds. Deferring trade to end of queue.", end=" ")
-                         deferred_buys.append(i)
-                         trade_complete = True
+                         deferred_buys.append(i) # Store index to retry later
+                         trade_complete = True # Mark "complete" for the main loop, so we move on
                          break
 
                     # D. OTHER ERRORS
@@ -282,8 +295,8 @@ def execute_portfolio_rebalance(trades: List[Dict[str, Any]], known_holdings: Op
         
         for idx in deferred_buys:
             trade = trades[idx]
-            ticker = trade.get('ticker')
-            qty = float(trade.get('quantity'))
+            ticker = trade['ticker']
+            qty = float(trade['quantity']) # Use the value from the list (which might have been bumped)
             
             # Re-check price
             current_price = price_map.get(ticker, 0.0)
@@ -296,7 +309,7 @@ def execute_portfolio_rebalance(trades: List[Dict[str, Any]], known_holdings: Op
                     exec_price = float(order.get('price') or current_price)
                     print(f"\n   ✅ EXECUTED: BUY {qty} {ticker} @ ${exec_price:.2f}")
                     successful_trades += 1
-                    trades[idx]['quantity'] = qty 
+                    trades[idx]['quantity'] = qty # Update
                 else:
                     detail = order.get('detail') or order.get('non_field_errors') or "Unknown Error"
                     print(f"\n   ❌ Failed Final Attempt: {detail}")

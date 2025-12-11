@@ -58,15 +58,20 @@ async def run_breakout_analysis_singularity(is_called_by_ai: bool = False) -> di
     screener_error_msg = None
     try:
         if not is_called_by_ai: print("  -> Running TradingView Screener...")
+        print("[DEBUG BREAKOUT] Running TradingView Screener Query...")
         query = Query().select('name').where(Column('market_cap_basic') >= 1_000_000_000, Column('volume') >= 1_000_000, Column('change|1W') >= 20, Column('close') >= 1, Column('average_volume_90d_calc') >= 1_000_000).order_by('change', ascending=False).limit(100)
         _, new_tickers_df = await asyncio.to_thread(query.get_scanner_data, timeout=60)
         if new_tickers_df is not None and 'name' in new_tickers_df.columns:
             new_tickers_from_screener = sorted(list(set([str(t).split(':')[-1].replace('.', '-') for t in new_tickers_df['name'].tolist() if pd.notna(t)])))
+            print(f"[DEBUG BREAKOUT] Screener found {len(new_tickers_from_screener)} new tickers.")
             if not is_called_by_ai: print(f"     ... Screener found {len(new_tickers_from_screener)} potential new tickers.")
         else:
+            print("[DEBUG BREAKOUT] Screener returned DataFrame but no 'name' column or None.")
             if not is_called_by_ai: print("     ... Screener returned no data.")
     except Exception as e:
         screener_error_msg = f"TradingView screener failed: {type(e).__name__}"
+        print(f"[DEBUG BREAKOUT] Screener Exception: {e}")
+        traceback.print_exc()
         if not is_called_by_ai: print(f"  -> ⚠️ Warning: {screener_error_msg}")
         # Don't return error yet, proceed with existing tickers if any
 
@@ -116,6 +121,8 @@ async def run_breakout_analysis_singularity(is_called_by_ai: bool = False) -> di
             err_str = f"{ticker_b}: {type(e).__name__}"
             processing_errors.append(err_str)
             continue # Skip this ticker on error
+
+    print(f"[DEBUG BREAKOUT] Processing Complete. Candidates passing filter: {len(temp_updated_data)}/{len(all_tickers_to_process)}")
 
     if not is_called_by_ai: print(f"\r     ... processing complete.                     ") # Clear progress line
     if processing_errors and not is_called_by_ai:

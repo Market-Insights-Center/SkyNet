@@ -75,6 +75,7 @@ def safe_score(value: Any) -> float:
         if isinstance(value, str): value = value.replace('%', '').replace('$', '').strip()
         return float(value)
     except (ValueError, TypeError): return 0.0
+    except Exception: return 0.0
 
 async def calculate_ema_invest(ticker: str, ema_interval: int, is_called_by_ai: bool = False) -> tuple[Optional[float], Optional[float]]:
     """Calculates the INVEST score for a ticker based on EMA sensitivity."""

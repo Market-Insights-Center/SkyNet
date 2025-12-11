@@ -5,10 +5,6 @@ from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
 import sys
 import os
-
-# Fix for direct script execution
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
 import csv
 import json
 import logging
@@ -16,6 +12,14 @@ import requests
 from datetime import datetime
 import uuid
 import yfinance as yf
+# Fix for WinError 183 in TzCache
+try:
+    cache_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".cache", "py-yfinance")
+    if not os.path.exists(cache_dir):
+        os.makedirs(cache_dir, exist_ok=True)
+    yf.set_tz_cache_location(cache_dir)
+except Exception as e:
+    print(f"Warning: Could not set yfinance cache location: {e}")
 import pandas as pd
 from dotenv import load_dotenv
 import subprocess
@@ -23,39 +27,79 @@ import signal
 import asyncio
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
-# Import your command modules
-from backend.integration import invest_command, cultivate_command, custom_command, tracking_command, risk_command, history_command, quickscore_command, market_command, breakout_command, briefing_command, fundamentals_command, assess_command, mlforecast_command, sentiment_command, powerscore_command
+import traceback
 
-# Database imports
-from backend.database import (
-    read_articles_from_csv, 
-    save_articles_to_csv, 
-    read_ideas_from_csv, 
-    save_ideas_to_csv,
-    read_comments_from_csv,
-    save_comments_to_csv,
-    read_chats, 
-    save_chats,
-    get_all_users_from_db,
-    update_user_tier,     
-    get_user_profile,
-    create_coupon,     
-    get_all_coupons,   
-    validate_coupon,   
-    delete_coupon,
-    verify_access_and_limits,
-    delete_user_full,
-    delete_article,
-    delete_idea,
-    delete_comment,
-    create_user_profile,
-    check_username_taken,
-    update_user_username,
-    get_banners,
-    create_banner,
-    update_banner,
-    delete_banner
-)
+# --- PATH CONFIGURATION (Fixes Import Errors) ---
+# Determine where we are running from and ensure python finds modules correctly
+CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
+PARENT_DIR = os.path.dirname(CURRENT_DIR)
+
+# Ensure the parent directory (SkyNet root) is in sys.path
+if PARENT_DIR not in sys.path:
+    sys.path.insert(0, PARENT_DIR)
+
+# Ensure the current directory (backend) is in sys.path
+if CURRENT_DIR not in sys.path:
+    sys.path.insert(0, CURRENT_DIR)
+
+print("--- SYSTEM PATH DEBUG ---")
+print(f"Base: {PARENT_DIR}")
+print(f"Curr: {CURRENT_DIR}")
+
+# --- ROBUST COMMAND IMPORTS ---
+# We try to import modules safely, handling different directory structures
+nexus_command = None
+
+try:
+    # 1. Try Standard Absolute Import
+    from backend.integration import nexus_command
+    print(f"✅ LOADED: backend.integration.nexus_command")
+except ImportError:
+    try:
+        # 2. Try Relative Import (If running from inside backend/)
+        from integration import nexus_command
+        print(f"✅ LOADED: integration.nexus_command (Relative)")
+    except ImportError as e:
+        print(f"❌ CRITICAL IMPORT FAILURE (nexus_command): {e}")
+
+# Import other commands
+try:
+    from backend.integration import (
+        invest_command, cultivate_command, custom_command, tracking_command, 
+        risk_command, history_command, quickscore_command, market_command, 
+        breakout_command, briefing_command, fundamentals_command, 
+        assess_command, mlforecast_command, sentiment_command, powerscore_command
+    )
+except ImportError:
+    # Fallback for "run from backend folder"
+    from integration import (
+        invest_command, cultivate_command, custom_command, tracking_command, 
+        risk_command, history_command, quickscore_command, market_command, 
+        breakout_command, briefing_command, fundamentals_command, 
+        assess_command, mlforecast_command, sentiment_command, powerscore_command
+    )
+
+# --- DATABASE IMPORTS ---
+try:
+    from backend.database import (
+        read_articles_from_csv, save_articles_to_csv, read_ideas_from_csv, 
+        save_ideas_to_csv, read_comments_from_csv, save_comments_to_csv, 
+        read_chats, save_chats, get_all_users_from_db, update_user_tier,     
+        get_user_profile, create_coupon, get_all_coupons, validate_coupon,   
+        delete_coupon, verify_access_and_limits, delete_user_full, delete_article,
+        delete_idea, delete_comment, create_user_profile, check_username_taken,
+        update_user_username, get_banners, create_banner, update_banner, delete_banner
+    )
+except ImportError:
+    from database import (
+        read_articles_from_csv, save_articles_to_csv, read_ideas_from_csv, 
+        save_ideas_to_csv, read_comments_from_csv, save_comments_to_csv, 
+        read_chats, save_chats, get_all_users_from_db, update_user_tier,     
+        get_user_profile, create_coupon, get_all_coupons, validate_coupon,   
+        delete_coupon, verify_access_and_limits, delete_user_full, delete_article,
+        delete_idea, delete_comment, create_user_profile, check_username_taken,
+        update_user_username, get_banners, create_banner, update_banner, delete_banner
+    )
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("uvicorn")
@@ -71,13 +115,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-STATIC_DIR = os.path.join(BASE_DIR, "static")
+STATIC_DIR = os.path.join(CURRENT_DIR, "static")
 if not os.path.exists(STATIC_DIR):
     os.makedirs(STATIC_DIR)
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
-MODS_FILE = os.path.join(BASE_DIR, 'mods.csv')
+MODS_FILE = os.path.join(CURRENT_DIR, 'mods.csv')
 SUPER_ADMIN_EMAIL = "marketinsightscenter@gmail.com"
 
 # --- GLOBAL VARIABLES FOR SKYNET ---
@@ -231,13 +274,6 @@ class FundamentalsRequest(BaseModel):
     ticker: str
     email: str
 
-class UsernameCheckRequest(BaseModel):
-    username: str
-
-class UsernameUpdateRequest(BaseModel):
-    email: str
-    username: str
-
 class AssessRequest(BaseModel):
     email: str
     user_id: Optional[str] = None # Added for ownership check
@@ -267,6 +303,21 @@ class PowerScoreRequest(BaseModel):
     email: str
     ticker: str
     sensitivity: int = 2
+
+class NexusRequest(BaseModel):
+    email: str
+    nexus_code: str
+    create_new: Optional[bool] = False
+    components: Optional[List[Dict[str, Any]]] = None
+    total_value: Optional[float] = None
+    # Execution options
+    use_fractional_shares: Optional[bool] = False
+    execute_rh: Optional[bool] = False
+    rh_user: Optional[str] = None
+    rh_pass: Optional[str] = None
+    send_email: Optional[bool] = False
+    email_to: Optional[str] = None
+    overwrite: Optional[bool] = False
 
 class BannerCreateRequest(BaseModel):
     text: str
@@ -323,7 +374,10 @@ def get_chats(email: str, all_chats: bool = False):
 def toggle_skynet(req: SkynetToggleRequest):
     global SKYNET_PROCESS
     
-    script_path = os.path.join(BASE_DIR, "skynet_v2.py")
+    # Adjust script path based on robust directory finding
+    script_path = os.path.join(CURRENT_DIR, "skynet_v2.py")
+    if not os.path.exists(script_path):
+         script_path = os.path.join(PARENT_DIR, "backend", "skynet_v2.py")
     
     if req.action == "start":
         if SKYNET_PROCESS and SKYNET_PROCESS.poll() is None:
@@ -854,11 +908,26 @@ def vote_idea(idea_id: int, req: VoteRequest):
     liked_by = idea.get('liked_by', [])
     disliked_by = idea.get('disliked_by', [])
 
-# -----------------------------
-# BANNER ENDPOINTS
-# -----------------------------
+    if req.vote_type == 'up':
+        if req.user_id in liked_by: liked_by.remove(req.user_id)
+        else:
+            liked_by.append(req.user_id)
+            if req.user_id in disliked_by: disliked_by.remove(req.user_id)
+    elif req.vote_type == 'down':
+        if req.user_id in disliked_by: disliked_by.remove(req.user_id)
+        else:
+            disliked_by.append(req.user_id)
+            if req.user_id in liked_by: liked_by.remove(req.user_id)
+    idea['liked_by'] = liked_by
+    idea['disliked_by'] = disliked_by
+    idea['likes'] = len(liked_by)
+    idea['dislikes'] = len(disliked_by)
+    save_ideas_to_csv(ideas)
+    return {"status": "success", "likes": idea['likes'], "dislikes": idea['dislikes']}
 
-@app.get("/banners")
+
+# --- BANNER ENDPOINTS ---
+@app.get("/api/banners")
 def get_public_banners():
     """Public endpoint for landing page banners"""
     # Only return active banners for public view
@@ -868,7 +937,6 @@ def get_public_banners():
 @app.get("/api/admin/banners")
 def get_admin_banners(email: str):
     """Admin endpoint to see all banners including inactive"""
-    # Simple check if requester is a mod/admin
     mods = get_mod_list()
     if email.lower() not in mods:
         raise HTTPException(status_code=403, detail="Not authorized")
@@ -919,13 +987,10 @@ async def api_assess_command(req: AssessRequest):
     code = req.assess_code.upper()
     permission_key = f"assess_{code.lower()}"
     
-    # Check permissions
-    # Check permissions
     limit_check = verify_access_and_limits(req.email, permission_key)
     if not limit_check["allowed"]:
         raise HTTPException(status_code=403, detail=limit_check["message"])
 
-    # Prepare AI params
     ai_params = {
         "assess_code": code,
         "tickers_str": req.tickers_str,
@@ -942,26 +1007,7 @@ async def api_assess_command(req: AssessRequest):
         "end_date": req.end_date
     }
 
-    # Handle based on code
     try:
-        # NOTE: Assess command usually returns a string for AI or prints to CLI.
-        # We need to adapt it or capture the output. 
-        # Looking at assess_command.py, it returns a "summary_for_ai" string or None.
-        # Ideally, we should refactor it to return structured data, but for now we interpret the string or capture print output?
-        # The user instruction implies integration. The best way is if `assess_command` returns the data we need.
-        # Let's check assess_command again. It calculates things and then prints/returns a summary.
-        # For the frontend, we likely want structured data.
-        # Code E is CLI only ("This command is CLI-only for now"). We might skip E or try to implement it.
-        # The user said: "Please have the assess command sub divide on its page into Code A through E".
-        # So E is required.
-        
-        # We will call the command. Since assess_command is designed for CLI/AI text output, 
-        # we might need to rely on the return value which is a text summary. 
-        # IMPORTANT: Refactoring assess_command to return JSON would be better, but aggressive.
-        # Let's assume for now we call it and send back the text summary + any side effects (like generated graphs).
-        # Wait, usually these commands save graphs to disk. We might need to send those back.
-        
-        
         result = await assess_command.handle_assess_command(
             [], 
             ai_params=ai_params, 
@@ -981,50 +1027,19 @@ async def api_mlforecast_command(req: MLForecastRequest):
         raise HTTPException(status_code=403, detail=limit_check["message"])
 
     try:
-        # Handle MLForecast
-        # mlforecast_command.handle_mlforecast_command returns a list of results (for AI) or None.
-        # It also generates a graph.
-        
         results = await mlforecast_command.handle_mlforecast_command(ai_params={"ticker": req.ticker}, is_called_by_ai=True)
         
         if isinstance(results, dict) and "error" in results:
              raise Exception(results["error"])
-             
-        # We also want the graph. The command prints the filename. 
-        # For this integration, we might need to search for the latest file or return it if the command was modified.
-        # The command returns `results` list (table data).
-        # It does NOT return the filename in the AI return path.
-        # We might need to modify mlforecast_command to return the filename too.
         
         return {"results": results}
     except Exception as e:
         logger.error(f"MLForecast Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-    if req.vote_type == 'up':
-        if req.user_id in liked_by: liked_by.remove(req.user_id)
-        else:
-            liked_by.append(req.user_id)
-            if req.user_id in disliked_by: disliked_by.remove(req.user_id)
-    elif req.vote_type == 'down':
-        if req.user_id in disliked_by: disliked_by.remove(req.user_id)
-        else:
-            disliked_by.append(req.user_id)
-            if req.user_id in liked_by: liked_by.remove(req.user_id)
-    idea['liked_by'] = liked_by
-    idea['disliked_by'] = disliked_by
-    idea['likes'] = len(liked_by)
-    idea['dislikes'] = len(disliked_by)
-    save_ideas_to_csv(ideas)
-    return {"status": "success", "likes": idea['likes'], "dislikes": idea['dislikes']}
-    save_ideas_to_csv(ideas)
-    return {"status": "success", "likes": idea['likes'], "dislikes": idea['dislikes']}
-
-# --- NEW COMMAND ENDPOINTS ---
-
 @app.post("/api/briefing")
 async def api_briefing(req: BriefingRequest):
-    # Tier Check for Briefing (Using 'briefing' product key)
+    # Tier Check for Briefing
     access = verify_access_and_limits(req.email, "briefing")
     if not access["allowed"]:
         raise HTTPException(status_code=403, detail=access["message"])
@@ -1038,10 +1053,9 @@ async def api_briefing(req: BriefingRequest):
 
 @app.post("/api/fundamentals")
 async def api_fundamentals(req: FundamentalsRequest):
-    # Tier Check for Fundamentals (Using 'fundamentals' product key)
+    # Tier Check for Fundamentals
     access = verify_access_and_limits(req.email, "fundamentals")
     if not access["allowed"]:
-         # Note: verify_access_and_limits handles the incrementing if allowed
         raise HTTPException(status_code=403, detail=access["message"])
         
     try:
@@ -1053,20 +1067,6 @@ async def api_fundamentals(req: FundamentalsRequest):
     except Exception as e:
         logger.error(f"Fundamentals Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
-
-# --- USERNAME ENDPOINTS ---
-
-@app.post("/api/check-username")
-def check_username(req: UsernameCheckRequest):
-    is_taken = check_username_taken(req.username)
-    return {"taken": is_taken}
-
-@app.post("/api/user/username")
-def update_username(req: UsernameUpdateRequest):
-    result = update_user_username(req.email, req.username)
-    if not result['success']:
-        raise HTTPException(status_code=400, detail=result['message'])
-    return {"status": "success", "username": req.username}
 
 @app.post("/api/comments")
 def create_comment(req: CommentCreateRequest):
@@ -1224,48 +1224,6 @@ async def run_breakout(req: BreakoutRequest):
     )
     return result
 
-
-# --- BANNER ENDPOINTS ---
-@app.get("/api/banners")
-def get_public_banners():
-    return get_banners(include_inactive=False)
-
-@app.get("/api/admin/banners")
-def get_admin_banners(email: str):
-    mods = get_mod_list()
-    if email.lower() not in mods: raise HTTPException(status_code=403, detail="Not authorized")
-    return get_banners(include_inactive=True)
-
-@app.post("/api/admin/banners")
-def create_new_banner(req: BannerCreateRequest):
-    mods = get_mod_list()
-    if req.requester_email.lower() not in mods: raise HTTPException(status_code=403, detail="Not authorized")
-    
-    if create_banner(req.dict()):
-        return {"status": "success"}
-    raise HTTPException(status_code=500, detail="Failed to create banner")
-
-@app.put("/api/admin/banners")
-def update_existing_banner(req: BannerUpdateRequest):
-    mods = get_mod_list()
-    if req.requester_email.lower() not in mods: raise HTTPException(status_code=403, detail="Not authorized")
-    
-    if update_banner(req.id, req.dict()):
-        return {"status": "success"}
-    raise HTTPException(status_code=500, detail="Failed to update banner")
-
-@app.post("/api/admin/banners/delete")
-def delete_existing_banner(req: BannerDeleteRequest):
-    mods = get_mod_list()
-    if req.requester_email.lower() not in mods: raise HTTPException(status_code=403, detail="Not authorized")
-    
-    if delete_banner(req.id):
-        return {"status": "success"}
-    raise HTTPException(status_code=500, detail="Failed to delete banner")
-
-
-# --- NEW COMMAND ENDPOINTS ---
-
 @app.post("/api/sentiment")
 async def run_sentiment(req: SentimentRequest):
     # Tier Check
@@ -1308,7 +1266,54 @@ async def run_powerscore(req: PowerScoreRequest):
          
     return result
 
-# --- END NEW COMMAND ENDPOINTS ---
+# --- FIXED NEXUS ENDPOINT ---
+@app.post("/api/nexus")
+async def run_nexus(req: NexusRequest):
+    if nexus_command is None:
+        raise HTTPException(status_code=500, detail="Configuration Error: Nexus Command module not loaded.")
+
+    # Tier Check
+    try:
+        limit_check = verify_access_and_limits(req.email, "nexus")
+        if not limit_check["allowed"]:
+            raise HTTPException(status_code=403, detail=limit_check["message"])
+    except Exception as e:
+        print(f"Warning: Limit check failed: {e}")
+
+    ai_params = {
+        "nexus_code": req.nexus_code,
+        "create_new": req.create_new,
+        "components": req.components,
+        "total_value": req.total_value,
+        "use_fractional_shares": req.use_fractional_shares,
+        "execute_rh": req.execute_rh,
+        "rh_user": req.rh_user,
+        "rh_pass": req.rh_pass,
+        "send_email": req.send_email,
+        "email_to": req.email_to,
+        "overwrite": req.overwrite
+    }
+
+    try:
+        # Pass empty list [] as args, ai_params as kwargs
+        result = await nexus_command.handle_nexus_command([], ai_params=ai_params, is_called_by_ai=True)
+        
+        # Explicit check for None return
+        if result is None:
+            return {
+                "status": "error", 
+                "message": "Backend returned no data (None). Check server console.",
+                "nexus_code": req.nexus_code
+            }
+
+        if result.get("status") == "error":
+             raise HTTPException(status_code=400, detail=result.get("message"))
+             
+        return result
+    except HTTPException: raise
+    except Exception as e:
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Internal Server Error: {str(e)}")
 
 if __name__ == "__main__":
     import uvicorn

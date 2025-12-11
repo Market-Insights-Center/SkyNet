@@ -1,0 +1,5 @@
+nexus_code,num_components,frac_shares,component_1_type,component_1_value,component_1_weight,component_2_type,component_2_value,component_2_weight
+NEXUSTEST,2,true,Portfolio,testt,60,Command,Breakout,40
+NEXUSTEST,2,true,Portfolio,testt,60,Command,Breakout,40
+NEXUSTEST,2,true,Portfolio,testt,60,Command,Breakout,40
+NEXUSTEST,2,true,Portfolio,testt,60,Command,Breakout,40

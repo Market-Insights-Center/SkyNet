@@ -64,7 +64,7 @@ const SliderInput = ({ min, max, defaultValue, unit = '', step = 1, onChange }) 
 
 const CheckboxInput = ({ label, onChange }) => {
     const [checked, setChecked] = useState(false);
-    
+
     const handleCheck = () => {
         const newState = !checked;
         setChecked(newState);
@@ -72,7 +72,7 @@ const CheckboxInput = ({ label, onChange }) => {
     };
 
     return (
-        <div 
+        <div
             className="flex items-center gap-3 p-3 bg-white/5 border border-gray-800 rounded-lg cursor-pointer hover:bg-white/10 transition-colors"
             onClick={handleCheck}
         >
@@ -185,9 +185,9 @@ export const PortfolioConfigForm = ({ onChange }) => {
                 />
             </InputGroup>
             <InputGroup label="Sub-portfolios (Tickers)" tooltip="Define tickers and weights for your new strategy.">
-                <SubPortfolioInput 
-                    subPortfolios={subPortfolios} 
-                    onChange={handleSubPortfolioChange} 
+                <SubPortfolioInput
+                    subPortfolios={subPortfolios}
+                    onChange={handleSubPortfolioChange}
                 />
             </InputGroup>
         </div>
@@ -224,7 +224,7 @@ const WizardInputs = ({ toolType, onChange }) => {
                 />
             </InputGroup>
             <div className="mt-4">
-                <CheckboxInput 
+                <CheckboxInput
                     label="Use Fractional Shares"
                     onChange={(val) => handleChange('use_fractional_shares', val)}
                 />
@@ -237,18 +237,73 @@ const WizardInputs = ({ toolType, onChange }) => {
             return renderBasicInputs("e.g., MY_STRATEGY_V1");
 
         case 'tracking':
-            return renderBasicInputs("e.g., EXISTING_PORTFOLIO");
+            return (
+                <>
+                    {renderBasicInputs("e.g., EXISTING_PORTFOLIO")}
+                    <div className="mt-6 pt-6 border-t border-gray-800">
+                        <h3 className="text-gold font-bold mb-4 text-sm uppercase tracking-wide">Execution Options</h3>
+
+                        <div className="space-y-4">
+                            {/* Email Options */}
+                            <div className="p-4 rounded-lg border border-gray-800 bg-white/5">
+                                <div className="mb-2">
+                                    <CheckboxInput
+                                        label="Send Trades to Email"
+                                        onChange={(val) => handleChange('send_email', val)}
+                                    />
+                                </div>
+                                <TextInput
+                                    placeholder="Enter your email address"
+                                    onChange={(val) => handleChange('email_to', val)}
+                                />
+                            </div>
+
+                            {/* Robinhood Options */}
+                            <div className="p-4 rounded-lg border border-gray-800 bg-white/5">
+                                <div className="mb-2">
+                                    <CheckboxInput
+                                        label="Execute on Robinhood"
+                                        onChange={(val) => handleChange('execute_rh', val)}
+                                    />
+                                </div>
+                                <div className="space-y-3 mt-3">
+                                    <TextInput
+                                        placeholder="Robinhood Username"
+                                        onChange={(val) => handleChange('rh_user', val)}
+                                    />
+                                    {/* Password Input manually since TextInput has no type prop */}
+                                    <input
+                                        type="password"
+                                        placeholder="Robinhood Password"
+                                        onChange={(e) => handleChange('rh_pass', e.target.value)}
+                                        className="w-full bg-black border border-gray-800 rounded-lg px-4 py-3 text-white focus:border-royal-purple focus:ring-1 focus:ring-royal-purple outline-none transition-all duration-300 placeholder-gray-600"
+                                    />
+                                    <div className="p-3 bg-yellow-900/20 border border-yellow-700/30 rounded text-xs text-yellow-200/80">
+                                        Important: If you have 2FA enabled, please check your mobile device immediately after executing.
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Overwrite Option */}
+                            <CheckboxInput
+                                label="Overwrite last save file?"
+                                onChange={(val) => handleChange('overwrite', val)}
+                            />
+                        </div>
+                    </div>
+                </>
+            );
 
         case 'invest':
             return (
                 <>
                     <InputGroup label="Portfolio Construction" tooltip="Define your sub-portfolios and their weights.">
-                        <SubPortfolioInput 
-                            subPortfolios={subPortfolios} 
-                            onChange={handleSubPortfolioChange} 
+                        <SubPortfolioInput
+                            subPortfolios={subPortfolios}
+                            onChange={handleSubPortfolioChange}
                         />
                     </InputGroup>
-                    
+
                     <InputGroup label="Investment Capital ($)" tooltip="Total amount you wish to allocate.">
                         <TextInput
                             placeholder="10000"
@@ -269,9 +324,9 @@ const WizardInputs = ({ toolType, onChange }) => {
                             onChange={(val) => handleChange('amplification', val)}
                         />
                     </InputGroup>
-                    
+
                     <div className="mt-4">
-                        <CheckboxInput 
+                        <CheckboxInput
                             label="Use Fractional Shares"
                             onChange={(val) => handleChange('use_fractional_shares', val)}
                         />
@@ -295,7 +350,7 @@ const WizardInputs = ({ toolType, onChange }) => {
                         />
                     </InputGroup>
                     <div className="mt-4">
-                        <CheckboxInput 
+                        <CheckboxInput
                             label="Use Fractional Shares"
                             onChange={(val) => handleChange('use_fractional_shares', val)}
                         />
@@ -303,8 +358,8 @@ const WizardInputs = ({ toolType, onChange }) => {
                 </>
             );
 
-        case 'tracking_simple': 
-             return renderBasicInputs("e.g., EXISTING_PORTFOLIO");
+        case 'tracking_simple':
+            return renderBasicInputs("e.g., EXISTING_PORTFOLIO");
 
         default:
             return <div className="text-gray-500">Select a tool to configure inputs.</div>;
