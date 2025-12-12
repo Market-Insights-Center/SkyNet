@@ -39,6 +39,7 @@ const SidebarPage = React.lazy(() => import('./pages/SidebarPage'));
 const Help = React.lazy(() => import('./pages/Help'));
 const PortfolioNexus = React.lazy(() => import('./pages/PortfolioNexus'));
 const Briefing = React.lazy(() => import('./pages/Briefing'));
+const PerformanceStream = React.lazy(() => import('./pages/PerformanceStream'));
 
 // --- PayPal Configuration (Safety Mode) ---
 const clientId = import.meta.env.VITE_PAYPAL_CLIENT_ID;
@@ -129,6 +130,7 @@ const AppContent = () => {
                         <Route path="/products" element={<PageTransition><Layout><Products /></Layout></PageTransition>} />
                         {/* <Route path="/asset-evaluator" element={<PageTransition><Layout><AssetEvaluator /></Layout></PageTransition>} /> */}
                         <Route path="/products/comparison-matrix" element={<PageTransition><Layout><ComparisonMatrix /></Layout></PageTransition>} />
+                        <Route path="/performance-stream" element={<PageTransition><Layout><PerformanceStream /></Layout></PageTransition>} />
                         <Route path="/market-junction" element={<PageTransition><Layout><MarketJunction /></Layout></PageTransition>} />
                         <Route path="/portfolio-lab" element={<PageTransition><Layout><PortfolioLab /></Layout></PageTransition>} />
                         <Route path="/custom" element={<PageTransition><Layout><Wizard /></Layout></PageTransition>} />

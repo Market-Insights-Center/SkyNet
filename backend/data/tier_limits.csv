@@ -7,6 +7,7 @@ Basic,risk,NL
 Basic,history,NA
 Basic,quickscore,NL
 Basic,market,3/day
+Basic,performance_stream,NA
 Basic,breakout,NA
 Pro,invest,10/day
 Pro,cultivate,3/day
@@ -16,6 +17,7 @@ Pro,risk,NL
 Pro,history,NL
 Pro,quickscore,20/day
 Pro,market,10/day
+Pro,performance_stream,NA
 Pro,breakout,3/day
 Enterprise,invest,NL
 Enterprise,cultivate,5/day
@@ -25,6 +27,7 @@ Enterprise,risk,NL
 Enterprise,history,NL
 Enterprise,quickscore,NL
 Enterprise,market,NL
+Enterprise,performance_stream,NL
 Enterprise,breakout,10/day
 Singularity,invest,NL
 Singularity,cultivate,NL
@@ -34,6 +37,7 @@ Singularity,risk,NL
 Singularity,history,NL
 Singularity,quickscore,NL
 Singularity,market,NL
+Singularity,performance_stream,NL
 Singularity,breakout,NL
 Basic,briefing,NA
 Basic,fundamentals,3/day

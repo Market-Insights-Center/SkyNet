@@ -1,7 +1,7 @@
 import React, { useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Bot, Search, Scale, Siren, HelpCircle, Terminal, Layers, Zap, Sprout, Activity, PieChart, BarChart2, TrendingUp, History, Globe, Briefcase, Settings, Database, AlertTriangle, Network } from 'lucide-react';
+import { Bot, Search, Scale, Siren, HelpCircle, Terminal, Layers, Zap, Sprout, Activity, PieChart, BarChart2, TrendingUp, History, Globe, Briefcase, Settings, Database, AlertTriangle, Network, Maximize2 } from 'lucide-react';
 
 const Help = () => {
     const { hash } = useLocation();
@@ -213,6 +213,17 @@ const Help = () => {
                         { name: "Run Detector", desc: "Button to initiate scan." }
                     ],
                     usage: "Run this scanner mid-session to find stocks that are making statistically significant moves outside their normal range."
+                },
+                {
+                    id: 'performance-stream',
+                    title: "Performance Stream",
+                    icon: Maximize2,
+                    desc: "Visual S&P 500 performance map with gold/purple indicators and deep-dive analytics.",
+                    inputs: [
+                        { name: "Timeframe", desc: "Day, Week, Month, Year." },
+                        { name: "Interaction", desc: "Click any stock tile to flip it and reveal detailed analytics." }
+                    ],
+                    usage: "Use this for an instant visual read on the entire market. Green/Gold tiles are leading; Purple tiles are lagging. Click winners to see why they are up."
                 }
             ]
         },

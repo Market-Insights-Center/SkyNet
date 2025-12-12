@@ -63,21 +63,29 @@ except ImportError:
         print(f"❌ CRITICAL IMPORT FAILURE (nexus_command): {e}")
 
 # Import other commands
+performance_stream_command = None
 try:
     from backend.integration import (
         invest_command, cultivate_command, custom_command, tracking_command, 
         risk_command, history_command, quickscore_command, market_command, 
         breakout_command, briefing_command, fundamentals_command, 
-        assess_command, mlforecast_command, sentiment_command, powerscore_command
+        assess_command, mlforecast_command, sentiment_command, powerscore_command,
+        performance_stream_command
     )
+    print("✅ LOADED: Standard Commands (backend.integration)")
 except ImportError:
     # Fallback for "run from backend folder"
-    from integration import (
-        invest_command, cultivate_command, custom_command, tracking_command, 
-        risk_command, history_command, quickscore_command, market_command, 
-        breakout_command, briefing_command, fundamentals_command, 
-        assess_command, mlforecast_command, sentiment_command, powerscore_command
-    )
+    try:
+        from integration import (
+            invest_command, cultivate_command, custom_command, tracking_command, 
+            risk_command, history_command, quickscore_command, market_command, 
+            breakout_command, briefing_command, fundamentals_command, 
+            assess_command, mlforecast_command, sentiment_command, powerscore_command,
+            performance_stream_command
+        )
+        print("✅ LOADED: Standard Commands (integration)")
+    except ImportError as e:
+        print(f"❌ CRITICAL IMPORT FAILURE (Commands): {e}")
 
 # --- DATABASE IMPORTS ---
 try:
@@ -144,6 +152,20 @@ def start_scheduler():
                 print(f"Scheduler Error: {e}")
 
         SCHEDULER.add_job(run_risk_job, CronTrigger(minute='*/15'))
+        
+        # Performance Stream Job (15 mins)
+        def run_performance_stream_job():
+            print("Running scheduled Performance Stream Update...")
+            try:
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                loop.run_until_complete(performance_stream_command.update_heatmap_cache())
+                loop.close()
+            except Exception as e:
+                print(f"Performance Stream Scheduler Error: {e}")
+                
+        SCHEDULER.add_job(run_performance_stream_job, CronTrigger(minute='*/15'))
+
         SCHEDULER.start()
         print("Scheduler started.")
 
@@ -640,6 +662,26 @@ async def get_market_data_details(request: MarketDataRequest):
             results[ticker] = {"earnings": "-", "iv": "-"}
             
     return {"results": results}
+
+@app.get("/api/performance-stream")
+def get_performance_stream():
+    """Returns the cached performance stream data."""
+    return performance_stream_command.get_cached_heatmap()
+
+@app.get("/api/performance-stream/details/{ticker}")
+async def get_performance_stream_details(ticker: str):
+    """Returns details for a specific stock."""
+    return await performance_stream_command.get_stock_details(ticker)
+
+@app.post("/api/performance-stream/force-update")
+async def force_performance_stream_update(req: ModRequest):
+    """Force update performance stream (Admin only)."""
+    mods = get_mod_list()
+    if req.requester_email.lower() not in mods: 
+        raise HTTPException(status_code=403, detail="Not authorized")
+    
+    await performance_stream_command.update_heatmap_cache()
+    return {"status": "success"}
 
 @app.get("/api/mods")
 def get_mods(): return {"mods": get_mod_list()}

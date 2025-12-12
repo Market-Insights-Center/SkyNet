@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import NeonWrapper from '../components/NeonWrapper';
 import TiltCard from '../components/TiltCard';
 import { motion } from 'framer-motion';
-import { Bot, ChevronRight, Search, Scale, Siren, ToggleLeft, ToggleRight, ExternalLink, HelpCircle, X, Hand, Mic, Activity, Loader2, Layers, Network } from 'lucide-react';
+import { Bot, ChevronRight, Search, Scale, Siren, ToggleLeft, ToggleRight, ExternalLink, HelpCircle, X, Hand, Mic, Activity, Loader2, Layers, Network, Maximize2 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useSkyNet } from '../contexts/SkyNetContext';
 
@@ -386,6 +386,34 @@ const Products = () => {
                                     <h3 className="text-2xl font-bold mb-2 group-hover:text-gold transition-colors">Market Junction</h3>
                                     <p className="text-gray-400 mb-6">
                                         Score the strength of the market, forecast reversal likelihoods, and bring all relevant data into a single output.
+                                    </p>
+                                </div>
+                                <div className="flex items-center text-gold font-bold">
+                                    Launch Application <ChevronRight size={20} className="ml-2 group-hover:translate-x-1 transition-transform" />
+                                </div>
+                            </div>
+                        </TiltCard>
+                    </div>
+                    <div onClick={() => navigate('/performance-stream')} className="group cursor-pointer block h-full">
+                        <TiltCard delay={0.6} className="h-full">
+                            <button
+                                onClick={(e) => { e.stopPropagation(); navigate('/help#performance-stream'); }}
+                                className="absolute top-4 right-4 z-30 p-2 text-gray-500 hover:text-gold transition-colors"
+                                title="Learn details"
+                            >
+                                <HelpCircle size={24} />
+                            </button>
+                            <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+                                <Maximize2 size={120} />
+                            </div>
+                            <div className="relative z-10 p-8 flex flex-col h-full justify-between">
+                                <div>
+                                    <div className="w-12 h-12 bg-gold/20 rounded-lg flex items-center justify-center mb-6 text-gold">
+                                        <Maximize2 size={24} />
+                                    </div>
+                                    <h3 className="text-2xl font-bold mb-2 group-hover:text-gold transition-colors">Performance Stream</h3>
+                                    <p className="text-gray-400 mb-6">
+                                        Visual S&P 500 performance map with gold/purple indicators and deep-dive analytics.
                                     </p>
                                 </div>
                                 <div className="flex items-center text-gold font-bold">
