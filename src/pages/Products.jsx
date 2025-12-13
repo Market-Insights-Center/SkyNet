@@ -5,23 +5,23 @@ import TiltCard from '../components/TiltCard';
 import { motion } from 'framer-motion';
 import { Bot, ChevronRight, Search, Scale, Siren, ToggleLeft, ToggleRight, ExternalLink, HelpCircle, X, Hand, Mic, Activity, Loader2, Layers, Network, Maximize2 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
-import { useSkyNet } from '../contexts/SkyNetContext';
+import { useOrion } from '../contexts/OrionContext';
 
 const Products = () => {
     const { userProfile } = useAuth();
     const navigate = useNavigate();
-    const { connect, disconnect, isConnected, connectionError } = useSkyNet();
-    const [skynetActive, setSkynetActive] = useState(false);
+    const { connect, disconnect, isConnected, connectionError } = useOrion();
+    const [orionActive, setOrionActive] = useState(false);
     const [isProcessing, setIsProcessing] = useState(false);
     const [showControls, setShowControls] = useState(false);
     const [showDetails, setShowDetails] = useState(false);
 
-    // Only allow SkyNet on Localhost (Dev) or if explicitly 127.0.0.1
+    // Only allow Orion on Localhost (Dev) or if explicitly 127.0.0.1
     // This hides it from VPS/Public users who cannot run the local bridge.
     const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
 
     useEffect(() => {
-        setSkynetActive(isConnected);
+        setOrionActive(isConnected);
     }, [isConnected]);
 
     // Handle Connection Errors
@@ -32,15 +32,15 @@ const Products = () => {
         }
     }, [connectionError, isProcessing]);
 
-    const toggleSkyNet = async () => {
+    const toggleOrion = async () => {
         if (isProcessing) return;
         setIsProcessing(true);
 
         try {
-            if (skynetActive) {
+            if (orionActive) {
                 // STOP
                 const host = window.location.hostname;
-                await fetch(`/api/skynet/toggle`, {
+                await fetch(`/api/orion/toggle`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ action: 'stop' })
@@ -51,7 +51,7 @@ const Products = () => {
             } else {
                 // START
                 const host = window.location.hostname;
-                const response = await fetch(`/api/skynet/toggle`, {
+                const response = await fetch(`/api/orion/toggle`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ action: 'start' })
@@ -65,12 +65,12 @@ const Products = () => {
                         setTimeout(() => setIsProcessing(false), 500);
                     }, 2000);
                 } else {
-                    alert(`Error starting SkyNet.`);
+                    alert(`Error starting Orion.`);
                     setIsProcessing(false);
                 }
             }
         } catch (error) {
-            console.error("SkyNet Toggle Error:", error);
+            console.error("Orion Toggle Error:", error);
             alert("Failed to communicate with backend.");
             setIsProcessing(false);
         }
@@ -91,7 +91,7 @@ const Products = () => {
                     </p>
                 </motion.div>
 
-                {/* Only show SkyNet if on Localhost AND (User is Singularity or not logged in) */}
+                {/* Only show Orion if on Localhost AND (User is Singularity or not logged in) */}
                 {isLocalhost && (!userProfile || userProfile?.tier === 'Singularity') && (
                     <div className="hidden md:block">
                         <motion.div
@@ -102,7 +102,7 @@ const Products = () => {
                             <div className="mb-4 md:mb-0">
                                 <h2 className="text-2xl font-bold text-purple-400 flex items-center gap-2">
                                     <Bot className="w-6 h-6" />
-                                    SkyNet Interface
+                                    Orion Interface
                                     <button
                                         onClick={() => setShowDetails(true)}
                                         className="text-xs bg-purple-500/10 hover:bg-purple-500/20 text-purple-300 px-2 py-0.5 rounded border border-purple-500/30 transition-colors uppercase tracking-wider font-semibold"
@@ -124,11 +124,11 @@ const Products = () => {
                                     VIEW CONTROLS
                                 </button>
 
-                                <NeonWrapper className="rounded-full" color={skynetActive ? "red" : "purple"}>
+                                <NeonWrapper className="rounded-full" color={orionActive ? "red" : "purple"}>
                                     <button
-                                        onClick={toggleSkyNet}
+                                        onClick={toggleOrion}
                                         disabled={isProcessing}
-                                        className={`relative z-10 flex items-center gap-2 px-6 py-3 rounded-full font-bold transition-all border bg-black ${skynetActive
+                                        className={`relative z-10 flex items-center gap-2 px-6 py-3 rounded-full font-bold transition-all border bg-black ${orionActive
                                             ? 'text-red-400 border-red-500/50 hover:bg-red-500/10'
                                             : 'text-purple-400 border-purple-500/50 hover:bg-purple-500/10'
                                             } ${isProcessing ? 'opacity-50 cursor-not-allowed' : ''}`}
@@ -136,12 +136,12 @@ const Products = () => {
                                         {isProcessing ? (
                                             <div className="flex items-center gap-2">
                                                 <Loader2 className="w-5 h-5 animate-spin" />
-                                                <span>{skynetActive ? "TERMINATING..." : "ESTABLISHING UPLINK..."}</span>
+                                                <span>{orionActive ? "TERMINATING..." : "ESTABLISHING UPLINK..."}</span>
                                             </div>
                                         ) : (
                                             <>
-                                                {skynetActive ? <ToggleRight className="w-6 h-6" /> : <ToggleLeft className="w-6 h-6" />}
-                                                {skynetActive ? 'DISENGAGE SYSTEM' : 'INITIALIZE SYSTEM'}
+                                                {orionActive ? <ToggleRight className="w-6 h-6" /> : <ToggleLeft className="w-6 h-6" />}
+                                                {orionActive ? 'DISENGAGE SYSTEM' : 'INITIALIZE SYSTEM'}
                                             </>
                                         )}
                                     </button>
@@ -157,7 +157,7 @@ const Products = () => {
                             <div className="p-6">
                                 <div className="flex items-center justify-between mb-4">
                                     <h3 className="text-xl font-bold text-purple-400 flex items-center gap-2">
-                                        <Bot className="w-5 h-5" /> SkyNet Interface
+                                        <Bot className="w-5 h-5" /> Orion Interface
                                     </h3>
                                     <button onClick={() => setShowDetails(false)} className="text-gray-400 hover:text-white transition-colors">
                                         <X className="w-5 h-5" />
@@ -165,10 +165,10 @@ const Products = () => {
                                 </div>
                                 <div className="space-y-4 text-gray-300 text-sm leading-relaxed">
                                     <p>
-                                        <strong className="text-purple-300">SkyNet</strong> is an advanced Human-Computer Interface (HCI) designed to revolutionize how you interact with financial data. By bridging the gap between physical intent and digital execution, it allows for a seamless, keyboard-free workflow.
+                                        <strong className="text-purple-300">Orion</strong> is an advanced Human-Computer Interface (HCI) designed to revolutionize how you interact with financial data. By bridging the gap between physical intent and digital execution, it allows for a seamless, keyboard-free workflow.
                                     </p>
                                     <p>
-                                        Using computer vision and voice recognition, SkyNet empowers you to navigate charts, execute commands, and analyze markets using intuitive hand gestures and natural language. It functions as a detached, "always-on" assistant that overlays your existing workflow without interrupting it.
+                                        Using computer vision and voice recognition, Orion empowers you to navigate charts, execute commands, and analyze markets using intuitive hand gestures and natural language. It functions as a detached, "always-on" assistant that overlays your existing workflow without interrupting it.
                                     </p>
                                     <div className="bg-purple-900/20 p-3 rounded border border-purple-500/20 text-xs italic text-purple-200">
                                         "The ultimate tool for the modern trader who values speed, precision, and a futuristic control capability."
@@ -190,7 +190,7 @@ const Products = () => {
                             <div className="flex items-center justify-between p-4 border-b border-cyan-500/30 bg-cyan-900/20">
                                 <div className="flex items-center gap-2 text-cyan-400">
                                     <Activity className="w-5 h-5" />
-                                    <h2 className="text-lg font-bold tracking-widest">SKYNET CONTROLS</h2>
+                                    <h2 className="text-lg font-bold tracking-widest">ORION CONTROLS</h2>
                                 </div>
                                 <button onClick={() => setShowControls(false)} className="text-gray-400 hover:text-white transition-colors">
                                     <X className="w-5 h-5" />

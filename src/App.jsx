@@ -4,8 +4,8 @@ import { AnimatePresence } from 'framer-motion';
 import PageTransition from './components/PageTransition';
 import { PayPalScriptProvider } from "@paypal/react-paypal-js";
 import { AuthProvider } from './contexts/AuthContext';
-import { SkyNetProvider, useSkyNet } from './contexts/SkyNetContext';
-import SkyNetOverlay from './components/SkyNetOverlay';
+import { OrionProvider, useOrion } from './contexts/OrionContext';
+import OrionOverlay from './components/OrionOverlay';
 import { TradingViewWidget } from './components/MarketDashboard';
 import UsernameSetupModal from './components/UsernameSetupModal';
 import { useAuth } from './contexts/AuthContext';
@@ -58,14 +58,14 @@ const ActiveChartPage = () => {
     const [searchParams] = useSearchParams();
     const ticker = searchParams.get('ticker') || "SPY";
 
-    // Auto-connect SkyNet for this tab if requested AND initialize chart state
-    const { connect, setChartTicker } = useSkyNet();
+    // Auto-connect Orion for this tab if requested AND initialize chart state
+    const { connect, setChartTicker } = useOrion();
 
     useEffect(() => {
-        if (searchParams.get('skynet') === 'true') {
+        if (searchParams.get('orion') === 'true') {
             connect();
         }
-        // CRITICAL: Initialize context with the ticker so SkyNet knows we are in Chart Mode
+        // CRITICAL: Initialize context with the ticker so Orion knows we are in Chart Mode
         // This enables the specific Zoom/Pan/Click logic for charts instead of navigation.
         if (ticker) {
             setChartTicker(ticker);
@@ -83,14 +83,14 @@ const ActiveChartPage = () => {
                 />
             </div>
             <div className="absolute top-4 right-4 bg-black/50 text-cyan-400 p-2 rounded pointer-events-none z-50 text-xs font-mono border border-cyan-500/30">
-                ACTIVE CHART NODE: {ticker}
+                ACTIVE ORION NODE: {ticker}
             </div>
         </div>
     );
 };
 
 const AppContent = () => {
-    const { connect } = useSkyNet();
+    const { connect } = useOrion();
     const { userProfile } = useAuth();
     const [searchParams] = useSearchParams();
     const [showUsernameModal, setShowUsernameModal] = useState(false);
@@ -108,7 +108,7 @@ const AppContent = () => {
     }, [userProfile]);
 
     useEffect(() => {
-        if (searchParams.get('skynet') === 'true') {
+        if (searchParams.get('orion') === 'true') {
             connect();
         }
     }, [searchParams, connect]);
@@ -118,7 +118,7 @@ const AppContent = () => {
     return (
         <>
             <UsernameSetupModal isOpen={showUsernameModal} onClose={() => setShowUsernameModal(false)} />
-            <SkyNetOverlay />
+            <OrionOverlay />
             <React.Suspense fallback={
                 <div className="h-screen w-full bg-black flex items-center justify-center">
                     <Loader2 className="animate-spin text-gold" size={48} />
@@ -152,7 +152,7 @@ const AppContent = () => {
                         <Route path="/social" element={<PageTransition><Layout><Forum /></Layout></PageTransition>} />
                         <Route path="/help" element={<PageTransition><Layout><Help /></Layout></PageTransition>} />
 
-                        {/* --- SKYNET DETACHED CONTROLS & SIDEBAR (No Transition Wrapper needed as they pop up) --- */}
+                        {/* --- ORION DETACHED CONTROLS & SIDEBAR (No Transition Wrapper needed as they pop up) --- */}
                         {/* Note: lazy loaded components work fine here too */}
                         <Route path="/controls" element={<ControlsPage />} />
                         <Route path="/sidebar" element={<SidebarPage />} />
@@ -191,9 +191,9 @@ function App() {
                 <div className={`transition-opacity duration-1000 ease-in-out ${isLoading ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
                     <Router>
                         <AuthProvider>
-                            <SkyNetProvider>
+                            <OrionProvider>
                                 <AppContent />
-                            </SkyNetProvider>
+                            </OrionProvider>
                         </AuthProvider>
                     </Router>
                 </div>

@@ -131,8 +131,8 @@ app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 MODS_FILE = os.path.join(CURRENT_DIR, 'mods.csv')
 SUPER_ADMIN_EMAIL = "marketinsightscenter@gmail.com"
 
-# --- GLOBAL VARIABLES FOR SKYNET ---
-SKYNET_PROCESS = None
+# --- GLOBAL VARIABLES FOR ORION ---
+ORION_PROCESS = None
 SCHEDULER = None
 
 def start_scheduler():
@@ -274,7 +274,7 @@ class IdeaDeleteRequest(BaseModel):
     id: str
     requester_email: str
     
-class SkynetToggleRequest(BaseModel):
+class OrionToggleRequest(BaseModel):
     action: str # "start" or "stop"
 
 class QuickscoreRequest(BaseModel):
@@ -390,43 +390,43 @@ def get_chats(email: str, all_chats: bool = False):
     return user_chats
 
 # -----------------------------
-# SKYNET AUTO-START ENDPOINT
+# ORION AUTO-START ENDPOINT
 # -----------------------------
-@app.post("/api/skynet/toggle")
-def toggle_skynet(req: SkynetToggleRequest):
-    global SKYNET_PROCESS
+@app.post("/api/orion/toggle")
+def toggle_orion(req: OrionToggleRequest):
+    global ORION_PROCESS
     
     # Adjust script path based on robust directory finding
-    script_path = os.path.join(CURRENT_DIR, "skynet_v2.py")
+    script_path = os.path.join(CURRENT_DIR, "orion_v2.py")
     if not os.path.exists(script_path):
-         script_path = os.path.join(PARENT_DIR, "backend", "skynet_v2.py")
+         script_path = os.path.join(PARENT_DIR, "backend", "orion_v2.py")
     
     if req.action == "start":
-        if SKYNET_PROCESS and SKYNET_PROCESS.poll() is None:
-            return {"status": "running", "message": "SkyNet is already active."}
+        if ORION_PROCESS and ORION_PROCESS.poll() is None:
+            return {"status": "running", "message": "Orion is already active."}
         
         try:
             # Use sys.executable to ensure we use the same Python environment (venv)
-            SKYNET_PROCESS = subprocess.Popen([sys.executable, script_path])
-            logger.info(f"SkyNet launched with PID: {SKYNET_PROCESS.pid}")
-            return {"status": "started", "pid": SKYNET_PROCESS.pid}
+            ORION_PROCESS = subprocess.Popen([sys.executable, script_path])
+            logger.info(f"Orion launched with PID: {ORION_PROCESS.pid}")
+            return {"status": "started", "pid": ORION_PROCESS.pid}
         except Exception as e:
-            logger.error(f"Failed to start SkyNet: {e}")
-            raise HTTPException(status_code=500, detail=f"Failed to start SkyNet: {e}")
+            logger.error(f"Failed to start Orion: {e}")
+            raise HTTPException(status_code=500, detail=f"Failed to start Orion: {e}")
 
     elif req.action == "stop":
-        if SKYNET_PROCESS:
+        if ORION_PROCESS:
             try:
                 # Terminate the process safely
-                SKYNET_PROCESS.terminate()
-                SKYNET_PROCESS = None
+                ORION_PROCESS.terminate()
+                ORION_PROCESS = None
                 return {"status": "stopped"}
             except Exception as e:
-                logger.error(f"Error stopping SkyNet: {e}")
+                logger.error(f"Error stopping Orion: {e}")
                 # Force kill if terminate fails
                 try:
-                    SKYNET_PROCESS.kill()
-                    SKYNET_PROCESS = None
+                    ORION_PROCESS.kill()
+                    ORION_PROCESS = None
                 except:
                     pass
                 return {"status": "stopped_forced"}
@@ -744,7 +744,7 @@ def api_get_user_profile(email: str, uid: Optional[str] = None, username: Option
         })
         # If username is missing in DB for admin, set a default to prevent loop
         if "username" not in profile:
-             profile["username"] = "SkyNet_Admin"
+             profile["username"] = "Orion_Admin"
 
     if not profile and uid:
         if create_user_profile(email, uid, username):

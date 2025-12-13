@@ -6,7 +6,7 @@ import LiquidBackground from '../components/LiquidBackground';
 
 const ControlsPage = () => {
     useEffect(() => {
-        document.title = "SkyNet Controls";
+        document.title = "Orion Controls";
     }, []);
 
     return (
@@ -17,7 +17,7 @@ const ControlsPage = () => {
                 <div className="flex items-center justify-between p-4 border-b border-white/10 bg-white/5 shrink-0 backdrop-blur-md shadow-lg">
                     <div className="flex items-center gap-2 text-cyan-400">
                         <Activity className="w-5 h-5" />
-                        <h2 className="text-lg font-bold tracking-widest">SKYNET CONTROLS</h2>
+                        <h2 className="text-lg font-bold tracking-widest">ORION CONTROLS</h2>
                     </div>
                     <button onClick={() => window.close()} className="text-gray-400 hover:text-white transition-colors">
                         <X className="w-5 h-5" />
@@ -74,7 +74,7 @@ const ControlsPage = () => {
                 </div>
 
                 <div className="p-4 bg-black/50 text-[10px] text-gray-400 text-center border-t border-white/10 shrink-0 backdrop-blur">
-                    SkyNet Neural Interface v2.5 • Systems Nominal
+                    Orion Neural Interface v2.5 • Systems Nominal
                 </div>
             </div>
         </div>

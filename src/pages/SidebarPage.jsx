@@ -1,11 +1,11 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { useSkyNet } from '../contexts/SkyNetContext';
+import { useOrion } from '../contexts/OrionContext';
 import { Cpu, Maximize, Minus, X, Power, HelpCircle } from 'lucide-react';
 
 import LiquidBackground from '../components/LiquidBackground';
 
 const SidebarPage = () => {
-    const { logs, shutdownSystem, connect, isConnected } = useSkyNet();
+    const { logs, shutdownSystem, connect, isConnected } = useOrion();
     const logsEndRef = useRef(null);
 
     useEffect(() => {
@@ -14,7 +14,7 @@ const SidebarPage = () => {
     }, [connect, isConnected]);
 
     useEffect(() => {
-        document.title = "SkyNet Feed";
+        document.title = "Orion Feed";
         logsEndRef.current?.scrollIntoView({ behavior: "smooth" });
     }, [logs]);
 

@@ -5,6 +5,7 @@ import {
     PieChart, ChevronRight, AlertTriangle, CheckCircle,
     Database, RefreshCw, Mail, Shield, Check, ArrowUp, ArrowDown
 } from 'lucide-react';
+import AccessGate from '../components/AccessGate';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
@@ -127,267 +128,269 @@ export default function PortfolioNexus() {
     const sortedHoldings = getSortedHoldings();
 
     return (
-        <div className="min-h-screen bg-black text-white pt-24 px-4 pb-12 font-mono selection:bg-purple-900 selection:text-white">
-            <div className="max-w-7xl mx-auto space-y-8">
+        <AccessGate productKey="portfolio_nexus" title="Portfolio Nexus">
+            <div className="min-h-screen bg-black text-white pt-24 px-4 pb-12 font-mono selection:bg-purple-900 selection:text-white">
+                <div className="max-w-7xl mx-auto space-y-8">
 
-                {/* Header */}
-                <div className="relative border-l-4 border-purple-500 pl-6 py-2">
-                    <h1 className="text-5xl font-bold tracking-tight mb-2 bg-gradient-to-r from-purple-400 to-blue-400 bg-clip-text text-transparent">
-                        PORTFOLIO NEXUS
-                    </h1>
-                    <p className="text-gray-400 text-lg max-w-2xl">
-                        Advanced Meta-Portfolio Construction & Execution Engine.
-                        Combine multiple strategies and portfolios into a single cohesive allocation.
-                    </p>
-                    <div className="absolute top-0 right-0 hidden md:block opacity-20 transform translate-x-12 -translate-y-4">
-                        <Network size={120} className="text-purple-500" />
+                    {/* Header */}
+                    <div className="relative border-l-4 border-purple-500 pl-6 py-2">
+                        <h1 className="text-5xl font-bold tracking-tight mb-2 bg-gradient-to-r from-purple-400 to-blue-400 bg-clip-text text-transparent">
+                            PORTFOLIO NEXUS
+                        </h1>
+                        <p className="text-gray-400 text-lg max-w-2xl">
+                            Advanced Meta-Portfolio Construction & Execution Engine.
+                            Combine multiple strategies and portfolios into a single cohesive allocation.
+                        </p>
+                        <div className="absolute top-0 right-0 hidden md:block opacity-20 transform translate-x-12 -translate-y-4">
+                            <Network size={120} className="text-purple-500" />
+                        </div>
                     </div>
-                </div>
 
-                {/* Control Panel */}
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                    <motion.div
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        className="lg:col-span-1 space-y-6"
-                    >
-                        <div className="bg-gray-900/50 border border-gray-800 p-6 rounded-xl backdrop-blur-sm relative overflow-hidden group hover:border-purple-500/50 transition-colors">
-                            <div className="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-purple-500 to-transparent opacity-50"></div>
+                    {/* Control Panel */}
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                        <motion.div
+                            initial={{ opacity: 0, y: 20 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            className="lg:col-span-1 space-y-6"
+                        >
+                            <div className="bg-gray-900/50 border border-gray-800 p-6 rounded-xl backdrop-blur-sm relative overflow-hidden group hover:border-purple-500/50 transition-colors">
+                                <div className="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-purple-500 to-transparent opacity-50"></div>
 
-                            <h2 className="text-xl font-semibold mb-6 flex items-center gap-2 text-purple-400">
-                                <Database size={20} />
-                                Configuration
-                            </h2>
+                                <h2 className="text-xl font-semibold mb-6 flex items-center gap-2 text-purple-400">
+                                    <Database size={20} />
+                                    Configuration
+                                </h2>
 
-                            <div className="space-y-4">
-                                <div>
-                                    <label className="block text-xs uppercase tracking-widest text-gray-500 mb-2">Nexus Code</label>
-                                    <input
-                                        type="text"
-                                        value={nexusCode}
-                                        onChange={(e) => setNexusCode(e.target.value)}
-                                        placeholder="e.g. ALPHA_PRIME"
-                                        className="w-full bg-black/50 border border-gray-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 transition-all font-mono"
-                                    />
-                                </div>
-
-                                <div>
-                                    <label className="block text-xs uppercase tracking-widest text-gray-500 mb-2">Total Capital ($)</label>
-                                    <input
-                                        type="number"
-                                        value={totalValue}
-                                        onChange={(e) => setTotalValue(e.target.value)}
-                                        className="w-full bg-black/50 border border-gray-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 transition-all font-mono"
-                                    />
-                                </div>
-
-                                {/* Execution Options */}
-                                <div className="pt-4 border-t border-gray-800 space-y-3">
-                                    <h3 className="text-xs uppercase tracking-widest text-gold mb-2 font-bold">Execution Options</h3>
-
-                                    {/* Fractional Shares */}
-                                    <div className="bg-white/5 p-3 rounded-lg border border-gray-800">
-                                        <label className="flex items-center gap-2 cursor-pointer">
-                                            <input type="checkbox" checked={executionOpts.use_fractional_shares} onChange={e => updateExecOpt('use_fractional_shares', e.target.checked)} className="accent-gold" />
-                                            <span className="text-sm">Use Fractional Shares</span>
-                                        </label>
+                                <div className="space-y-4">
+                                    <div>
+                                        <label className="block text-xs uppercase tracking-widest text-gray-500 mb-2">Nexus Code</label>
+                                        <input
+                                            type="text"
+                                            value={nexusCode}
+                                            onChange={(e) => setNexusCode(e.target.value)}
+                                            placeholder="e.g. ALPHA_PRIME"
+                                            className="w-full bg-black/50 border border-gray-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 transition-all font-mono"
+                                        />
                                     </div>
 
-                                    {/* Email */}
-                                    <div className="bg-white/5 p-3 rounded-lg border border-gray-800">
-                                        <label className="flex items-center gap-2 cursor-pointer mb-2">
-                                            <input type="checkbox" checked={executionOpts.send_email} onChange={e => updateExecOpt('send_email', e.target.checked)} className="accent-gold" />
-                                            <span className="text-sm">Send Trades to Email</span>
-                                        </label>
-                                        {executionOpts.send_email && (
-                                            <input
-                                                type="email"
-                                                placeholder="Email Address"
-                                                value={executionOpts.email_to}
-                                                onChange={e => updateExecOpt('email_to', e.target.value)}
-                                                className="w-full bg-black border border-gray-700 rounded p-2 text-xs"
-                                            />
-                                        )}
+                                    <div>
+                                        <label className="block text-xs uppercase tracking-widest text-gray-500 mb-2">Total Capital ($)</label>
+                                        <input
+                                            type="number"
+                                            value={totalValue}
+                                            onChange={(e) => setTotalValue(e.target.value)}
+                                            className="w-full bg-black/50 border border-gray-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 transition-all font-mono"
+                                        />
                                     </div>
 
-                                    {/* Robinhood */}
-                                    <div className="bg-white/5 p-3 rounded-lg border border-gray-800">
-                                        <label className="flex items-center gap-2 cursor-pointer mb-2">
-                                            <input type="checkbox" checked={executionOpts.execute_rh} onChange={e => updateExecOpt('execute_rh', e.target.checked)} className="accent-gold" />
-                                            <span className="text-sm">Execute on Robinhood</span>
-                                        </label>
-                                        {executionOpts.execute_rh && (
-                                            <div className="space-y-2">
+                                    {/* Execution Options */}
+                                    <div className="pt-4 border-t border-gray-800 space-y-3">
+                                        <h3 className="text-xs uppercase tracking-widest text-gold mb-2 font-bold">Execution Options</h3>
+
+                                        {/* Fractional Shares */}
+                                        <div className="bg-white/5 p-3 rounded-lg border border-gray-800">
+                                            <label className="flex items-center gap-2 cursor-pointer">
+                                                <input type="checkbox" checked={executionOpts.use_fractional_shares} onChange={e => updateExecOpt('use_fractional_shares', e.target.checked)} className="accent-gold" />
+                                                <span className="text-sm">Use Fractional Shares</span>
+                                            </label>
+                                        </div>
+
+                                        {/* Email */}
+                                        <div className="bg-white/5 p-3 rounded-lg border border-gray-800">
+                                            <label className="flex items-center gap-2 cursor-pointer mb-2">
+                                                <input type="checkbox" checked={executionOpts.send_email} onChange={e => updateExecOpt('send_email', e.target.checked)} className="accent-gold" />
+                                                <span className="text-sm">Send Trades to Email</span>
+                                            </label>
+                                            {executionOpts.send_email && (
                                                 <input
-                                                    type="text"
-                                                    placeholder="RH Username"
-                                                    value={executionOpts.rh_user}
-                                                    onChange={e => updateExecOpt('rh_user', e.target.value)}
+                                                    type="email"
+                                                    placeholder="Email Address"
+                                                    value={executionOpts.email_to}
+                                                    onChange={e => updateExecOpt('email_to', e.target.value)}
                                                     className="w-full bg-black border border-gray-700 rounded p-2 text-xs"
                                                 />
-                                                <input
-                                                    type="password"
-                                                    placeholder="RH Password"
-                                                    value={executionOpts.rh_pass}
-                                                    onChange={e => updateExecOpt('rh_pass', e.target.value)}
-                                                    className="w-full bg-black border border-gray-700 rounded p-2 text-xs"
-                                                />
-                                            </div>
-                                        )}
+                                            )}
+                                        </div>
+
+                                        {/* Robinhood */}
+                                        <div className="bg-white/5 p-3 rounded-lg border border-gray-800">
+                                            <label className="flex items-center gap-2 cursor-pointer mb-2">
+                                                <input type="checkbox" checked={executionOpts.execute_rh} onChange={e => updateExecOpt('execute_rh', e.target.checked)} className="accent-gold" />
+                                                <span className="text-sm">Execute on Robinhood</span>
+                                            </label>
+                                            {executionOpts.execute_rh && (
+                                                <div className="space-y-2">
+                                                    <input
+                                                        type="text"
+                                                        placeholder="RH Username"
+                                                        value={executionOpts.rh_user}
+                                                        onChange={e => updateExecOpt('rh_user', e.target.value)}
+                                                        className="w-full bg-black border border-gray-700 rounded p-2 text-xs"
+                                                    />
+                                                    <input
+                                                        type="password"
+                                                        placeholder="RH Password"
+                                                        value={executionOpts.rh_pass}
+                                                        onChange={e => updateExecOpt('rh_pass', e.target.value)}
+                                                        className="w-full bg-black border border-gray-700 rounded p-2 text-xs"
+                                                    />
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        {/* Overwrite */}
+                                        <label className="flex items-center gap-2 cursor-pointer text-gray-400 hover:text-white">
+                                            <input type="checkbox" checked={executionOpts.overwrite} onChange={e => updateExecOpt('overwrite', e.target.checked)} className="accent-gold" />
+                                            <span className="text-xs">Overwrite Last Save?</span>
+                                        </label>
                                     </div>
 
-                                    {/* Overwrite */}
-                                    <label className="flex items-center gap-2 cursor-pointer text-gray-400 hover:text-white">
-                                        <input type="checkbox" checked={executionOpts.overwrite} onChange={e => updateExecOpt('overwrite', e.target.checked)} className="accent-gold" />
-                                        <span className="text-xs">Overwrite Last Save?</span>
-                                    </label>
-                                </div>
-
-                                <div className="pt-4 flex gap-3">
-                                    <button
-                                        onClick={runNexus}
-                                        disabled={loading || !nexusCode}
-                                        className={`flex-1 flex items-center justify-center gap-2 px-6 py-3 rounded-lg font-bold uppercase tracking-wider transition-all
+                                    <div className="pt-4 flex gap-3">
+                                        <button
+                                            onClick={runNexus}
+                                            disabled={loading || !nexusCode}
+                                            className={`flex-1 flex items-center justify-center gap-2 px-6 py-3 rounded-lg font-bold uppercase tracking-wider transition-all
                                     ${loading || !nexusCode
-                                                ? 'bg-gray-800 text-gray-500 cursor-not-allowed'
-                                                : 'bg-purple-600 hover:bg-purple-500 text-white shadow-lg shadow-purple-900/20 hover:shadow-purple-900/40'}`}
-                                    >
-                                        {loading ? <RefreshCw className="animate-spin" size={18} /> : <Play size={18} />}
-                                        {loading ? 'Processing...' : 'Execute Run'}
-                                    </button>
+                                                    ? 'bg-gray-800 text-gray-500 cursor-not-allowed'
+                                                    : 'bg-purple-600 hover:bg-purple-500 text-white shadow-lg shadow-purple-900/20 hover:shadow-purple-900/40'}`}
+                                        >
+                                            {loading ? <RefreshCw className="animate-spin" size={18} /> : <Play size={18} />}
+                                            {loading ? 'Processing...' : 'Execute Run'}
+                                        </button>
 
-                                    <button
-                                        onClick={() => setShowCreateModal(true)}
-                                        className="px-4 py-3 rounded-lg bg-gray-800 hover:bg-gray-700 text-white border border-gray-700 transition-colors"
-                                        title="Create New Nexus"
-                                    >
-                                        <Plus size={20} />
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Instructions / Info */}
-                        <div className="bg-gray-900/30 border border-gray-800 p-6 rounded-xl text-sm text-gray-400">
-                            <h3 className="text-gray-300 font-semibold mb-2 flex items-center gap-2">
-                                <AlertTriangle size={16} className="text-yellow-500" />
-                                System Status
-                            </h3>
-                            <p>
-                                Nexus aligns multiple portfolios and commands into a singular execution path.
-                                Ensure all sub-portfolios exist in the database before running.
-                            </p>
-                        </div>
-                    </motion.div>
-
-                    {/* Results Display */}
-                    <motion.div
-                        initial={{ opacity: 0, scale: 0.95 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        className="lg:col-span-2 min-h-[400px]"
-                    >
-                        {error && (
-                            <div className="bg-red-900/20 border border-red-500/50 p-6 rounded-xl text-red-200 flex items-start gap-3">
-                                <AlertTriangle className="shrink-0 mt-1" />
-                                <div>
-                                    <h3 className="font-bold mb-1">Execution Failed</h3>
-                                    <p className="opacity-80 font-mono text-sm break-all">{error}</p>
-                                </div>
-                            </div>
-                        )}
-
-                        {result && !error && (
-                            <div className="space-y-6">
-                                {/* Summary Cards */}
-                                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                                    <SummaryCard label="Total Value" value={`$${result.total_value?.toLocaleString(undefined, { minimumFractionDigits: 2 })}`} highlight="text-green-400" />
-                                    <SummaryCard label="Cash Balance" value={`$${result.cash?.toLocaleString(undefined, { minimumFractionDigits: 2 })}`} />
-                                    <SummaryCard label="Holdings Count" value={(result.table || result.holdings)?.length} />
-                                    <SummaryCard label="Nexus Code" value={result.nexus_code} highlight="text-purple-400" />
-                                </div>
-
-                                {/* Allocation Table */}
-                                <div className="bg-gray-900/50 border border-gray-800 rounded-xl overflow-hidden">
-                                    <div className="px-6 py-4 border-b border-gray-800 flex justify-between items-center bg-gray-900">
-                                        <h3 className="font-semibold text-gray-200 flex items-center gap-2">
-                                            <BarChart3 size={18} className="text-blue-400" />
-                                            Allocation Breakdown
-                                        </h3>
+                                        <button
+                                            onClick={() => setShowCreateModal(true)}
+                                            className="px-4 py-3 rounded-lg bg-gray-800 hover:bg-gray-700 text-white border border-gray-700 transition-colors"
+                                            title="Create New Nexus"
+                                        >
+                                            <Plus size={20} />
+                                        </button>
                                     </div>
-                                    <div className="overflow-x-auto">
-                                        <table className="w-full text-left text-sm">
-                                            <thead>
-                                                <tr className="border-b border-gray-800 text-gray-500 uppercase tracking-wider bg-gray-900/50">
-                                                    <th className="px-6 py-3 cursor-pointer hover:text-white transition-colors group" onClick={() => handleSort('ticker')}>
-                                                        <div className="flex items-center gap-1">Ticker <SortIcon column="ticker" sortConfig={sortConfig} /></div>
-                                                    </th>
-                                                    <th className="px-6 py-3 text-right cursor-pointer hover:text-white transition-colors group" onClick={() => handleSort('shares')}>
-                                                        <div className="flex items-center justify-end gap-1">Shares <SortIcon column="shares" sortConfig={sortConfig} /></div>
-                                                    </th>
-                                                    <th className="px-6 py-3 text-right cursor-pointer hover:text-white transition-colors group" onClick={() => handleSort('value')}>
-                                                        <div className="flex items-center justify-end gap-1">Value <SortIcon column="value" sortConfig={sortConfig} /></div>
-                                                    </th>
-                                                    <th className="px-6 py-3 text-right cursor-pointer hover:text-white transition-colors group" onClick={() => handleSort('weight')}>
-                                                        <div className="flex items-center justify-end gap-1">Weight <SortIcon column="weight" sortConfig={sortConfig} /></div>
-                                                    </th>
-                                                    <th className="px-6 py-3 hidden md:table-cell">Source Path</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody className="divide-y divide-gray-800">
-                                                {sortedHoldings.map((h, i) => (
-                                                    <tr key={i} className="hover:bg-gray-800/50 transition-colors">
-                                                        <td className="px-6 py-3 font-bold text-blue-300">{h.ticker}</td>
-                                                        <td className="px-6 py-3 text-right font-mono text-gray-300">{Number(h.shares).toFixed(4)}</td>
-                                                        <td className="px-6 py-3 text-right font-mono text-gray-300">${Number(h.value).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
-                                                        <td className="px-6 py-3 text-right font-mono text-gray-300">
-                                                            <span className="bg-gray-800 px-2 py-1 rounded text-xs">{Number(h.weight || h.percent || 0).toFixed(2)}%</span>
-                                                        </td>
-                                                        <td className="px-6 py-3 hidden md:table-cell text-xs text-gray-500 font-mono truncate max-w-[200px]" title={Array.isArray(h.path) ? h.path.join(' > ') : h.path}>
-                                                            {Array.isArray(h.path) ? h.path.join(' > ') : h.path}
-                                                        </td>
+                                </div>
+                            </div>
+
+                            {/* Instructions / Info */}
+                            <div className="bg-gray-900/30 border border-gray-800 p-6 rounded-xl text-sm text-gray-400">
+                                <h3 className="text-gray-300 font-semibold mb-2 flex items-center gap-2">
+                                    <AlertTriangle size={16} className="text-yellow-500" />
+                                    System Status
+                                </h3>
+                                <p>
+                                    Nexus aligns multiple portfolios and commands into a singular execution path.
+                                    Ensure all sub-portfolios exist in the database before running.
+                                </p>
+                            </div>
+                        </motion.div>
+
+                        {/* Results Display */}
+                        <motion.div
+                            initial={{ opacity: 0, scale: 0.95 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            className="lg:col-span-2 min-h-[400px]"
+                        >
+                            {error && (
+                                <div className="bg-red-900/20 border border-red-500/50 p-6 rounded-xl text-red-200 flex items-start gap-3">
+                                    <AlertTriangle className="shrink-0 mt-1" />
+                                    <div>
+                                        <h3 className="font-bold mb-1">Execution Failed</h3>
+                                        <p className="opacity-80 font-mono text-sm break-all">{error}</p>
+                                    </div>
+                                </div>
+                            )}
+
+                            {result && !error && (
+                                <div className="space-y-6">
+                                    {/* Summary Cards */}
+                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                        <SummaryCard label="Total Value" value={`$${result.total_value?.toLocaleString(undefined, { minimumFractionDigits: 2 })}`} highlight="text-green-400" />
+                                        <SummaryCard label="Cash Balance" value={`$${result.cash?.toLocaleString(undefined, { minimumFractionDigits: 2 })}`} />
+                                        <SummaryCard label="Holdings Count" value={(result.table || result.holdings)?.length} />
+                                        <SummaryCard label="Nexus Code" value={result.nexus_code} highlight="text-purple-400" />
+                                    </div>
+
+                                    {/* Allocation Table */}
+                                    <div className="bg-gray-900/50 border border-gray-800 rounded-xl overflow-hidden">
+                                        <div className="px-6 py-4 border-b border-gray-800 flex justify-between items-center bg-gray-900">
+                                            <h3 className="font-semibold text-gray-200 flex items-center gap-2">
+                                                <BarChart3 size={18} className="text-blue-400" />
+                                                Allocation Breakdown
+                                            </h3>
+                                        </div>
+                                        <div className="overflow-x-auto">
+                                            <table className="w-full text-left text-sm">
+                                                <thead>
+                                                    <tr className="border-b border-gray-800 text-gray-500 uppercase tracking-wider bg-gray-900/50">
+                                                        <th className="px-6 py-3 cursor-pointer hover:text-white transition-colors group" onClick={() => handleSort('ticker')}>
+                                                            <div className="flex items-center gap-1">Ticker <SortIcon column="ticker" sortConfig={sortConfig} /></div>
+                                                        </th>
+                                                        <th className="px-6 py-3 text-right cursor-pointer hover:text-white transition-colors group" onClick={() => handleSort('shares')}>
+                                                            <div className="flex items-center justify-end gap-1">Shares <SortIcon column="shares" sortConfig={sortConfig} /></div>
+                                                        </th>
+                                                        <th className="px-6 py-3 text-right cursor-pointer hover:text-white transition-colors group" onClick={() => handleSort('value')}>
+                                                            <div className="flex items-center justify-end gap-1">Value <SortIcon column="value" sortConfig={sortConfig} /></div>
+                                                        </th>
+                                                        <th className="px-6 py-3 text-right cursor-pointer hover:text-white transition-colors group" onClick={() => handleSort('weight')}>
+                                                            <div className="flex items-center justify-end gap-1">Weight <SortIcon column="weight" sortConfig={sortConfig} /></div>
+                                                        </th>
+                                                        <th className="px-6 py-3 hidden md:table-cell">Source Path</th>
                                                     </tr>
-                                                ))}
-                                                {/* Cash Row */}
-                                                <tr className="bg-gray-900/30">
-                                                    <td className="px-6 py-3 font-bold text-green-500">CASH</td>
-                                                    <td className="px-6 py-3 text-right">-</td>
-                                                    <td className="px-6 py-3 text-right font-mono text-green-400">${Number(result.cash).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
-                                                    <td className="px-6 py-3 text-right font-mono text-green-400">
-                                                        <span className="bg-green-900/20 text-green-400 px-2 py-1 rounded text-xs">
-                                                            {((result.cash / result.total_value) * 100).toFixed(2)}%
-                                                        </span>
-                                                    </td>
-                                                    <td className="px-6 py-3 hidden md:table-cell text-xs text-gray-500 text-center">-</td>
-                                                </tr>
-                                            </tbody>
-                                        </table>
+                                                </thead>
+                                                <tbody className="divide-y divide-gray-800">
+                                                    {sortedHoldings.map((h, i) => (
+                                                        <tr key={i} className="hover:bg-gray-800/50 transition-colors">
+                                                            <td className="px-6 py-3 font-bold text-blue-300">{h.ticker}</td>
+                                                            <td className="px-6 py-3 text-right font-mono text-gray-300">{Number(h.shares).toFixed(4)}</td>
+                                                            <td className="px-6 py-3 text-right font-mono text-gray-300">${Number(h.value).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                                                            <td className="px-6 py-3 text-right font-mono text-gray-300">
+                                                                <span className="bg-gray-800 px-2 py-1 rounded text-xs">{Number(h.weight || h.percent || 0).toFixed(2)}%</span>
+                                                            </td>
+                                                            <td className="px-6 py-3 hidden md:table-cell text-xs text-gray-500 font-mono truncate max-w-[200px]" title={Array.isArray(h.path) ? h.path.join(' > ') : h.path}>
+                                                                {Array.isArray(h.path) ? h.path.join(' > ') : h.path}
+                                                            </td>
+                                                        </tr>
+                                                    ))}
+                                                    {/* Cash Row */}
+                                                    <tr className="bg-gray-900/30">
+                                                        <td className="px-6 py-3 font-bold text-green-500">CASH</td>
+                                                        <td className="px-6 py-3 text-right">-</td>
+                                                        <td className="px-6 py-3 text-right font-mono text-green-400">${Number(result.cash).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                                                        <td className="px-6 py-3 text-right font-mono text-green-400">
+                                                            <span className="bg-green-900/20 text-green-400 px-2 py-1 rounded text-xs">
+                                                                {((result.cash / result.total_value) * 100).toFixed(2)}%
+                                                            </span>
+                                                        </td>
+                                                        <td className="px-6 py-3 hidden md:table-cell text-xs text-gray-500 text-center">-</td>
+                                                    </tr>
+                                                </tbody>
+                                            </table>
+                                        </div>
                                     </div>
                                 </div>
-                            </div>
-                        )}
+                            )}
 
-                        {!result && !error && !loading && (
-                            <div className="h-full flex flex-col items-center justify-center text-gray-600 py-20 border border-dashed border-gray-800 rounded-xl bg-gray-900/20">
-                                <Network size={64} className="mb-4 opacity-50" />
-                                <p>Configure and run a Nexus portfolio to see results.</p>
-                            </div>
-                        )}
-                    </motion.div>
+                            {!result && !error && !loading && (
+                                <div className="h-full flex flex-col items-center justify-center text-gray-600 py-20 border border-dashed border-gray-800 rounded-xl bg-gray-900/20">
+                                    <Network size={64} className="mb-4 opacity-50" />
+                                    <p>Configure and run a Nexus portfolio to see results.</p>
+                                </div>
+                            )}
+                        </motion.div>
+                    </div>
+
+                    <CreateNexusModal
+                        isOpen={showCreateModal}
+                        onClose={() => setShowCreateModal(false)}
+                        initialCode={nexusCode}
+                        onSave={(data) => {
+                            setNexusCode(data.nexus_code);
+                            setShowCreateModal(false);
+                            runNexus(); // Auto-run after creation
+                        }}
+                    />
+
                 </div>
-
-                <CreateNexusModal
-                    isOpen={showCreateModal}
-                    onClose={() => setShowCreateModal(false)}
-                    initialCode={nexusCode}
-                    onSave={(data) => {
-                        setNexusCode(data.nexus_code);
-                        setShowCreateModal(false);
-                        runNexus(); // Auto-run after creation
-                    }}
-                />
-
             </div>
-        </div>
+        </AccessGate>
     );
 }
 

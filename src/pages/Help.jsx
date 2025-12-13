@@ -306,7 +306,7 @@ const Help = () => {
                     </div>
                     <h1 className="text-5xl md:text-6xl font-bold mb-6">Product <span className="text-gold">Manual</span></h1>
                     <p className="text-xl text-gray-400 max-w-3xl mx-auto">
-                        Detailed documentation, input specifications, and usage guides for the SkyNet Financial Ecosystem.
+                        Detailed documentation, input specifications, and usage guides for the Orion Financial Ecosystem.
                     </p>
                 </motion.div>
 
