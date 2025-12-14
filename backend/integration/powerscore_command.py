@@ -70,15 +70,12 @@ async def get_yfinance_info_robustly(ticker: str) -> Optional[Dict[str, Any]]:
     async with YFINANCE_API_SEMAPHORE:
         for attempt in range(3):
             try:
-                try:
-                    # Enforce timeout on the thread execution
-                    stock_info = await asyncio.wait_for(
-                        asyncio.to_thread(lambda: yf.Ticker(ticker).info),
-                        timeout=15
-                    )
-                except asyncio.TimeoutError:
-                    print(f"   [DEBUG] yfinance info timed out for {ticker}")
-                    raise
+                await asyncio.sleep(random.uniform(0.2, 0.5))
+                stock_info = await asyncio.to_thread(lambda: yf.Ticker(ticker).info)
+                if stock_info and ('regularMarketPrice' in stock_info or 'currentPrice' in stock_info):
+                    return stock_info
+                else:
+                    raise ValueError(f"Incomplete data received for {ticker}")
             except Exception as e:
                 if attempt < 2:
                     await asyncio.sleep((attempt + 1) * 2)
@@ -92,14 +89,11 @@ async def get_yf_download_robustly(tickers: list, **kwargs) -> pd.DataFrame:
             kwargs.setdefault('progress', False)
             kwargs.setdefault('auto_adjust', True) 
             
-            try:
-                data = await asyncio.wait_for(
-                    asyncio.to_thread(yf.download, tickers=tickers, **kwargs),
-                    timeout=20
-                )
-            except asyncio.TimeoutError:
-                print(f"   [DEBUG] yfinance download timed out for {tickers}")
-                raise 
+            data = await asyncio.to_thread(yf.download, tickers=tickers, **kwargs)
+
+            if data.empty and len(tickers) == 1:
+                 raise IOError(f"yf.download returned empty DataFrame for single ticker: {tickers[0]}")
+            return data 
         except Exception as e:
             if attempt < max_retries - 1:
                 delay = (attempt + 1) * 3 
@@ -376,8 +370,7 @@ async def handle_mlforecast_command_internal(ai_params: dict, is_called_by_ai: b
                 continue
             
             X, y = df[features], df['Pct_Change']
-            # Optimized for VPS: Fewer estimators (15), single thread (n_jobs=1)
-            reg = RandomForestRegressor(n_estimators=15, random_state=42, n_jobs=1, max_depth=5)
+            reg = RandomForestRegressor(n_estimators=50, random_state=42, n_jobs=-1, max_depth=10)
             reg.fit(X, y)
             
             last_row = data[features].iloc[-1:]
@@ -413,17 +406,20 @@ async def get_powerscore_explanation(ticker: str, component_scores: dict, model_
         score_lines.append(f"- {name}: {score:.1f}" if score is not None else f"- {name}: N/A")
 
     prompt = f"""
-    Scores for {ticker}:
-    {chr(10).join(score_lines)}
+    Act as a financial analyst. Based *only* on the following Prime component scores for {ticker}, provide a concise (2-3 sentences) summary profile.
+    Focus on interpreting the scores to highlight clear strengths and weaknesses.
+    Do NOT mention the specific score values numbers. Use qualitative terms (e.g., 'strong', 'weak', 'neutral').
+    Do NOT use introductory phrases. Start directly with the analysis.
     
-    Task: Write 1 single short sentence summarizing the strengths/weaknesses based on these scores. No intro.
+    Scores (0-100 scale):
+    {chr(10).join(score_lines)}
     """
     
     print(f"   [DEBUG AI Analyst] Generating Summary for {ticker}...")
     
     try:
         # Use new AI Service
-        summary = await ai.generate_content(prompt, system_instruction="You are a financial analyst.", timeout=600)
+        summary = await ai.generate_content(prompt, system_instruction="You are a financial analyst.")
         if summary:
             return summary.strip()
     except Exception as e:
@@ -513,7 +509,7 @@ async def handle_powerscore_command(
         is_called_by_ai=True, 
         gemini_model_override=model_to_use, 
         api_lock_override=lock_to_use,
-        retries=2 
+        retries=3 
     )
     
     if sent_res and isinstance(sent_res, dict):

@@ -39,16 +39,6 @@ cd ..
 echo "🏗️  Rebuilding Frontend..."
 npm run build
 
-echo "🌐 Updating Nginx Config (Timeout Fix)..."
-# Automatically apply the config that increases timeout to 300s
-sudo cp deployment/nginx_config /etc/nginx/sites-available/default
-if sudo nginx -t; then
-    sudo systemctl restart nginx
-    echo "✅ Nginx restarted with new config."
-else
-    echo "❌ Nginx Config Invalid! Check deployment/nginx_config."
-fi
-
 echo "🚀 Restarting Backend..."
 # Switch to backend directory for correct path resolution
 cd backend

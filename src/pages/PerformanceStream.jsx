@@ -225,59 +225,37 @@ const PerformanceStream = () => {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ ticker: stock.name })
         })
-            .then(async res => {
-                if (!res.ok) {
-                    const text = await res.text();
-                    throw new Error(`Summary API Error: ${res.status} - ${text.substring(0, 50)}`);
-                }
-                return res.json();
-            })
+            .then(res => res.json())
             .then(data => {
                 setAiData(prev => ({
                     ...prev,
                     summary: data.status === 'success' ? data.summary : "Summary unavailable.",
                     loadingSummary: false
                 }));
-            })
-            .catch(err => {
-                console.error("Summary Chain Error (Recovering):", err);
-                setAiData(prev => ({ ...prev, summary: "Summary unavailable.", loadingSummary: false }));
-            })
-            .then(() => {
-                // 2. Chain Sentiment (Always runs, even if Summary failed)
+
+                // 2. Chain Sentiment (only start after Summary finishes)
                 return fetch('/api/sentiment', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ email: 'guest', ticker: stock.name })
                 });
             })
-            .then(async res => {
-                if (!res.ok) throw new Error(`Sentiment API Error: ${res.status}`);
-                return res.json();
-            })
+            .then(res => res.json())
             .then(data => {
                 setAiData(prev => ({
                     ...prev,
                     sentiment: data.status === 'success' ? data : null,
                     loadingSentiment: false
                 }));
-            })
-            .catch(err => {
-                console.error("Sentiment Chain Error (Recovering):", err);
-                setAiData(prev => ({ ...prev, sentiment: null, loadingSentiment: false }));
-            })
-            .then(() => {
-                // 3. Chain Powerscore (Always runs, even if Sentiment failed)
+
+                // 3. Chain Powerscore (only start after Sentiment finishes)
                 return fetch('/api/powerscore', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ email: 'guest', ticker: stock.name, sensitivity: 2 })
                 });
             })
-            .then(async res => {
-                if (!res.ok) throw new Error(`Powerscore API Error: ${res.status}`);
-                return res.json();
-            })
+            .then(res => res.json())
             .then(data => {
                 setAiData(prev => ({
                     ...prev,
@@ -286,12 +264,13 @@ const PerformanceStream = () => {
                 }));
             })
             .catch(err => {
-                console.error("Powerscore Chain Error:", err);
-                setAiData(prev => ({ ...prev, powerscore: null, loadingPowerscore: false }));
-            })
-            .finally(() => {
-                // Redundant safety, but good to have
-                setLoadingAI(false);
+                console.error("AI Chain Error:", err);
+                setAiData(prev => ({
+                    ...prev,
+                    loadingSummary: false,
+                    loadingSentiment: false,
+                    loadingPowerscore: false
+                }));
             });
 
         // We do NOT block on a global loadingAI flag anymore. The UI will use individual flags.

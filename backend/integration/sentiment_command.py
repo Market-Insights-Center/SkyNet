@@ -20,7 +20,6 @@ from tabulate import tabulate
 from typing import Optional, Dict, Any, List 
 
 from backend.ai_service import ai
-from backend.database import get_cached_sentiment, save_cached_sentiment
 
 # --- Module-Specific Configuration ---
 urllib3.disable_warnings(InsecureRequestWarning)
@@ -44,7 +43,7 @@ class Colors:
     YELLOW = '\033[93m'
     RESET = '\033[0m'
 
-async def with_retry(coro_func, *args, retries=1, delay=1, **kwargs):
+async def with_retry(coro_func, *args, retries=2, delay=2, **kwargs):
     """
     Retries an async function call up to `retries` times.
     Logs specific failure reasons for debugging.
@@ -57,8 +56,8 @@ async def with_retry(coro_func, *args, retries=1, delay=1, **kwargs):
             return result
         except Exception as e:
             if attempt < retries:
-                # wait_time = delay * (2 ** attempt) + np.random.uniform(0, 1) # Too slow for VPS
-                await asyncio.sleep(0.5) 
+                wait_time = delay * (2 ** attempt) + np.random.uniform(0, 1)
+                await asyncio.sleep(wait_time)
             else:
                  print(f"   [DEBUG] {source_name} failed permanently. Error: {e}")
     return None 
@@ -125,7 +124,8 @@ async def scrape_google_news(ticker: str, company_name: str) -> list[str]:
         print(f"   [DEBUG] Google News: Found {len(headlines)} headlines.")
     except Exception as e:
         print(f"   [DEBUG] Google News Error for {ticker}: {e}")
-    return list(headlines)[:10]  # Restored to 10 for full data
+    return list(headlines)[:10]  # Reduced from 15 to 10 for speed
+
 
 async def scrape_reddit_combined(ticker: str, company_name: str) -> list[str]:
     post_titles = set()
@@ -147,24 +147,18 @@ async def scrape_reddit_combined(ticker: str, company_name: str) -> list[str]:
         except Exception: pass
     
     print(f"   [DEBUG] Reddit: Found {len(post_titles)} total titles.")
-    return list(post_titles)[:10] # Restored to 10 for full data
+    return list(post_titles)[:10] # Reduced from 20 to 10 for speed
 
 
 async def scrape_yahoo_finance_news(ticker: str) -> list[str]:
     headlines = []
     try:
-        # Wrap the thread execution in a timeout to prevent hanging
-        news_data = await asyncio.wait_for(
-            asyncio.to_thread(lambda: yf.Ticker(ticker).news), 
-            timeout=10
-        )
+        news_data = await asyncio.to_thread(lambda: yf.Ticker(ticker).news)
         if news_data:
             for item in news_data:
                 t = item.get('title')
                 if t: headlines.append(t)
         print(f"   [DEBUG] Yahoo Finance: Found {len(headlines)} headlines.")
-    except asyncio.TimeoutError:
-        print(f"   [DEBUG] Yahoo Finance timed out for {ticker}")
     except Exception as e:
         print(f"   [DEBUG] Yahoo Finance Error: {e}")
     
@@ -213,40 +207,45 @@ async def get_ai_sentiment_analysis(
     {truncated_text}
     """
 
-    # Removed Retry Loop - Single robust attempt with 600s timeout
-    try:
-        # Using new AI Service with json_mode=True
-        response_text = await ai.generate_content(
-            prompt, 
-            system_instruction="You are a JSON-only sentiment analysis API.", 
-            json_mode=True,
-            timeout=600
-        )
-        
-        if response_text:
-            raw_text = response_text.strip()
-            # print(f"   [DEBUG] Raw AI Response Preview: {raw_text[:100]}...")
+    for attempt in range(3):
+        try:
+            # Using new AI Service with json_mode=True
+            response_text = await ai.generate_content(prompt, system_instruction="You are a JSON-only sentiment analysis API.", json_mode=True)
+            
+            if response_text:
+                raw_text = response_text.strip()
+                # print(f"   [DEBUG] Raw AI Response Preview: {raw_text[:100]}...")
 
-            # --- ADVANCED CLEANING ---
-            start_idx = raw_text.find('{')
-            end_idx = raw_text.rfind('}')
+                # --- ADVANCED CLEANING ---
+                # 1. Find the first '{' and last '}'
+                start_idx = raw_text.find('{')
+                end_idx = raw_text.rfind('}')
 
-            if start_idx != -1 and end_idx != -1:
+                if start_idx == -1 or end_idx == -1:
+                    print(f"   [DEBUG] AI Response did not contain JSON brackets. Raw: {raw_text}")
+                    # Try again
+                    continue
+                
+                # Extract just the JSON part
                 json_str = raw_text[start_idx : end_idx + 1]
+
                 try:
                     parsed_json = json.loads(json_str)
+                    # Basic validation
                     if "sentiment_score" in parsed_json:
                         return parsed_json
                     else:
                         print(f"   [DEBUG] JSON parsed but missing 'sentiment_score': {parsed_json.keys()}")
                 except json.JSONDecodeError as je:
-                    print(f"   [DEBUG] JSON Decode Error: {je}")
-            else:
-                print(f"   [DEBUG] AI Response no JSON brackets. Raw: {raw_text}")
+                    print(f"   [DEBUG] JSON Decode Error on substring: {je}")
+                    # print(f"   [DEBUG] Substring was: {json_str}")
+                    pass # Retry
 
-    except Exception as e:
-        print(f"   [DEBUG] AI Generation Failed: {e}")
-                
+        except Exception as e:
+            print(f"   [DEBUG] AI Generation/Parsing Failed (Attempt {attempt+1}): {e}")
+            await asyncio.sleep(1)
+                    
+    print("   [DEBUG] All AI attempts failed.")
     return None
 
 # --- Main Command Handler (Modified) ---
@@ -268,12 +267,6 @@ async def handle_sentiment_command(
         return {"status": "error", "message": msg} if is_called_by_ai else None
 
     ticker = ticker.upper().strip()
-
-    # 1. Check Cache
-    cached_result = get_cached_sentiment(ticker)
-    if cached_result:
-        print(f"   [DEBUG] Using Cached Sentiment for {ticker}")
-        return cached_result
     
     if not is_called_by_ai:
         print(f"\n--- AI Sentiment Analysis for {ticker} ---")
@@ -282,24 +275,13 @@ async def handle_sentiment_command(
     company_name = await get_company_name(ticker)
 
     # Execute scrapes
-    # Execute scrapes with a global timeout
-    try:
-        results = await asyncio.wait_for(
-            asyncio.gather(
-                with_retry(scrape_finviz_headlines, ticker, retries=1),
-                with_retry(scrape_google_news, ticker, company_name, retries=1),
-                with_retry(scrape_reddit_combined, ticker, company_name, retries=1),
-                with_retry(scrape_yahoo_finance_news, ticker, retries=1),
-                return_exceptions=True
-            ),
-            timeout=45 # Strict global limit for scraping phase
-        )
-    except asyncio.TimeoutError:
-        print("   [DEBUG] Scraping phase timed out. Proceeding with partial data.")
-        results = [[], [], [], []] # Fallback to empty lists
-    except Exception as e:
-        print(f"   [DEBUG] Scraping phase failed: {e}")
-        results = [[], [], [], []]
+    results = await asyncio.gather(
+        with_retry(scrape_finviz_headlines, ticker, retries=2),
+        with_retry(scrape_google_news, ticker, company_name, retries=2),
+        with_retry(scrape_reddit_combined, ticker, company_name, retries=2),
+        with_retry(scrape_yahoo_finance_news, ticker, retries=2),
+        return_exceptions=True
+    )
 
     headlines_finviz = results[0] if isinstance(results[0], list) else []
     headlines_google = results[1] if isinstance(results[1], list) else []
@@ -333,28 +315,14 @@ async def handle_sentiment_command(
     analysis = await get_ai_sentiment_analysis(combined_text, f"{ticker} ({company_name})")
 
     if not analysis:
-        msg = "AI analysis failed/timeout. Using Fallback."
+        msg = "AI analysis failed to return valid JSON."
         if not is_called_by_ai: print(f"-> {msg}")
-        
-        # --- ROBUST FALLBACK: Basic Keyword Counting ---
-        text_lower = combined_text.lower()
-        pos_words = ["bull", "up", "gain", "strong", "green", "growth", "profit", "positive", "high", "beat"]
-        neg_words = ["bear", "down", "loss", "weak", "red", "drop", "miss", "negative", "low", "fail"]
-        
-        pos_count = sum(text_lower.count(w) for w in pos_words)
-        neg_count = sum(text_lower.count(w) for w in neg_words)
-        total = pos_count + neg_count + 1 # avoid div/0
-        
-        fallback_score = (pos_count - neg_count) / total
-        # Clamp between -1 and 1
-        fallback_score = max(-1.0, min(1.0, fallback_score))
-        
+        # Return a fallback JSON structure instead of None to prevent 400s
         return {
-             "status": "success", # Treat as success so frontend shows it
-             "message": msg,
-             "sentiment_score_raw": round(fallback_score, 3),
-             "summary": f"AI unavailable. Fallback analysis: Found {pos_count} positive and {neg_count} negative keywords.",
-             "keywords": []
+            "status": "error", 
+            "message": msg,
+            "sentiment_score_raw": 0.0,
+            "summary": "AI Analysis Failed."
         }
 
     raw_score = float(analysis.get("sentiment_score", 0.0))
@@ -377,7 +345,7 @@ async def handle_sentiment_command(
         print(f"Summary: {summary}")
         print("-------------------------")
 
-    result = {
+    return {
         "status": "success",
         "ticker": ticker,
         "sentiment_score_raw": raw_score,
@@ -385,8 +353,3 @@ async def handle_sentiment_command(
         "keywords": keywords,
         "source_counts": count_msg
     }
-    
-    # Save to Cache
-    save_cached_sentiment(ticker, result)
-    
-    return result
