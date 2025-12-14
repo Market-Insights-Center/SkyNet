@@ -715,7 +715,7 @@ const LandingPage = () => {
                             <FeatureCard
                                 icon={Zap}
                                 title="Automated Execution"
-                                desc="Seamlessly sync with supported brokers for automated rebalancing and trade execution. (Coming Soon)"
+                                desc="Seamlessly sync with supported brokers for automated rebalancing and trade execution."
                                 delay={0.6}
                             />
                         </div>

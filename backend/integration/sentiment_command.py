@@ -8,9 +8,10 @@ import requests
 import yfinance as yf
 import pandas as pd
 import numpy as np
-import google.generativeai as genai
 import configparser
 import os
+import json
+import asyncio
 from bs4 import BeautifulSoup
 from urllib.parse import quote_plus
 from urllib3.exceptions import InsecureRequestWarning
@@ -18,28 +19,13 @@ import urllib3
 from tabulate import tabulate
 from typing import Optional, Dict, Any, List 
 
+from backend.ai_service import ai
+
 # --- Module-Specific Configuration ---
 urllib3.disable_warnings(InsecureRequestWarning)
+# Kept for compatibility if imported elsewhere, but effectively unused by AI Service internals
 GEMINI_API_LOCK = asyncio.Lock() 
 YFINANCE_API_SEMAPHORE = asyncio.Semaphore(8)
-
-# Initialize gemini_model
-gemini_model = None
-try:
-    config = configparser.ConfigParser()
-    # Ensure config.ini exists in the parent directory relative to this script
-    config_path = os.path.join(os.path.dirname(__file__), '..', 'config.ini')
-    if not os.path.exists(config_path):
-        config_path = 'config.ini' 
-
-    config.read(config_path)
-    GEMINI_API_KEY = config.get('API_KEYS', 'GEMINI_API_KEY', fallback=None)
-    if GEMINI_API_KEY:
-        genai.configure(api_key=GEMINI_API_KEY)
-        # UPDATED: Using gemini-2.5-flash
-        gemini_model = genai.GenerativeModel('gemini-2.5-flash')
-except Exception as e:
-    print(f"Warning: Could not configure Gemini model in sentiment_command.py: {e}")
 
 # --- Common Headers for Scraping ---
 STD_HEADERS = {
@@ -182,15 +168,17 @@ async def scrape_yahoo_finance_news(ticker: str) -> list[str]:
 async def get_ai_sentiment_analysis(
     text_to_analyze: str,
     topic_name: str,
-    model_to_use: Any, 
-    lock_to_use: asyncio.Lock 
+    # Legacy args ignored
+    model_to_use: Any = None, 
+    lock_to_use: asyncio.Lock = None
 ) -> Optional[Dict[str, Any]]:
-    if not model_to_use: 
-        print("   [DEBUG] AI Model not initialized.")
-        return None
+    
+    # Huge performance optimization for Local AI: Truncate heavily.
+    # 8500 chars (approx 2k tokens) is too much for standard local inference without waiting minutes.
+    # Reducing to 4000 chars (approx 1k tokens) for speed.
+    truncated_text = text_to_analyze[:4000]
 
-    # Reduce context slightly to ensure prompt fits easily
-    truncated_text = text_to_analyze[:8500]
+    print(f"   [DEBUG] Sentinel AI Input Size: {len(truncated_text)} chars")
 
     prompt = f"""
     Analyze the sentiment for '{topic_name}' based on the text below.
@@ -219,53 +207,43 @@ async def get_ai_sentiment_analysis(
     {truncated_text}
     """
 
-    async with lock_to_use:
-        for attempt in range(3):
-            try:
-                # print(f"   [DEBUG] Sending AI Request (Attempt {attempt+1})...")
-                response = await asyncio.to_thread(
-                    model_to_use.generate_content,
-                    prompt,
-                    generation_config=genai.types.GenerationConfig(
-                        temperature=0.1, # Low temp for strict formatting
-                    )
-                )
+    for attempt in range(3):
+        try:
+            # Using new AI Service with json_mode=True
+            response_text = await ai.generate_content(prompt, system_instruction="You are a JSON-only sentiment analysis API.", json_mode=True)
+            
+            if response_text:
+                raw_text = response_text.strip()
+                # print(f"   [DEBUG] Raw AI Response Preview: {raw_text[:100]}...")
+
+                # --- ADVANCED CLEANING ---
+                # 1. Find the first '{' and last '}'
+                start_idx = raw_text.find('{')
+                end_idx = raw_text.rfind('}')
+
+                if start_idx == -1 or end_idx == -1:
+                    print(f"   [DEBUG] AI Response did not contain JSON brackets. Raw: {raw_text}")
+                    # Try again
+                    continue
                 
-                if response and response.text:
-                    raw_text = response.text.strip()
-                    # print(f"   [DEBUG] Raw AI Response Preview: {raw_text[:100]}...")
+                # Extract just the JSON part
+                json_str = raw_text[start_idx : end_idx + 1]
 
-                    # --- ADVANCED CLEANING ---
-                    # 1. Find the first '{' and last '}'
-                    start_idx = raw_text.find('{')
-                    end_idx = raw_text.rfind('}')
+                try:
+                    parsed_json = json.loads(json_str)
+                    # Basic validation
+                    if "sentiment_score" in parsed_json:
+                        return parsed_json
+                    else:
+                        print(f"   [DEBUG] JSON parsed but missing 'sentiment_score': {parsed_json.keys()}")
+                except json.JSONDecodeError as je:
+                    print(f"   [DEBUG] JSON Decode Error on substring: {je}")
+                    # print(f"   [DEBUG] Substring was: {json_str}")
+                    pass # Retry
 
-                    if start_idx == -1 or end_idx == -1:
-                        print(f"   [DEBUG] AI Response did not contain JSON brackets. Raw: {raw_text}")
-                        raise ValueError("No JSON brackets found in response")
-                    
-                    # Extract just the JSON part
-                    json_str = raw_text[start_idx : end_idx + 1]
-
-                    try:
-                        parsed_json = json.loads(json_str)
-                        # Basic validation
-                        if "sentiment_score" in parsed_json:
-                            return parsed_json
-                        else:
-                            print(f"   [DEBUG] JSON parsed but missing 'sentiment_score': {parsed_json.keys()}")
-                    except json.JSONDecodeError as je:
-                        print(f"   [DEBUG] JSON Decode Error on substring: {je}")
-                        # print(f"   [DEBUG] Substring was: {json_str}")
-                        raise je
-
-            except Exception as e:
-                print(f"   [DEBUG] AI Generation/Parsing Failed (Attempt {attempt+1}): {e}")
-                if "429" in str(e):
-                    await asyncio.sleep(2 ** attempt)
-                else: 
-                    # Don't break immediately, try next attempt if possible
-                    await asyncio.sleep(1)
+        except Exception as e:
+            print(f"   [DEBUG] AI Generation/Parsing Failed (Attempt {attempt+1}): {e}")
+            await asyncio.sleep(1)
                     
     print("   [DEBUG] All AI attempts failed.")
     return None
@@ -334,12 +312,7 @@ async def handle_sentiment_command(
             "summary": "No data found."
         }
 
-    model_to_use = gemini_model_override or gemini_model
-    lock_to_use = api_lock_override or GEMINI_API_LOCK
-
-    if not is_called_by_ai: print("-> Analyzing text with AI...")
-    
-    analysis = await get_ai_sentiment_analysis(combined_text, f"{ticker} ({company_name})", model_to_use, lock_to_use)
+    analysis = await get_ai_sentiment_analysis(combined_text, f"{ticker} ({company_name})")
 
     if not analysis:
         msg = "AI analysis failed to return valid JSON."

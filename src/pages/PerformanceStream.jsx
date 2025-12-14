@@ -181,10 +181,17 @@ const PerformanceStream = () => {
         return chartData.some(s => s.children && s.children.length > 0);
     }, [chartData]);
 
+    const [aiData, setAiData] = useState(null); // AI Summary, Sentiment, Powerscore
+    const [loadingAI, setLoadingAI] = useState(false);
+
     const handleStockClick = async (stock) => {
         setSelectedStock(stock);
         setLoadingDetails(true);
+        setLoadingAI(true);
         setDetails(null);
+        setAiData(null);
+
+        // Fetch Standard Details
         try {
             const res = await fetch(`/api/performance-stream/details/${stock.name}`);
             if (res.ok) {
@@ -196,6 +203,80 @@ const PerformanceStream = () => {
         } finally {
             setLoadingDetails(false);
         }
+
+        // Initialize minimal state so UI shows "Loading..." for each section immediately
+        setAiData({
+            summary: null,
+            sentiment: null,
+            powerscore: null,
+            loadingSummary: true,
+            loadingSentiment: true,
+            loadingPowerscore: true
+        });
+
+        // Fetch AI Data (Parallel & Independent)
+        // We fire all requests simultaneously. Each one updates the state independently when it finishes.
+        // This allows separate loading spinners for each section.
+
+        // 1. Fetch Summary
+        fetch('/api/summary', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ticker: stock.name })
+        })
+            .then(res => res.json())
+            .then(data => {
+                setAiData(prev => ({
+                    ...prev,
+                    summary: data.status === 'success' ? data.summary : "Summary unavailable.",
+                    loadingSummary: false
+                }));
+            })
+            .catch(err => {
+                console.error("Summary Fetch Error:", err);
+                setAiData(prev => ({ ...prev, summary: "Error fetching summary.", loadingSummary: false }));
+            });
+
+        // 2. Fetch Sentiment
+        fetch('/api/sentiment', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email: 'guest', ticker: stock.name })
+        })
+            .then(res => res.json())
+            .then(data => {
+                setAiData(prev => ({
+                    ...prev,
+                    sentiment: data.status === 'success' ? data : null,
+                    loadingSentiment: false
+                }));
+            })
+            .catch(err => {
+                console.error("Sentiment Fetch Error:", err);
+                setAiData(prev => ({ ...prev, sentiment: null, loadingSentiment: false }));
+            });
+
+        // 3. Fetch Powerscore
+        fetch('/api/powerscore', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email: 'guest', ticker: stock.name, sensitivity: 2 })
+        })
+            .then(res => res.json())
+            .then(data => {
+                setAiData(prev => ({
+                    ...prev,
+                    powerscore: data.status === 'success' ? data : null,
+                    loadingPowerscore: false
+                }));
+            })
+            .catch(err => {
+                console.error("Powerscore Fetch Error:", err);
+                setAiData(prev => ({ ...prev, powerscore: null, loadingPowerscore: false }));
+            });
+
+        // We do NOT block on a global loadingAI flag anymore. The UI will use individual flags.
+        setLoadingAI(false);
     };
 
     const closeDetail = () => {
@@ -341,6 +422,7 @@ const PerformanceStream = () => {
                                     <div className="lg:col-span-2 space-y-6">
                                         {/* Trend Chart */}
                                         <div className="bg-white/5 rounded-xl p-4 border border-white/5 h-[300px] relative">
+                                            {/* ... Chart Content (Unchanged) ... */}
                                             <div className="flex items-center justify-between mb-4">
                                                 <h3 className="text-gray-400 text-sm font-bold flex items-center gap-2">
                                                     <BarChart2 size={16} /> PRICE TREND (1Y)
@@ -358,9 +440,40 @@ const PerformanceStream = () => {
                                                 <ResponsiveContainer width="100%" height="100%">
                                                     <AreaChart data={trendData}>
                                                         <defs>
-                                                            <linearGradient id="colorPrice" x1="0" y1="0" x2="0" y2="1">
-                                                                <stop offset="5%" stopColor={graphTotalChange >= 0 ? "#4ade80" : "#9333EA"} stopOpacity={0.3} />
-                                                                <stop offset="95%" stopColor={graphTotalChange >= 0 ? "#4ade80" : "#9333EA"} stopOpacity={0} />
+                                                            {/* SPLIT GRADIENT LOGIC */}
+                                                            <linearGradient id="splitColor" x1="0" y1="0" x2="0" y2="1">
+                                                                {(() => {
+                                                                    const vals = trendData.map(d => d.changePct);
+                                                                    const max = Math.max(...vals);
+                                                                    const min = Math.min(...vals);
+
+                                                                    if (max <= 0) return <stop offset="0%" stopColor="#ef4444" stopOpacity={1} />;
+                                                                    if (min >= 0) return <stop offset="0%" stopColor="#4ade80" stopOpacity={1} />;
+
+                                                                    const off = max / (max - min);
+                                                                    return (
+                                                                        <>
+                                                                            <stop offset={off} stopColor="#4ade80" stopOpacity={1} />
+                                                                            <stop offset={off} stopColor="#ef4444" stopOpacity={1} />
+                                                                        </>
+                                                                    );
+                                                                })()}
+                                                            </linearGradient>
+                                                            {/* Fill Opacity Gradient (Optional, usually same split logic or just solid) */}
+                                                            <linearGradient id="splitFill" x1="0" y1="0" x2="0" y2="1">
+                                                                {(() => {
+                                                                    const vals = trendData.map(d => d.changePct);
+                                                                    const max = Math.max(...vals);
+                                                                    const min = Math.min(...vals);
+                                                                    const off = (max <= 0) ? 0 : (min >= 0) ? 1 : max / (max - min);
+
+                                                                    return (
+                                                                        <>
+                                                                            <stop offset={off} stopColor="#4ade80" stopOpacity={0.2} />
+                                                                            <stop offset={off} stopColor="#ef4444" stopOpacity={0.2} />
+                                                                        </>
+                                                                    );
+                                                                })()}
                                                             </linearGradient>
                                                         </defs>
                                                         <XAxis dataKey="date" hide />
@@ -376,7 +489,7 @@ const PerformanceStream = () => {
                                                                             <div className="text-white font-bold text-sm">
                                                                                 ${d.price.toFixed(2)}
                                                                             </div>
-                                                                            <div className={`text-sm font-mono ${d.changePct >= 0 ? 'text-green-400' : 'text-purple-400'}`}>
+                                                                            <div className={`text-sm font-mono ${d.changePct >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                                                                                 {d.changePct > 0 ? '+' : ''}{d.changePct.toFixed(2)}%
                                                                             </div>
                                                                         </div>
@@ -388,13 +501,102 @@ const PerformanceStream = () => {
                                                         <Area
                                                             type="monotone"
                                                             dataKey="changePct"
-                                                            stroke={graphTotalChange >= 0 ? "#4ade80" : "#9333EA"}
+                                                            stroke="url(#splitColor)"
                                                             strokeWidth={2}
                                                             fillOpacity={1}
-                                                            fill="url(#colorPrice)"
+                                                            fill="url(#splitFill)"
                                                         />
                                                     </AreaChart>
                                                 </ResponsiveContainer>
+                                            )}
+                                        </div>
+
+                                        {/* NEW: AI INSIGHT CARD */}
+                                        <div className="bg-gradient-to-r from-blue-900/20 to-purple-900/20 border border-blue-500/20 rounded-xl p-6 relative overflow-hidden">
+                                            <div className="absolute top-0 right-0 p-4 opacity-10"><RefreshCw size={80} className="animate-pulse" /></div>
+                                            <h3 className="text-blue-400 text-sm font-bold mb-3 flex items-center gap-2">
+                                                <RefreshCw size={16} /> AI ANALYST INSIGHT
+                                            </h3>
+
+                                            {loadingAI ? (
+                                                <div className="flex items-center gap-3 text-gray-400 py-4">
+                                                    {/* This block might be redundant if loadingAI is false quickly, but keeps a fallback */}
+                                                    <Loader2 className="animate-spin text-blue-400" />
+                                                    <span>Initializing analysis...</span>
+                                                </div>
+                                            ) : aiData ? (
+                                                <div className="space-y-4 relative z-10">
+                                                    {/* Brief Summary */}
+                                                    <div>
+                                                        <div className="text-white font-medium text-sm leading-relaxed mb-2 relative min-h-[40px]">
+                                                            {aiData.loadingSummary ? (
+                                                                <div className="flex items-center gap-2 text-gray-400">
+                                                                    <Loader2 className="w-4 h-4 animate-spin text-blue-400" />
+                                                                    <span className="text-xs animate-pulse">Generating summary...</span>
+                                                                </div>
+                                                            ) : (
+                                                                <ExpandableText text={aiData.summary || "Summary unavailable."} />
+                                                            )}
+                                                        </div>
+                                                        <div className="h-px w-full bg-white/10 my-3" />
+                                                    </div>
+
+                                                    <div className="grid grid-cols-2 gap-4">
+                                                        {/* Sentiment */}
+                                                        <div>
+                                                            <div className="text-gray-500 text-xs uppercase mb-1">Sentiment</div>
+                                                            {aiData.loadingSentiment ? (
+                                                                <div className="flex items-center gap-2 text-gray-400 py-2">
+                                                                    <Loader2 className="w-4 h-4 animate-spin text-blue-400" />
+                                                                    <span className="text-xs">Analyzing...</span>
+                                                                </div>
+                                                            ) : aiData.sentiment ? (
+                                                                <>
+                                                                    {/* Logic: > 60 Green, 40-60 Yellow, < 40 Red */}
+                                                                    {(() => {
+                                                                        const val = aiData.sentiment.sentiment_score_raw * 100;
+                                                                        const color = val > 60 ? 'text-green-400' : val > 40 ? 'text-yellow-400' : 'text-red-400';
+                                                                        return (
+                                                                            <div className={`text-lg font-bold ${color}`}>
+                                                                                {val.toFixed(1)}%
+                                                                            </div>
+                                                                        );
+                                                                    })()}
+                                                                    <div className="text-[10px] text-gray-400 mt-1">
+                                                                        <ExpandableText text={aiData.sentiment.summary || "No sentiment data"} />
+                                                                    </div>
+                                                                </>
+                                                            ) : (
+                                                                <div className="text-gray-600 text-sm">N/A</div>
+                                                            )}
+                                                        </div>
+
+                                                        {/* Powerscore */}
+                                                        <div>
+                                                            <div className="text-gray-500 text-xs uppercase mb-1">PowerScore</div>
+                                                            {aiData.loadingPowerscore ? (
+                                                                <div className="flex items-center gap-2 text-gray-400 py-2">
+                                                                    <Loader2 className="w-4 h-4 animate-spin text-blue-400" />
+                                                                    <span className="text-xs">Calculating...</span>
+                                                                </div>
+                                                            ) : aiData.powerscore ? (
+                                                                <>
+                                                                    {/* Logic: > 60 Green, 40-60 Yellow, < 40 Red */}
+                                                                    <div className={`text-lg font-bold ${aiData.powerscore.powerscore > 60 ? 'text-green-400' : aiData.powerscore.powerscore > 40 ? 'text-yellow-400' : 'text-red-400'}`}>
+                                                                        {(aiData.powerscore.powerscore).toFixed(1)}
+                                                                    </div>
+                                                                    <div className="text-[10px] text-gray-400 mt-1">
+                                                                        <ExpandableText text={aiData.powerscore.ai_explanation || "No score data"} />
+                                                                    </div>
+                                                                </>
+                                                            ) : (
+                                                                <div className="text-gray-600 text-sm">N/A</div>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            ) : (
+                                                <div className="text-gray-500 italic text-sm">Analysis failed.</div>
                                             )}
                                         </div>
 
@@ -519,6 +721,30 @@ const PerformanceStream = () => {
                 </AnimatePresence>
             </div>
         </AccessGate>
+    );
+};
+
+
+
+const ExpandableText = ({ text }) => {
+    const [expanded, setExpanded] = useState(false);
+    const threshold = 150;
+    const isLong = text && text.length > threshold;
+
+    return (
+        <div>
+            <span>
+                {expanded || !isLong ? text : text.slice(0, threshold) + "..."}
+            </span>
+            {isLong && (
+                <button
+                    onClick={(e) => { e.stopPropagation(); setExpanded(!expanded); }}
+                    className="ml-1 text-gold hover:underline text-xs font-bold uppercase tracking-wider"
+                >
+                    {expanded ? "Show Less" : "See More"}
+                </button>
+            )}
+        </div>
     );
 };
 

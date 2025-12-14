@@ -12,7 +12,8 @@ import pandas as pd
 from tabulate import tabulate
 from scipy.stats import percentileofscore
 from sklearn.ensemble import RandomForestRegressor
-import google.generativeai as genai
+
+from backend.ai_service import ai
 
 # --- Imports from other command modules ---
 from backend.integration.invest_command import calculate_ema_invest
@@ -20,31 +21,6 @@ from backend.integration.sentiment_command import handle_sentiment_command, GEMI
 
 # --- Global Variables & Constants ---
 YFINANCE_API_SEMAPHORE = asyncio.Semaphore(8)
-
-# --- Initialize Gemini Model within this module ---
-gemini_model = None
-try:
-    config = configparser.ConfigParser()
-    # Robust config path finding
-    import os
-    config_path = os.path.join(os.path.dirname(__file__), '..', 'config.ini')
-    if not os.path.exists(config_path):
-        config_path = os.path.join(os.path.dirname(__file__), '..', '..', 'config.ini')
-    if not os.path.exists(config_path):
-        config_path = 'config.ini'
-        
-    config.read(config_path)
-    GEMINI_API_KEY = config.get('API_KEYS', 'GEMINI_API_KEY', fallback=None)
-    print(f"   [DEBUG] Loading Config from: {os.path.abspath(config_path)}")
-    print(f"   [DEBUG] GEMINI_API_KEY found: {bool(GEMINI_API_KEY)}")
-    
-    if GEMINI_API_KEY:
-        genai.configure(api_key=GEMINI_API_KEY)
-        gemini_model = genai.GenerativeModel('gemini-2.5-flash') 
-    else:
-        print(f"   [DEBUG] GEMINI_API_KEY not found in {os.path.abspath(config_path)}") 
-except Exception as e:
-    print(f"Warning: Could not configure Gemini model in powerscore_command.py: {e}")
 
 # --- Helper Functions ---
 
@@ -413,9 +389,9 @@ async def handle_mlforecast_command_internal(ai_params: dict, is_called_by_ai: b
             
     return results
 
-async def get_powerscore_explanation(ticker: str, component_scores: dict, model_to_use: Any, lock_to_use: asyncio.Lock) -> str:
-    if not model_to_use: return "AI model unavailable."
-
+async def get_powerscore_explanation(ticker: str, component_scores: dict, model_to_use: Any = None, lock_to_use: asyncio.Lock = None) -> str:
+    # Deprecated args model_to_use/lock_to_use ignored.
+    
     score_lines = []
     score_map = {
         'Market': component_scores.get('R'),
@@ -430,47 +406,39 @@ async def get_powerscore_explanation(ticker: str, component_scores: dict, model_
         score_lines.append(f"- {name}: {score:.1f}" if score is not None else f"- {name}: N/A")
 
     prompt = f"""
-    Act as a financial analyst. Based *only* on the following Prime component scores for {ticker}, provide a concise (2-4 sentences) summary profile.
+    Act as a financial analyst. Based *only* on the following Prime component scores for {ticker}, provide a concise (2-3 sentences) summary profile.
     Focus on interpreting the scores to highlight clear strengths and weaknesses.
     Do NOT mention the specific score values numbers. Use qualitative terms (e.g., 'strong', 'weak', 'neutral').
+    Do NOT use introductory phrases. Start directly with the analysis.
     
     Scores (0-100 scale):
     {chr(10).join(score_lines)}
     """
     
     print(f"   [DEBUG AI Analyst] Generating Summary for {ticker}...")
-    # print(f"   [DEBUG AI Analyst] Prompt Length: {len(prompt)}")
     
-    for attempt in range(1, 4):
-        try:
-            async with lock_to_use:
-                response = await asyncio.to_thread(model_to_use.generate_content, prompt)
-            
-            if response and response.text:
-                summary = response.text.strip()
-                print(f"   [DEBUG AI Analyst] Success (Attempt {attempt}). Length: {len(summary)}")
-                return summary
-            else:
-                print(f"   [DEBUG AI Analyst] Attempt {attempt} returned empty response.")
-        except Exception as e:
-            print(f"   [DEBUG AI Analyst] Failed (Attempt {attempt}): {e}")
-            if attempt < 3:
-                await asyncio.sleep(2)
-            else:
-                return "AI summary generation failed after 3 attempts."
-    return "AI summary generation failed."
+    try:
+        # Use new AI Service
+        summary = await ai.generate_content(prompt, system_instruction="You are a financial analyst.")
+        if summary:
+            return summary.strip()
+    except Exception as e:
+         print(f"   [DEBUG AI Analyst] Failed: {e}")
+
+    return "AI summary analysis unavailable."
 
 # --- Main Command Handler ---
 async def handle_powerscore_command(
     args: List[str] = None,
     ai_params: dict = None,
     is_called_by_ai: bool = False,
+    # Legacy arguments preserved for compatibility but ignored
     gemini_model_obj: Any = None,
     api_lock_override: asyncio.Lock = None,
     **kwargs
 ):
-    model_to_use = gemini_model_obj or gemini_model
-    lock_to_use = api_lock_override or GEMINI_API_LOCK
+    model_to_use = None # Deprecated
+    lock_to_use = None # Deprecated
 
     ticker, sensitivity = None, None
     try:
@@ -495,8 +463,9 @@ async def handle_powerscore_command(
         print("--- Fetching Components Sequentially (One by One) ---")
 
     # [DEBUG] Log model usage
-    if is_called_by_ai and not gemini_model_obj and not gemini_model:
-         print(f"   [DEBUG_CRITICAL] No Gemini model available for PowerScore!")
+    if is_called_by_ai:
+         # print(f"   [DEBUG] PowerScore called by AI.")
+         pass
 
     period_map = {1: '10y', 2: '5y', 3: '1y'}
     backtest_period = period_map[sensitivity]
@@ -645,7 +614,7 @@ async def handle_powerscore_command(
             "sensitivity": sensitivity,
             "powerscore": final_score,
             "prime_scores": {k: v for k, v in prime.items() if v is not None},
-            "ai_explanation": await get_powerscore_explanation(ticker, prime, model_to_use, lock_to_use) if gemini_model else "AI Analysis Unavailable",
+            "ai_explanation": await get_powerscore_explanation(ticker, prime, None, None),
             "errors": component_errors if component_errors else None
         }
     else:
@@ -671,7 +640,7 @@ async def handle_powerscore_command(
             print("\nWarnings:")
             for e in component_errors: print(f"  - Failed: {e}")
         
-        print(f"\nAI Summary:\n{await get_powerscore_explanation(ticker, prime, model_to_use, lock_to_use)}")
+        print(f"\nAI Summary:\n{await get_powerscore_explanation(ticker, prime, None, None)}")
         
         # Color logic for final score
         color = Colors.RESET
