@@ -120,29 +120,32 @@ class AIService:
         logger.info(f"   [Sentinel AI] Requesting generation... Model: {self.model} | Prompt Len: {prompt_len} chars")
 
         try:
-            # logger.info(f"Sending request to Local AI ({self.model})...") 
-            response = await asyncio.to_thread(
-                requests.post, 
-                self.local_url, 
-                json=payload, 
-                timeout=300 # Increased to 5 minutes for slow local hardware
-            )
+            # 1. Use requests.post to localhost:11434
+            response = await asyncio.to_thread(requests.post, self.local_url, json=payload, timeout=300)
             
-            # If 404, model likely not found.
+            duration = time.time() - start_time
+            logger.info(f"   [Sentinel AI] Response received in {duration:.2f}s. Status: {response.status_code}")
+            
             if response.status_code == 404:
+                # 404 means model not found. Try to auto-detect.
                 logger.warning(f"   [Sentinel AI] Model '{self.model}' not found (404). Auto-detecting...")
                 new_model = await self._detect_model()
-                if new_model != self.model:
+                
+                if new_model and new_model != self.model:
                     self.model = new_model
                     payload["model"] = self.model
                     
                     logger.info(f"   [Sentinel AI] Retrying with model: {self.model}")
                     response = await asyncio.to_thread(requests.post, self.local_url, json=payload, timeout=300)
-
-            duration = time.time() - start_time
-            logger.info(f"   [Sentinel AI] Response received in {duration:.2f}s. Status: {response.status_code}")
-            
-            if response.status_code != 200:
+                    
+                    if response.status_code != 200:
+                         logger.error(f"   [Sentinel AI] Retry failed: {response.text}")
+                         response.raise_for_status()
+                else:
+                    # No new model found, so fail.
+                    logger.error(f"   [Sentinel AI] Error: Model '{self.model}' missing and no others found.")
+                    response.raise_for_status()
+            elif response.status_code != 200:
                 logger.error(f"   [Sentinel AI] Error Response: {response.text}")
                 response.raise_for_status()
             
