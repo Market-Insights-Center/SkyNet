@@ -214,18 +214,44 @@ const PerformanceStream = () => {
             loadingPowerscore: true
         });
 
+        // Helper for retrying (Handles Nginx 504 Timeouts by waiting for backend cache)
+        const fetchWithRetry = (url, options, retries = 1, delayMs = 5000) => {
+            return new Promise((resolve, reject) => {
+                const attempt = (n) => {
+                    fetch(url, options)
+                        .then(res => {
+                            if (res.ok) return res.json();
+                            // If 504 Gateway Timeout, the backend is likely still working or just finished.
+                            if (res.status === 504 && n > 0) {
+                                console.log(`[Auto-Retry] 504 Timeout on ${url}. Retrying in ${delayMs / 1000}s...`);
+                                setTimeout(() => attempt(n - 1), delayMs);
+                                return null; // Signal waiting
+                            }
+                            throw new Error(`HTTP Error: ${res.status}`);
+                        })
+                        .then(data => {
+                            if (data) resolve(data);
+                        })
+                        .catch(err => {
+                            if (n > 0) {
+                                console.log(`[Auto-Retry] Error on ${url}: ${err}. Retrying...`);
+                                setTimeout(() => attempt(n - 1), delayMs);
+                            } else {
+                                reject(err);
+                            }
+                        });
+                };
+                attempt(retries);
+            });
+        };
 
         // Fetch AI Data (Sequential Chaining for VPS Stability)
-        // We fetch Summary -> Then Sentiment -> Then Powerscore.
-        // This ensures the VPS only handles 1 LLM request at a time, preventing timeouts/failures.
-
         // 1. Fetch Summary
-        fetch('/api/summary', {
+        fetchWithRetry('/api/summary', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ ticker: stock.name })
         })
-            .then(res => res.json())
             .then(data => {
                 setAiData(prev => ({
                     ...prev,
@@ -233,33 +259,31 @@ const PerformanceStream = () => {
                     loadingSummary: false
                 }));
 
-                // 2. Chain Sentiment (only start after Summary finishes)
-                return fetch('/api/sentiment', {
+                // 2. Chain Sentiment
+                return fetchWithRetry('/api/sentiment', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ email: 'guest', ticker: stock.name })
-                });
+                }, 2, 7000); // 2 retries, 7s delay (generous for AI to finish)
             })
-            .then(res => res.json())
             .then(data => {
                 setAiData(prev => ({
                     ...prev,
-                    sentiment: data.status === 'success' ? data : null,
+                    sentiment: data && data.status === 'success' ? data : null,
                     loadingSentiment: false
                 }));
 
-                // 3. Chain Powerscore (only start after Sentiment finishes)
-                return fetch('/api/powerscore', {
+                // 3. Chain Powerscore
+                return fetchWithRetry('/api/powerscore', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ email: 'guest', ticker: stock.name, sensitivity: 2 })
-                });
+                }, 2, 7000);
             })
-            .then(res => res.json())
             .then(data => {
                 setAiData(prev => ({
                     ...prev,
-                    powerscore: data.status === 'success' ? data : null,
+                    powerscore: data && data.status === 'success' ? data : null,
                     loadingPowerscore: false
                 }));
             })
@@ -273,7 +297,6 @@ const PerformanceStream = () => {
                 }));
             });
 
-        // We do NOT block on a global loadingAI flag anymore. The UI will use individual flags.
         setLoadingAI(false);
     };
 

@@ -178,8 +178,8 @@ async def get_ai_sentiment_analysis(
 ) -> Optional[Dict[str, Any]]:
     
     # Huge performance optimization for Local AI: Truncate heavily.
-    # Reducing to 3000 chars (approx 750 tokens) for speed to beat 60s timeout.
-    truncated_text = text_to_analyze[:3000]
+    # Reducing to 2000 chars (approx 500 tokens) for speed to beat 60s timeout.
+    truncated_text = text_to_analyze[:2000]
 
     print(f"   [DEBUG] Sentinel AI Input Size: {len(truncated_text)} chars")
 
