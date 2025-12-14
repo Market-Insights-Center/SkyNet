@@ -167,6 +167,8 @@ async def scrape_yahoo_finance_news(ticker: str) -> list[str]:
     return headlines[:15]
 
 
+from backend.database import get_cached_sentiment, save_cached_sentiment
+
 async def get_ai_sentiment_analysis(
     text_to_analyze: str,
     topic_name: str,
@@ -176,9 +178,8 @@ async def get_ai_sentiment_analysis(
 ) -> Optional[Dict[str, Any]]:
     
     # Huge performance optimization for Local AI: Truncate heavily.
-    # 8500 chars (approx 2k tokens) is too much for standard local inference without waiting minutes.
-    # Reducing to 4000 chars (approx 1k tokens) for speed.
-    truncated_text = text_to_analyze[:4000]
+    # Reducing to 3000 chars (approx 750 tokens) for speed to beat 60s timeout.
+    truncated_text = text_to_analyze[:3000]
 
     print(f"   [DEBUG] Sentinel AI Input Size: {len(truncated_text)} chars")
 
@@ -225,7 +226,6 @@ async def get_ai_sentiment_analysis(
 
                 if start_idx == -1 or end_idx == -1:
                     print(f"   [DEBUG] AI Response did not contain JSON brackets. Raw: {raw_text}")
-                    # Try again
                     continue
                 
                 # Extract just the JSON part
@@ -240,7 +240,6 @@ async def get_ai_sentiment_analysis(
                         print(f"   [DEBUG] JSON parsed but missing 'sentiment_score': {parsed_json.keys()}")
                 except json.JSONDecodeError as je:
                     print(f"   [DEBUG] JSON Decode Error on substring: {je}")
-                    # print(f"   [DEBUG] Substring was: {json_str}")
                     pass # Retry
 
         except Exception as e:
@@ -269,6 +268,17 @@ async def handle_sentiment_command(
         return {"status": "error", "message": msg} if is_called_by_ai else None
 
     ticker = ticker.upper().strip()
+
+    # 1. Check Cache
+    cached_result = get_cached_sentiment(ticker)
+    if cached_result:
+        print(f"   [DEBUG] Using Cached Sentiment for {ticker}")
+        return {
+            "status": "success",
+            "ticker": ticker,
+            **cached_result,
+            "source_counts": "Cached"
+        }
     
     if not is_called_by_ai:
         print(f"\n--- AI Sentiment Analysis for {ticker} ---")
@@ -337,6 +347,14 @@ async def handle_sentiment_command(
     raw_score = float(analysis.get("sentiment_score", 0.0))
     summary = analysis.get("summary", "N/A")
     keywords = analysis.get("keywords", [])
+
+    # 2. Save To Cache
+    save_data = {
+        "sentiment_score_raw": raw_score,
+        "summary": summary,
+        "keywords": keywords
+    }
+    save_cached_sentiment(ticker, save_data)
 
     if not is_called_by_ai:
         print("\n--- Sentiment Results ---")
