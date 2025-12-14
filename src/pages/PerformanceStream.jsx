@@ -214,9 +214,10 @@ const PerformanceStream = () => {
             loadingPowerscore: true
         });
 
-        // Fetch AI Data (Parallel & Independent)
-        // We fire all requests simultaneously. Each one updates the state independently when it finishes.
-        // This allows separate loading spinners for each section.
+
+        // Fetch AI Data (Sequential Chaining for VPS Stability)
+        // We fetch Summary -> Then Sentiment -> Then Powerscore.
+        // This ensures the VPS only handles 1 LLM request at a time, preventing timeouts/failures.
 
         // 1. Fetch Summary
         fetch('/api/summary', {
@@ -231,18 +232,14 @@ const PerformanceStream = () => {
                     summary: data.status === 'success' ? data.summary : "Summary unavailable.",
                     loadingSummary: false
                 }));
-            })
-            .catch(err => {
-                console.error("Summary Fetch Error:", err);
-                setAiData(prev => ({ ...prev, summary: "Error fetching summary.", loadingSummary: false }));
-            });
 
-        // 2. Fetch Sentiment
-        fetch('/api/sentiment', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email: 'guest', ticker: stock.name })
-        })
+                // 2. Chain Sentiment (only start after Summary finishes)
+                return fetch('/api/sentiment', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email: 'guest', ticker: stock.name })
+                });
+            })
             .then(res => res.json())
             .then(data => {
                 setAiData(prev => ({
@@ -250,18 +247,14 @@ const PerformanceStream = () => {
                     sentiment: data.status === 'success' ? data : null,
                     loadingSentiment: false
                 }));
-            })
-            .catch(err => {
-                console.error("Sentiment Fetch Error:", err);
-                setAiData(prev => ({ ...prev, sentiment: null, loadingSentiment: false }));
-            });
 
-        // 3. Fetch Powerscore
-        fetch('/api/powerscore', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email: 'guest', ticker: stock.name, sensitivity: 2 })
-        })
+                // 3. Chain Powerscore (only start after Sentiment finishes)
+                return fetch('/api/powerscore', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email: 'guest', ticker: stock.name, sensitivity: 2 })
+                });
+            })
             .then(res => res.json())
             .then(data => {
                 setAiData(prev => ({
@@ -271,8 +264,13 @@ const PerformanceStream = () => {
                 }));
             })
             .catch(err => {
-                console.error("Powerscore Fetch Error:", err);
-                setAiData(prev => ({ ...prev, powerscore: null, loadingPowerscore: false }));
+                console.error("AI Chain Error:", err);
+                setAiData(prev => ({
+                    ...prev,
+                    loadingSummary: false,
+                    loadingSentiment: false,
+                    loadingPowerscore: false
+                }));
             });
 
         // We do NOT block on a global loadingAI flag anymore. The UI will use individual flags.
