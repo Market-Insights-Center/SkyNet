@@ -220,12 +220,20 @@ const PerformanceStream = () => {
         // This ensures the VPS only handles 1 LLM request at a time, preventing timeouts/failures.
 
         // 1. Fetch Summary
+        // 1. Fetch Summary
         fetch('/api/summary', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ ticker: stock.name })
         })
-            .then(res => res.json())
+            .then(async res => {
+                if (!res.ok) {
+                    // Try to return text for debugging, or just throw status
+                    const text = await res.text();
+                    throw new Error(`Summary API Error: ${res.status} - ${text.substring(0, 50)}`);
+                }
+                return res.json();
+            })
             .then(data => {
                 setAiData(prev => ({
                     ...prev,
@@ -240,13 +248,19 @@ const PerformanceStream = () => {
                     body: JSON.stringify({ email: 'guest', ticker: stock.name })
                 });
             })
-            .then(res => res.json())
+            .then(async res => {
+                if (!res) return null; // Chain might have broken above
+                if (!res.ok) throw new Error(`Sentiment API Error: ${res.status}`);
+                return res.json();
+            })
             .then(data => {
-                setAiData(prev => ({
-                    ...prev,
-                    sentiment: data.status === 'success' ? data : null,
-                    loadingSentiment: false
-                }));
+                if (data) {
+                    setAiData(prev => ({
+                        ...prev,
+                        sentiment: data.status === 'success' ? data : null,
+                        loadingSentiment: false
+                    }));
+                }
 
                 // 3. Chain Powerscore (only start after Sentiment finishes)
                 return fetch('/api/powerscore', {
@@ -255,16 +269,23 @@ const PerformanceStream = () => {
                     body: JSON.stringify({ email: 'guest', ticker: stock.name, sensitivity: 2 })
                 });
             })
-            .then(res => res.json())
+            .then(async res => {
+                if (!res) return null;
+                if (!res.ok) throw new Error(`Powerscore API Error: ${res.status}`);
+                return res.json();
+            })
             .then(data => {
-                setAiData(prev => ({
-                    ...prev,
-                    powerscore: data.status === 'success' ? data : null,
-                    loadingPowerscore: false
-                }));
+                if (data) {
+                    setAiData(prev => ({
+                        ...prev,
+                        powerscore: data.status === 'success' ? data : null,
+                        loadingPowerscore: false
+                    }));
+                }
             })
             .catch(err => {
                 console.error("AI Chain Error:", err);
+                // Ensure spinners stop on error
                 setAiData(prev => ({
                     ...prev,
                     loadingSummary: false,
