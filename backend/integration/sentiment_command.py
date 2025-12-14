@@ -176,7 +176,8 @@ async def get_ai_sentiment_analysis(
     # Huge performance optimization for Local AI: Truncate heavily.
     # 8500 chars (approx 2k tokens) is too much for standard local inference without waiting minutes.
     # Reducing to 4000 chars (approx 1k tokens) for speed.
-    truncated_text = text_to_analyze[:4000]
+    # UPDATE: Reducing further to 2000 chars to ensure <60s response on slow VPS.
+    truncated_text = text_to_analyze[:2000]
 
     print(f"   [DEBUG] Sentinel AI Input Size: {len(truncated_text)} chars")
 

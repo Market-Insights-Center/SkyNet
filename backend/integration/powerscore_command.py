@@ -370,7 +370,8 @@ async def handle_mlforecast_command_internal(ai_params: dict, is_called_by_ai: b
                 continue
             
             X, y = df[features], df['Pct_Change']
-            reg = RandomForestRegressor(n_estimators=50, random_state=42, n_jobs=-1, max_depth=10)
+            # Optimized for VPS: Fewer estimators (15), single thread (n_jobs=1)
+            reg = RandomForestRegressor(n_estimators=15, random_state=42, n_jobs=1, max_depth=5)
             reg.fit(X, y)
             
             last_row = data[features].iloc[-1:]
