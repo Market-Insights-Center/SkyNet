@@ -124,8 +124,7 @@ async def scrape_google_news(ticker: str, company_name: str) -> list[str]:
         print(f"   [DEBUG] Google News: Found {len(headlines)} headlines.")
     except Exception as e:
         print(f"   [DEBUG] Google News Error for {ticker}: {e}")
-    return list(headlines)[:3]  # Reduced to 3 for emergency speed
-
+    return list(headlines)[:10]  # Restored to 10 for full data
 
 async def scrape_reddit_combined(ticker: str, company_name: str) -> list[str]:
     post_titles = set()
@@ -147,7 +146,7 @@ async def scrape_reddit_combined(ticker: str, company_name: str) -> list[str]:
         except Exception: pass
     
     print(f"   [DEBUG] Reddit: Found {len(post_titles)} total titles.")
-    return list(post_titles)[:5] # Reduced to 5 for speed
+    return list(post_titles)[:10] # Restored to 10 for full data
 
 
 async def scrape_yahoo_finance_news(ticker: str) -> list[str]:
@@ -176,26 +175,32 @@ async def get_ai_sentiment_analysis(
     # Huge performance optimization for Local AI: Truncate heavily.
     # 8500 chars (approx 2k tokens) is too much for standard local inference without waiting minutes.
     # Reducing to 4000 chars (approx 1k tokens) for speed.
-    # UPDATE: Emergency reduction to 1000 chars to fix persistent 504 timeouts.
-    truncated_text = text_to_analyze[:1000]
+    truncated_text = text_to_analyze[:4000]
 
     print(f"   [DEBUG] Sentinel AI Input Size: {len(truncated_text)} chars")
 
     prompt = f"""
     Analyze the sentiment for '{topic_name}' based on the text below.
     
-    CRITICAL: You MUST return strictly valid JSON. Start with {{ and end with }}.
-    
+    CRITICAL: You MUST return strictly valid JSON. Do not wrap it in markdown code blocks. 
+    Do not add conversational text. Start with {{ and end with }}.
+
     Format:
     {{
       "sentiment_score": float, 
-      "summary": "string"
+      "summary": "string",
+      "keywords": [
+          {{"term": "string", "score": float}},
+          {{"term": "string", "score": float}}
+      ]
     }}
     
     Constraints:
     - sentiment_score must be between -1.0 (very negative) and 1.0 (very positive).
-    - Provide a specific score with high precision (e.g. 0.235).
-    - summary should be 1 short sentence (max 15 words) explaining the score.
+    - Provide a specific score with high precision (e.g. 0.235, -0.671). Round to the nearest 0.001.
+    - Extract 5-10 key "driver keywords" or short phrases from the text that drive the sentiment.
+    - Assign a specific sentiment impact score (-1.0 to 1.0) to each keyword, also with 0.001 precision.
+    - summary should be 1-2 sentences.
     
     TEXT TO ANALYZE:
     {truncated_text}
