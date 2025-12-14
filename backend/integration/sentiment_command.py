@@ -309,14 +309,28 @@ async def handle_sentiment_command(
     analysis = await get_ai_sentiment_analysis(combined_text, f"{ticker} ({company_name})")
 
     if not analysis:
-        msg = "AI analysis failed to return valid JSON."
+        msg = "AI analysis failed/timeout. Using Fallback."
         if not is_called_by_ai: print(f"-> {msg}")
-        # Return a fallback JSON structure instead of None to prevent 400s
+        
+        # --- ROBUST FALLBACK: Basic Keyword Counting ---
+        text_lower = combined_text.lower()
+        pos_words = ["bull", "up", "gain", "strong", "green", "growth", "profit", "positive", "high", "beat"]
+        neg_words = ["bear", "down", "loss", "weak", "red", "drop", "miss", "negative", "low", "fail"]
+        
+        pos_count = sum(text_lower.count(w) for w in pos_words)
+        neg_count = sum(text_lower.count(w) for w in neg_words)
+        total = pos_count + neg_count + 1 # avoid div/0
+        
+        fallback_score = (pos_count - neg_count) / total
+        # Clamp between -1 and 1
+        fallback_score = max(-1.0, min(1.0, fallback_score))
+        
         return {
-            "status": "error", 
-            "message": msg,
-            "sentiment_score_raw": 0.0,
-            "summary": "AI Analysis Failed."
+             "status": "success", # Treat as success so frontend shows it
+             "message": msg,
+             "sentiment_score_raw": round(fallback_score, 3),
+             "summary": f"AI unavailable. Fallback analysis: Found {pos_count} positive and {neg_count} negative keywords.",
+             "keywords": []
         }
 
     raw_score = float(analysis.get("sentiment_score", 0.0))
