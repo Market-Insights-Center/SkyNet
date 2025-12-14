@@ -56,7 +56,7 @@ const SentimentTool = ({ email }) => {
                     ticker: ticker.toUpperCase(),
                     email: email || ''
                 })
-            }, 2, 8000); // 2 retries, 8s delay (generous for AI)
+            }, 2, 25000); // 2 retries, 25s delay (Wait for slow AI ~78s)
 
             // Check API level status
             if (data.status === 'error') {

@@ -264,7 +264,7 @@ const PerformanceStream = () => {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ email: 'guest', ticker: stock.name })
-                }, 2, 7000); // 2 retries, 7s delay (generous for AI to finish)
+                }, 2, 25000); // 25s delay for AI
             })
             .then(data => {
                 setAiData(prev => ({
@@ -278,7 +278,7 @@ const PerformanceStream = () => {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ email: 'guest', ticker: stock.name, sensitivity: 2 })
-                }, 2, 7000);
+                }, 2, 25000); // 25s delay for AI
             })
             .then(data => {
                 setAiData(prev => ({
