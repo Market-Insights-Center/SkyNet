@@ -89,18 +89,27 @@ async def get_yf_download_robustly(tickers: list, **kwargs) -> pd.DataFrame:
             kwargs.setdefault('progress', False)
             kwargs.setdefault('auto_adjust', True) 
             
+            print(f"   [DEBUG_YF] Downloading data for {tickers} with kwargs: {kwargs}...")
             data = await asyncio.to_thread(yf.download, tickers=tickers, **kwargs)
+
+            if data.empty:
+                print(f"   [DEBUG_YF] Returned EMPTY dataframe for {tickers}. Retrying with auto_adjust=False...")
+                # Automatic fallback for common yfinance bug
+                kwargs['auto_adjust'] = False
+                data = await asyncio.to_thread(yf.download, tickers=tickers, **kwargs)
 
             if data.empty and len(tickers) == 1:
                  raise IOError(f"yf.download returned empty DataFrame for single ticker: {tickers[0]}")
+            
+            print(f"   [DEBUG_YF] Success. Downloaded {len(data)} rows for {tickers}.")
             return data 
         except Exception as e:
             if attempt < max_retries - 1:
                 delay = (attempt + 1) * 3 
-                print(f"   -> WARNING: yf.download failed (Attempt {attempt+1}/{max_retries}). Retrying in {delay}s...")
+                print(f"   -> WARNING: yf.download failed (Attempt {attempt+1}/{max_retries}). Error: {e}. Retrying in {delay}s...")
                 await asyncio.sleep(delay)
             else:
-                print(f"   -> ❌ ERROR: All yfinance download attempts failed for {tickers}. Last error: {type(e).__name__}")
+                print(f"   -> ❌ ERROR: All yfinance download attempts failed for {tickers}. Last error: {type(e).__name__} - {e}")
                 return pd.DataFrame() 
     return pd.DataFrame() 
 
