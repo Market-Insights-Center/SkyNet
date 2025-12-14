@@ -423,7 +423,7 @@ async def get_powerscore_explanation(ticker: str, component_scores: dict, model_
     
     try:
         # Use new AI Service
-        summary = await ai.generate_content(prompt, system_instruction="You are a financial analyst.", timeout=60)
+        summary = await ai.generate_content(prompt, system_instruction="You are a financial analyst.", timeout=600)
         if summary:
             return summary.strip()
     except Exception as e:

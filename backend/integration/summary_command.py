@@ -54,7 +54,7 @@ async def handle_summary_command(
 
     import re
     try:
-        summary = await ai.generate_content(prompt, system_instruction="You are a concise financial summarizer.", timeout=60)
+        summary = await ai.generate_content(prompt, system_instruction="You are a concise financial summarizer.", timeout=600)
         if summary:
              # Force cleanup of stubborn AI intros
             # Matches "Here is a [2-sentence] summary [of/about] [Company]:" or just "summary:"

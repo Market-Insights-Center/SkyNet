@@ -219,7 +219,7 @@ async def get_ai_sentiment_analysis(
                 prompt, 
                 system_instruction="You are a JSON-only sentiment analysis API.", 
                 json_mode=True,
-                timeout=60
+                timeout=600
             )
             
             if response_text:

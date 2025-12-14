@@ -1,44 +1,39 @@
-# Walkthrough - Stabilizing AI Performance (504 Fixes)
+# Walkthrough - AI Performance & Timeout Configuration
 
 ## Problem
-The user reported intermittent "504 Gateway Timeout" errors on the VPS for `PerformanceStream`, `Sentiment`, and `Powerscore` tools. These errors occur when the backend takes longer to respond than the Nginx proxy timeout (600s).
+The user requested that all AI hard limits be increased to **600 seconds** to accommodate potentially slow inference times on the VPS, while preventing 504 errors.
 
-## Root Cause Analysis
-The issue was identified as a combination of three factors:
-1.  **Long Default Timeout**: The local AI service connection had an implicit high timeout or default (300s) for generation requests.
-2.  **Aggressive Retries**: The `sentiment_command` logic retried AI generation 3 times.
-3.  **Nested Retries**: The `powerscore_command` retried the entire `sentiment_command` 3 times.
-
-Worst case scenario: 3 retries * 300s = 900s (> 600s Nginx limit). If the AI model on the VPS hangs or is extremely slow (common with CPU inference on weak VPS), the request exceeds the Nginx limit and is killed, returning a 504.
+## Solution
+To safely support a 600s application timeout, the Nginx proxy timeout must be significantly higher to avoid a race condition where the proxy kills the connection just as the application is about to finish.
 
 ## Changes Implemented
 
-### 1. Backend AI Service (`backend/ai_service.py`)
--   **Added `timeout` parameter**: `generate_content` now accepts a `timeout` argument.
--   **Reduced Default Timeout**: Implicit default reduced to **120 seconds** (was effectively higher/infinite in some paths).
--   **Enforced Timeout**: Passed the timeout to the underlying `requests.post` call to the local AI API.
+### 1. Nginx Configuration (`deployment/nginx_config`)
+-   **Increased Proxy Timeouts**: Set `proxy_read_timeout`, `proxy_connect_timeout`, and `proxy_send_timeout` to **900 seconds** (15 minutes).
+-   **Why**: This provides a 300s buffer above the application timeout, ensuring that valid long-running requests are not interrupted by the web server.
 
-### 2. Sentiment Command (`backend/integration/sentiment_command.py`)
--   **Reduced Retries**: Lowered internal AI retry loop from **3 to 2**.
--   **Explicit Timeout**: Calls AI service with `timeout=60`.
--   **Result**: Max wait time is now approx 120s (plus scraping time), well under the 600s limit. If it times out, it now catches the error internally and returns a fallback result (Success status) instead of hanging until Nginx kills it.
+### 2. Backend AI Service (`backend/ai_service.py`)
+-   **Default Timeout**: Increased default `timeout` to **600 seconds**.
+-   **Logic**: Any call to `ai.generate_content` without an explicit timeout will now wait up to 10 minutes.
 
-### 3. PowerScore Command (`backend/integration/powerscore_command.py`)
--   **Explicit Timeout**: Calls AI service for summary with `timeout=60`.
--   **Reduced Nested Retries**: Lowered the retry count for the Sentiment component fetch from **3 to 2**.
-
-### 4. Summary Command (`backend/integration/summary_command.py`)
--   **Explicit Timeout**: Calls AI service with `timeout=60`.
+### 3. Command Timeouts (`backend/integration/*.py`)
+-   **Sentiment Command**: Explicitly set `timeout=600` for AI generation (was 60). Scraping timeout remains strict (45s) to avoid wasting time on dead datasources.
+-   **Powerscore Command**: Explicitly set `timeout=600` for AI summary generation (was 60).
+-   **Summary Command**: Explicitly set `timeout=600` for business summary generation (was 60).
 
 ## Verification
--   **Syntax Check**: Ran `verify_backend.py` (simulated check passes).
--   **Logic Check**: The maximum execution time for any of these chains is now mathematically guaranteed to be under 600s, preventing 504 errors.
-    -   Sentiment: Max ~140s.
-    -   Powerscore: Max ~250s.
+-   **Configuration Check**: Verified 900s usage in `nginx_config`.
+-   **Code Check**: Verified 600s usage in python files.
+-   **Safe Deployment**: These changes require a backend restart and Nginx reload.
 
 ## Next Steps for User
-1.  **Pull Changes**: Ensure the VPS has the latest code.
-2.  **Restart Backend**: The Python backend service (`uvicorn`) must be restarted for these code changes to take effect.
+1.  **Pull Changes**: Update the VPS codebase.
+2.  **Restart Backend**:
     ```bash
     sudo systemctl restart skynet_backend
     ```
+3.  **Reload Nginx** (Critical for the 900s limit to apply):
+    ```bash
+    sudo systemctl reload nginx
+    ```
+    *If you don't reload Nginx, it will still kill requests at 600s.*

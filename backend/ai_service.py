@@ -53,7 +53,7 @@ class AIService:
             logger.error(f"Local AI Connection Failed: {e}")
             return False
 
-    async def generate_content(self, prompt: str, system_instruction: str = None, json_mode: bool = False, timeout: int = 120) -> str:
+    async def generate_content(self, prompt: str, system_instruction: str = None, json_mode: bool = False, timeout: int = 600) -> str:
         """
         Generates content using the configured AI provider.
         
