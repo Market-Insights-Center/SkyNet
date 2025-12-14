@@ -251,7 +251,7 @@ const PerformanceStream = () => {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ ticker: stock.name })
-        })
+        }, 2, 25000) // 25s delay for Summary AI too
             .then(data => {
                 setAiData(prev => ({
                     ...prev,

@@ -40,7 +40,11 @@ async def handle_summary_command(
         }
 
     # 2. Fetch Info
+    print(f"   [DEBUG SUMMARY] Fetching yfinance info for {ticker}...")
     info = await get_yf_info(ticker)
+    if not info:
+        print(f"   [DEBUG SUMMARY] No info found for {ticker}.")
+
     name = info.get('longName', ticker)
     sector = info.get('sector', 'Unknown Sector')
     industry = info.get('industry', 'Unknown Industry')
@@ -60,6 +64,7 @@ async def handle_summary_command(
         Description: {truncated_desc}
         """
     else:
+        print(f"   [DEBUG SUMMARY] No description found. Using fallback prompt.")
         prompt = f"""
         Provide a 2-sentence summary of what the company {name} ({ticker}) does.
         Focus on their sector ({sector}, {industry}) and primary business model.
@@ -67,7 +72,10 @@ async def handle_summary_command(
 
     import re
     try:
+        print(f"   [DEBUG SUMMARY] Requesting AI generation (Prompt Len: {len(prompt)})...")
         summary = await ai.generate_content(prompt, system_instruction="You are a concise financial summarizer.", timeout=600)
+        print(f"   [DEBUG SUMMARY] AI Response: {summary[:50] if summary else 'None'}...")
+        
         if summary:
              # Force cleanup of stubborn AI intros
             # Matches "Here is a [2-sentence] summary [of/about] [Company]:" or just "summary:"
@@ -83,4 +91,5 @@ async def handle_summary_command(
             "summary": summary.strip() if summary else "No summary generated."
         }
     except Exception as e:
+        print(f"   [DEBUG SUMMARY] Error: {e}")
         return {"status": "error", "message": str(e)}
