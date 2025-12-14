@@ -73,7 +73,7 @@ async def handle_summary_command(
     import re
     try:
         print(f"   [DEBUG SUMMARY] Requesting AI generation (Prompt Len: {len(prompt)})...")
-        summary = await ai.generate_content(prompt, system_instruction="You are a concise financial summarizer.", timeout=600)
+        summary = await ai.generate_content(prompt, system_instruction="You are a concise financial summarizer.")
         print(f"   [DEBUG SUMMARY] AI Response: {summary[:50] if summary else 'None'}...")
         
         if summary:
