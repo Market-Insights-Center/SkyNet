@@ -20,6 +20,7 @@ from tabulate import tabulate
 from typing import Optional, Dict, Any, List 
 
 from backend.ai_service import ai
+from backend.database import get_cached_sentiment, save_cached_sentiment
 
 # --- Module-Specific Configuration ---
 urllib3.disable_warnings(InsecureRequestWarning)
@@ -212,50 +213,40 @@ async def get_ai_sentiment_analysis(
     {truncated_text}
     """
 
-    for attempt in range(2):
-        try:
-            # Using new AI Service with json_mode=True
-            response_text = await ai.generate_content(
-                prompt, 
-                system_instruction="You are a JSON-only sentiment analysis API.", 
-                json_mode=True,
-                timeout=600
-            )
-            
-            if response_text:
-                raw_text = response_text.strip()
-                # print(f"   [DEBUG] Raw AI Response Preview: {raw_text[:100]}...")
+    # Removed Retry Loop - Single robust attempt with 600s timeout
+    try:
+        # Using new AI Service with json_mode=True
+        response_text = await ai.generate_content(
+            prompt, 
+            system_instruction="You are a JSON-only sentiment analysis API.", 
+            json_mode=True,
+            timeout=600
+        )
+        
+        if response_text:
+            raw_text = response_text.strip()
+            # print(f"   [DEBUG] Raw AI Response Preview: {raw_text[:100]}...")
 
-                # --- ADVANCED CLEANING ---
-                # 1. Find the first '{' and last '}'
-                start_idx = raw_text.find('{')
-                end_idx = raw_text.rfind('}')
+            # --- ADVANCED CLEANING ---
+            start_idx = raw_text.find('{')
+            end_idx = raw_text.rfind('}')
 
-                if start_idx == -1 or end_idx == -1:
-                    print(f"   [DEBUG] AI Response did not contain JSON brackets. Raw: {raw_text}")
-                    # Try again
-                    continue
-                
-                # Extract just the JSON part
+            if start_idx != -1 and end_idx != -1:
                 json_str = raw_text[start_idx : end_idx + 1]
-
                 try:
                     parsed_json = json.loads(json_str)
-                    # Basic validation
                     if "sentiment_score" in parsed_json:
                         return parsed_json
                     else:
                         print(f"   [DEBUG] JSON parsed but missing 'sentiment_score': {parsed_json.keys()}")
                 except json.JSONDecodeError as je:
-                    print(f"   [DEBUG] JSON Decode Error on substring: {je}")
-                    # print(f"   [DEBUG] Substring was: {json_str}")
-                    pass # Retry
+                    print(f"   [DEBUG] JSON Decode Error: {je}")
+            else:
+                print(f"   [DEBUG] AI Response no JSON brackets. Raw: {raw_text}")
 
-        except Exception as e:
-            print(f"   [DEBUG] AI Generation/Parsing Failed (Attempt {attempt+1}): {e}")
-            await asyncio.sleep(1)
-                    
-    print("   [DEBUG] All AI attempts failed.")
+    except Exception as e:
+        print(f"   [DEBUG] AI Generation Failed: {e}")
+                
     return None
 
 # --- Main Command Handler (Modified) ---
@@ -277,6 +268,12 @@ async def handle_sentiment_command(
         return {"status": "error", "message": msg} if is_called_by_ai else None
 
     ticker = ticker.upper().strip()
+
+    # 1. Check Cache
+    cached_result = get_cached_sentiment(ticker)
+    if cached_result:
+        print(f"   [DEBUG] Using Cached Sentiment for {ticker}")
+        return cached_result
     
     if not is_called_by_ai:
         print(f"\n--- AI Sentiment Analysis for {ticker} ---")
@@ -380,7 +377,7 @@ async def handle_sentiment_command(
         print(f"Summary: {summary}")
         print("-------------------------")
 
-    return {
+    result = {
         "status": "success",
         "ticker": ticker,
         "sentiment_score_raw": raw_score,
@@ -388,3 +385,8 @@ async def handle_sentiment_command(
         "keywords": keywords,
         "source_counts": count_msg
     }
+    
+    # Save to Cache
+    save_cached_sentiment(ticker, result)
+    
+    return result

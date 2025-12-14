@@ -743,3 +743,52 @@ def save_cached_summary(ticker, summary):
     except Exception as e:
         print(f"Error saving summary cache: {e}")
         return False
+
+# --- SENTIMENT CACHING ---
+SENTIMENT_CACHE_FILE = os.path.join(DATA_DIR, 'sentiment_cache.json')
+
+def get_cached_sentiment(ticker):
+    """
+    Retrieves cached sentiment if < 1 hour old.
+    """
+    if not os.path.exists(SENTIMENT_CACHE_FILE):
+        return None
+    try:
+        with open(SENTIMENT_CACHE_FILE, 'r') as f:
+            data = json.load(f)
+        if ticker in data:
+            entry = data[ticker]
+            # Check expiration (1 hour)
+            stored_date_str = entry.get('timestamp') # Using timestamp for precision
+            if stored_date_str:
+                stored_dt = datetime.fromisoformat(stored_date_str)
+                # If cached entry is older than 60 minutes, ignore it
+                if (datetime.utcnow() - stored_dt).total_seconds() < 3600:
+                    return entry.get('data')
+    except Exception as e:
+        print(f"Error reading sentiment cache: {e}")
+    return None
+
+def save_cached_sentiment(ticker, sentiment_data):
+    """
+    Saves sentiment data with ISO timestamp.
+    """
+    data = {}
+    if os.path.exists(SENTIMENT_CACHE_FILE):
+        try:
+            with open(SENTIMENT_CACHE_FILE, 'r') as f:
+                data = json.load(f)
+        except: data = {}
+    
+    data[ticker] = {
+        'data': sentiment_data,
+        'timestamp': datetime.utcnow().isoformat()
+    }
+    
+    try:
+        with open(SENTIMENT_CACHE_FILE, 'w') as f:
+            json.dump(data, f, indent=4)
+        return True
+    except Exception as e:
+        print(f"Error saving sentiment cache: {e}")
+        return False

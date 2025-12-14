@@ -1,33 +1,30 @@
-# Walkthrough - Summary Caching & Error Handling
+# Walkthrough - Summary Caching, Error Handling & Powerscore Stabilization
 
-## Feature: Stock Summary Caching
-To optimize performance and reduce AI load, we implemented a caching system for the stock summary generation.
+## Feature 1: Stock Summary Caching
+To optimize performance and reduce AI load, we implemented a caching system for stock summary generation.
 
 ### Changes
 1.  **Backend Database (`backend/database.py`)**:
-    -   Added `stock_summaries.json` as the storage file.
-    -   Implemented `get_cached_summary(ticker)`: Checks if a valid summary (< 180 days old) exists.
-    -   Implemented `save_cached_summary(ticker, summary)`: Stores the summary with the current date.
+    -   Added `stock_summaries.json` storage.
+    -   Implemented `get_cached_summary` / `save_cached_summary` (180-day validity).
+2.  **Summary Command**: Checks cache before calling AI. Saves result after generation.
 
-2.  **Summary Command (`backend/integration/summary_command.py`)**:
-    -   **Cache Check**: Before calling the AI, the system checks the cache.
-    -   **Cache Miss**: If no cache, it calls the AI (with 600s timeout).
-    -   **Cache Update**: After successful generation, it saves the result to the cache.
+## Feature 2: Powerscore Stabilization (Fixing 504 Errors)
+The Powerscore command was timing out because it re-ran the expensive Sentiment Analysis (Scraping + AI), and strict retry logic caused it to exceed the Nginx limit.
 
-### Impact
--   **First Load**: Normal speed (AI generation).
--   **Subsequent Loads**: Instant (< 0.1s), persistent across server restarts for 6 months.
+### Solutions Implemented
+1.  **Sentiment Caching (`backend/database.py`, `backend/integration/sentiment_command.py`)**:
+    -   Added `sentiment_cache.json` storage (1-hour validity).
+    -   **Benefit**: If Sentiment runs first (via frontend chain), Powerscore now picks up the *instant* cached result instead of re-running the analysis.
+2.  **Retry Logic Removal**:
+    -   Removed the `for attempt in range(2)` loop in `sentiment_command.py`.
+    -   **Why**: With a generous 600s timeout, a single attempt is robust enough. Retrying (2 x 600s) guarantees a 504 error if the first attempt hangs.
+3.  **ML Forecast Timeout**:
+    -   Added a strict 30s timeout to `yf.download` in `mlforecast_command.py` to prevent data fetching hangs.
 
 ## Bug Fix: HTML/JSON Error ("Unexpected token <")
-The error `Unexpected token '<'` typically occurs when the API returns an HTML error page (e.g., 500 Internal Server Error from Uvicorn/Nginx) instead of JSON.
-
-### Fixes Implemented
--   **Hardened Error Handling in `main.py`**: Added a global exception handler to catch unhandled errors and return a JSON 500 response instead of the default HTML page.
--   **Enforced JSON in `sentiment_command.py`**: The fix was already in place to parse JSON from AI, but the global handler ensures even system crashes return JSON.
-
-## Verification
--   **Caching**: Verified logic flow where cache is checked and updated.
--   **Error Handling**: Verified global exception handler syntax.
+To prevent the "Unexpected token <" error (HTML returned for API failures), we added a **Global Exception Handler** in `backend/main.py` that forces all unhandled backend errors to return JSON.
 
 ## User Actions
-1.  **Restart Backend**: `sudo systemctl restart skynet_backend`
+1.  **Pull Changes**: `git pull`
+2.  **Restart Backend**: `sudo systemctl restart skynet_backend`

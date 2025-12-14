@@ -188,10 +188,20 @@ async def handle_mlforecast_command(args: List[str] = None, ai_params: dict = No
         for period_name, period_str in fetch_periods_map.items():
             if not is_called_by_ai: print(f"-> Attempting to fetch {period_name} of historical data...")
             
-            # Pass the period string directly to yfinance
-            temp_data = await asyncio.to_thread(
-                yf.download, ticker, period=period_str, progress=False, auto_adjust=True
-            )
+            try:
+                # Pass the period string directly to yfinance with a 30s timeout
+                temp_data = await asyncio.wait_for(
+                    asyncio.to_thread(
+                        yf.download, ticker, period=period_str, progress=False, auto_adjust=True
+                    ),
+                    timeout=30
+                )
+            except asyncio.TimeoutError:
+                if not is_called_by_ai: print(f"   -> Timeout fetching {period_name}.")
+                continue
+            except Exception as e:
+                if not is_called_by_ai: print(f"   -> Error fetching {period_name}: {e}")
+                continue
             
             if not temp_data.empty and len(temp_data) > 504: # Need > 2 years of data for 1-year forecast
                 data_daily = temp_data
