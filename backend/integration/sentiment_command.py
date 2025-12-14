@@ -152,12 +152,18 @@ async def scrape_reddit_combined(ticker: str, company_name: str) -> list[str]:
 async def scrape_yahoo_finance_news(ticker: str) -> list[str]:
     headlines = []
     try:
-        news_data = await asyncio.to_thread(lambda: yf.Ticker(ticker).news)
+        # Wrap the thread execution in a timeout to prevent hanging
+        news_data = await asyncio.wait_for(
+            asyncio.to_thread(lambda: yf.Ticker(ticker).news), 
+            timeout=10
+        )
         if news_data:
             for item in news_data:
                 t = item.get('title')
                 if t: headlines.append(t)
         print(f"   [DEBUG] Yahoo Finance: Found {len(headlines)} headlines.")
+    except asyncio.TimeoutError:
+        print(f"   [DEBUG] Yahoo Finance timed out for {ticker}")
     except Exception as e:
         print(f"   [DEBUG] Yahoo Finance Error: {e}")
     
@@ -279,13 +285,24 @@ async def handle_sentiment_command(
     company_name = await get_company_name(ticker)
 
     # Execute scrapes
-    results = await asyncio.gather(
-        with_retry(scrape_finviz_headlines, ticker, retries=1),
-        with_retry(scrape_google_news, ticker, company_name, retries=1),
-        with_retry(scrape_reddit_combined, ticker, company_name, retries=1),
-        with_retry(scrape_yahoo_finance_news, ticker, retries=1),
-        return_exceptions=True
-    )
+    # Execute scrapes with a global timeout
+    try:
+        results = await asyncio.wait_for(
+            asyncio.gather(
+                with_retry(scrape_finviz_headlines, ticker, retries=1),
+                with_retry(scrape_google_news, ticker, company_name, retries=1),
+                with_retry(scrape_reddit_combined, ticker, company_name, retries=1),
+                with_retry(scrape_yahoo_finance_news, ticker, retries=1),
+                return_exceptions=True
+            ),
+            timeout=45 # Strict global limit for scraping phase
+        )
+    except asyncio.TimeoutError:
+        print("   [DEBUG] Scraping phase timed out. Proceeding with partial data.")
+        results = [[], [], [], []] # Fallback to empty lists
+    except Exception as e:
+        print(f"   [DEBUG] Scraping phase failed: {e}")
+        results = [[], [], [], []]
 
     headlines_finviz = results[0] if isinstance(results[0], list) else []
     headlines_google = results[1] if isinstance(results[1], list) else []

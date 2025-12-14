@@ -70,12 +70,15 @@ async def get_yfinance_info_robustly(ticker: str) -> Optional[Dict[str, Any]]:
     async with YFINANCE_API_SEMAPHORE:
         for attempt in range(3):
             try:
-                await asyncio.sleep(random.uniform(0.2, 0.5))
-                stock_info = await asyncio.to_thread(lambda: yf.Ticker(ticker).info)
-                if stock_info and ('regularMarketPrice' in stock_info or 'currentPrice' in stock_info):
-                    return stock_info
-                else:
-                    raise ValueError(f"Incomplete data received for {ticker}")
+                try:
+                    # Enforce timeout on the thread execution
+                    stock_info = await asyncio.wait_for(
+                        asyncio.to_thread(lambda: yf.Ticker(ticker).info),
+                        timeout=15
+                    )
+                except asyncio.TimeoutError:
+                    print(f"   [DEBUG] yfinance info timed out for {ticker}")
+                    raise
             except Exception as e:
                 if attempt < 2:
                     await asyncio.sleep((attempt + 1) * 2)
@@ -89,11 +92,14 @@ async def get_yf_download_robustly(tickers: list, **kwargs) -> pd.DataFrame:
             kwargs.setdefault('progress', False)
             kwargs.setdefault('auto_adjust', True) 
             
-            data = await asyncio.to_thread(yf.download, tickers=tickers, **kwargs)
-
-            if data.empty and len(tickers) == 1:
-                 raise IOError(f"yf.download returned empty DataFrame for single ticker: {tickers[0]}")
-            return data 
+            try:
+                data = await asyncio.wait_for(
+                    asyncio.to_thread(yf.download, tickers=tickers, **kwargs),
+                    timeout=20
+                )
+            except asyncio.TimeoutError:
+                print(f"   [DEBUG] yfinance download timed out for {tickers}")
+                raise 
         except Exception as e:
             if attempt < max_retries - 1:
                 delay = (attempt + 1) * 3 
