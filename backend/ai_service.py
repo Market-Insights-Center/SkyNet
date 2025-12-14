@@ -32,7 +32,8 @@ except Exception:
     pass # Use defaults
 
 class AIService:
-    def __init__(self, provider=AI_PROVIDER, local_url=LOCAL_AI_URL, model="llama3"):
+    # UPDATED: Default to 'phi3' (Phi-3 Mini) for much faster CPU inference on VPS
+    def __init__(self, provider=AI_PROVIDER, local_url=LOCAL_AI_URL, model="phi3"):
         self.provider = provider
         self.local_url = local_url
         self.model = model

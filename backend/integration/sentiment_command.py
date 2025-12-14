@@ -124,7 +124,7 @@ async def scrape_google_news(ticker: str, company_name: str) -> list[str]:
         print(f"   [DEBUG] Google News: Found {len(headlines)} headlines.")
     except Exception as e:
         print(f"   [DEBUG] Google News Error for {ticker}: {e}")
-    return list(headlines)[:15]
+    return list(headlines)[:10]  # Reduced from 15 to 10 for speed
 
 
 async def scrape_reddit_combined(ticker: str, company_name: str) -> list[str]:
@@ -147,7 +147,7 @@ async def scrape_reddit_combined(ticker: str, company_name: str) -> list[str]:
         except Exception: pass
     
     print(f"   [DEBUG] Reddit: Found {len(post_titles)} total titles.")
-    return list(post_titles)[:20]
+    return list(post_titles)[:10] # Reduced from 20 to 10 for speed
 
 
 async def scrape_yahoo_finance_news(ticker: str) -> list[str]:
