@@ -407,13 +407,10 @@ async def get_powerscore_explanation(ticker: str, component_scores: dict, model_
         score_lines.append(f"- {name}: {score:.1f}" if score is not None else f"- {name}: N/A")
 
     prompt = f"""
-    Act as a financial analyst. Based *only* on the following Prime component scores for {ticker}, provide a concise (2-3 sentences) summary profile.
-    Focus on interpreting the scores to highlight clear strengths and weaknesses.
-    Do NOT mention the specific score values numbers. Use qualitative terms (e.g., 'strong', 'weak', 'neutral').
-    Do NOT use introductory phrases. Start directly with the analysis.
-    
-    Scores (0-100 scale):
+    Scores for {ticker}:
     {chr(10).join(score_lines)}
+    
+    Task: Write 1 single short sentence summarizing the strengths/weaknesses based on these scores. No intro.
     """
     
     print(f"   [DEBUG AI Analyst] Generating Summary for {ticker}...")

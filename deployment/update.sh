@@ -28,4 +28,8 @@ npm run build
 echo "🔄 Restarting Backend..."
 pm2 restart mic-backend
 
+echo "🌐 ensuring Nginx Timeout Fix is applied..."
+sudo cp deployment/nginx_config /etc/nginx/sites-available/default
+sudo systemctl restart nginx
+
 echo "✅ Update Complete!"
