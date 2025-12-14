@@ -688,60 +688,80 @@ def delete_banner(banner_id):
         return save_banners(banners)
     return False
 
-# --- STOCK SUMMARY CACHING ---
+# --- STOCK SUMMARY CACHING (SQLite) ---
 
-STOCK_SUMMARIES_FILE = os.path.join(DATA_DIR, 'stock_summaries.json')
+import sqlite3
+
+STOCK_DB_FILE = os.path.join(DATA_DIR, 'stock_summaries.db')
+
+def init_stock_db():
+    """Initializes the SQLite database for stock summaries."""
+    try:
+        conn = sqlite3.connect(STOCK_DB_FILE)
+        cursor = conn.cursor()
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS summaries (
+                ticker TEXT PRIMARY KEY,
+                summary TEXT,
+                date TEXT
+            )
+        ''')
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        print(f"Error initializing stock DB: {e}")
 
 def get_cached_summary(ticker):
     """
     Retrieves a cached summary for a ticker if it exists and is less than 180 days old.
     Returns the summary string or None.
     """
-    if not os.path.exists(STOCK_SUMMARIES_FILE):
-        return None
+    if not os.path.exists(STOCK_DB_FILE):
+        init_stock_db()
     
     try:
-        with open(STOCK_SUMMARIES_FILE, 'r') as f:
-            data = json.load(f)
-            
-        if ticker in data:
-            entry = data[ticker]
-            # Check expiration
-            stored_date_str = entry.get('date')
+        conn = sqlite3.connect(STOCK_DB_FILE)
+        cursor = conn.cursor()
+        cursor.execute("SELECT summary, date FROM summaries WHERE ticker = ?", (ticker,))
+        row = cursor.fetchone()
+        conn.close()
+        
+        if row:
+            summary, stored_date_str = row
             if stored_date_str:
-                stored_date = datetime.strptime(stored_date_str, '%Y-%m-%d')
-                days_diff = (datetime.utcnow() - stored_date).days
-                if days_diff < 180: # 6 months approx
-                    return entry.get('summary')
+                try:
+                    stored_date = datetime.strptime(stored_date_str, '%Y-%m-%d')
+                    days_diff = (datetime.utcnow() - stored_date).days
+                    if days_diff < 180: # 6 months
+                        return summary
+                except ValueError:
+                    pass # Invalid date format, regenerate
     except Exception as e:
-        print(f"Error reading summary cache: {e}")
+        print(f"Error reading summary DB: {e}")
         return None
     
     return None
 
 def save_cached_summary(ticker, summary):
     """
-    Saves a summary to the cache with the current date.
+    Saves or updates a summary in the SQLite DB with the current date.
     """
-    data = {}
-    if os.path.exists(STOCK_SUMMARIES_FILE):
-        try:
-            with open(STOCK_SUMMARIES_FILE, 'r') as f:
-                data = json.load(f)
-        except:
-            data = {}
-            
-    data[ticker] = {
-        'summary': summary,
-        'date': datetime.utcnow().strftime('%Y-%m-%d')
-    }
-    
+    if not os.path.exists(STOCK_DB_FILE):
+        init_stock_db()
+
     try:
-        with open(STOCK_SUMMARIES_FILE, 'w') as f:
-            json.dump(data, f, indent=4)
+        conn = sqlite3.connect(STOCK_DB_FILE)
+        cursor = conn.cursor()
+        current_date = datetime.utcnow().strftime('%Y-%m-%d')
+        cursor.execute('''
+            INSERT OR REPLACE INTO summaries (ticker, summary, date)
+            VALUES (?, ?, ?)
+        ''', (ticker, summary, current_date))
+        conn.commit()
+        conn.close()
         return True
     except Exception as e:
-        print(f"Error saving summary cache: {e}")
+        print(f"Error saving summary to DB: {e}")
         return False
 
 # --- SENTIMENT CACHING ---
