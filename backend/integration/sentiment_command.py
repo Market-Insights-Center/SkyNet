@@ -1,6 +1,8 @@
 # --- sentiment_command.py ---
 # Standalone module for the /sentiment command.
 
+import time
+
 import asyncio
 import json
 import re
@@ -275,6 +277,7 @@ async def handle_sentiment_command(
     company_name = await get_company_name(ticker)
 
     # Execute scrapes
+    t_start_scrape = time.time()
     results = await asyncio.gather(
         with_retry(scrape_finviz_headlines, ticker, retries=2),
         with_retry(scrape_google_news, ticker, company_name, retries=2),
@@ -282,6 +285,8 @@ async def handle_sentiment_command(
         with_retry(scrape_yahoo_finance_news, ticker, retries=2),
         return_exceptions=True
     )
+    t_end_scrape = time.time()
+    print(f"   [DEBUG_TIMER] Total Scraping Time: {t_end_scrape - t_start_scrape:.2f}s")
 
     headlines_finviz = results[0] if isinstance(results[0], list) else []
     headlines_google = results[1] if isinstance(results[1], list) else []
@@ -312,7 +317,11 @@ async def handle_sentiment_command(
             "summary": "No data found."
         }
 
+    t_start_ai = time.time()
     analysis = await get_ai_sentiment_analysis(combined_text, f"{ticker} ({company_name})")
+    t_end_ai = time.time()
+    print(f"   [DEBUG_TIMER] Total AI Analysis Time: {t_end_ai - t_start_ai:.2f}s")
+    print(f"   [DEBUG_TIMER] Total Request Time: {time.time() - t_start_scrape:.2f}s")
 
     if not analysis:
         msg = "AI analysis failed to return valid JSON."
