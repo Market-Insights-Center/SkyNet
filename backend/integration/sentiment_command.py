@@ -43,7 +43,7 @@ class Colors:
     YELLOW = '\033[93m'
     RESET = '\033[0m'
 
-async def with_retry(coro_func, *args, retries=2, delay=2, **kwargs):
+async def with_retry(coro_func, *args, retries=1, delay=1, **kwargs):
     """
     Retries an async function call up to `retries` times.
     Logs specific failure reasons for debugging.
@@ -56,8 +56,8 @@ async def with_retry(coro_func, *args, retries=2, delay=2, **kwargs):
             return result
         except Exception as e:
             if attempt < retries:
-                wait_time = delay * (2 ** attempt) + np.random.uniform(0, 1)
-                await asyncio.sleep(wait_time)
+                # wait_time = delay * (2 ** attempt) + np.random.uniform(0, 1) # Too slow for VPS
+                await asyncio.sleep(0.5) 
             else:
                  print(f"   [DEBUG] {source_name} failed permanently. Error: {e}")
     return None 
@@ -147,7 +147,7 @@ async def scrape_reddit_combined(ticker: str, company_name: str) -> list[str]:
         except Exception: pass
     
     print(f"   [DEBUG] Reddit: Found {len(post_titles)} total titles.")
-    return list(post_titles)[:10] # Reduced from 20 to 10 for speed
+    return list(post_titles)[:5] # Reduced to 5 for speed
 
 
 async def scrape_yahoo_finance_news(ticker: str) -> list[str]:
@@ -276,10 +276,10 @@ async def handle_sentiment_command(
 
     # Execute scrapes
     results = await asyncio.gather(
-        with_retry(scrape_finviz_headlines, ticker, retries=2),
-        with_retry(scrape_google_news, ticker, company_name, retries=2),
-        with_retry(scrape_reddit_combined, ticker, company_name, retries=2),
-        with_retry(scrape_yahoo_finance_news, ticker, retries=2),
+        with_retry(scrape_finviz_headlines, ticker, retries=1),
+        with_retry(scrape_google_news, ticker, company_name, retries=1),
+        with_retry(scrape_reddit_combined, ticker, company_name, retries=1),
+        with_retry(scrape_yahoo_finance_news, ticker, retries=1),
         return_exceptions=True
     )
 
