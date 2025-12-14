@@ -124,7 +124,7 @@ async def scrape_google_news(ticker: str, company_name: str) -> list[str]:
         print(f"   [DEBUG] Google News: Found {len(headlines)} headlines.")
     except Exception as e:
         print(f"   [DEBUG] Google News Error for {ticker}: {e}")
-    return list(headlines)[:10]  # Reduced from 15 to 10 for speed
+    return list(headlines)[:3]  # Reduced to 3 for emergency speed
 
 
 async def scrape_reddit_combined(ticker: str, company_name: str) -> list[str]:
@@ -176,33 +176,26 @@ async def get_ai_sentiment_analysis(
     # Huge performance optimization for Local AI: Truncate heavily.
     # 8500 chars (approx 2k tokens) is too much for standard local inference without waiting minutes.
     # Reducing to 4000 chars (approx 1k tokens) for speed.
-    # UPDATE: Reducing further to 2000 chars to ensure <60s response on slow VPS.
-    truncated_text = text_to_analyze[:2000]
+    # UPDATE: Emergency reduction to 1000 chars to fix persistent 504 timeouts.
+    truncated_text = text_to_analyze[:1000]
 
     print(f"   [DEBUG] Sentinel AI Input Size: {len(truncated_text)} chars")
 
     prompt = f"""
     Analyze the sentiment for '{topic_name}' based on the text below.
     
-    CRITICAL: You MUST return strictly valid JSON. Do not wrap it in markdown code blocks. 
-    Do not add conversational text. Start with {{ and end with }}.
-
+    CRITICAL: You MUST return strictly valid JSON. Start with {{ and end with }}.
+    
     Format:
     {{
       "sentiment_score": float, 
-      "summary": "string",
-      "keywords": [
-          {{"term": "string", "score": float}},
-          {{"term": "string", "score": float}}
-      ]
+      "summary": "string"
     }}
     
     Constraints:
     - sentiment_score must be between -1.0 (very negative) and 1.0 (very positive).
-    - Provide a specific score with high precision (e.g. 0.235, -0.671). Round to the nearest 0.001.
-    - Extract 5-10 key "driver keywords" or short phrases from the text that drive the sentiment.
-    - Assign a specific sentiment impact score (-1.0 to 1.0) to each keyword, also with 0.001 precision.
-    - summary should be 1-2 sentences.
+    - Provide a specific score with high precision (e.g. 0.235).
+    - summary should be 1 short sentence (max 15 words) explaining the score.
     
     TEXT TO ANALYZE:
     {truncated_text}
