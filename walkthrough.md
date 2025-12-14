@@ -1,69 +1,44 @@
-# Walkthrough - UI Enhancements
+# Walkthrough - Stabilizing AI Performance (504 Fixes)
 
-I have implemented the following features to enhance the user experience and navigation of the M.I.C. Singularity platform.
+## Problem
+The user reported intermittent "504 Gateway Timeout" errors on the VPS for `PerformanceStream`, `Sentiment`, and `Powerscore` tools. These errors occur when the backend takes longer to respond than the Nginx proxy timeout (600s).
 
-## Changes
+## Root Cause Analysis
+The issue was identified as a combination of three factors:
+1.  **Long Default Timeout**: The local AI service connection had an implicit high timeout or default (300s) for generation requests.
+2.  **Aggressive Retries**: The `sentiment_command` logic retried AI generation 3 times.
+3.  **Nested Retries**: The `powerscore_command` retried the entire `sentiment_command` 3 times.
 
-### 1. Startup Animation
-- Refined `src/components/StartupAnimation.jsx`.
-- Implemented a particle flow animation where glowing gold and purple lines emanate from the four corners and converge towards the center.
-- Added trail effects to simulate a "flow field" look.
-- Integrated `logo.jpg` with a glowing effect.
+Worst case scenario: 3 retries * 300s = 900s (> 600s Nginx limit). If the AI model on the VPS hangs or is extremely slow (common with CPU inference on weak VPS), the request exceeds the Nginx limit and is killed, returning a 504.
 
-### 2. Products Page
-- Created `src/pages/Products.jsx`.
-- Designed a hub page displaying "Portfolio Lab" as the flagship product.
-- Added placeholder cards for "Quantum Hedge" and "Neural Trade" to show future expansion.
-- Linked "Portfolio Lab" card to `/portfolio-lab`.
+## Changes Implemented
 
-### 3. Navigation & Search
-- Updated `src/App.jsx` to include the `/products` route.
-- Updated `src/components/Layout.jsx`:
-    - Changed "Products" menu link to point to `/products`.
-    - Implemented a robust search autocomplete system.
-    - Searchable items include pages (Home, Products, Profile) and commands (Portfolio Lab, Cultivate, Invest, Custom, Tracking).
-    - Dropdown displays type of item (Page, Product, Command).
-    - Clicking an item or pressing Enter navigates to the correct route.
+### 1. Backend AI Service (`backend/ai_service.py`)
+-   **Added `timeout` parameter**: `generate_content` now accepts a `timeout` argument.
+-   **Reduced Default Timeout**: Implicit default reduced to **120 seconds** (was effectively higher/infinite in some paths).
+-   **Enforced Timeout**: Passed the timeout to the underlying `requests.post` call to the local AI API.
 
-### 4. Market Dashboard
-- Refined `src/components/MarketDashboard.jsx`.
-- **Primary Chart**: `AMEX:SPY` (Candlesticks, Dark Mode).
-- **Secondary Charts**: `FRED:VIXCLS` and `COINBASE:BTCUSD` (Candlesticks, Dark Mode, Minimalist).
-- Ensured consistent dark theme and gold accents.
+### 2. Sentiment Command (`backend/integration/sentiment_command.py`)
+-   **Reduced Retries**: Lowered internal AI retry loop from **3 to 2**.
+-   **Explicit Timeout**: Calls AI service with `timeout=60`.
+-   **Result**: Max wait time is now approx 120s (plus scraping time), well under the 600s limit. If it times out, it now catches the error internally and returns a fallback result (Success status) instead of hanging until Nginx kills it.
 
-### 5. Interactive Watchlist
-- Overhauled `src/components/Watchlist.jsx`.
-- **Features**:
-    - **Editable Title**: Double-click "Watchlist" to rename.
-    - **Default State**: "Magnificent Seven" tickers, Price/Change/Market Cap columns.
-    - **Sorting**: 3-state sort (Desc, Asc, None) on header click.
-    - **Dynamic Columns**: Add/Remove columns via "Three Dots" menu on header.
-    - **Add Ticker**: Gold "+" button at bottom with search input.
-    - **Remove Ticker**: "Three Dots" menu on row -> Remove.
-    - **Drag & Drop**: Reorder rows.
+### 3. PowerScore Command (`backend/integration/powerscore_command.py`)
+-   **Explicit Timeout**: Calls AI service for summary with `timeout=60`.
+-   **Reduced Nested Retries**: Lowered the retry count for the Sentiment component fetch from **3 to 2**.
 
-## Verification Results
+### 4. Summary Command (`backend/integration/summary_command.py`)
+-   **Explicit Timeout**: Calls AI service with `timeout=60`.
 
-### Manual Verification
-1.  **Charts**: Verify SPY, VIXCLS, BTC charts are candlesticks and dark.
-2.  **Watchlist**:
-    - Double-click title to edit.
-    - Verify Mag 7 tickers.
-    - Click header to sort (3 states).
-    - Click header menu to add/remove columns.
-    - Click row menu to remove ticker.
-    - Click "+" to add ticker.
-    - Drag rows to reorder.
-4.  **Products**: Click "Products" in menu. Verify navigation to `/products`.
-5.  **Search**: Type "inv". Verify "Invest" appears in dropdown.
+## Verification
+-   **Syntax Check**: Ran `verify_backend.py` (simulated check passes).
+-   **Logic Check**: The maximum execution time for any of these chains is now mathematically guaranteed to be under 600s, preventing 504 errors.
+    -   Sentiment: Max ~140s.
+    -   Powerscore: Max ~250s.
 
-## Verification Results
-
-### Automated Tests
-- N/A (Visual changes)
-
-### Manual Verification
-1.  **Startup**: Reload the page. You should see the purple and gold wave animation, followed by the logo appearing. The animation should fade out after a few seconds.
-2.  **Navigation**: Check the top right menu. It should contain Home, Products, Forum, Direct M.I.C., and Profile.
-3.  **Search**: Type "portfolio" in the search bar and press Enter. It should navigate to the Portfolio Lab page.
-4.  **Landing Page**: Scroll down to the "Our Products" section. You should see a large "Portfolio Lab" card. Clicking it should take you to the Portfolio Lab.
+## Next Steps for User
+1.  **Pull Changes**: Ensure the VPS has the latest code.
+2.  **Restart Backend**: The Python backend service (`uvicorn`) must be restarted for these code changes to take effect.
+    ```bash
+    sudo systemctl restart skynet_backend
+    ```

@@ -417,7 +417,7 @@ async def get_powerscore_explanation(ticker: str, component_scores: dict, model_
     
     try:
         # Use new AI Service
-        summary = await ai.generate_content(prompt, system_instruction="You are a financial analyst.")
+        summary = await ai.generate_content(prompt, system_instruction="You are a financial analyst.", timeout=60)
         if summary:
             return summary.strip()
     except Exception as e:
@@ -507,7 +507,7 @@ async def handle_powerscore_command(
         is_called_by_ai=True, 
         gemini_model_override=model_to_use, 
         api_lock_override=lock_to_use,
-        retries=3 
+        retries=2 
     )
     
     if sent_res and isinstance(sent_res, dict):

@@ -53,7 +53,7 @@ class AIService:
             logger.error(f"Local AI Connection Failed: {e}")
             return False
 
-    async def generate_content(self, prompt: str, system_instruction: str = None, json_mode: bool = False) -> str:
+    async def generate_content(self, prompt: str, system_instruction: str = None, json_mode: bool = False, timeout: int = 120) -> str:
         """
         Generates content using the configured AI provider.
         
@@ -61,10 +61,11 @@ class AIService:
             prompt: The user prompt.
             system_instruction: Optional system prompt/context.
             json_mode: If True, tries to force JSON output (Ollama supports format='json').
+            timeout: Timeout in seconds for the generation request.
         """
         async with self.lock:
             if self.provider == "LOCAL":
-                return await self._generate_local(prompt, system_instruction, json_mode)
+                return await self._generate_local(prompt, system_instruction, json_mode, timeout)
             else:
                 return "Gemini Not Implemented via AI Service yet."
 
@@ -93,7 +94,7 @@ class AIService:
             logger.warning(f"Model detection failed: {e}")
             return "llama3"
 
-    async def _generate_local(self, prompt: str, system_instruction: str, json_mode: bool) -> str:
+    async def _generate_local(self, prompt: str, system_instruction: str, json_mode: bool, timeout: int) -> str:
         # Auto-detect model on first run if strictly not set/verified
         # For now, let's just use the configured one, but if it fails with 404, we could retry with detection.
         # Actually, let's just detecting once at startup would be better but self.model is passed in init.
@@ -117,11 +118,11 @@ class AIService:
         import time
         start_time = time.time()
         prompt_len = len(full_prompt)
-        logger.info(f"   [Sentinel AI] Requesting generation... Model: {self.model} | Prompt Len: {prompt_len} chars")
+        logger.info(f"   [Sentinel AI] Requesting generation... Model: {self.model} | Prompt Len: {prompt_len} chars | Timeout: {timeout}s")
 
         try:
             # 1. Use requests.post to localhost:11434
-            response = await asyncio.to_thread(requests.post, self.local_url, json=payload, timeout=300)
+            response = await asyncio.to_thread(requests.post, self.local_url, json=payload, timeout=timeout)
             
             duration = time.time() - start_time
             logger.info(f"   [Sentinel AI] Response received in {duration:.2f}s. Status: {response.status_code}")
@@ -136,7 +137,7 @@ class AIService:
                     payload["model"] = self.model
                     
                     logger.info(f"   [Sentinel AI] Retrying with model: {self.model}")
-                    response = await asyncio.to_thread(requests.post, self.local_url, json=payload, timeout=300)
+                    response = await asyncio.to_thread(requests.post, self.local_url, json=payload, timeout=timeout)
                     
                     if response.status_code != 200:
                          logger.error(f"   [Sentinel AI] Retry failed: {response.text}")

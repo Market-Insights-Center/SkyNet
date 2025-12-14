@@ -206,10 +206,15 @@ async def get_ai_sentiment_analysis(
     {truncated_text}
     """
 
-    for attempt in range(3):
+    for attempt in range(2):
         try:
             # Using new AI Service with json_mode=True
-            response_text = await ai.generate_content(prompt, system_instruction="You are a JSON-only sentiment analysis API.", json_mode=True)
+            response_text = await ai.generate_content(
+                prompt, 
+                system_instruction="You are a JSON-only sentiment analysis API.", 
+                json_mode=True,
+                timeout=60
+            )
             
             if response_text:
                 raw_text = response_text.strip()
