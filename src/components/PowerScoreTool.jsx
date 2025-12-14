@@ -11,6 +11,36 @@ const PowerScoreTool = ({ email }) => {
     const [result, setResult] = useState(null);
     const [error, setError] = useState(null);
 
+    const fetchWithRetry = (url, options, retries = 1, delayMs = 5000) => {
+        return new Promise((resolve, reject) => {
+            const attempt = (n) => {
+                fetch(url, options)
+                    .then(res => {
+                        if (res.ok) return res.json();
+                        // If 504 Gateway Timeout, the backend is likely still working or just finished.
+                        if (res.status === 504 && n > 0) {
+                            console.log(`[Auto-Retry] 504 Timeout on ${url}. Retrying in ${delayMs / 1000}s...`);
+                            setTimeout(() => attempt(n - 1), delayMs);
+                            return null;
+                        }
+                        throw new Error(`HTTP Error: ${res.status}`);
+                    })
+                    .then(data => {
+                        if (data) resolve(data);
+                    })
+                    .catch(err => {
+                        if (n > 0) {
+                            console.log(`[Auto-Retry] Error on ${url}: ${err}. Retrying...`);
+                            setTimeout(() => attempt(n - 1), delayMs);
+                        } else {
+                            reject(err);
+                        }
+                    });
+            };
+            attempt(retries);
+        });
+    };
+
     const handleAnalyze = async (e) => {
         e.preventDefault();
         if (!ticker.trim()) return;
@@ -20,7 +50,7 @@ const PowerScoreTool = ({ email }) => {
         setResult(null);
 
         try {
-            const response = await fetch(`${API_BASE_URL}/api/powerscore`, {
+            const data = await fetchWithRetry(`${API_BASE_URL}/api/powerscore`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -28,12 +58,11 @@ const PowerScoreTool = ({ email }) => {
                     sensitivity: parseInt(sensitivity),
                     email: email || ''
                 })
-            });
+            }, 2, 8000); // 2 retries, 8s delay (generous for AI)
 
-            const data = await response.json();
-
-            if (!response.ok) {
-                throw new Error(data.detail || 'Analysis failed');
+            // Check API level status
+            if (data.status === 'error') {
+                throw new Error(data.message || 'Analysis failed');
             }
 
             setResult(data);

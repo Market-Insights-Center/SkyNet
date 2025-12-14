@@ -206,26 +206,35 @@ async def get_single_stock_beta_corr(ticker: str, period: str, is_called_by_ai: 
 async def get_market_invest_score_for_powerscore() -> Optional[float]:
     try:
         vix_data = await get_yf_download_robustly(['^VIX'], period="5d")
-        if vix_data.empty or 'Close' not in vix_data.columns: return None
-        # UPDATED: Use .item() to avoid FutureWarning on single-element Series
-        vix_price = vix_data['Close'].iloc[-1].item()
+        if vix_data.empty: return None
+
+        # Flatten MultiIndex if present
+        if isinstance(vix_data.columns, pd.MultiIndex):
+            vix_data.columns = vix_data.columns.get_level_values(0)
+
+        if 'Close' not in vix_data.columns: return None
+        vix_price = float(vix_data['Close'].iloc[-1])
         vix_likelihood = np.clip(0.01384083 * (vix_price ** 2), 0, 100)
 
         spy_hist = await get_yf_download_robustly(['SPY'], period="5y", interval="1mo")
-        if spy_hist.empty or 'Close' not in spy_hist.columns or len(spy_hist) < 55: return None
+        if spy_hist.empty: return None
+
+        # Flatten MultiIndex if present
+        if isinstance(spy_hist.columns, pd.MultiIndex):
+            spy_hist.columns = spy_hist.columns.get_level_values(0)
+
+        if 'Close' not in spy_hist.columns or len(spy_hist) < 55: return None
 
         spy_hist['EMA_8'] = spy_hist['Close'].ewm(span=8, adjust=False).mean()
         spy_hist['EMA_55'] = spy_hist['Close'].ewm(span=55, adjust=False).mean()
         
         last_row = spy_hist.iloc[-1]
         try:
-             # UPDATED: Use .item() to avoid FutureWarning
-             ema8 = last_row['EMA_8'].item()
-             ema55 = last_row['EMA_55'].item()
-        except (TypeError, ValueError, AttributeError):
-             # Fallback if .item() fails or types are mixed
+             # Extract safely
              ema8 = float(last_row['EMA_8'])
              ema55 = float(last_row['EMA_55'])
+        except (TypeError, ValueError, AttributeError):
+             return None
 
         if pd.isna(ema8) or pd.isna(ema55) or ema55 == 0: return None
 
