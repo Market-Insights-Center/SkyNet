@@ -687,3 +687,59 @@ def delete_banner(banner_id):
     if len(banners) < initial_len:
         return save_banners(banners)
     return False
+
+# --- STOCK SUMMARY CACHING ---
+
+STOCK_SUMMARIES_FILE = os.path.join(DATA_DIR, 'stock_summaries.json')
+
+def get_cached_summary(ticker):
+    """
+    Retrieves a cached summary for a ticker if it exists and is less than 180 days old.
+    Returns the summary string or None.
+    """
+    if not os.path.exists(STOCK_SUMMARIES_FILE):
+        return None
+    
+    try:
+        with open(STOCK_SUMMARIES_FILE, 'r') as f:
+            data = json.load(f)
+            
+        if ticker in data:
+            entry = data[ticker]
+            # Check expiration
+            stored_date_str = entry.get('date')
+            if stored_date_str:
+                stored_date = datetime.strptime(stored_date_str, '%Y-%m-%d')
+                days_diff = (datetime.utcnow() - stored_date).days
+                if days_diff < 180: # 6 months approx
+                    return entry.get('summary')
+    except Exception as e:
+        print(f"Error reading summary cache: {e}")
+        return None
+    
+    return None
+
+def save_cached_summary(ticker, summary):
+    """
+    Saves a summary to the cache with the current date.
+    """
+    data = {}
+    if os.path.exists(STOCK_SUMMARIES_FILE):
+        try:
+            with open(STOCK_SUMMARIES_FILE, 'r') as f:
+                data = json.load(f)
+        except:
+            data = {}
+            
+    data[ticker] = {
+        'summary': summary,
+        'date': datetime.utcnow().strftime('%Y-%m-%d')
+    }
+    
+    try:
+        with open(STOCK_SUMMARIES_FILE, 'w') as f:
+            json.dump(data, f, indent=4)
+        return True
+    except Exception as e:
+        print(f"Error saving summary cache: {e}")
+        return False

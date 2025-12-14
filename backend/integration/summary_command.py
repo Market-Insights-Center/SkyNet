@@ -2,6 +2,7 @@
 import asyncio
 import yfinance as yf
 from backend.ai_service import ai
+from backend.database import get_cached_summary, save_cached_summary
 
 # Helpers
 async def get_yf_info(ticker: str) -> dict:
@@ -27,6 +28,18 @@ async def handle_summary_command(
         return {"status": "error", "message": "No ticker provided"}
 
     ticker = ticker.upper()
+    
+    # 1. Check Cache
+    cached_summary = get_cached_summary(ticker)
+    if cached_summary:
+        print(f"   [DEBUG] Using cached summary for {ticker}")
+        return {
+            "status": "success",
+            "ticker": ticker,
+            "summary": cached_summary
+        }
+
+    # 2. Fetch Info
     info = await get_yf_info(ticker)
     name = info.get('longName', ticker)
     sector = info.get('sector', 'Unknown Sector')
@@ -60,6 +73,9 @@ async def handle_summary_command(
             # Matches "Here is a [2-sentence] summary [of/about] [Company]:" or just "summary:"
             summary = re.sub(r'(?i)^(here is|this is).*?summary.*?:', '', summary.strip()).strip()
             summary = re.sub(r'(?i)^sure, here is.*?:\s*', '', summary).strip()
+            
+            # 3. Save to Cache
+            save_cached_summary(ticker, summary)
             
         return {
             "status": "success",

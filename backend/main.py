@@ -113,7 +113,19 @@ except ImportError:
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("uvicorn")
 
+from fastapi.responses import JSONResponse
+
 app = FastAPI()
+
+# 1. Global JSON Exception Handler (Fix for "Unexpected token <")
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    print(f"🔥 UNHANDLED ERROR for {request.url}: {exc}")
+    traceback.print_exc()
+    return JSONResponse(
+        status_code=500,
+        content={"status": "error", "message": "Internal Server Error", "detail": str(exc)}
+    )
 
 # --- CORS ---
 app.add_middleware(

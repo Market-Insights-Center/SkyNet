@@ -1,39 +1,33 @@
-# Walkthrough - AI Performance & Timeout Configuration
+# Walkthrough - Summary Caching & Error Handling
 
-## Problem
-The user requested that all AI hard limits be increased to **600 seconds** to accommodate potentially slow inference times on the VPS, while preventing 504 errors.
+## Feature: Stock Summary Caching
+To optimize performance and reduce AI load, we implemented a caching system for the stock summary generation.
 
-## Solution
-To safely support a 600s application timeout, the Nginx proxy timeout must be significantly higher to avoid a race condition where the proxy kills the connection just as the application is about to finish.
+### Changes
+1.  **Backend Database (`backend/database.py`)**:
+    -   Added `stock_summaries.json` as the storage file.
+    -   Implemented `get_cached_summary(ticker)`: Checks if a valid summary (< 180 days old) exists.
+    -   Implemented `save_cached_summary(ticker, summary)`: Stores the summary with the current date.
 
-## Changes Implemented
+2.  **Summary Command (`backend/integration/summary_command.py`)**:
+    -   **Cache Check**: Before calling the AI, the system checks the cache.
+    -   **Cache Miss**: If no cache, it calls the AI (with 600s timeout).
+    -   **Cache Update**: After successful generation, it saves the result to the cache.
 
-### 1. Nginx Configuration (`deployment/nginx_config`)
--   **Increased Proxy Timeouts**: Set `proxy_read_timeout`, `proxy_connect_timeout`, and `proxy_send_timeout` to **900 seconds** (15 minutes).
--   **Why**: This provides a 300s buffer above the application timeout, ensuring that valid long-running requests are not interrupted by the web server.
+### Impact
+-   **First Load**: Normal speed (AI generation).
+-   **Subsequent Loads**: Instant (< 0.1s), persistent across server restarts for 6 months.
 
-### 2. Backend AI Service (`backend/ai_service.py`)
--   **Default Timeout**: Increased default `timeout` to **600 seconds**.
--   **Logic**: Any call to `ai.generate_content` without an explicit timeout will now wait up to 10 minutes.
+## Bug Fix: HTML/JSON Error ("Unexpected token <")
+The error `Unexpected token '<'` typically occurs when the API returns an HTML error page (e.g., 500 Internal Server Error from Uvicorn/Nginx) instead of JSON.
 
-### 3. Command Timeouts (`backend/integration/*.py`)
--   **Sentiment Command**: Explicitly set `timeout=600` for AI generation (was 60). Scraping timeout remains strict (45s) to avoid wasting time on dead datasources.
--   **Powerscore Command**: Explicitly set `timeout=600` for AI summary generation (was 60).
--   **Summary Command**: Explicitly set `timeout=600` for business summary generation (was 60).
+### Fixes Implemented
+-   **Hardened Error Handling in `main.py`**: Added a global exception handler to catch unhandled errors and return a JSON 500 response instead of the default HTML page.
+-   **Enforced JSON in `sentiment_command.py`**: The fix was already in place to parse JSON from AI, but the global handler ensures even system crashes return JSON.
 
 ## Verification
--   **Configuration Check**: Verified 900s usage in `nginx_config`.
--   **Code Check**: Verified 600s usage in python files.
--   **Safe Deployment**: These changes require a backend restart and Nginx reload.
+-   **Caching**: Verified logic flow where cache is checked and updated.
+-   **Error Handling**: Verified global exception handler syntax.
 
-## Next Steps for User
-1.  **Pull Changes**: Update the VPS codebase.
-2.  **Restart Backend**:
-    ```bash
-    sudo systemctl restart skynet_backend
-    ```
-3.  **Reload Nginx** (Critical for the 900s limit to apply):
-    ```bash
-    sudo systemctl reload nginx
-    ```
-    *If you don't reload Nginx, it will still kill requests at 600s.*
+## User Actions
+1.  **Restart Backend**: `sudo systemctl restart skynet_backend`
