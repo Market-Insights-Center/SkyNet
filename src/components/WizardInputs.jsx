@@ -62,24 +62,29 @@ const SliderInput = ({ min, max, defaultValue, unit = '', step = 1, onChange }) 
     );
 };
 
-const CheckboxInput = ({ label, onChange }) => {
-    const [checked, setChecked] = useState(false);
+const CheckboxInput = ({ label, onChange, checked: controlledChecked, disabled }) => {
+    const [internalChecked, setInternalChecked] = useState(false);
+
+    // Allow controlled or uncontrolled mode
+    const isControlled = controlledChecked !== undefined;
+    const checked = isControlled ? controlledChecked : internalChecked;
 
     const handleCheck = () => {
+        if (disabled) return;
         const newState = !checked;
-        setChecked(newState);
+        if (!isControlled) setInternalChecked(newState);
         if (onChange) onChange(newState);
     };
 
     return (
         <div
-            className="flex items-center gap-3 p-3 bg-white/5 border border-gray-800 rounded-lg cursor-pointer hover:bg-white/10 transition-colors"
+            className={`flex items-center gap-3 p-3 border rounded-lg transition-colors ${disabled ? 'bg-gray-800/50 border-gray-800 cursor-not-allowed opacity-60' : 'bg-white/5 border-gray-800 cursor-pointer hover:bg-white/10'}`}
             onClick={handleCheck}
         >
-            <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${checked ? 'bg-gold border-gold' : 'border-gray-600 bg-transparent'}`}>
+            <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${checked ? (disabled ? 'bg-gray-600 border-gray-600' : 'bg-gold border-gold') : 'border-gray-600 bg-transparent'}`}>
                 {checked && <Check size={14} className="text-black" strokeWidth={3} />}
             </div>
-            <span className="text-sm text-gray-300 select-none">{label}</span>
+            <span className="text-sm text-gray-300 select-none">{label} {disabled && "(Locked)"}</span>
         </div>
     );
 };
@@ -196,7 +201,7 @@ export const PortfolioConfigForm = ({ onChange }) => {
 
 // --- Main WizardInputs Component ---
 
-const WizardInputs = ({ toolType, onChange }) => {
+const WizardInputs = ({ toolType, onChange, values }) => {
     const [subPortfolios, setSubPortfolios] = useState([{ tickers: '', weight: 100 }]);
 
     const handleSubPortfolioChange = (newPortfolios) => {
@@ -250,11 +255,13 @@ const WizardInputs = ({ toolType, onChange }) => {
                                     <CheckboxInput
                                         label="Send Trades to Email"
                                         onChange={(val) => handleChange('send_email', val)}
+                                        checked={values?.send_email}
                                     />
                                 </div>
                                 <TextInput
                                     placeholder="Enter your email address"
                                     onChange={(val) => handleChange('email_to', val)}
+                                    value={values?.email_to || ""}
                                 />
                             </div>
 
@@ -264,18 +271,21 @@ const WizardInputs = ({ toolType, onChange }) => {
                                     <CheckboxInput
                                         label="Execute on Robinhood"
                                         onChange={(val) => handleChange('execute_rh', val)}
+                                        checked={values?.execute_rh}
                                     />
                                 </div>
                                 <div className="space-y-3 mt-3">
                                     <TextInput
                                         placeholder="Robinhood Username"
                                         onChange={(val) => handleChange('rh_user', val)}
+                                        value={values?.rh_user || ""}
                                     />
                                     {/* Password Input manually since TextInput has no type prop */}
                                     <input
                                         type="password"
                                         placeholder="Robinhood Password"
                                         onChange={(e) => handleChange('rh_pass', e.target.value)}
+                                        value={values?.rh_pass || ""}
                                         className="w-full bg-black border border-gray-800 rounded-lg px-4 py-3 text-white focus:border-royal-purple focus:ring-1 focus:ring-royal-purple outline-none transition-all duration-300 placeholder-gray-600"
                                     />
                                     <div className="p-3 bg-yellow-900/20 border border-yellow-700/30 rounded text-xs text-yellow-200/80">
@@ -288,6 +298,8 @@ const WizardInputs = ({ toolType, onChange }) => {
                             <CheckboxInput
                                 label="Overwrite last save file?"
                                 onChange={(val) => handleChange('overwrite', val)}
+                                checked={values?.overwrite}
+                                disabled={values?.execute_rh}
                             />
                         </div>
                     </div>

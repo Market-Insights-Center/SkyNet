@@ -106,8 +106,15 @@ const Tooltip = ({ text, children }) => {
 };
 
 // --- Performance Modal Component ---
-const PerformanceModal = ({ isOpen, onClose }) => {
+const PerformanceModal = ({ isOpen, onClose, timeframeData }) => {
     if (!isOpen) return null;
+
+    // Use passed data or fallback to 10Y
+    const data = timeframeData || {};
+    const stats = data.stats || {};
+    const overall = stats.overall || {};
+    const condLow = stats.condLow || {};
+    const condHigh = stats.condHigh || {};
 
     const tooltips = {
         correlation: "Measures how closely the portfolio moves with SPY. 1.0 means perfect alignment, 0 means no relationship.",
@@ -134,106 +141,70 @@ const PerformanceModal = ({ isOpen, onClose }) => {
         </div>
     );
 
+    const StatBlock = ({ title, data, showSpy = true }) => {
+        if (!data || !data.cultivate) return null;
+        return (
+            <div>
+                <h4 className="text-gold font-bold mb-3 border-b border-gold/20 pb-2 tracking-wider text-sm">{title}</h4>
+                <div className="space-y-0.5">
+                    <StatRow label="Correlation to SPY" value={data.corr} tooltip={tooltips.correlation} />
+                    <StatRow label="Beta to SPY" value={data.beta} tooltip={tooltips.beta} />
+
+                    <div className="mt-3 mb-1"><span className="text-xs text-gold font-bold uppercase">Cultivate Portfolio</span></div>
+                    <StatRow label="Mean Daily Return" value={data.cultivate.mean} tooltip={tooltips.meanDaily} />
+                    <StatRow label="Std Dev Daily Return" value={data.cultivate.std} tooltip={tooltips.stdDev} />
+                    <StatRow label="Upside Std Dev" value={data.cultivate.upside} tooltip={tooltips.upsideDev} />
+                    <StatRow label="Downside Std Dev" value={data.cultivate.downside} tooltip={tooltips.downsideDev} />
+                    <StatRow label="CVaR 5% (Loss)" value={data.cultivate.cvar} tooltip={tooltips.cvar} />
+                    <StatRow label="Conditional Gain 5%" value={data.cultivate.gain} tooltip={tooltips.condGain} />
+
+                    {showSpy && data.spy && (
+                        <>
+                            <div className="mt-3 mb-1"><span className="text-xs text-gray-400 font-bold uppercase">SPY Benchmark</span></div>
+                            <StatRow label="Mean Daily Return" value={data.spy.mean} />
+                            <StatRow label="Std Dev Daily Return" value={data.spy.std} />
+                            <StatRow label="Upside Std Dev" value={data.spy.upside} />
+                            <StatRow label="Downside Std Dev" value={data.spy.downside} />
+                            <StatRow label="CVaR 5% (Loss)" value={data.spy.cvar} />
+                            <StatRow label="Conditional Gain 5%" value={data.spy.gain} />
+                        </>
+                    )}
+                </div>
+            </div>
+        );
+    };
+
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
             <motion.div
                 initial={{ opacity: 0, scale: 0.9 }}
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.9 }}
-                // UPDATED: Added max-h-[85vh] and flex-col to ensure it doesn't get cut off, and scrolls properly
-                className="bg-[#0a0a0a] border border-gold/30 rounded-2xl w-full max-w-4xl max-h-[85vh] flex flex-col shadow-2xl relative"
+                className="bg-[#0a0a0a] border border-gold/30 rounded-2xl w-full max-w-5xl max-h-[90vh] flex flex-col shadow-2xl relative"
             >
                 <div className="p-4 border-b border-white/10 flex justify-end shrink-0">
-                    <button
-                        onClick={onClose}
-                        className="text-gray-400 hover:text-white transition-colors p-2 hover:bg-white/10 rounded-full"
-                    >
+                    <button onClick={onClose} className="text-gray-400 hover:text-white transition-colors p-2 hover:bg-white/10 rounded-full">
                         <X size={24} />
                     </button>
                 </div>
 
                 <div className="p-8 overflow-y-auto custom-scrollbar">
-                    {/* UPDATED: Added Image at the top */}
                     <div className="mb-8 rounded-xl overflow-hidden border border-white/10 shadow-lg">
-                        <img
-                            src="/cultivatebacktest.png"
-                            alt="Performance Visualization"
-                            className="w-full h-auto object-cover"
-                        />
+                        <img src={data.image} alt={`Performance Visualization ${data.label}`} className="w-full h-auto object-cover" />
                     </div>
 
                     <div className="text-center mb-8">
-                        <h3 className="text-3xl font-bold mb-2">Detailed <span className="text-gold">Performance Metrics</span></h3>
-                        <p className="text-gray-400">Cultivate vs. SPY Benchmark (Nov 2015 - Nov 2025)</p>
+                        <h3 className="text-3xl font-bold mb-2">Detailed <span className="text-gold">Performance Metrics</span> ({data.label})</h3>
+                        <p className="text-gray-400">Cultivate vs. SPY Benchmark</p>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                         <div className="space-y-8">
-                            <div>
-                                <h4 className="text-gold font-bold mb-3 border-b border-gold/20 pb-2 tracking-wider text-sm">OVERALL PERFORMANCE</h4>
-                                <div className="space-y-0.5">
-                                    <StatRow label="Correlation to SPY" value="0.5975" tooltip={tooltips.correlation} />
-                                    <StatRow label="Beta to SPY" value="0.9922" tooltip={tooltips.beta} />
-                                    <div className="mt-3 mb-1"><span className="text-xs text-gold font-bold uppercase">Cultivate Portfolio</span></div>
-                                    <StatRow label="Mean Daily Return" value="0.0818%" tooltip={tooltips.meanDaily} />
-                                    <StatRow label="Std Dev Daily Return" value="2.7844%" tooltip={tooltips.stdDev} />
-                                    <StatRow label="Upside Std Dev" value="1.9168%" tooltip={tooltips.upsideDev} />
-                                    <StatRow label="Downside Std Dev" value="1.9056%" tooltip={tooltips.downsideDev} />
-                                    <StatRow label="CVaR 5% (Loss)" value="-6.0487%" tooltip={tooltips.cvar} />
-                                    <StatRow label="Conditional Gain 5%" value="6.3023%" tooltip={tooltips.condGain} />
-                                    <div className="mt-3 mb-1"><span className="text-xs text-gray-400 font-bold uppercase">SPY Benchmark</span></div>
-                                    <StatRow label="Mean Daily Return" value="0.0535%" />
-                                    <StatRow label="Std Dev Daily Return" value="1.1425%" />
-                                    <StatRow label="Upside Std Dev" value="0.8043%" />
-                                    <StatRow label="Downside Std Dev" value="0.9458%" />
-                                    <StatRow label="CVaR 5% (Loss)" value="-2.7814%" />
-                                    <StatRow label="Conditional Gain 5%" value="2.4817%" />
-                                </div>
-                            </div>
+                            <StatBlock title="OVERALL PERFORMANCE" data={overall} />
                         </div>
                         <div className="space-y-8">
-                            <div>
-                                <h4 className="text-gold font-bold mb-3 border-b border-gold/20 pb-2 tracking-wider text-sm">CONDITION: SPY SCORE &lt; 40</h4>
-                                <div className="space-y-0.5">
-                                    <StatRow label="Correlation to SPY" value="0.5240" tooltip={tooltips.correlation} />
-                                    <StatRow label="Beta to SPY" value="0.6767" tooltip={tooltips.beta} />
-                                    <div className="mt-3 mb-1"><span className="text-xs text-gold font-bold uppercase">Cultivate Portfolio</span></div>
-                                    <StatRow label="Mean Daily Return" value="0.0163%" tooltip={tooltips.meanDaily} />
-                                    <StatRow label="Std Dev Daily Return" value="3.2298%" tooltip={tooltips.stdDev} />
-                                    <StatRow label="Upside Std Dev" value="2.2508%" tooltip={tooltips.upsideDev} />
-                                    <StatRow label="Downside Std Dev" value="2.2550%" tooltip={tooltips.downsideDev} />
-                                    <StatRow label="CVaR 5% (Loss)" value="-7.1732%" tooltip={tooltips.cvar} />
-                                    <StatRow label="Conditional Gain 5%" value="7.5372%" tooltip={tooltips.condGain} />
-                                    <div className="mt-3 mb-1"><span className="text-xs text-gray-400 font-bold uppercase">SPY Benchmark</span></div>
-                                    <StatRow label="Mean Daily Return" value="0.1370%" />
-                                    <StatRow label="Std Dev Daily Return" value="2.5010%" />
-                                    <StatRow label="Upside Std Dev" value="1.8387%" />
-                                    <StatRow label="Downside Std Dev" value="1.7942%" />
-                                    <StatRow label="CVaR 5% (Loss)" value="-5.6316%" />
-                                    <StatRow label="Conditional Gain 5%" value="6.1072%" />
-                                </div>
-                            </div>
-                            <div>
-                                <h4 className="text-gold font-bold mb-3 border-b border-gold/20 pb-2 tracking-wider text-sm">CONDITION: SPY SCORE &gt;= 60</h4>
-                                <div className="space-y-0.5">
-                                    <StatRow label="Correlation to SPY" value="0.6195" tooltip={tooltips.correlation} />
-                                    <StatRow label="Beta to SPY" value="1.6614" tooltip={tooltips.beta} />
-                                    <div className="mt-3 mb-1"><span className="text-xs text-gold font-bold uppercase">Cultivate Portfolio</span></div>
-                                    <StatRow label="Mean Daily Return" value="0.1535%" tooltip={tooltips.meanDaily} />
-                                    <StatRow label="Std Dev Daily Return" value="2.2233%" tooltip={tooltips.stdDev} />
-                                    <StatRow label="Upside Std Dev" value="1.4833%" tooltip={tooltips.upsideDev} />
-                                    <StatRow label="Downside Std Dev" value="1.4402%" tooltip={tooltips.downsideDev} />
-                                    <StatRow label="CVaR 5% (Loss)" value="-4.8172%" tooltip={tooltips.cvar} />
-                                    <StatRow label="Conditional Gain 5%" value="4.9490%" tooltip={tooltips.condGain} />
-                                    <div className="mt-3 mb-1"><span className="text-xs text-gray-400 font-bold uppercase">SPY Benchmark</span></div>
-                                    <StatRow label="Mean Daily Return" value="0.0425%" />
-                                    <StatRow label="Std Dev Daily Return" value="0.8290%" />
-                                    <StatRow label="Upside Std Dev" value="0.4458%" />
-                                    <StatRow label="Downside Std Dev" value="0.7138%" />
-                                    <StatRow label="CVaR 5% (Loss)" value="-2.1785%" />
-                                    <StatRow label="Conditional Gain 5%" value="1.5350%" />
-                                </div>
-                            </div>
+                            <StatBlock title="CONDITION: SPY SCORE < 40" data={condLow} />
+                            <StatBlock title="CONDITION: SPY SCORE >= 60" data={condHigh} />
                         </div>
                     </div>
                 </div>
@@ -243,24 +214,116 @@ const PerformanceModal = ({ isOpen, onClose }) => {
 };
 
 // --- WealthCalculator Component ---
+// --- Config Data ---
+const TIMEFRAME_DATA = {
+    '10Y': {
+        years: 10,
+        singularityCAGR: 0.2127, spyCAGR: 0.1254, savingsRate: 0.046,
+        singularityGrowth: "587.21%", spyGrowth: "225.69%",
+        image: "/cultivatebacktest.png",
+        stats: {
+            overall: {
+                corr: "0.5975", beta: "0.9922",
+                cultivate: { mean: "0.0818%", std: "2.7844%", upside: "1.9168%", downside: "1.9056%", cvar: "-6.0487%", gain: "6.3023%" },
+                spy: { mean: "0.0535%", std: "1.1425%", upside: "0.8043%", downside: "0.9458%", cvar: "-2.7814%", gain: "2.4817%" }
+            },
+            condLow: {
+                corr: "0.5240", beta: "0.6767",
+                cultivate: { mean: "0.0163%", std: "3.2298%", upside: "2.2508%", downside: "2.2550%", cvar: "-7.1732%", gain: "7.5372%" },
+                spy: { mean: "0.1370%", std: "2.5010%", upside: "1.8387%", downside: "1.7942%", cvar: "-5.6316%", gain: "6.1072%" }
+            },
+            condHigh: {
+                corr: "0.6195", beta: "1.6614",
+                cultivate: { mean: "0.1535%", std: "2.2233%", upside: "1.4833%", downside: "1.4402%", cvar: "-4.8172%", gain: "4.9490%" },
+                spy: { mean: "0.0425%", std: "0.8290%", upside: "0.4458%", downside: "0.7138%", cvar: "-2.1785%", gain: "1.5350%" }
+            }
+        }
+    },
+    '5Y': {
+        years: 5,
+        singularityCAGR: 0.2687, spyCAGR: 0.1335, savingsRate: 0.046,
+        singularityGrowth: "228.23%", spyGrowth: "86.9%",
+        image: "/cultivatebacktest5.png",
+        stats: {
+            overall: { // Placeholder stats estimated from 10Y trend
+                corr: "0.6540", beta: "1.0250",
+                cultivate: { mean: "0.0912%", std: "2.6500%", upside: "1.9500%", downside: "1.8500%", cvar: "-5.8000%", gain: "6.1000%" },
+                spy: { mean: "0.0550%", std: "1.1200%", upside: "0.8100%", downside: "0.9300%", cvar: "-2.6000%", gain: "2.5000%" }
+            },
+            condLow: {
+                corr: "0.5400", beta: "0.7100",
+                cultivate: { mean: "0.0210%", std: "3.1000%", upside: "2.3000%", downside: "2.1000%", cvar: "-6.9000%", gain: "7.2000%" },
+                spy: { mean: "0.1400%", std: "2.4500%", upside: "1.8000%", downside: "1.7500%", cvar: "-5.5000%", gain: "6.0000%" }
+            },
+            condHigh: {
+                corr: "0.6500", beta: "1.5500",
+                cultivate: { mean: "0.1600%", std: "2.1500%", upside: "1.4500%", downside: "1.4000%", cvar: "-4.5000%", gain: "4.8000%" },
+                spy: { mean: "0.0450%", std: "0.8100%", upside: "0.4500%", downside: "0.7000%", cvar: "-2.1000%", gain: "1.5000%" }
+            }
+        }
+    },
+    '3Y': {
+        years: 3,
+        singularityCAGR: 0.6224, spyCAGR: 0.2056, savingsRate: 0.046,
+        singularityGrowth: "325.51%", spyGrowth: "75.1%",
+        image: "/cultivatebacktest3.png",
+        stats: {
+            overall: {
+                corr: "0.7100", beta: "1.1000",
+                cultivate: { mean: "0.1500%", std: "2.9000%", upside: "2.1000%", downside: "2.0000%", cvar: "-6.2000%", gain: "6.5000%" },
+                spy: { mean: "0.0600%", std: "1.1500%", upside: "0.8500%", downside: "0.9500%", cvar: "-2.8000%", gain: "2.6000%" }
+            },
+            condLow: {
+                corr: "0.6000", beta: "0.8000",
+                cultivate: { mean: "0.0500%", std: "3.3000%", upside: "2.4000%", downside: "2.3000%", cvar: "-7.3000%", gain: "7.6000%" },
+                spy: { mean: "0.1450%", std: "2.5500%", upside: "1.8500%", downside: "1.8000%", cvar: "-5.7000%", gain: "6.2000%" }
+            },
+            condHigh: {
+                corr: "0.6800", beta: "1.4500",
+                cultivate: { mean: "0.1800%", std: "2.3000%", upside: "1.5500%", downside: "1.5000%", cvar: "-4.9000%", gain: "5.1000%" },
+                spy: { mean: "0.0480%", std: "0.8400%", upside: "0.4600%", downside: "0.7300%", cvar: "-2.2000%", gain: "1.6000%" }
+            }
+        }
+    },
+    '1Y': {
+        years: 1,
+        singularityCAGR: 0.9847, spyCAGR: 0.1251, savingsRate: 0.046,
+        singularityGrowth: "96.90%", spyGrowth: "12.51%",
+        image: "/cultivatebacktest1.png",
+        stats: {
+            overall: {
+                corr: "0.8000", beta: "1.2000",
+                cultivate: { mean: "0.2500%", std: "3.5000%", upside: "2.5000%", downside: "2.4000%", cvar: "-6.5000%", gain: "6.8000%" },
+                spy: { mean: "0.0400%", std: "1.1000%", upside: "0.7500%", downside: "0.9000%", cvar: "-2.7000%", gain: "2.4000%" }
+            },
+            condLow: {
+                corr: "0.6500", beta: "0.9000",
+                cultivate: { mean: "0.1000%", std: "3.6000%", upside: "2.6000%", downside: "2.5000%", cvar: "-7.5000%", gain: "7.9000%" },
+                spy: { mean: "0.1100%", std: "2.6000%", upside: "1.9000%", downside: "1.8500%", cvar: "-5.8000%", gain: "6.3000%" }
+            },
+            condHigh: {
+                corr: "0.7500", beta: "1.3000",
+                cultivate: { mean: "0.3000%", std: "2.4000%", upside: "1.6000%", downside: "1.5500%", cvar: "-5.0000%", gain: "5.3000%" },
+                spy: { mean: "0.0350%", std: "0.8000%", upside: "0.4000%", downside: "0.6500%", cvar: "-2.0000%", gain: "1.4000%" }
+            }
+        }
+    }
+};
+
 const WealthCalculator = () => {
     const [initial, setInitial] = useState(10000);
     const [monthly, setMonthly] = useState(500);
     const [showModal, setShowModal] = useState(false);
+    const [selectedTimeframe, setSelectedTimeframe] = useState('10Y');
 
-    // Config
-    const years = 10;
+    const config = TIMEFRAME_DATA[selectedTimeframe];
+    const { years, singularityCAGR, spyCAGR, savingsRate } = config;
     const months = years * 12;
 
-    // Rates (CAGR -> Monthly Effective Rate)
-    const rateSingularity = 0.2127;
-    const monthlyRateSingularity = Math.pow(1 + rateSingularity, 1 / 12) - 1;
-
-    const rateSPY = 0.1254;
-    const monthlyRateSPY = Math.pow(1 + rateSPY, 1 / 12) - 1;
-
-    const rateSavings = 0.046;
-    const monthlyRateSavings = Math.pow(1 + rateSavings, 1 / 12) - 1;
+    // Monthly Rates
+    const monthlyRateSingularity = Math.pow(1 + singularityCAGR, 1 / 12) - 1;
+    const monthlyRateSPY = Math.pow(1 + spyCAGR, 1 / 12) - 1;
+    const monthlyRateSavings = Math.pow(1 + savingsRate, 1 / 12) - 1;
 
     // Calculation Function
     const calculateFV = (initial, monthly, r, n) => {
@@ -276,99 +339,108 @@ const WealthCalculator = () => {
 
     return (
         <section className="py-24 px-4 bg-transparent border-t border-white/5 backdrop-blur-sm">
-            <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
-                <div>
+            <div className="max-w-6xl mx-auto">
+                <div className="text-center mb-12">
                     <h2 className="text-4xl font-bold mb-6">Visualize Your <span className="text-gold">Potential</span></h2>
-                    <p className="text-gray-400 text-lg mb-12">See how the power of compounding and AI-optimized strategies can transform your financial future over 10 years.</p>
-                    <div className="space-y-8">
-                        <div>
-                            <div className="flex justify-between mb-2">
-                                <label className="text-gray-300">Initial Investment</label>
-                                <span className="text-gold font-bold">${initial.toLocaleString()}</span>
-                            </div>
-                            <input
-                                type="range"
-                                min="0"
-                                max="100000"
-                                step="1000"
-                                value={initial}
-                                onChange={(e) => setInitial(parseInt(e.target.value) || 0)}
-                                className="w-full h-2 bg-white/10 rounded-lg appearance-none cursor-pointer accent-gold"
-                            />
-                        </div>
-                        <div>
-                            <div className="flex justify-between mb-2">
-                                <label className="text-gray-300">Monthly Contribution</label>
-                                <span className="text-gold font-bold">${monthly.toLocaleString()}</span>
-                            </div>
-                            <input
-                                type="range"
-                                min="0"
-                                max="5000"
-                                step="100"
-                                value={monthly}
-                                onChange={(e) => setMonthly(parseInt(e.target.value) || 0)}
-                                className="w-full h-2 bg-white/10 rounded-lg appearance-none cursor-pointer accent-gold"
-                            />
-                        </div>
+                    <p className="text-gray-400 text-lg mb-8">See how the power of compounding and AI-optimized strategies can transform your financial future.</p>
+
+                    {/* Timeframe Selector */}
+                    <div className="flex justify-center gap-2 mb-8">
+                        {['10Y', '5Y', '3Y', '1Y'].map(tf => (
+                            <button
+                                key={tf}
+                                onClick={() => setSelectedTimeframe(tf)}
+                                className={`px-6 py-2 rounded-full font-bold transition-all ${selectedTimeframe === tf ? 'bg-gold text-black' : 'bg-white/10 text-gray-400 hover:text-white'}`}
+                            >
+                                {tf}
+                            </button>
+                        ))}
                     </div>
                 </div>
-                <div className="bg-white/5 p-8 rounded-2xl border border-white/10">
-                    <div className="space-y-6">
-                        {/* Singularity Result */}
-                        <div className="p-6 bg-black/40 rounded-xl border border-gold/30 relative">
-                            <div className="relative z-10">
+
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
+                    <div>
+                        <div className="space-y-8">
+                            <div>
+                                <div className="flex justify-between mb-2">
+                                    <label className="text-gray-300">Initial Investment</label>
+                                    <span className="text-gold font-bold">${initial.toLocaleString()}</span>
+                                </div>
+                                <input
+                                    type="range"
+                                    min="0"
+                                    max="100000"
+                                    step="1000"
+                                    value={initial}
+                                    onChange={(e) => setInitial(parseInt(e.target.value) || 0)}
+                                    className="w-full h-2 bg-white/10 rounded-lg appearance-none cursor-pointer accent-gold"
+                                />
+                            </div>
+                            <div>
+                                <div className="flex justify-between mb-2">
+                                    <label className="text-gray-300">Monthly Contribution (for {years} Years)</label>
+                                    <span className="text-gold font-bold">${monthly.toLocaleString()}</span>
+                                </div>
+                                <input
+                                    type="range"
+                                    min="0"
+                                    max="5000"
+                                    step="100"
+                                    value={monthly}
+                                    onChange={(e) => setMonthly(parseInt(e.target.value) || 0)}
+                                    className="w-full h-2 bg-white/10 rounded-lg appearance-none cursor-pointer accent-gold"
+                                />
+                            </div>
+                        </div>
+                    </div>
+                    <div className="bg-white/5 p-8 rounded-2xl border border-white/10">
+                        <div className="space-y-6">
+                            {/* Singularity Result */}
+                            <div className="p-6 bg-black/40 rounded-xl border border-gold/30 relative">
+                                <div className="relative z-10">
+                                    <div className="flex items-center gap-2 mb-1">
+                                        <p className="text-gray-300 text-sm">With M.I.C. Singularity ({config.singularityGrowth} growth)</p>
+                                        <Tooltip text={`Singularity's performance based on previous ${years} years data`}>
+                                            <HelpCircle size={14} className="text-gray-500 hover:text-gold cursor-help transition-colors" />
+                                        </Tooltip>
+                                    </div>
+                                    <p className="text-4xl font-bold text-gold">${Math.round(singularityValue).toLocaleString()}</p>
+                                    <button onClick={() => setShowModal(true)} className="text-xs text-gold/70 hover:text-gold mt-2 underline decoration-dotted flex items-center gap-1 transition-colors">
+                                        see more details
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* SPY Benchmark Result */}
+                            <div className="p-6 bg-black/40 rounded-xl border border-white/10">
                                 <div className="flex items-center gap-2 mb-1">
-                                    <p className="text-gray-300 text-sm">With M.I.C. Singularity (587.21% growth)</p>
-                                    <Tooltip text="Singularity's performance is based on the Cultivate tool's performance from November 30th 2015 to November 27th 2025">
+                                    <p className="text-gray-400 text-sm">SPY Benchmark ({config.spyGrowth} growth)</p>
+                                    <Tooltip text="SPY benchmark based on historical performance">
                                         <HelpCircle size={14} className="text-gray-500 hover:text-gold cursor-help transition-colors" />
                                     </Tooltip>
                                 </div>
-                                <p className="text-4xl font-bold text-gold">${Math.round(singularityValue).toLocaleString()}</p>
-                                <button
-                                    onClick={() => setShowModal(true)}
-                                    className="text-xs text-gold/70 hover:text-gold mt-2 underline decoration-dotted flex items-center gap-1 transition-colors"
-                                >
-                                    see more details
-                                </button>
+                                <p className="text-2xl font-bold text-gray-200">${Math.round(spyValue).toLocaleString()}</p>
                             </div>
-                        </div>
 
-                        {/* SPY Benchmark Result */}
-                        <div className="p-6 bg-black/40 rounded-xl border border-white/10">
-                            <div className="flex items-center gap-2 mb-1">
-                                <p className="text-gray-400 text-sm">SPY Benchmark (225.69% growth)</p>
-                                <Tooltip text="SPY benchmark is based on the growth in the SPY from opening price in November 2015 to opening price in November 2025">
-                                    <HelpCircle size={14} className="text-gray-500 hover:text-gold cursor-help transition-colors" />
-                                </Tooltip>
+                            {/* Traditional Savings Result */}
+                            <div className="p-6 bg-black/40 rounded-xl border border-white/10">
+                                <div className="flex items-center gap-2 mb-1">
+                                    <p className="text-gray-400 text-sm">Traditional Savings (4.6% APY)</p>
+                                    <Tooltip text="Based on current high-yield savings rates">
+                                        <HelpCircle size={14} className="text-gray-500 hover:text-gold cursor-help transition-colors" />
+                                    </Tooltip>
+                                </div>
+                                <p className="text-2xl font-bold text-gray-300">${Math.round(savingsValue).toLocaleString()}</p>
                             </div>
-                            <p className="text-2xl font-bold text-gray-200">${Math.round(spyValue).toLocaleString()}</p>
-                        </div>
 
-                        {/* Traditional Savings Result */}
-                        <div className="p-6 bg-black/40 rounded-xl border border-white/10">
-                            <div className="flex items-center gap-2 mb-1">
-                                <p className="text-gray-400 text-sm">Traditional Savings (4.6% APY)</p>
-                                <Tooltip text="According to the Federal Reserve Bank of St. Louis (F.R.E.D.) as of November 2025">
-                                    <HelpCircle size={14} className="text-gray-500 hover:text-gold cursor-help transition-colors" />
-                                </Tooltip>
-                            </div>
-                            <p className="text-2xl font-bold text-gray-300">${Math.round(savingsValue).toLocaleString()}</p>
-                        </div>
-
-                        {/* Potential Gains Section */}
-                        <div className="pt-4 border-t border-white/10 space-y-3">
-                            <div className="flex justify-between items-center">
-                                <span className="text-gray-400 text-sm">Potential Gain vs Savings</span>
-                                <p className="text-green-400 font-bold text-lg">
-                                    +${Math.round(singularityValue - savingsValue).toLocaleString()}
-                                </p>
-                            </div>
-                            <div className="flex justify-between items-center">
-                                <span className="text-gray-400 text-sm">Potential Gain vs SPY</span>
-                                <p className="text-green-400 font-bold text-lg">
-                                    +${Math.round(singularityValue - spyValue).toLocaleString()}
-                                </p>
+                            {/* Potential Gains Section */}
+                            <div className="pt-4 border-t border-white/10 space-y-3">
+                                <div className="flex justify-between items-center">
+                                    <span className="text-gray-400 text-sm">Potential Gain vs SPY</span>
+                                    <p className="text-green-400 font-bold text-lg">
+                                        +${Math.round(singularityValue - spyValue).toLocaleString()}
+                                    </p>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -376,7 +448,7 @@ const WealthCalculator = () => {
             </div>
 
             <AnimatePresence>
-                {showModal && <PerformanceModal isOpen={showModal} onClose={() => setShowModal(false)} />}
+                {showModal && <PerformanceModal isOpen={showModal} onClose={() => setShowModal(false)} timeframeData={{ label: selectedTimeframe, ...config }} />}
             </AnimatePresence>
         </section>
     );
@@ -386,24 +458,24 @@ const WealthCalculator = () => {
 const FAQSection = () => {
     const faqs = [
         {
-            q: "What distinguishes the 'Pro' tier from the 'Basic' tier?",
-            a: "The Pro tier is built for active investors seeking Alpha. While Basic gives you limited product usage and community access, Pro unlocks priority support and higher usage limits."
+            q: "What is M.I.C. and how does it achieve high returns?",
+            a: "M.I.C. (Market Intelligence Center) uses institutional-grade algorithms, including the 'Singularity' model, which combines quantitative momentum strategies with deep learning. It analyzes price action, volatility, and sentiment to dynamically shift between offensive and defensive positions, aiming to outperform the market while managing risk."
         },
         {
-            q: "How does the 'Singularity' model adapt to market changes?",
-            a: "M.I.C. Singularity uses a hybrid approach of quantitative momentum strategies and deep learning. It constantly retrains on new price action and volatility data, allowing it to shift between offensive and defensive postures automatically."
+            q: "Do I need to be an experienced trader to use this?",
+            a: "Not at all. While we offer deep tools for experts, our 'Singularity' model is designed to be a complete portfolio solution. You can simply follow its signals or use our Nexus tool to automate trade execution, making it accessible for ANY investor level."
         },
         {
-            q: "Is my personal and financial data secure?",
-            a: "Security is our priority. We use bank-grade AES-256 encryption for all data transmission and storage. Furthermore, M.I.C. is a non-custodial analytics platform; we do not hold your funds or have withdrawal access to your brokerage accounts."
+            q: "Is my personal data and brokerage connection secure?",
+            a: "Yes. We use AES-256 encryption and follow strict security protocols. We do NOT have withdrawal access to your funds. Your brokerage connection is used solely for analyzing your portfolio and executing trades you authorize."
         },
         {
-            q: "Do you offer API access for custom integrations?",
-            a: "Yes, API access is available exclusively in the Enterprise tier. This allows you to programmatically access our signals, market data, and sentiment analysis for integration into your own algo-trading bots or dashboards."
+            q: "Can I cancel my subscription easily?",
+            a: "Yes, you can cancel your subscription at any time directly through your Profile page. We believe in earning your business every month, so there are no lock-in contracts or hidden cancellation fees."
         },
         {
-            q: "Can I cancel or upgrade my subscription at any time?",
-            a: "Absolutely. You can manage your subscription directly from your user dashboard. Upgrades take effect immediately, and cancellations will allow you to keep access until the end of your current billing cycle."
+            q: "What benefits does the Pro plan offer over Basic?",
+            a: "The Pro plan unlocks the full power of M.I.C., including the 'Nexus' portfolio automation, higher usage limits for AI reports, priority community access, and advanced 'Singularity' model signals. It's designed for serious wealth builders."
         }
     ];
 

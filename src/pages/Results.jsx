@@ -165,7 +165,8 @@ const Results = ({ toolType, onBack }) => {
             raw_result: winData.raw_result || {},
             comparison: Array.isArray(winData.comparison) ? winData.comparison : [],
             performance: Array.isArray(winData.performance) ? winData.performance : [],
-            since_last_save: Array.isArray(winData.since_last_save) ? winData.since_last_save : []
+            since_last_save: Array.isArray(winData.since_last_save) ? winData.since_last_save : [],
+            requires_execution_confirmation: winData.requires_execution_confirmation || winData.raw_result?.requires_execution_confirmation || false
         };
     });
 
@@ -231,39 +232,34 @@ const Results = ({ toolType, onBack }) => {
         // NOTE: Modal closes only AFTER fetch or error to keep UI state consistent
         // We handle logic here.
 
-        const payloadData = enhancedTableData.length > 0 ? enhancedTableData : rawTableData;
+        const payloadData = raw_result?.trades || [];
 
-        if (payloadData.length === 0) {
-            alert("Error: No portfolio data found. Please re-run the analysis.");
+        if (!payloadData || payloadData.length === 0) {
+            alert("Error: No trade data found. Please re-run the analysis.");
             setShowExecModal(false);
             return;
         }
 
         const body = {
-            action: "execute_trades",
-            portfolio_code: raw_result?.portfolio_code || "Unknown",
-            trades: raw_result?.trades || [],
-            final_cash: cashValue,
-            total_value: totalPortfolioValue,
-            new_run_data: payloadData,
+            trades: payloadData,
             rh_username: options.execRh ? options.rhUser : null,
             rh_password: options.execRh ? options.rhPass : null,
             email_to: options.sendEmail ? options.email : null,
-            overwrite: options.overwrite
+            portfolio_code: raw_result?.portfolio_code || "Unknown"
         };
 
         try {
-            const response = await fetch('/api/tracking', {
+            const response = await fetch('/api/execute-trades', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(body)
             });
             const result = await response.json();
 
-            if (result.log && Array.isArray(result.log)) {
-                alert(result.log.join("\n"));
-            } else {
+            if (result.status === 'success') {
                 alert(result.message || "Execution processed.");
+            } else {
+                alert("Execution Result: " + (result.message || "Unknown status"));
             }
         } catch (e) {
             alert("Execution failed: " + e.message);
@@ -277,12 +273,12 @@ const Results = ({ toolType, onBack }) => {
             <div className="flex justify-between mb-8">
                 <button onClick={onBack} className="flex items-center gap-2 text-gray-400 hover:text-white"><ArrowLeft size={20} /> Back</button>
                 <div className="flex gap-3">
-                    {/* Execution Actions moved to Inputs */
-                    /* {toolType === 'tracking' && (
-                        <button onClick={() => setShowExecModal(true)} className="flex items-center gap-2 px-4 py-2 bg-royal-purple text-white font-bold rounded-lg hover:bg-purple-700 transition-colors shadow-lg">
-                            <Activity size={20} /> Execute Actions
-                        </button>
-                    )} */}
+                    {/* Execution Actions */
+                        ((toolType === 'tracking' && stableData.requires_execution_confirmation) || (stableData.requires_execution_confirmation)) && (
+                            <button onClick={() => setShowExecModal(true)} className="flex items-center gap-2 px-4 py-2 bg-royal-purple text-white font-bold rounded-lg hover:bg-purple-700 transition-colors shadow-lg">
+                                <Activity size={20} /> Execute Trades
+                            </button>
+                        )}
                 </div>
             </div>
 

@@ -404,8 +404,22 @@ async def handle_tracking_command(args: List[str], ai_params: Optional[Dict] = N
     trade_recs = []
     # If execute_actions is True OR meaningful execution params are provided, we calculate trades
     if execute_actions or execute_rh or email_to:
-        # Compare Target vs Old Run
-        current_holdings_map = {row['Ticker']: float(safe_score(row.get('Shares'))) for row in (old_run_data or []) if row.get('Ticker') != 'Cash'}
+        
+        # --- LOGIC UPDATE: Use LIVE holdings if available to prevent duplicates ---
+        current_holdings_map = {}
+        if execute_rh:
+             try:
+                 print("[DEBUG TRACKING] Fetching LIVE Robinhood holdings for accurate diff...")
+                 current_holdings_map = await asyncio.to_thread(get_robinhood_holdings)
+                 print(f"[DEBUG TRACKING] Live Holdings Fetched: {len(current_holdings_map)} positions")
+             except Exception as e:
+                 print(f"[DEBUG TRACKING] Failed to get live holdings: {e}")
+        
+        # Fallback to CSV if Live failed or not requested
+        if not current_holdings_map:
+             current_holdings_map = {row['Ticker']: float(safe_score(row.get('Shares'))) for row in (old_run_data or []) if row.get('Ticker') != 'Cash'}
+             print(f"[DEBUG TRACKING] Using SAVED CSV holdings: {len(current_holdings_map)} positions")
+
         all_tickers = set(current_holdings_map.keys()) | set(target_holdings.keys())
         
         for ticker in all_tickers:
@@ -413,6 +427,7 @@ async def handle_tracking_command(args: List[str], ai_params: Optional[Dict] = N
             target_shares = target_holdings.get(ticker, 0)
             diff = target_shares - curr_shares
             
+            # Robust diff check
             if abs(diff) > 0.001: 
                 trade_recs.append({
                     "ticker": ticker,
@@ -421,7 +436,8 @@ async def handle_tracking_command(args: List[str], ai_params: Optional[Dict] = N
                     "reason": "Rebalance to Target"
                 })
         
-        if not current_holdings_map and target_holdings:
+        # Initial Buy Check (Only if we have NO current holdings at all)
+        if not current_holdings_map and target_holdings and not trade_recs:
              for ticker, shares in target_holdings.items():
                  if shares > 0:
                      trade_recs.append({"ticker": ticker, "action": "Buy", "diff": shares, "reason": "Initial Buy"})
@@ -448,8 +464,16 @@ async def handle_tracking_command(args: List[str], ai_params: Optional[Dict] = N
 
     # Execution Handling
     execution_result_msg = ""
+    can_execute = False  # Flag for frontend button
+    
     if trade_recs:
-        # 1. Send Email
+        # Check credentials for potential execution later
+        rh_user = os.environ.get("RH_USERNAME")
+        rh_pass = os.environ.get("RH_PASSWORD")
+        # Relaxed logic: Show button if trades exist. Modal handles creds.
+        can_execute = len(trade_recs) > 0
+        
+        # 1. Send Email (Still do this if requested, as it's not a trade execution)
         if email_to:
             try:
                 # Format simple HTML table
@@ -460,15 +484,10 @@ async def handle_tracking_command(args: List[str], ai_params: Optional[Dict] = N
             except Exception as e:
                 execution_result_msg += f" Email failed: {e}."
 
-        # 2. Execute on Robinhood
-        if execute_rh and rh_user and rh_pass:
-            try:
-                rh_trades = [{"ticker": t['ticker'], "side": t['action'].lower(), "quantity": f"{float(t['diff']):.6f}"} for t in trade_recs]
-                await asyncio.to_thread(execute_portfolio_rebalance, rh_trades)
-                execution_result_msg += " Sent to Robinhood."
-            except Exception as e:
-                print(f"RH Exec Failed: {e}")
-                execution_result_msg += f" RH Exec Failed: {e}."
+        # 2. DELETED: Immediate Execution on Robinhood
+        # We now simply return the trades and let the frontend handle the execution button.
+        if execute_rh:
+             execution_result_msg += " Ready for Review."
 
     # --- Top Cards Summary Construction ---
     summary_stats = [
@@ -497,6 +516,8 @@ async def handle_tracking_command(args: List[str], ai_params: Optional[Dict] = N
         
         # Extras
         "nested_performance": nested_performance,
-        "all_time_results_raw": all_time_results, 
-        "message": "Tracking data loaded." + execution_result_msg
+        "all_time_results_raw": all_time_results,
+        "trades": trade_recs, # Consistent with Nexus
+        "requires_execution_confirmation": can_execute,
+        "message": "Tracking run complete." + execution_result_msg
     }

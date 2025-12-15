@@ -74,7 +74,13 @@ const Wizard = () => {
     const [inputs, setInputs] = useState({});
 
     const handleInputChange = (field, value) => {
-        setInputs(prev => ({ ...prev, [field]: value }));
+        setInputs(prev => {
+            const newState = { ...prev, [field]: value };
+            if (field === 'execute_rh' && value === true) {
+                newState.overwrite = true;
+            }
+            return newState;
+        });
     };
 
     const handleConfigChange = (field, value) => {
@@ -276,7 +282,7 @@ const Wizard = () => {
                     className="lg:col-span-1 bg-white/5 border border-white/10 rounded-xl p-6 flex flex-col"
                 >
                     <div className="flex-grow overflow-y-auto pr-2 custom-scrollbar">
-                        <WizardInputs toolType={toolType} onChange={handleInputChange} />
+                        <WizardInputs toolType={toolType} onChange={handleInputChange} values={inputs} />
                     </div>
 
                     <div className="mt-6 pt-6 border-t border-white/10">

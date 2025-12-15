@@ -558,13 +558,37 @@ async def handle_nexus_command(args: List[str], ai_params: Optional[Dict] = None
         )
         
         # Execute if requested
-        exec_msg = ""
-        if execute_rh and trades:
-             # Convert to execution format
-             exec_trades = [{"ticker": t['ticker'], "side": t['action'].lower(), "quantity": t['diff']} for t in trades]
-             await asyncio.to_thread(execute_portfolio_rebalance, exec_trades)
-             exec_msg = " Executed on Robinhood."
+        # --- 6. EXECUTE (Conditional) ---
+        # MODIFIED: specific rebalance logic is deferred. We ALWAYS run "dry run" first to get trades.
+        # The frontend will see "requires_execution_confirmation" and prompt the user.
+        
+        # We need to get Robinhood credentials to determine if execution is possible
+        rh_user = os.environ.get("RH_USERNAME")
+        rh_pass = os.environ.get("RH_PASSWORD")
 
+        # Prepare trades for function call (Map keys)
+        # Nexus: {'ticker': t, 'action': 'Buy', 'diff': 10}
+        # Exec:  {'ticker': t, 'side': 'buy', 'quantity': 10}
+        rebal_trades = []
+        for t in trades:
+            rebal_trades.append({
+                'ticker': t['ticker'],
+                'side': t['action'].lower(),
+                'quantity': float(t['diff'])
+            })
+
+        # Call execute_portfolio_rebalance in dry-run mode
+        rebal_res = await asyncio.to_thread(
+            execute_portfolio_rebalance,
+            trades=rebal_trades,
+            execute=False # ALWAYS FALSE INITIALLY - Defer to frontend button
+        )
+
+        # Check if we SHOULD offer execution (Triggers frontend button)
+        # We allow execution if there are trades, regardless of predefined credentials,
+        # because the frontend Modal will collect them if missing.
+        can_execute = len(trades) > 0
+        
         # Standardize for Frontend (Results.jsx)
         table_data = []
         for h in new_holdings:
@@ -579,21 +603,22 @@ async def handle_nexus_command(args: List[str], ai_params: Optional[Dict] = None
 
         # Summary for Cards
         summary_cards = [
-             {"label": "Portfolio Value", "value": f"${total_value:,.2f}"},
-             {"label": "Cash Balance", "value": f"${new_cash:,.2f}"},
-             {"label": "Holdings Count", "value": str(len(new_holdings))}
+                {"label": "Portfolio Value", "value": f"${total_value:,.2f}"},
+                {"label": "Cash Balance", "value": f"${new_cash:,.2f}"},
+                {"label": "Holdings Count", "value": str(len(new_holdings))}
         ]
 
         return {
             "status": "success",
+            "message": "Nexus Portfolio Calculated.",
             "nexus_code": nexus_code,
             "total_value": total_value,
-            "equity": rh_equity,
+            "equity": rh_equity, # Keep for consistency, though total_value is primary
             "table": table_data,
             "summary": summary_cards,
             "cash": new_cash,
-            "trades": trades,
-            "message": "Nexus run complete." + exec_msg
+            "trades": trades, # Use original logic trades (Frontend friendly)
+            "requires_execution_confirmation": can_execute
         }
 
     except Exception as e:

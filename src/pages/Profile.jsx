@@ -252,6 +252,16 @@ export default function Profile() {
                                     <span className={`px-2 py-0.5 rounded text-xs font-bold ${currentUser?.tier === 'Enterprise' ? 'bg-purple-900 text-purple-200' : currentUser?.tier === 'Pro' ? 'bg-gold/20 text-gold' : 'bg-gray-700 text-gray-300'}`}>
                                         {currentUser?.tier || 'Basic'}
                                     </span>
+                                    {currentUser?.tier && currentUser.tier !== 'Basic' && (
+                                        <a
+                                            href="https://www.paypal.com/myaccount/autopay/"
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="ml-2 bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 px-2 py-0.5 rounded text-xs font-bold border border-blue-500/20 transition-colors"
+                                        >
+                                            Manage Subscription
+                                        </a>
+                                    )}
                                 </div>
                                 <button
                                     onClick={() => setShowQuestionnaire(true)}

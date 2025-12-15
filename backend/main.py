@@ -378,6 +378,13 @@ class BannerDeleteRequest(BaseModel):
     id: int
     requester_email: str
 
+class ExecuteTradesRequest(BaseModel):
+    trades: List[Dict[str, Any]]
+    rh_username: Optional[str] = None
+    rh_password: Optional[str] = None
+    email_to: Optional[str] = None
+    portfolio_code: Optional[str] = "Unknown"
+
 # --- HELPER FUNCTIONS ---
 def get_mod_list():
     mods = []
@@ -1338,6 +1345,72 @@ async def run_summary(req: SummaryRequest):
     )
 
 # --- FIXED NEXUS ENDPOINT ---
+@app.post("/api/execute-trades")
+async def execute_trades_endpoint(req: ExecuteTradesRequest):
+    """
+    Executes a list of trades on Robinhood. 
+    Called by the frontend after a Nexus or Tracking run when the user clicks "Execute Trades".
+    """
+    try:
+        # Dynamic import to ensure we get it right
+        try:
+            from backend.integration.execution_command import execute_portfolio_rebalance
+        except ImportError:
+            from integration.execution_command import execute_portfolio_rebalance
+
+        if not req.trades:
+             return {"status": "success", "message": "No trades to execute."}
+
+        # 1. Prepare Trades for Execution
+        # Expected format by execute_portfolio_rebalance: [{"ticker": "AVL", "side": "buy", "quantity": 10}, ...]
+        rh_trades = []
+        for t in req.trades:
+            # Flexible Key Mapping
+            side = t.get('action', '').lower()
+            if not side:
+                 side = t.get('side', '').lower()
+            
+            # fallback if 'diff' positive/negative
+            if not side:
+                d = float(t.get('diff', 0))
+                if d != 0: side = 'buy' if d > 0 else 'sell'
+            
+            # Ensure quantity is positive
+            qty = float(t.get('diff', 0))
+            if qty == 0:
+                 qty = float(t.get('quantity', 0)) # fallback to quantity
+                 
+            qty = abs(qty)
+            if qty == 0: continue
+            
+            rh_trades.append({
+                "ticker": t['ticker'], 
+                "side": side, 
+                "quantity": qty
+            })
+            
+        execution_msg = ""
+        
+        # 2. Execute on Robinhood
+        if req.rh_username and req.rh_password:
+             # We might need to set env vars for the function to use, 
+             # OR if the function takes credentials. 
+             # Checking nexus_command, it sets os.environ.
+             os.environ["RH_USERNAME"] = req.rh_username
+             os.environ["RH_PASSWORD"] = req.rh_password
+             
+             await asyncio.to_thread(execute_portfolio_rebalance, rh_trades)
+             execution_msg += "Executed on Robinhood. "
+        else:
+             execution_msg += "Credentials missing for RH execution. "
+
+        return {"status": "success", "message": execution_msg, "executed_count": len(rh_trades)}
+
+    except Exception as e:
+        logger.error(f"Execution Error: {e}")
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.post("/api/nexus")
 async def run_nexus(req: NexusRequest):
     if nexus_command is None:

@@ -89,14 +89,19 @@ def _get_single_holding(ticker: str) -> float:
         pass
     return 0.0
 
-def execute_portfolio_rebalance(trades: List[Dict[str, Any]], known_holdings: Optional[Dict[str, float]] = None) -> List[Dict[str, Any]]:
+def execute_portfolio_rebalance(trades: List[Dict[str, Any]], known_holdings: Optional[Dict[str, float]] = None, execute: bool = True) -> List[Dict[str, Any]]:
     """
     Executes trades with full retry logic, precision handling, and error management.
-    ADAPTED FOR BACKEND: No interactive input() calls. Assumes execution is requested if called.
+    ADAPTED FOR BACKEND: No interactive input() calls. Assumes execution is requested if called with execute=True.
     """
     if not trades:
         print("No trades to execute.")
         return []
+
+    if not execute:
+        print(f"\n--- 🏹 Robinhood Trade Execution (Dry Run) ---")
+        print(f"Skipping actual execution for {len(trades)} trades.")
+        return trades
 
     print(f"\n--- 🏹 Robinhood Trade Execution ({len(trades)} orders) ---")
     

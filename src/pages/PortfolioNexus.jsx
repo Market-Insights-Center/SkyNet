@@ -16,6 +16,7 @@ export default function PortfolioNexus() {
     const [result, setResult] = useState(null);
     const [error, setError] = useState(null);
     const [showCreateModal, setShowCreateModal] = useState(false);
+    const [showExecModal, setShowExecModal] = useState(false);
 
     // Sorting State
     const [sortConfig, setSortConfig] = useState({ key: 'weight', direction: 'desc' });
@@ -31,7 +32,15 @@ export default function PortfolioNexus() {
         overwrite: false
     });
 
-    const updateExecOpt = (field, val) => setExecutionOpts(prev => ({ ...prev, [field]: val }));
+    const updateExecOpt = (field, val) => {
+        setExecutionOpts(prev => {
+            const newState = { ...prev, [field]: val };
+            if (field === 'execute_rh' && val === true) {
+                newState.overwrite = true;
+            }
+            return newState;
+        });
+    };
 
     const runNexus = async () => {
         if (!nexusCode) return;
@@ -239,9 +248,18 @@ export default function PortfolioNexus() {
                                         </div>
 
                                         {/* Overwrite */}
-                                        <label className="flex items-center gap-2 cursor-pointer text-gray-400 hover:text-white">
-                                            <input type="checkbox" checked={executionOpts.overwrite} onChange={e => updateExecOpt('overwrite', e.target.checked)} className="accent-gold" />
-                                            <span className="text-xs">Overwrite Last Save?</span>
+                                        <label className={`flex items-center gap-2 cursor-pointer ${executionOpts.execute_rh ? 'text-gray-500 cursor-not-allowed opacity-70' : 'text-gray-400 hover:text-white'}`}>
+                                            <input
+                                                type="checkbox"
+                                                checked={executionOpts.overwrite}
+                                                onChange={e => {
+                                                    if (executionOpts.execute_rh) return; // Prevent change if execution is enabled
+                                                    updateExecOpt('overwrite', e.target.checked)
+                                                }}
+                                                disabled={executionOpts.execute_rh}
+                                                className="accent-gold"
+                                            />
+                                            <span className="text-xs">Overwrite Last Save? {executionOpts.execute_rh && "(Locked by Execution)"}</span>
                                         </label>
                                     </div>
 
@@ -300,6 +318,17 @@ export default function PortfolioNexus() {
 
                             {result && !error && (
                                 <div className="space-y-6">
+                                    <div className="flex justify-between items-center">
+                                        <h3 className="text-xl font-bold text-gray-200">Portfolio Results</h3>
+                                        {result.requires_execution_confirmation && (
+                                            <button
+                                                onClick={() => setShowExecModal(true)}
+                                                className="bg-green-600 hover:bg-green-500 text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2 shadow-lg shadow-green-900/20"
+                                            >
+                                                <Play size={18} /> Execute Trades
+                                            </button>
+                                        )}
+                                    </div>
                                     {/* Summary Cards */}
                                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                                         <SummaryCard label="Total Value" value={`$${result.total_value?.toLocaleString(undefined, { minimumFractionDigits: 2 })}`} highlight="text-green-400" />
@@ -365,8 +394,47 @@ export default function PortfolioNexus() {
                                             </table>
                                         </div>
                                     </div>
+
+
+                                    {/* Recommended Trades Table */}
+                                    {result.trades && result.trades.length > 0 && (
+                                        <div className="bg-gray-900/50 border border-gray-800 rounded-xl overflow-hidden mt-6">
+                                            <div className="px-6 py-4 border-b border-gray-800 flex justify-between items-center bg-gray-900">
+                                                <h3 className="font-semibold text-gray-200 flex items-center gap-2">
+                                                    <RefreshCw size={18} className="text-green-400" />
+                                                    Recommended Trades
+                                                </h3>
+                                            </div>
+                                            <div className="overflow-x-auto">
+                                                <table className="w-full text-left text-sm">
+                                                    <thead>
+                                                        <tr className="border-b border-gray-800 text-gray-500 uppercase tracking-wider bg-gray-900/50">
+                                                            <th className="px-6 py-3">Ticker</th>
+                                                            <th className="px-6 py-3">Action</th>
+                                                            <th className="px-6 py-3 text-right">Quantity</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody className="divide-y divide-gray-800">
+                                                        {result.trades.map((t, i) => (
+                                                            <tr key={i} className="hover:bg-gray-800/50 transition-colors">
+                                                                <td className="px-6 py-3 font-bold text-white">{t.ticker}</td>
+                                                                <td className={`px-6 py-3 font-bold uppercase ${t.action === 'Buy' || t.side === 'buy' ? 'text-green-400' : 'text-red-400'}`}>
+                                                                    {t.action || t.side}
+                                                                </td>
+                                                                <td className="px-6 py-3 text-right font-mono text-gray-300">
+                                                                    {Number(t.diff || t.quantity).toFixed(4)}
+                                                                </td>
+                                                            </tr>
+                                                        ))}
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
                             )}
+
+
 
                             {!result && !error && !loading && (
                                 <div className="h-full flex flex-col items-center justify-center text-gray-600 py-20 border border-dashed border-gray-800 rounded-xl bg-gray-900/20">
@@ -388,9 +456,45 @@ export default function PortfolioNexus() {
                         }}
                     />
 
-                </div>
-            </div>
-        </AccessGate>
+                    <ExecutionModal
+                        isOpen={showExecModal}
+                        onClose={() => setShowExecModal(false)}
+                        onExecute={async (options) => {
+                            // Handle Execution
+                            const trades = result.trades || [];
+                            if (!trades.length) { alert("No trades to execute."); return; }
+
+                            const body = {
+                                trades: trades,
+                                rh_username: options.execRh ? options.rhUser : null,
+                                rh_password: options.execRh ? options.rhPass : null,
+                                email_to: options.sendEmail ? options.email : null,
+                                portfolio_code: result.nexus_code || "Nexus"
+                            };
+
+                            try {
+                                const response = await fetch('/api/execute-trades', {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify(body)
+                                });
+                                const res = await response.json();
+                                if (res.status === 'success') {
+                                    alert(res.message);
+                                } else {
+                                    alert("Error: " + res.message);
+                                }
+                            } catch (e) {
+                                alert("Execution Error: " + e.message);
+                            } finally {
+                                setShowExecModal(false);
+                            }
+                        }}
+                    />
+
+                </div >
+            </div >
+        </AccessGate >
     );
 }
 
@@ -556,6 +660,102 @@ const CreateNexusModal = ({ isOpen, onClose, onSave, initialCode = '' }) => {
                     </button>
                 </div>
             </div>
+        </div>
+    );
+};
+
+const ExecutionModal = ({ isOpen, onClose, onExecute }) => {
+    const [email, setEmail] = useState('');
+    const [rhUser, setRhUser] = useState('');
+    const [rhPass, setRhPass] = useState('');
+    const [sendEmail, setSendEmail] = useState(false);
+    const [execRh, setExecRh] = useState(false);
+    const [isProcessing, setIsProcessing] = useState(false);
+
+    useEffect(() => {
+        if (isOpen) {
+            setIsProcessing(false);
+            const savedEmail = localStorage.getItem('mic_email');
+            const savedUser = localStorage.getItem('mic_rh_user');
+            const savedPass = localStorage.getItem('mic_rh_pass');
+
+            if (savedEmail) {
+                setEmail(savedEmail);
+                setSendEmail(true);
+            }
+            if (savedUser) {
+                setRhUser(savedUser);
+                setExecRh(true);
+            }
+            if (savedPass) {
+                setRhPass(savedPass);
+            }
+        }
+    }, [isOpen]);
+
+    const handleConfirm = () => {
+        if (isProcessing) return;
+        setIsProcessing(true);
+
+        if (sendEmail && email) localStorage.setItem('mic_email', email);
+        if (execRh && rhUser) localStorage.setItem('mic_rh_user', rhUser);
+        if (execRh && rhPass) localStorage.setItem('mic_rh_pass', rhPass);
+
+        onExecute({ email, rhUser, rhPass, sendEmail, execRh });
+    };
+
+    if (!isOpen) return null;
+
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
+            <motion.div
+                initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }}
+                className="bg-gray-900 border border-white/10 rounded-xl p-8 max-w-md w-full shadow-2xl relative"
+            >
+                <h3 className="text-2xl font-bold text-white mb-4 flex items-center gap-2">
+                    <Play className="text-gold" /> Execute Trades
+                </h3>
+
+                <div className="space-y-6">
+                    <div className={`p-4 rounded-lg border ${sendEmail ? 'border-gold bg-gold/5' : 'border-gray-700 bg-black/30'}`}>
+                        <label className="flex items-center gap-3 cursor-pointer mb-2">
+                            <input type="checkbox" checked={sendEmail} onChange={(e) => setSendEmail(e.target.checked)} className="accent-gold w-5 h-5" />
+                            <span className="font-bold text-white">Send Trades to Email</span>
+                        </label>
+                        {sendEmail && (
+                            <input
+                                type="email" placeholder="Enter your email address"
+                                value={email} onChange={(e) => setEmail(e.target.value)}
+                                className="w-full bg-black border border-gray-700 rounded p-2 text-white mt-2 focus:border-gold outline-none"
+                            />
+                        )}
+                    </div>
+
+                    <div className={`p-4 rounded-lg border ${execRh ? 'border-gold bg-gold/5' : 'border-gray-700 bg-black/30'}`}>
+                        <label className="flex items-center gap-3 cursor-pointer mb-2">
+                            <input type="checkbox" checked={execRh} onChange={(e) => setExecRh(e.target.checked)} className="accent-gold w-5 h-5" />
+                            <span className="font-bold text-white">Execute on Robinhood</span>
+                        </label>
+                        {execRh && (
+                            <div className="space-y-2 mt-2">
+                                <input type="text" placeholder="Robinhood Username" value={rhUser} onChange={(e) => setRhUser(e.target.value)} className="w-full bg-black border border-gray-700 rounded p-2 text-white outline-none" />
+                                <input type="password" placeholder="Robinhood Password" value={rhPass} onChange={(e) => setRhPass(e.target.value)} className="w-full bg-black border border-gray-700 rounded p-2 text-white outline-none" />
+                            </div>
+                        )}
+                    </div>
+                </div>
+
+                <div className="mt-8 flex justify-end gap-4">
+                    <button onClick={onClose} disabled={isProcessing} className="text-gray-400 hover:text-white disabled:opacity-50">Cancel</button>
+                    <button
+                        onClick={handleConfirm}
+                        disabled={isProcessing}
+                        className="bg-gold text-black font-bold px-6 py-2 rounded-lg hover:bg-yellow-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                    >
+                        {isProcessing ? 'Processing...' : 'Confirm Execution'}
+                    </button>
+                </div>
+            </motion.div>
         </div>
     );
 };
