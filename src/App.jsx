@@ -42,6 +42,7 @@ const Briefing = React.lazy(() => import('./pages/Briefing'));
 const PerformanceStream = React.lazy(() => import('./pages/PerformanceStream'));
 const SentinelAI = React.lazy(() => import('./pages/SentinelAI'));
 const DatabaseNodes = React.lazy(() => import('./pages/DatabaseNodes'));
+const StrategyRanking = React.lazy(() => import('./pages/StrategyRanking'));
 
 // --- PayPal Configuration (Safety Mode) ---
 const clientId = import.meta.env.VITE_PAYPAL_CLIENT_ID;
@@ -164,6 +165,7 @@ const AppContent = () => {
                         <Route path="/sentinel-ai" element={<PageTransition><Layout><SentinelAI /></Layout></PageTransition>} />
                         <Route path="/asset-evaluator" element={<AssetEvaluator />} />
                         <Route path="/active-chart" element={<ActiveChartPage />} />
+                        <Route path="/strategy-ranking" element={<PageTransition><Layout><StrategyRanking /></Layout></PageTransition>} />
                     </Routes>
                 </AnimatePresence>
             </React.Suspense>

@@ -794,10 +794,64 @@ def api_check_username(req: UsernameCheckRequest):
 @app.post("/api/user/username")
 def api_update_username(req: UsernameUpdateRequest):
     result = update_user_username(req.email, req.username)
-    if result["success"]:
-        return {"status": "success"}
-    else:
-        raise HTTPException(status_code=400, detail=result["message"])
+
+# --- STRATEGY RANKING IMPORT ---
+try:
+    from backend.integration import strategy_ranking
+except ImportError:
+    try:
+        from integration import strategy_ranking
+    except Exception as e:
+        print(f"Warning: Could not import strategy_ranking: {e}")
+
+# ... (Previous imports or code)
+
+class RankingSubmitRequest(BaseModel):
+    user_email: str
+    portfolio_code: str
+    interval: str # 1/h, 1/d, 1/w, 1/m
+
+class RankingRemoveRequest(BaseModel):
+    user_email: str
+    portfolio_code: str
+
+# --- STRATEGY RANKING ENDPOINTS ---
+@app.get("/api/strategy-ranking/list")
+async def get_strategy_rankings():
+    # Trigger an update check whenever the list is pulled? 
+    # Or rely on background scheduler?
+    # For responsiveness, trigger parallel update but return current state?
+    # The user mandated: "at the end of the day at the end of the interval, that portfolio code is automatically ran"
+    # This implies a scheduler. But for manual testing, we might want to force check.
+    # Let's verify and update quickly if needed.
+    await strategy_ranking.check_and_update_rankings()
+    return await strategy_ranking.get_all_rankings()
+
+@app.post("/api/strategy-ranking/submit")
+async def submit_strategy_ranking(req: RankingSubmitRequest):
+    return await strategy_ranking.submit_portfolio_to_ranking(req.user_email, req.portfolio_code, req.interval)
+
+@app.post("/api/strategy-ranking/remove")
+async def remove_strategy_ranking(req: RankingRemoveRequest):
+    return await strategy_ranking.remove_portfolio_from_ranking(req.user_email, req.portfolio_code)
+
+@app.post("/api/strategy-ranking/delete-permanent")
+async def delete_permanent_strategy_ranking(req: RankingRemoveRequest):
+    return await strategy_ranking.permanent_delete_strategy(req.user_email, req.portfolio_code)
+
+# --- TASKS ---
+# Add scheduler job for Strategy Ranking
+def schedule_ranking_updates():
+    if SCHEDULER:
+        # Check every 15 minutes roughly to see if an hourly/daily interval has passed
+        SCHEDULER.add_job(
+            lambda: asyncio.run(strategy_ranking.check_and_update_rankings()), 
+            CronTrigger(minute='*/15')
+        )
+
+# Call this after scheduler start if we want auto-updates
+schedule_ranking_updates()
+
 
 # --- ADMIN ROUTES ---
 @app.get("/api/admin/coupons")

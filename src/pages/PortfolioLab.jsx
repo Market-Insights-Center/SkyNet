@@ -1,7 +1,7 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
-import { Layers, Zap, Sprout, Activity, ArrowRight, Database } from 'lucide-react';
+import { Layers, Zap, Sprout, Activity, ArrowRight, Database, Trophy } from 'lucide-react';
 import WaveBackground from '../components/WaveBackground';
 import TiltCard from '../components/TiltCard';
 
@@ -97,6 +97,13 @@ const PortfolioLab = () => {
             icon: Database,
             path: "/database-lab",
             delay: 0.5
+        },
+        {
+            title: "Strategy Ranking",
+            desc: "Compete in the arena. Rank your portfolio strategy against others.",
+            icon: Trophy,
+            path: "/strategy-ranking",
+            delay: 0.6
         }
     ];
 
