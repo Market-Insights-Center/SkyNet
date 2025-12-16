@@ -1,0 +1,23 @@
+
+# -----------------------------
+# SENTINEL AI ENDPOINT
+# -----------------------------
+@app.post("/api/sentinel/execute")
+async def execute_sentinel(req: SentinelRequest):
+    # Verify Access (Singularity Only)
+    # We could do specific tier check here or let frontend hide it.
+    # ideally we verify.
+    profile = get_user_profile(req.email)
+    tier = profile.get("tier", "Basic")
+    if tier != "Singularity" and req.email.lower() != SUPER_ADMIN_EMAIL:
+         raise HTTPException(status_code=403, detail="Sentinel AI requires Singularity Tier.")
+
+    async def event_generator():
+        try:
+             async for update in sentinel_command.run_sentinel(req.user_prompt):
+                  yield json.dumps(update) + "\n"
+        except Exception as e:
+             traceback.print_exc()
+             yield json.dumps({"type": "error", "message": f"Server Error: {str(e)}"}) + "\n"
+
+    return StreamingResponse(event_generator(), media_type="application/x-ndjson")

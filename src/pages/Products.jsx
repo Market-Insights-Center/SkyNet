@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import NeonWrapper from '../components/NeonWrapper';
 import TiltCard from '../components/TiltCard';
 import { motion } from 'framer-motion';
-import { Bot, ChevronRight, Search, Scale, Siren, ToggleLeft, ToggleRight, ExternalLink, HelpCircle, X, Hand, Mic, Activity, Loader2, Layers, Network, Maximize2 } from 'lucide-react';
+import { Bot, ChevronRight, Search, Scale, Siren, ToggleLeft, ToggleRight, ExternalLink, HelpCircle, X, Hand, Mic, Activity, Loader2, Layers, Network, Maximize2, Cpu } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useOrion } from '../contexts/OrionContext';
 
@@ -248,6 +248,43 @@ const Products = () => {
 
                 {/* Apps Grid */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                    {/* Sentinel AI (Singularity Only) */}
+                    {(!userProfile || userProfile?.tier === 'Singularity') && (
+                        <div onClick={() => navigate('/sentinel-ai')} className="group cursor-pointer block h-full md:col-span-2 lg:col-span-3">
+                            <TiltCard delay={0.05} className="h-full border border-cyan-500/50 bg-gradient-to-br from-cyan-900/20 to-black relative overflow-hidden shadow-[0_0_30px_rgba(6,182,212,0.2)]">
+                                <div className="absolute inset-0 bg-gradient-to-r from-cyan-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                                <button
+                                    onClick={(e) => { e.stopPropagation(); navigate('/help#sentinel-ai'); }}
+                                    className="absolute top-4 right-4 z-30 p-2 text-gray-500 hover:text-white transition-colors"
+                                    title="Learn details"
+                                >
+                                    <HelpCircle size={24} />
+                                </button>
+                                <div className="absolute top-0 right-0 p-8 opacity-10 group-hover:opacity-20 transition-opacity">
+                                    <Cpu size={200} />
+                                </div>
+                                <div className="relative z-10 p-10 flex flex-col md:flex-row items-center gap-8 h-full">
+                                    <div className="flex-shrink-0">
+                                        <div className="w-20 h-20 bg-cyan-900/20 rounded-2xl flex items-center justify-center text-cyan-400 group-hover:text-white transition-colors border border-cyan-500/30">
+                                            <Cpu size={40} />
+                                        </div>
+                                    </div>
+                                    <div className="flex-1 text-center md:text-left">
+                                        <h3 className="text-3xl md:text-4xl font-bold mb-4 text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-white">
+                                            Sentinel AI
+                                        </h3>
+                                        <p className="text-gray-400 text-lg mb-6 max-w-2xl">
+                                            Autonomous Financial Intelligence. Chain multiple commands together using natural language to perform complex multi-step analysis.
+                                        </p>
+                                        <div className="flex items-center justify-center md:justify-start text-cyan-400 font-bold tracking-wider hover:text-white transition-colors">
+                                            INITIALIZE CORE <ChevronRight size={24} className="ml-2 group-hover:translate-x-2 transition-transform" />
+                                        </div>
+                                    </div>
+                                </div>
+                            </TiltCard>
+                        </div>
+                    )}
+
                     {/* Portfolio Nexus Centerpiece */}
                     <div onClick={() => navigate('/portfolio-nexus')} className="group cursor-pointer block h-full md:col-span-2 lg:col-span-3">
                         <TiltCard delay={0.1} className="h-full border border-purple-500/50 bg-gradient-to-br from-purple-900/20 to-black relative overflow-hidden shadow-[0_0_30px_rgba(168,85,247,0.2)]">

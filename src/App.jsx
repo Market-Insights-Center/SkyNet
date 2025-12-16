@@ -40,6 +40,8 @@ const Help = React.lazy(() => import('./pages/Help'));
 const PortfolioNexus = React.lazy(() => import('./pages/PortfolioNexus'));
 const Briefing = React.lazy(() => import('./pages/Briefing'));
 const PerformanceStream = React.lazy(() => import('./pages/PerformanceStream'));
+const SentinelAI = React.lazy(() => import('./pages/SentinelAI'));
+const DatabaseNodes = React.lazy(() => import('./pages/DatabaseNodes'));
 
 // --- PayPal Configuration (Safety Mode) ---
 const clientId = import.meta.env.VITE_PAYPAL_CLIENT_ID;
@@ -133,6 +135,7 @@ const AppContent = () => {
                         <Route path="/performance-stream" element={<PageTransition><Layout><PerformanceStream /></Layout></PageTransition>} />
                         <Route path="/market-junction" element={<PageTransition><Layout><MarketJunction /></Layout></PageTransition>} />
                         <Route path="/portfolio-lab" element={<PageTransition><Layout><PortfolioLab /></Layout></PageTransition>} />
+                        <Route path="/database-lab" element={<PageTransition><Layout><DatabaseNodes /></Layout></PageTransition>} />
                         <Route path="/custom" element={<PageTransition><Layout><Wizard /></Layout></PageTransition>} />
                         <Route path="/invest" element={<PageTransition><Layout><Wizard /></Layout></PageTransition>} />
                         <Route path="/cultivate" element={<PageTransition><Layout><Wizard /></Layout></PageTransition>} />
@@ -158,6 +161,7 @@ const AppContent = () => {
                         <Route path="/sidebar" element={<SidebarPage />} />
                         <Route path="/briefing" element={<Briefing />} />
                         <Route path="/portfolio-nexus" element={<PortfolioNexus />} />
+                        <Route path="/sentinel-ai" element={<PageTransition><Layout><SentinelAI /></Layout></PageTransition>} />
                         <Route path="/asset-evaluator" element={<AssetEvaluator />} />
                         <Route path="/active-chart" element={<ActiveChartPage />} />
                     </Routes>

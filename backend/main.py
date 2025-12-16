@@ -11,7 +11,11 @@ import logging
 import requests 
 from datetime import datetime
 import uuid
+import uuid
 import yfinance as yf
+# Database Manager Imports
+from integration.database_manager import read_nexus_codes, read_portfolio_codes, save_nexus_code, save_portfolio_code, delete_code
+
 # Fix for WinError 183 in TzCache
 try:
     cache_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".cache", "py-yfinance")
@@ -70,7 +74,7 @@ try:
         risk_command, history_command, quickscore_command, market_command, 
         breakout_command, briefing_command, fundamentals_command, 
         assess_command, mlforecast_command, sentiment_command, powerscore_command,
-        performance_stream_command, summary_command
+        performance_stream_command, summary_command, sentinel_command
     )
     print("✅ LOADED: Standard Commands (backend.integration)")
 except ImportError:
@@ -82,7 +86,7 @@ except ImportError:
             breakout_command, briefing_command, fundamentals_command, 
             assess_command, mlforecast_command, sentiment_command, powerscore_command,
             assess_command, mlforecast_command, sentiment_command, powerscore_command,
-            performance_stream_command, summary_command
+            performance_stream_command, summary_command, sentinel_command
         )
         print("✅ LOADED: Standard Commands (integration)")
     except ImportError as e:
@@ -93,7 +97,7 @@ try:
     from backend.database import (
         read_articles_from_csv, save_articles_to_csv, read_ideas_from_csv, 
         save_ideas_to_csv, read_comments_from_csv, save_comments_to_csv, 
-        read_chats, save_chats, get_all_users_from_db, update_user_tier,     
+        read_chats, save_chats, get_all_users_from_db, update_user_tier, verify_storage_limit,     
         get_user_profile, create_coupon, get_all_coupons, validate_coupon,   
         delete_coupon, verify_access_and_limits, delete_user_full, delete_article,
         delete_idea, delete_comment, create_user_profile, check_username_taken,
@@ -113,7 +117,7 @@ except ImportError:
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("uvicorn")
 
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 
 app = FastAPI()
 
@@ -384,6 +388,11 @@ class ExecuteTradesRequest(BaseModel):
     rh_password: Optional[str] = None
     email_to: Optional[str] = None
     portfolio_code: Optional[str] = "Unknown"
+
+class SentinelRequest(BaseModel):
+    user_prompt: str
+    email: str
+    plan: Optional[List[Dict[str, Any]]] = None
 
 # --- HELPER FUNCTIONS ---
 def get_mod_list():
@@ -1458,6 +1467,124 @@ async def run_nexus(req: NexusRequest):
     except Exception as e:
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Internal Server Error: {str(e)}")
+
+
+# -----------------------------
+# DATABASE LAB ENDPOINTS
+# -----------------------------
+
+class DatabaseSaveRequest(BaseModel):
+    type: str # 'nexus' or 'portfolio'
+    data: Dict[str, Any]
+    email: str # NEW: Email required for permission check
+    original_id: Optional[str] = None # For renaming/overwriting
+
+class DatabaseDeleteRequest(BaseModel):
+    type: str
+    id: str
+
+@app.get("/api/database/codes")
+async def get_database_codes():
+    nexus = read_nexus_codes()
+    portfolios = read_portfolio_codes()
+    return {"nexus": nexus, "portfolios": portfolios}
+
+@app.post("/api/database/save")
+async def save_database_code(req: DatabaseSaveRequest):
+    # 0. Handle Renaming explicitly FIRST
+    # If original_id is provided and different from the new ID, we delete the old one first.
+    # This frees up the "slot" so the count logic below accounts for it.
+    new_id = req.data.get('nexus_code') if req.type == 'nexus' else req.data.get('portfolio_code')
+    
+    if req.original_id and req.original_id != new_id:
+        print(f"[DB] Renaming {req.type} from {req.original_id} to {new_id}")
+        delete_code(req.type, req.original_id)
+
+    # 1. Determine Product Type and Count
+    product_limit_key = ""
+    current_count = 0
+    
+    if req.type == "nexus":
+        product_limit_key = "database_nexus"
+        # Count existing
+        current_count = len(read_nexus_codes())
+    elif req.type == "portfolio":
+        product_limit_key = "database_portfolio"
+         # Count existing (filter by user if needed? current impl is generic, so we count all for now or filter by user eventually)
+         # For strictness, let's load all and count.
+        current_count = len(read_portfolio_codes())
+    else:
+        raise HTTPException(status_code=400, detail="Invalid type")
+
+    # 2. Verify Limits (Pass email from frontend)
+    # Note: If editing an EXISTING code (same ID), we should probably allow it even if limit is capped.
+    # We need to check if the code ID already exists.
+    is_new = True 
+    if req.type == "nexus":
+        # Check if code exists
+        existing = read_nexus_codes()
+        target_code = req.data.get('nexus_code')
+        if any(c['nexus_code'] == target_code for c in existing):
+            is_new = False
+    elif req.type == "portfolio":
+        existing = read_portfolio_codes()
+        target_code = req.data.get('portfolio_code')
+        if any(c['portfolio_code'] == target_code for c in existing):
+            is_new = False
+
+    # Only check limit if creating NEW
+    if is_new:
+        check = verify_storage_limit(req.email, product_limit_key, current_count)
+        if not check['allowed']:
+            raise HTTPException(status_code=403, detail=check.get('message', 'Limit Exceeded'))
+
+    # 3. Save
+    if req.type == "nexus":
+        save_nexus_code(req.data)
+    elif req.type == "portfolio":
+        save_portfolio_code(req.data)
+    
+    return {"status": "success"}
+
+@app.post("/api/database/delete")
+async def delete_database_code(req: DatabaseDeleteRequest):
+    delete_code(req.type, req.id)
+    return {"status": "success"}
+
+
+# -----------------------------
+# SENTINEL AI ENDPOINTS
+# -----------------------------
+
+@app.post("/api/sentinel/plan")
+async def plan_sentinel(req: SentinelRequest):
+    """
+    Generates a plan but DOES NOT execute it. Returns the JSON plan.
+    """
+    # Simply call the planner directly
+    plan = await sentinel_command.plan_execution(req.user_prompt)
+    return {"plan": plan}
+
+@app.post("/api/sentinel/execute")
+async def execute_sentinel(req: SentinelRequest):
+    # Verify Access (Singularity Only)
+    # We could do specific tier check here or let frontend hide it.
+    # ideally we verify.
+    profile = get_user_profile(req.email)
+    tier = profile.get("tier", "Basic")
+    if tier != "Singularity" and req.email.lower() != SUPER_ADMIN_EMAIL:
+         raise HTTPException(status_code=403, detail="Sentinel AI requires Singularity Tier.")
+
+    async def event_generator():
+        try:
+             # Pass the plan if provided (Interactive Mode), otherwise generates it (Quick Run)
+             async for update in sentinel_command.run_sentinel(req.user_prompt, plan_override=req.plan):
+                  yield json.dumps(update) + "\n"
+        except Exception as e:
+             traceback.print_exc()
+             yield json.dumps({"type": "error", "message": f"Server Error: {str(e)}"}) + "\n"
+
+    return StreamingResponse(event_generator(), media_type="application/x-ndjson")
 
 if __name__ == "__main__":
     import uvicorn

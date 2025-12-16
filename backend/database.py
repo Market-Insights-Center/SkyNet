@@ -148,6 +148,46 @@ def verify_access_and_limits(email, product):
         print(f"Limit Check Error: {e}")
         return {"allowed": False, "reason": "error", "message": "An error occurred checking limits."}
 
+def verify_storage_limit(email, product, current_count):
+    """
+    Checks if a user's current storage count exceeds the limit for their tier.
+    Used for stored items like 'database_portfolio' or 'database_nexus'.
+    """
+    try:
+        # 1. Get User Profile for Tier
+        profile = get_user_profile(email)
+        tier = profile.get('tier', 'Basic') if profile else 'Basic'
+        
+        # Super Admin Bypass
+        if email.lower() == "marketinsightscenter@gmail.com":
+            tier = "Singularity"
+            
+        # 2. Get Limits
+        limits = load_tier_limits()
+        tier_limits = limits.get(tier, {})
+        limit_str = tier_limits.get(product, "0") # Default to 0 if not defined
+        
+        # 3. Handle Special Strings
+        if limit_str == "NL": return {"allowed": True}
+        if limit_str == "NA": return {"allowed": False, "message": f"Upgrade required for {product}."}
+        
+        # 4. Check Count
+        try:
+             max_limit = int(limit_str)
+             if current_count >= max_limit:
+                 next_tier = get_next_tier_with_access(tier, product)
+                 return {
+                     "allowed": False, 
+                     "message": f"Limit Reached ({current_count}/{max_limit}). Upgrade to {next_tier} for more."
+                 }
+             return {"allowed": True}
+        except ValueError:
+            return {"allowed": False, "message": "Configuration Error"}
+            
+    except Exception as e:
+        print(f"Storage Limit Check Error: {e}")
+        return {"allowed": False, "message": "System Error"}
+
 # --- FIRESTORE USER HELPERS ---
 
 def get_user_profile(email):

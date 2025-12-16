@@ -1,5 +1,2 @@
-nexus_code,num_components,frac_shares,component_1_type,component_1_value,component_1_weight,component_2_type,component_2_value,component_2_weight
-NEXUSTEST,2,true,Portfolio,testt,60,Command,Breakout,40
-NEXUSTEST,2,true,Portfolio,testt,60,Command,Breakout,40
-NEXUSTEST,2,true,Portfolio,testt,60,Command,Breakout,40
-NEXUSTEST,2,true,Portfolio,testt,60,Command,Breakout,40
+nexus_code,num_components,frac_shares,component_1_type,component_1_value,component_1_weight,component_2_type,component_2_value,component_2_weight,component_3_type,component_3_value,component_3_weight,component_4_type,component_4_value,component_4_weight,component_5_type,component_5_value,component_5_weight
+skynet,2,true,Command,breakout,40,Portfolio,iquantum,60

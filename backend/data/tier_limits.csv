@@ -55,8 +55,8 @@ Basic,assess_e,1/day
 Pro,assess_a,10/day
 Pro,assess_b,10/day
 Pro,assess_c,10/day
-Pro,assess_d,10/day
-Pro,assess_e,10/day
+Pro,assess_d,5/day
+Pro,assess_e,5/day
 Enterprise,assess_a,NL
 Enterprise,assess_b,NL
 Enterprise,assess_c,NL
@@ -83,3 +83,15 @@ Basic,nexus,NA
 Pro,nexus,NA
 Enterprise,nexus,5/day
 Singularity,nexus,NL
+Basic,database_portfolio,3
+Pro,database_portfolio,10
+Enterprise,database_portfolio,NL
+Singularity,database_portfolio,NL
+Basic,database_nexus,1
+Pro,database_nexus,5
+Enterprise,database_nexus,NL
+Singularity,database_nexus,NL
+Basic,sentinel,NA
+Pro,sentinel,NA
+Enterprise,sentinel,NA
+Singularity,sentinel,NL

@@ -58,12 +58,28 @@ async def run_breakout_analysis_singularity(is_called_by_ai: bool = False) -> di
     screener_error_msg = None
     try:
         if not is_called_by_ai: print("  -> Running TradingView Screener...")
-        print("[DEBUG BREAKOUT] Running TradingView Screener Query...")
+        print("[DEBUG BREAKOUT] Running Strict TradingView Screener Query (Change|1W >= 20%)...")
         query = Query().select('name').where(Column('market_cap_basic') >= 1_000_000_000, Column('volume') >= 1_000_000, Column('change|1W') >= 20, Column('close') >= 1, Column('average_volume_90d_calc') >= 1_000_000).order_by('change', ascending=False).limit(100)
-        _, new_tickers_df = await asyncio.to_thread(query.get_scanner_data, timeout=60)
+        _, new_tickers_df = await asyncio.to_thread(query.get_scanner_data, timeout=30)
+
+        # Fallback Logic
+        if new_tickers_df is None or new_tickers_df.empty:
+             print("[DEBUG BREAKOUT] Strict Query returned 0 results. Switch to Relaxed Query (Change|1W >= 5%)...")
+             query_relaxed = Query().select('name').where(Column('market_cap_basic') >= 500_000_000, Column('volume') >= 500_000, Column('change|1W') >= 5, Column('close') >= 1).order_by('change', ascending=False).limit(50)
+             _, new_tickers_df = await asyncio.to_thread(query_relaxed.get_scanner_data, timeout=30)
+
+        
+        # DEBUG SCREENER
+        if new_tickers_df is not None:
+             print(f"[DEBUG BREAKOUT] Screener Raw Shape: {new_tickers_df.shape}")
+             if not new_tickers_df.empty:
+                 print(f"[DEBUG BREAKOUT] Screener Head: {new_tickers_df.head(3).to_dict('records')}")
+        else:
+             print(f"[DEBUG BREAKOUT] Screener returned None.")
+
         if new_tickers_df is not None and 'name' in new_tickers_df.columns:
             new_tickers_from_screener = sorted(list(set([str(t).split(':')[-1].replace('.', '-') for t in new_tickers_df['name'].tolist() if pd.notna(t)])))
-            print(f"[DEBUG BREAKOUT] Screener found {len(new_tickers_from_screener)} new tickers.")
+            print(f"[DEBUG BREAKOUT] Screener found {len(new_tickers_from_screener)} new tickers. List: {new_tickers_from_screener[:10]}...")
             if not is_called_by_ai: print(f"     ... Screener found {len(new_tickers_from_screener)} potential new tickers.")
         else:
             print("[DEBUG BREAKOUT] Screener returned DataFrame but no 'name' column or None.")
@@ -105,7 +121,19 @@ async def run_breakout_analysis_singularity(is_called_by_ai: bool = False) -> di
             lowest_score = min(safe_score(existing_entry.get("Lowest Invest Score", current_invest_score)), current_invest_score) # Default lowest to current
 
             # Apply filtering logic
-            if not (current_invest_score > 600 or current_invest_score < 100.0 or current_invest_score < (3.0/4.0) * highest_score):
+            # Apply filtering logic (Relaxed to Score > 50)
+            passed_filter = not (current_invest_score > 600 or current_invest_score < 50.0 or current_invest_score < (3.0/4.0) * highest_score)
+            
+            if not passed_filter:
+                reason = []
+                if current_invest_score > 600: reason.append(f"Score > 600")
+                if current_invest_score < 50: reason.append(f"Score < 50")
+                if current_invest_score < (3.0/4.0) * highest_score: reason.append(f"Score < 0.75*High")
+                print(f"[DEBUG BREAKOUT] {ticker_b} REJECTED: Score={current_invest_score:.2f} Reasons={', '.join(reason)}")
+            else:
+                print(f"[DEBUG BREAKOUT] {ticker_b} ACCEPTED: Score={current_invest_score:.2f}")
+
+            if passed_filter:
                 status = "Repeat" if ticker_b in existing_tickers_set else "New"
                 temp_updated_data.append({
                     "Ticker": ticker_b,

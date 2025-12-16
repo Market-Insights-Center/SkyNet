@@ -13,7 +13,7 @@ if 'backend' not in str(BASE_DIR) and 'integration' not in str(BASE_DIR):
      # Fallback if structure is flat
      BASE_DIR = os.getcwd()
 
-NEXUS_DB_FILE = os.path.join(BASE_DIR, 'nexus_portfolios.csv')
+NEXUS_DB_FILE = os.path.join(BASE_DIR, 'backend', 'nexus_portfolios.csv')
 
 # --- IMPORTS ---
 try:
@@ -205,7 +205,9 @@ async def _resolve_nexus_component(comp_type: str, comp_value: str, allocated_va
 
         elif comp_type.lower() == 'command':
             tickers = []
-            if "Market" in comp_value:
+            comp_val_lower = comp_value.lower()
+            
+            if "market" in comp_val_lower:
                 print("[DEBUG NEXUS] Resolving 'Market' command...")
                 sp500 = await asyncio.to_thread(get_sp500_symbols_singularity)
                 if sp500:
@@ -214,7 +216,7 @@ async def _resolve_nexus_component(comp_type: str, comp_value: str, allocated_va
                     tickers = [s['ticker'] for s in valid_scores[:10]]
                     print(f"[DEBUG NEXUS] Market generated {len(tickers)} tickers")
             
-            elif "Breakout" in comp_value:
+            elif "breakout" in comp_val_lower:
                 print("[DEBUG NEXUS] Resolving 'Breakout' command...")
                 res = await run_breakout_analysis_singularity(is_called_by_ai=True)
                 if isinstance(res, dict) and res.get('status') == 'success':
@@ -223,9 +225,9 @@ async def _resolve_nexus_component(comp_type: str, comp_value: str, allocated_va
                     tickers = [item['Ticker'] for item in start_list if 'Ticker' in item]
                     print(f"[DEBUG NEXUS] Breakout generated {len(tickers)} tickers")
 
-            elif "Cultivate" in comp_value:
+            elif "cultivate" in comp_val_lower:
                 print(f"[DEBUG NEXUS] Resolving 'Cultivate' command ({comp_value})...")
-                code = "A" if "A" in comp_value else "B"
+                code = "A" if "a" in comp_val_lower else "B"
                 # Cultivate logic
                 cult_res = await run_cultivate_analysis_singularity(
                     portfolio_value=allocated_value, 
@@ -303,12 +305,28 @@ async def process_nexus_portfolio(nexus_config, total_value, nexus_code, ai_para
     num_components = int(nexus_config.get('num_components', 0))
     allow_fractional = str(nexus_config.get('frac_shares', 'true')).lower() == 'true'
 
+    # Check Total Weight First
+    total_assigned_weight = 0.0
+    for i in range(1, num_components + 1):
+        total_assigned_weight += float(nexus_config.get(f'component_{i}_weight', 0))
+    
+    # Auto-Equalize if weights are missing/zero
+    auto_weight = 0.0
+    if total_assigned_weight <= 0 and num_components > 0:
+        auto_weight = 100.0 / num_components
+        print(f"[DEBUG NEXUS] Warning: Total Weight is 0. Auto-balancing to {auto_weight:.2f}% each.")
+
     for i in range(1, num_components + 1):
         c_type = nexus_config.get(f'component_{i}_type')
         c_value = nexus_config.get(f'component_{i}_value')
         c_weight = float(nexus_config.get(f'component_{i}_weight', 0))
         
-        if c_weight <= 0: continue
+        # Use auto-weight if needed
+        if total_assigned_weight <= 0:
+            c_weight = auto_weight
+        elif c_weight <= 0: 
+            # If total is positive but this specific one is 0, skip it
+            continue
         
         alloc = total_value * (c_weight / 100.0)
         res = await _resolve_nexus_component(c_type, c_value, alloc, nexus_code, allow_fractional)

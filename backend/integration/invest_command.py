@@ -171,13 +171,25 @@ async def process_custom_portfolio(
             if weight <= 0: continue
 
             tickers_str = cleaned_config.get(f'tickers_{portfolio_index}', '')
-            items_in_sub = [item.strip().upper() for item in tickers_str.split(',') if item.strip()]
+            items_raw = [item.strip().upper() for item in tickers_str.split(',') if item.strip()]
             
-            # Use asyncio gather for parallel processing
-            tasks = [calculate_ema_invest(ticker, ema_sensitivity, is_called_by_ai=True) for ticker in items_in_sub]
+            items_to_calc = []
+            nested_portfolios = []
+
+            for item in items_raw:
+                if item.lower() in all_portfolio_configs:
+                    nested_portfolios.append(item.lower())
+                else:
+                    items_to_calc.append(item)
+
+            # Container for THIS sub-portfolio's items
+            sub_portfolio_items = []
+
+            # 1. Process Direct Stocks (Parallel)
+            tasks = [calculate_ema_invest(ticker, ema_sensitivity, is_called_by_ai=True) for ticker in items_to_calc]
             results = await asyncio.gather(*tasks)
             
-            for ticker, res in zip(items_in_sub, results):
+            for ticker, res in zip(items_to_calc, results):
                 if not res or not isinstance(res, tuple) or len(res) < 2: continue
                 live_price, ema_invest = res
                 
@@ -188,7 +200,7 @@ async def process_custom_portfolio(
                 score_for_alloc = 0.0 if (sell_to_cash_active and raw_score < 50.0) else raw_score
                 amplified_score = max(0, safe_score((score_for_alloc * amplification) - (amplification - 1) * 50))
                 
-                final_combined_portfolio_data_calc.append({
+                sub_portfolio_items.append({
                     'ticker': ticker, 
                     'live_price': live_price_val, 
                     'raw_invest_score': raw_score,
@@ -196,6 +208,64 @@ async def process_custom_portfolio(
                     'sub_portfolio_id': f"Sub-Portfolio {portfolio_index}",
                     'path': [ticker]
                 })
+
+            # 2. Process Nested Portfolios (Recursive)
+            current_code = cleaned_config.get('portfolio_code', 'UNKNOWN')
+            for child_code in nested_portfolios:
+                # Cycle Detection
+                if child_code in (parent_path or []):
+                    print(f"[DEBUG] Cycle detected skipping {child_code}")
+                    continue
+                
+                new_path = (parent_path or []) + [current_code]
+                
+                # Calculate allocated value for this child
+                child_alloc_value = None
+                if total_value_singularity and weight > 0:
+                     child_alloc_value = total_value_singularity * (weight / 100.0)
+
+                # Recurse
+                _, child_calculated, _, _ = await process_custom_portfolio(
+                    portfolio_data_config=all_portfolio_configs[child_code],
+                    tailor_portfolio_requested=True, # MUST be True to get holdings
+                    total_value_singularity=child_alloc_value,
+                    frac_shares_singularity=frac_shares_singularity,
+                    is_called_by_ai=True,
+                    names_map=names_map,
+                    all_portfolio_configs_passed=all_portfolio_configs,
+                    parent_path=new_path
+                )
+
+                # Merge Results
+                for child_item in child_calculated:
+                    # Update metadata
+                    child_item['sub_portfolio_id'] = f"Sub-Portfolio {portfolio_index} > {child_item['sub_portfolio_id']}"
+                    # We accept the child's score for now, but will scale it below
+                    sub_portfolio_items.append(child_item)
+
+            # 3. Apply Sub-Portfolio Weighting
+            # Normalize the total score of this sub-portfolio to match the desired weight
+            current_sub_total = sum(item['amplified_score_adjusted'] for item in sub_portfolio_items)
+            
+            if weight > 0 and sub_portfolio_items:
+                 # If the sub-portfolio has valid items, we want their Sum(Scores) to be proportional to Weight.
+                 # Let's say Target Score = Weight * 1000.
+                 # Factor = (Weight * 1000) / current_sub_total
+                 # If current_sub_total is 0 (all items 0 score), we can't scale.
+                 
+                 if current_sub_total > 0:
+                     factor = (weight * 1000.0) / current_sub_total
+                     for item in sub_portfolio_items:
+                         item['amplified_score_adjusted'] *= factor
+                         # Also update recursed path for clarity? No, just score.
+                 else:
+                     # Fallback: If all scores are 0, but we have weight?
+                     # Distribute evenly? or keep 0?
+                     # If score is 0, it means "Don't Buy". So keep 0.
+                     pass
+            
+            # Add to Main List
+            final_combined_portfolio_data_calc.extend(sub_portfolio_items)
 
         total_amp = sum(e['amplified_score_adjusted'] for e in final_combined_portfolio_data_calc)
         for entry in final_combined_portfolio_data_calc:
@@ -207,13 +277,20 @@ async def process_custom_portfolio(
         if tailor_portfolio_requested and total_value_singularity is not None:
             total_val = float(total_value_singularity)
             total_spent = 0.0
+            print(f"[DEBUG INVEST] Starting Tailoring Loop. Items={len(final_combined_portfolio_data_calc)} Val=${total_val} Frac={frac_shares_singularity}")
             for entry in final_combined_portfolio_data_calc:
                 alloc_pct = entry.get('combined_percent_allocation', 0.0)
                 price = entry.get('live_price', 0.0)
+                
                 if alloc_pct > 0 and price > 0:
                     target_amt = total_val * (alloc_pct / 100.0)
                     shares = target_amt / price
                     final_shares = round(shares, 2) if frac_shares_singularity else math.floor(shares)
+                    
+                    # DEBUG: Dropped Stock Analysis
+                    if final_shares <= 0:
+                         print(f"[DEBUG INVEST] DROPPED {entry['ticker']}: Target=${target_amt:.2f} Price=${price:.2f} -> Shares={shares:.4f} (Floored to 0)")
+                    
                     cost = final_shares * price
                     
                     if cost > 0:

@@ -1,7 +1,7 @@
 import React, { useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Bot, Search, Scale, Siren, HelpCircle, Terminal, Layers, Zap, Sprout, Activity, PieChart, BarChart2, TrendingUp, History, Globe, Briefcase, Settings, Database, AlertTriangle, Network, Maximize2 } from 'lucide-react';
+import { Bot, Search, Scale, Siren, HelpCircle, Terminal, Layers, Zap, Sprout, Activity, PieChart, BarChart2, TrendingUp, History, Globe, Briefcase, Settings, Database, AlertTriangle, Network, Maximize2, Cpu } from 'lucide-react';
 
 const Help = () => {
     const { hash } = useLocation();
@@ -285,6 +285,57 @@ const Help = () => {
                         { name: "Execution Options", desc: "Send trades to Email, execute on Robinhood, or overwrite last save." }
                     ],
                     usage: "1. Define Components: Identify portfolio codes created in Portfolio Lab (e.g., 'TECH_GROWTH') or standard commands.\n2. Assign Weights: Determine what percentage of your total capital goes to each strategy.\n3. Execute: The Nexus recursively calculates share counts for every underlying ticker, aggregating duplicates.\n4. Rebalance: Run periodically to ensure your master allocation remains true to targets."
+                }
+            ]
+        },
+        {
+            id: 'sentinel-ai',
+            title: 'Sentinel AI',
+            icon: Cpu,
+            color: 'text-cyan-400',
+            description: 'Sentinel AI is the autonomous intelligence layer of the Orion Ecosystem. It functions as an execution planner, capable of understanding natural language requests and chaining multiple SkyNet commands together to perform complex, multi-step financial conceptualizations and analyses.',
+            subProducts: [
+                {
+                    id: 'sentinel-core',
+                    title: "Sentinel Planner",
+                    icon: Cpu,
+                    desc: "The core agent interpreting your prompts and orchestrating the execution of other tools.",
+                    inputs: [
+                        { name: "Natural Language Prompt", desc: "Describe your goal in plain English (e.g., 'Scan the market for high volume stocks and run sentiment on the top 3')." }
+                    ],
+                    usage: "Use Sentinel when your query requires combining data from different tools (e.g., Market Scan + Sentiment + Fundamentals) or when you want a high-level summary without running individual commands manually."
+                }
+            ]
+        },
+        // NEW DATABASE CODES SECTION
+        {
+            id: 'database-lab',
+            title: 'Database Codes',
+            icon: Database,
+            color: 'text-purple-400',
+            description: 'The Database Lab is the persistent memory of the SkyNet ecosystem. It allows you to save, organize, and reuse your complex portfolio structures and Nexus configurations across different tools like Sentinel AI and the Portfolio Nexus.',
+            subProducts: [
+                {
+                    id: 'portfolio-codes',
+                    title: "Portfolio Codes",
+                    icon: Box,
+                    desc: "Saved definitions of basic investment strategies (e.g., fractional share allocations, momentum logic).",
+                    inputs: [
+                        { name: "Code Name", desc: "Unique ID (e.g., 'TECH_GROWTH')." },
+                        { name: "Structure", desc: "A tree of assets and weights." }
+                    ],
+                    usage: "Save your favorite ticker lists here so you don't have to re-type them every time. Retrieve them by name in other tools."
+                },
+                {
+                    id: 'nexus-codes',
+                    title: "Nexus Codes",
+                    icon: Network,
+                    desc: "Master templates that combine multiple Portfolio Codes into one 'Super-Portfolio'.",
+                    inputs: [
+                        { name: "Nexus ID", desc: "Unique ID for the master structure." },
+                        { name: "Components", desc: "List of other Portfolio Codes or Commands to include and their weights." }
+                    ],
+                    usage: "Create a 'Fund of Funds' strategy. For example, a Nexus Code 'ALL_WEATHER' could consist of 50% 'GROWTH_PORTFOLIO' and 50% 'DIVIDEND_PORTFOLIO'."
                 }
             ]
         }

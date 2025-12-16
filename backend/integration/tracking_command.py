@@ -356,7 +356,8 @@ async def handle_tracking_command(args: List[str], ai_params: Optional[Dict] = N
     # --- Compare Old vs New ---
     # Map New Targets
     target_holdings = {item['ticker']: float(item.get('shares', 0)) for item in new_target_data}
-
+    
+    performance_summary = []
     if old_run_data:
         tickers_to_fetch = set([row['Ticker'] for row in old_run_data if row.get('Ticker') != 'Cash'])
         # Add new target tickers too so we get prices for everything

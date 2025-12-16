@@ -76,9 +76,11 @@ async def collect_portfolio_inputs_singularity(portfolio_code_singularity: str, 
             num_port_str = input("Enter number of sub-portfolios: ")
             try: inputs['num_portfolios'] = str(int(num_port_str)); break
             except: print("Must be > 0.")
-        while True:
-            frac_s_str = input("Allow fractional shares? (yes/no): ").lower()
-            if frac_s_str in ['yes', 'no']: inputs['frac_shares'] = 'true' if frac_s_str == 'yes' else 'false'; break
+            try: inputs['num_portfolios'] = str(int(num_port_str)); break
+            except: print("Must be > 0.")
+        
+        # Default Fractional to true (Modified per user request)
+        inputs['frac_shares'] = 'true'
         inputs['risk_tolerance'] = '10'; inputs['risk_type'] = 'stock'; inputs['remove_amplification_cap'] = 'true'
         current_total_weight = 0.0
         for i in range(1, int(inputs['num_portfolios']) + 1):

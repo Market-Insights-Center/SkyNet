@@ -1,7 +1,7 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
-import { Layers, Zap, Sprout, Activity, ArrowRight } from 'lucide-react';
+import { Layers, Zap, Sprout, Activity, ArrowRight, Database } from 'lucide-react';
 import WaveBackground from '../components/WaveBackground';
 import TiltCard from '../components/TiltCard';
 
@@ -90,6 +90,13 @@ const PortfolioLab = () => {
             icon: Activity,
             path: "/tracking",
             delay: 0.4
+        },
+        {
+            title: "Database Codes",
+            desc: "Manage and visualize recursive Nexus and Portfolio structures.",
+            icon: Database,
+            path: "/database-lab",
+            delay: 0.5
         }
     ];
 
