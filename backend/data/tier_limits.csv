@@ -95,3 +95,11 @@ Basic,sentinel,NA
 Pro,sentinel,NA
 Enterprise,sentinel,NA
 Singularity,sentinel,NL
+Basic,automations,1
+Pro,automations,5
+Enterprise,automations,10
+Singularity,automations,NL
+Basic,automation_blocks,5
+Pro,automation_blocks,10
+Enterprise,automation_blocks,25
+Singularity,automation_blocks,NL

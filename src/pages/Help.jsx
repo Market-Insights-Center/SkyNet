@@ -1,7 +1,7 @@
 import React, { useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Bot, Search, Scale, Siren, HelpCircle, Terminal, Layers, Zap, Sprout, Activity, PieChart, BarChart2, TrendingUp, History, Globe, Briefcase, Settings, Database, AlertTriangle, Network, Maximize2, Cpu, Box } from 'lucide-react';
+import { Bot, Search, Scale, Siren, HelpCircle, Terminal, Layers, Zap, Sprout, Activity, PieChart, BarChart2, TrendingUp, History, Globe, Briefcase, Settings, Database, AlertTriangle, Network, Maximize2, Cpu, Box, Workflow } from 'lucide-react';
 
 const Help = () => {
     const { hash } = useLocation();
@@ -285,6 +285,28 @@ const Help = () => {
                         { name: "Execution Options", desc: "Send trades to Email, execute on Robinhood, or overwrite last save." }
                     ],
                     usage: "1. Define Components: Identify portfolio codes created in Portfolio Lab (e.g., 'TECH_GROWTH') or standard commands.\n2. Assign Weights: Determine what percentage of your total capital goes to each strategy.\n3. Execute: The Nexus recursively calculates share counts for every underlying ticker, aggregating duplicates.\n4. Rebalance: Run periodically to ensure your master allocation remains true to targets."
+                }
+            ]
+        },
+
+        {
+            id: 'workflow-automation',
+            title: 'Workflow Automation',
+            icon: Workflow,
+            color: 'text-purple-400',
+            description: 'Create autonomous trading agents that initiate transactions based on conditional logic blocks. Chain together market events with execution modules to run strategies 24/7 without manual intervention.',
+            subProducts: [
+                {
+                    id: 'automation-builder',
+                    title: "Automation Canvas",
+                    icon: Layers,
+                    desc: "Drag-and-drop builder to construct logic chains.",
+                    inputs: [
+                        { name: "Conditional Blocks", desc: "Triggers based on Risk (Market/General), Price, or Percentage changes over time." },
+                        { name: "Action Blocks", desc: "Execute Tracking or Nexus portfolios when conditions are met." },
+                        { name: "Info Blocks", desc: "Provide credentials (Email, Robinhood) to execution blocks." }
+                    ],
+                    usage: "1. Start with a Conditional Block (e.g. 'When Price of AAPL > $200').\n2. Connect it to an Action Block (e.g. 'Execute Tech Portfolio').\n3. Attach Info Blocks to provide necessary logins.\n4. Save and Activate. The system checks conditions every 15 minutes."
                 }
             ]
         },

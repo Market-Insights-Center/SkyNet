@@ -38,7 +38,15 @@ from backend.integration.custom_command import (
     safe_score,
     _load_all_subportfolio_names
 )
-from backend.integration.invest_command import calculate_ema_invest, process_custom_portfolio
+try:
+    from backend.integration.invest_command import calculate_ema_invest, process_custom_portfolio
+except ImportError:
+    try:
+        from integration.invest_command import calculate_ema_invest, process_custom_portfolio
+    except ImportError:
+         print("Warning: invest_command not found in tracking_command.")
+         calculate_ema_invest = None
+         process_custom_portfolio = None
 
 # Try importing execution logic, fallback if missing
 try:

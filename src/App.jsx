@@ -45,6 +45,7 @@ const SentinelAI = React.lazy(() => import('./pages/SentinelAI'));
 const DatabaseNodes = React.lazy(() => import('./pages/DatabaseNodes'));
 const StrategyRanking = React.lazy(() => import('./pages/StrategyRanking'));
 const MarketPredictions = React.lazy(() => import('./pages/MarketPredictions'));
+const WorkflowAutomation = React.lazy(() => import('./pages/WorkflowAutomation'));
 
 // --- PayPal Configuration (Safety Mode) ---
 const clientId = import.meta.env.VITE_PAYPAL_CLIENT_ID;
@@ -206,6 +207,7 @@ const AppContent = () => {
                         <Route path="/active-chart" element={<ActiveChartPage />} />
                         <Route path="/strategy-ranking" element={<PageTransition><Layout><StrategyRanking /></Layout></PageTransition>} />
                         <Route path="/market-predictions" element={<PageTransition><Layout><MarketPredictions /></Layout></PageTransition>} />
+                        <Route path="/workflow-automation" element={<PageTransition><Layout><WorkflowAutomation /></Layout></PageTransition>} />
                     </Routes>
                 </AnimatePresence>
             </React.Suspense>

@@ -17,7 +17,10 @@ NEXUS_DB_FILE = os.path.join(BASE_DIR, 'backend', 'nexus_portfolios.csv')
 
 # --- IMPORTS ---
 try:
-    from backend.integration.invest_command import process_custom_portfolio, calculate_ema_invest
+    try:
+        from backend.integration.invest_command import process_custom_portfolio, calculate_ema_invest
+    except ImportError:
+        from integration.invest_command import process_custom_portfolio, calculate_ema_invest
     from backend.integration.market_command import calculate_market_invest_scores_singularity, get_sp500_symbols_singularity
     from backend.integration.breakout_command import run_breakout_analysis_singularity
     from backend.integration.cultivate_command import run_cultivate_analysis_singularity

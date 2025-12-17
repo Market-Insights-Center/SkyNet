@@ -16,10 +16,22 @@ from contextlib import asynccontextmanager
 import yfinance as yf
 
 # Database Manager Imports
+# Database Manager Imports
 try:
     from integration.database_manager import read_nexus_codes, read_portfolio_codes, save_nexus_code, save_portfolio_code, delete_code
 except ImportError:
     from backend.integration.database_manager import read_nexus_codes, read_portfolio_codes, save_nexus_code, save_portfolio_code, delete_code
+
+# Automation Storage Imports (Fixes Save/Load)
+try:
+    from automation_storage import load_automations, save_automation, delete_automation, toggle_automation
+    print(f"✅ LOADED: automation_storage")
+except ImportError:
+    try:
+        from backend.automation_storage import load_automations, save_automation, delete_automation, toggle_automation
+        print(f"✅ LOADED: automation_storage (Absolute)")
+    except ImportError as e:
+        print(f"❌ CRITICAL FAIL: automation_storage: {e}")
 
 # Fix for WinError 183 in TzCache
 try:
@@ -56,46 +68,88 @@ print(f"Base: {PARENT_DIR}")
 print(f"Curr: {CURRENT_DIR}")
 
 # --- ROBUST COMMAND IMPORTS ---
-# We try to import modules safely, handling different directory structures
 nexus_command = None
+invest_command = None
+automation_command = None
+risk_command = None
+performance_stream_command = None
 
+# 1. Nexus (Already working)
 try:
-    # 1. Try Standard Absolute Import
     from backend.integration import nexus_command
-    print(f"✅ LOADED: backend.integration.nexus_command")
+    print(f"✅ LOADED: nexus_command")
 except ImportError:
     try:
-        # 2. Try Relative Import (If running from inside backend/)
         from integration import nexus_command
-        print(f"✅ LOADED: integration.nexus_command (Relative)")
+        print(f"✅ LOADED: nexus_command (Relative)")
     except ImportError as e:
-        print(f"❌ CRITICAL IMPORT FAILURE (nexus_command): {e}")
+        print(f"❌ FAIL: nexus_command: {e}")
 
-# Import other commands
-performance_stream_command = None
+# 2. Automation (Critical for this task)
+try:
+    from backend.integration import automation_command
+    print(f"✅ LOADED: automation_command")
+except ImportError:
+    try:
+        from integration import automation_command
+        print(f"✅ LOADED: automation_command (Relative)")
+    except ImportError as e:
+        print(f"❌ FAIL: automation_command: {e}")
+
+# 3. Invest (Reported Failure)
+try:
+    from backend.integration import invest_command
+    print(f"✅ LOADED: invest_command")
+except ImportError as e:
+    print(f"Warning: backend.integration import failed for invest_command: {e}")
+    try:
+        from integration import invest_command
+        print(f"✅ LOADED: invest_command (Relative)")
+    except ImportError as e:
+        print(f"❌ FAIL: invest_command: {e}")
+
+# 4. Risk (Critical for Automation)
+try:
+    from backend.integration import risk_command
+    print(f"✅ LOADED: risk_command")
+except ImportError:
+    try:
+        from integration import risk_command
+        print(f"✅ LOADED: risk_command (Relative)")
+    except ImportError as e:
+        print(f"❌ FAIL: risk_command: {e}")
+
+# 5. Performance Stream
+try:
+    from backend.integration import performance_stream_command
+    print(f"✅ LOADED: performance_stream_command")
+except ImportError:
+    try:
+        from integration import performance_stream_command
+        print(f"✅ LOADED: performance_stream_command (Relative)")
+    except ImportError as e:
+        print(f"❌ FAIL: performance_stream_command: {e}")
+
+# ... (Other commands can be imported similarly or in a block if less critical)
 try:
     from backend.integration import (
-        invest_command, cultivate_command, custom_command, tracking_command, 
-        risk_command, history_command, quickscore_command, market_command, 
+        cultivate_command, custom_command, tracking_command, 
+        history_command, quickscore_command, market_command, 
         breakout_command, briefing_command, fundamentals_command, 
         assess_command, mlforecast_command, sentiment_command, powerscore_command,
-        performance_stream_command, summary_command, sentinel_command
+        summary_command, sentinel_command
     )
-    print("✅ LOADED: Standard Commands (backend.integration)")
 except ImportError:
-    # Fallback for "run from backend folder"
     try:
         from integration import (
-            invest_command, cultivate_command, custom_command, tracking_command, 
-            risk_command, history_command, quickscore_command, market_command, 
+            cultivate_command, custom_command, tracking_command, 
+            history_command, quickscore_command, market_command, 
             breakout_command, briefing_command, fundamentals_command, 
             assess_command, mlforecast_command, sentiment_command, powerscore_command,
-            assess_command, mlforecast_command, sentiment_command, powerscore_command,
-            performance_stream_command, summary_command, sentinel_command
+            summary_command, sentinel_command
         )
-        print("✅ LOADED: Standard Commands (integration)")
-    except ImportError as e:
-        print(f"❌ CRITICAL IMPORT FAILURE (Commands): {e}")
+    except Exception as e:
+        print(f"Warning: Some commands failed to load: {e}")
 
 # --- DATABASE IMPORTS ---
 try:
@@ -125,10 +179,21 @@ except ImportError:
         add_points, check_referral_reward
     )
 
+try:
+    from backend.automation_storage import load_automations, save_automation, delete_automation, toggle_automation
+except ImportError:
+    try:
+        from automation_storage import load_automations, save_automation, delete_automation, toggle_automation
+    except: pass
+
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("uvicorn")
 
 from fastapi.responses import JSONResponse, StreamingResponse
+try:
+    from backend.usage_counter import increment_usage, get_all_usage
+except ImportError:
+    from usage_counter import increment_usage, get_all_usage
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -226,6 +291,20 @@ def start_scheduler():
                 print(f"Performance Stream Scheduler Error: {e}")
                 
         SCHEDULER.add_job(run_performance_stream_job, CronTrigger(minute='*/15'))
+
+        # Automation Job (15 mins)
+        def run_automation_job():
+            print("Running scheduled Automation Check...")
+            try:
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                if automation_command:
+                    loop.run_until_complete(automation_command.run_automations())
+                loop.close()
+            except Exception as e:
+                print(f"Automation Scheduler Error: {e}")
+
+        SCHEDULER.add_job(run_automation_job, CronTrigger(minute='*/15'))
 
         SCHEDULER.start()
         print("Scheduler started.")
@@ -460,6 +539,23 @@ class ReferralRedeemRequest(BaseModel):
     
 class PointsRequest(BaseModel):
     email: str
+
+class AutomationSaveRequest(BaseModel):
+    id: str
+    name: str
+    active: bool
+    nodes: List[Dict[str, Any]]
+    edges: List[Dict[str, Any]]
+    user_email: str
+
+class AutomationToggleRequest(BaseModel):
+    id: str
+    active: bool
+
+class AutomationDeleteRequest(BaseModel):
+    id: str
+
+
 
 # --- HELPER FUNCTIONS ---
 def get_mod_list():
@@ -1388,6 +1484,7 @@ async def api_invest(request: Request):
         result = await invest_command.handle_invest_command([], ai_params=data, is_called_by_ai=True)
         email = data.get('email')
         if email: add_points(email, "invest")
+        increment_usage("invest")
         return result
     except Exception as e:
         logger.error(f"Error in /api/invest: {e}")
@@ -1400,6 +1497,7 @@ async def api_cultivate(request: Request):
         result = await cultivate_command.handle_cultivate_command([], ai_params=data, is_called_by_ai=True)
         email = data.get('email')
         if email: add_points(email, "cultivate")
+        increment_usage("cultivate")
         return result
     except Exception as e:
         logger.error(f"Error in /api/cultivate: {e}")
@@ -1410,6 +1508,7 @@ async def api_custom(request: Request):
     try:
         data = await request.json()
         result = await custom_command.handle_custom_command([], ai_params=data, is_called_by_ai=True)
+        increment_usage("custom")
         return result
     except Exception as e:
         logger.error(f"Error in /api/custom: {e}")
@@ -1422,6 +1521,7 @@ async def api_tracking(request: Request):
         result = await tracking_command.handle_tracking_command([], ai_params=data, is_called_by_ai=True)
         email = data.get('email')
         if email: add_points(email, "tracking")
+        increment_usage("tracking")
         return result
     except Exception as e:
         logger.error(f"Error in /api/tracking: {e}")
@@ -1456,6 +1556,7 @@ async def run_quickscore(req: QuickscoreRequest):
     # Run command
     result = await quickscore_command.handle_quickscore_command([], ai_params={"ticker": req.ticker}, is_called_by_ai=True)
     add_points(req.email, "quickscore")
+    increment_usage("quickscore")
     return result
 
 @app.post("/api/market")
@@ -1780,6 +1881,48 @@ async def execute_sentinel(req: SentinelRequest):
              yield json.dumps({"type": "error", "message": f"Server Error: {str(e)}"}) + "\n"
 
     return StreamingResponse(event_generator(), media_type="application/x-ndjson")
+
+# --- AUTOMATION ENDPOINTS ---
+@app.get("/api/automations")
+def get_automations_endpoint():
+    return load_automations()
+
+@app.post("/api/automations/save")
+def save_automation_endpoint(req: AutomationSaveRequest):
+    # Check limit if creating new (simplified: count total for user)
+    automations = load_automations()
+    existing = next((a for a in automations if a['id'] == req.id), None)
+    
+    if not existing:
+        # It's new, check limit
+        user_autos = [a for a in automations if a.get('user_email') == req.user_email]
+        limit_check = verify_storage_limit(req.user_email, 'automations', len(user_autos))
+        if not limit_check['allowed']:
+            raise HTTPException(status_code=403, detail=limit_check.get('message', 'Limit Reached'))
+            
+    # Check block limit
+    limit_check_blocks = verify_storage_limit(req.user_email, 'automation_blocks', len(req.nodes))
+    if not limit_check_blocks['allowed']:
+         raise HTTPException(status_code=403, detail=limit_check_blocks.get('message', 'Block Limit Reached'))
+
+    data = req.dict()
+    save_automation(data)
+    return {"status": "success"}
+
+@app.post("/api/automations/toggle")
+def toggle_automation_endpoint(req: AutomationToggleRequest):
+    toggle_automation(req.id, req.active)
+    return {"status": "success"}
+
+@app.post("/api/automations/delete")
+def delete_automation_endpoint(req: AutomationDeleteRequest):
+    delete_automation(req.id)
+    return {"status": "success"}
+
+# --- USAGE STATS ENDPOINT ---
+@app.get("/api/usage")
+def get_usage_stats_endpoint():
+    return get_all_usage()
 
 if __name__ == "__main__":
     import uvicorn

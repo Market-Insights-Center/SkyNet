@@ -1,0 +1,85 @@
+[
+    {
+        "id": "1765952557229",
+        "name": "Medulla",
+        "active": true,
+        "nodes": [
+            {
+                "id": "1765952560823",
+                "type": "time_interval",
+                "position": {
+                    "x": 100,
+                    "y": 100
+                },
+                "data": {
+                    "interval": "1",
+                    "unit": "days",
+                    "target_time": "09:30",
+                    "last_run": null
+                }
+            },
+            {
+                "id": "1765952583742",
+                "type": "nexus",
+                "position": {
+                    "x": 617,
+                    "y": 326
+                },
+                "data": {
+                    "code": "skynet",
+                    "value": "3300",
+                    "fractional": true,
+                    "actions": [
+                        "overwrite",
+                        "email",
+                        "robinhood"
+                    ]
+                }
+            },
+            {
+                "id": "1765952640084",
+                "type": "email_info",
+                "position": {
+                    "x": 567,
+                    "y": 30
+                },
+                "data": {
+                    "email": "marketinsightscenter@gmail.com"
+                }
+            },
+            {
+                "id": "1765952644803",
+                "type": "rh_info",
+                "position": {
+                    "x": 952,
+                    "y": 22
+                },
+                "data": {
+                    "email": "marketinsightscenter@gmail.com",
+                    "password": "Verzogerung25"
+                }
+            }
+        ],
+        "edges": [
+            {
+                "source": "1765952560823",
+                "target": "1765952583742",
+                "sourceHandle": "right",
+                "targetHandle": "left"
+            },
+            {
+                "source": "1765952640084",
+                "target": "1765952583742",
+                "sourceHandle": "bottom",
+                "targetHandle": "top"
+            },
+            {
+                "source": "1765952644803",
+                "target": "1765952583742",
+                "sourceHandle": "bottom",
+                "targetHandle": "top"
+            }
+        ],
+        "user_email": "test@example.com"
+    }
+]

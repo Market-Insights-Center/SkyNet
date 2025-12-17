@@ -1113,9 +1113,89 @@ const LandingPage = () => {
 
             {/* Footer */}
             <ErrorBoundary>
+                <UsageTicker />
                 <Footer />
             </ErrorBoundary>
         </div>
+    );
+};
+
+const UsageTicker = () => {
+    const [stats, setStats] = useState({});
+    const [page, setPage] = useState(0);
+
+    useEffect(() => {
+        const fetchStats = async () => {
+            try {
+                const res = await fetch('/api/usage');
+                if (res.ok) {
+                    setStats(await res.json());
+                }
+            } catch (e) {
+                console.error("Failed to fetch usage:", e);
+            }
+        };
+        fetchStats();
+        // Refresh data every 30s
+        const dataInterval = setInterval(fetchStats, 30000);
+        return () => clearInterval(dataInterval);
+    }, []);
+
+    const entries = Object.entries(stats);
+    const itemsPerPage = 5;
+    const totalPages = Math.ceil(entries.length / itemsPerPage);
+
+    // Rotation Timer
+    useEffect(() => {
+        if (totalPages <= 1) return;
+        const rotateInterval = setInterval(() => {
+            setPage(p => (p + 1) % totalPages);
+        }, 4000); // Rotate every 4s
+        return () => clearInterval(rotateInterval);
+    }, [totalPages]);
+
+    // Format keys for display
+    const formatKey = (key) => {
+        return key.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+    };
+
+    if (entries.length === 0) return null;
+
+    // Get current page items
+    // Handle wrap-around or just ensure we have items.
+    // Basic slicing.
+    const currentItems = entries.slice(page * itemsPerPage, (page + 1) * itemsPerPage);
+
+    // If last page isn't full, maybe fill with start? optional. 
+    // For now simple slice is fine.
+
+    return (
+        <section className="py-6 bg-black border-t border-white/5 overflow-hidden" style={{ perspective: '1000px' }}>
+            <div className="max-w-7xl mx-auto px-6 h-12 flex items-center justify-center relative">
+                <AnimatePresence mode="popLayout">
+                    <motion.div
+                        key={page}
+                        initial={{ rotateX: -90, opacity: 0, y: 40 }}
+                        animate={{ rotateX: 0, opacity: 1, y: 0 }}
+                        exit={{ rotateX: 90, opacity: 0, y: -40 }}
+                        transition={{ type: "spring", stiffness: 100, damping: 20 }}
+                        className="flex gap-8 md:gap-16 items-center justify-center absolute w-full"
+                    >
+                        {currentItems.map(([key, value]) => (
+                            <div key={key} className="flex flex-col items-center gap-1 min-w-[100px]">
+                                <span className="text-xs text-gray-500 uppercase tracking-[0.2em] font-medium">{formatKey(key)}</span>
+                                <span className="text-xl font-bold bg-gradient-to-b from-white to-gray-400 bg-clip-text text-transparent font-mono">
+                                    {value.toLocaleString()}
+                                </span>
+                            </div>
+                        ))}
+                    </motion.div>
+                </AnimatePresence>
+            </div>
+
+            {/* Decorative Gradients for "Wheel" depth */}
+            <div className="absolute inset-0 bg-gradient-to-b from-black via-transparent to-black pointer-events-none opacity-50"></div>
+        </section>
     );
 };
 
