@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     Users, TrendingUp, Shield, Activity, Search, Edit2,
-    Save, X, Check, Trash2, Tag, Plus, FileText, Lightbulb, Megaphone
+    Save, X, Check, Trash2, Tag, Plus, FileText, Lightbulb, Megaphone, Zap
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
@@ -28,6 +28,11 @@ const AdminDashboard = () => {
 
     // Unified Search Term for all tabs
     const [searchTerm, setSearchTerm] = useState('');
+
+    // Predictions State
+    const [predictions, setPredictions] = useState([]);
+    const [newPrediction, setNewPrediction] = useState({ title: '', stock: '', end_date: '', market_condition: '', wager_logic: 'binary_odds' });
+
     const [newModEmail, setNewModEmail] = useState('');
 
     const [loadingUsers, setLoadingUsers] = useState(false);
@@ -112,9 +117,20 @@ const AdminDashboard = () => {
             fetchIdeas();
             fetch('/api/mods').then(res => res.json()).then(data => setMods(Array.isArray(data.mods) ? data.mods : [])).catch(() => setMods([]));
             fetchBanners();
+            fetchPredictions();
             setCacheLoaded(true); // Mark as loaded so we don't refetch on tab switch/remount during same session unless desired
         }
     }, [currentUser, cacheLoaded]);
+
+    const fetchPredictions = async () => {
+        try {
+            const res = await fetch('/api/predictions/active');
+            const data = await res.json();
+            setPredictions(data);
+        } catch (error) {
+            console.error("Error fetching predictions:", error);
+        }
+    };
 
     const handleUpdateTier = async () => {
         const res = await fetch('/api/admin/users/update', {
@@ -272,6 +288,47 @@ const AdminDashboard = () => {
         m.username.toLowerCase().includes(searchTerm.toLowerCase())
     );
 
+    const handleCreatePrediction = async (e) => {
+        e.preventDefault();
+        if (!newPrediction.title || !newPrediction.stock || !newPrediction.end_date) return;
+
+        try {
+            const res = await fetch('/api/predictions/create', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ...newPrediction, email: currentUser.email })
+            });
+            const data = await res.json();
+            if (data.success) {
+                alert("Prediction created!");
+                setNewPrediction({ title: '', stock: '', end_date: '', market_condition: '', wager_logic: 'binary_odds' });
+                fetchPredictions();
+            } else {
+                alert("Failed to create prediction.");
+            }
+        } catch (error) {
+            console.error(error);
+        }
+    };
+
+    const handleDeletePrediction = async (id) => {
+        if (!window.confirm("Delete prediction? This cannot be undone.")) return;
+        try {
+            const res = await fetch('/api/predictions/delete', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id, requester_email: currentUser.email })
+            });
+            const data = await res.json();
+            if (data.success) {
+                alert("Prediction deleted.");
+                fetchPredictions();
+            }
+        } catch (e) { console.error(e); }
+    };
+
+
+
     const TabButton = ({ id, label, icon: Icon }) => (
         <button onClick={() => { setActiveTab(id); setSearchTerm(''); }} className={`px-4 py-2 rounded-lg font-bold flex items-center gap-2 ${activeTab === id ? 'bg-gold text-black' : 'bg-white/10 text-gray-300'}`}>
             <Icon size={16} /> {label}
@@ -291,8 +348,10 @@ const AdminDashboard = () => {
                         <TabButton id="users" label="Users" icon={Users} />
                         <TabButton id="coupons" label="Coupons" icon={Tag} />
                         <TabButton id="articles" label="Articles" icon={FileText} />
-                        <TabButton id="ideas" label="Ideas" icon={Lightbulb} />
+                        <TabButton id="ideas" label="Ideas" icon={Zap} />
                         <TabButton id="banners" label="Banners" icon={Megaphone} />
+                        <TabButton id="predictions" label="Predictions" icon={TrendingUp} />
+
                         <TabButton id="mods" label="Moderators" icon={Shield} />
                     </div>
                 </div>
@@ -480,6 +539,45 @@ const AdminDashboard = () => {
                         </div>
                     </div>
                 )}
+
+                {activeTab === 'predictions' && (
+                    <div className="space-y-8">
+                        {/* CREATE PREDICTION */}
+                        <div className="bg-black/40 border border-white/10 rounded-lg p-6">
+                            <h3 className="text-xl font-bold mb-4 flex items-center gap-2"><Plus size={20} /> Create Market Prediction</h3>
+                            <form onSubmit={handleCreatePrediction} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <input placeholder="Title (e.g. NVDA Earnings)" value={newPrediction.title} onChange={e => setNewPrediction({ ...newPrediction, title: e.target.value })} className="bg-black border border-white/10 rounded px-3 py-2 text-white" required />
+                                <input placeholder="Stock Symbol" value={newPrediction.stock} onChange={e => setNewPrediction({ ...newPrediction, stock: e.target.value.toUpperCase() })} className="bg-black border border-white/10 rounded px-3 py-2 text-white" required />
+                                <input placeholder="Market Condition (e.g. Up > 5%)" value={newPrediction.market_condition} onChange={e => setNewPrediction({ ...newPrediction, market_condition: e.target.value })} className="bg-black border border-white/10 rounded px-3 py-2 text-white" required />
+                                <input type="datetime-local" value={newPrediction.end_date} onChange={e => setNewPrediction({ ...newPrediction, end_date: e.target.value })} className="bg-black border border-white/10 rounded px-3 py-2 text-white" required />
+                                <select value={newPrediction.wager_logic} onChange={e => setNewPrediction({ ...newPrediction, wager_logic: e.target.value })} className="bg-black border border-white/10 rounded px-3 py-2 text-white">
+                                    <option value="binary_odds">Binary Odds (Pari-mutuel)</option>
+                                </select>
+                                <button type="submit" className="md:col-span-2 bg-gold text-black font-bold py-2 rounded hover:bg-yellow-500 transition-colors">Post Prediction</button>
+                            </form>
+                        </div>
+
+                        {/* LIST PREDICTIONS */}
+                        <div className="bg-black/40 border border-white/10 rounded-lg p-6">
+                            <h3 className="text-xl font-bold mb-4">Active Predictions</h3>
+                            <div className="space-y-4">
+                                {predictions.map(pred => (
+                                    <div key={pred.id} className="flex justify-between items-center p-4 bg-white/5 rounded border border-white/5">
+                                        <div>
+                                            <div className="font-bold text-lg">{pred.title}</div>
+                                            <div className="text-sm text-gray-400">Ends: {new Date(pred.end_date).toLocaleString()} | Stock: {pred.stock}</div>
+                                            <div className="text-xs text-gold mt-1">Pool: {pred.total_pool_yes + pred.total_pool_no} pts</div>
+                                        </div>
+                                        <button onClick={() => handleDeletePrediction(pred.id)} className="p-2 text-red-500 hover:bg-white/10 rounded"><Trash2 size={18} /></button>
+                                    </div>
+                                ))}
+                                {predictions.length === 0 && <p className="text-gray-500">No active predictions.</p>}
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+
             </div>
 
             {/* Edit User Modal */}

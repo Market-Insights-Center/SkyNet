@@ -29,6 +29,15 @@ export default function Profile() {
     const [qLoading, setQLoading] = useState(false);
     const [qError, setQError] = useState("");
 
+    // Points & Referral State
+    const [points, setPoints] = useState(0);
+    const [pendingPoints, setPendingPoints] = useState(0);
+    const [rank, setRank] = useState(0);
+    const [referralCode, setReferralCode] = useState("");
+    const [accountAge, setAccountAge] = useState("");
+    const [showLeaderboard, setShowLeaderboard] = useState(false);
+    const [generatingCode, setGeneratingCode] = useState(false);
+
     // Check for existing profile data on mount
     useEffect(() => {
         async function checkProfile() {
@@ -48,6 +57,41 @@ export default function Profile() {
                     const docSnap = await getDoc(docRef);
                     if (docSnap.exists()) {
                         const data = docSnap.data();
+
+                        // Points & Referral Data
+                        if (data.points) setPoints(data.points);
+                        if (data.pending_transactions) {
+                            const totalPending = data.pending_transactions.reduce((sum, txn) => sum + (txn.amount || 0), 0);
+                            setPendingPoints(totalPending);
+                        }
+                        if (data.referral_code) setReferralCode(data.referral_code);
+                        if (data.settings?.show_leaderboard) setShowLeaderboard(true);
+
+                        // Calculate Account Age
+                        const created = data.created_at?.toDate ? data.created_at.toDate() : new Date(data.created_at || currentUser.metadata.creationTime);
+                        if (created) {
+                            const diff = Date.now() - created.getTime();
+                            const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+                            setAccountAge(`${days} days`);
+                        }
+
+                        // Fetch real-time points/rank
+                        fetch('/api/points/user', {
+                            method: 'POST', headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ email: currentUser.email })
+                        })
+                            .then(res => {
+                                if (!res.ok) throw new Error("API Error");
+                                return res.json();
+                            })
+                            .then(d => {
+                                setPoints(d.points || 0);
+                                setRank(d.rank || 0);
+                            }).catch(e => {
+                                console.error("Points API Error:", e);
+                                setPoints(data.points || 0); // Fallback to Firestore
+                            });
+
 
                         // Populate state for the update modal
                         if (data.risk_tolerance) setRiskTolerance(data.risk_tolerance);
@@ -146,6 +190,28 @@ export default function Profile() {
         } catch (e) {
             console.error("Failed to save profile to CSV backend", e);
         }
+    };
+
+    const handleGenerateReferral = async () => {
+        setGeneratingCode(true);
+        try {
+            const res = await fetch('/api/referrals/generate', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email: currentUser.email })
+            });
+            const data = await res.json();
+            if (data.code) setReferralCode(data.code);
+        } catch (e) {
+            console.error(e);
+        } finally {
+            setGeneratingCode(false);
+        }
+    };
+
+    const toggleLeaderboard = async () => {
+        const newVal = !showLeaderboard;
+        setShowLeaderboard(newVal);
+        await setDoc(doc(db, "users", currentUser.uid), { settings: { show_leaderboard: newVal } }, { merge: true });
     };
 
     const handleQuestionnaireSubmit = async (e) => {
@@ -285,6 +351,68 @@ export default function Profile() {
                             </Link>
                         </div>
                     )}
+                </div>
+
+                {/* REWARDS & STATUS SECTION */}
+                <div className="mb-8 p-6 bg-black/30 rounded-lg border border-white/5 grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <h3 className="text-xl font-bold text-gold mb-4 flex items-center gap-2"><Shield size={20} /> Singularity Points</h3>
+                        <div className="flex items-center gap-6 mb-4">
+                            <div>
+                                <div className="text-3xl font-bold text-white">{points.toLocaleString()}</div>
+                                <div className="text-xs text-gray-400">Total Points</div>
+                            </div>
+                            <div className="h-8 w-px bg-white/10"></div>
+                            <div>
+                                <div className="text-3xl font-bold text-gold">#{rank}</div>
+                                <div className="text-xs text-gray-400">Global Rank</div>
+                            </div>
+                            {pendingPoints > 0 && (
+                                <>
+                                    <div className="h-8 w-px bg-white/10"></div>
+                                    <div>
+                                        <div className="text-3xl font-bold text-gray-400 opacity-80">{pendingPoints.toLocaleString()}</div>
+                                        <div className="text-xs text-gray-500">Pending (24h)</div>
+                                    </div>
+                                </>
+                            )}
+                        </div>
+                        <label className="flex items-center gap-2 cursor-pointer text-sm text-gray-400 hover:text-white">
+                            <input type="checkbox" checked={showLeaderboard} onChange={toggleLeaderboard} className="accent-gold" />
+                            Show me on public leaderboard
+                        </label>
+                    </div>
+
+                    <div>
+                        <h3 className="text-xl font-bold text-gold mb-4 flex items-center gap-2"><User size={20} /> Account Status</h3>
+                        <div className="space-y-3">
+                            <div className="flex justify-between">
+                                <span className="text-gray-400">Account Age</span>
+                                <span className="font-bold text-white">{accountAge || "New"}</span>
+                            </div>
+
+                            <div className="pt-2 border-t border-white/5">
+                                <div className="text-gray-400 text-sm mb-2">Referral Code</div>
+                                {referralCode ? (
+                                    <div className="flex gap-2">
+                                        <div className="bg-black/50 px-3 py-2 rounded text-gold font-mono font-bold flex-1 text-center tracking-wider border border-white/10">
+                                            {referralCode}
+                                        </div>
+                                        <button onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/signup?ref=${referralCode}`); setMessage("Link copied!"); }} className="px-3 py-2 bg-white/10 hover:bg-white/20 rounded text-white font-bold transition-colors">
+                                            Copy Link
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <button onClick={handleGenerateReferral} disabled={generatingCode} className="w-full py-2 bg-gold/20 hover:bg-gold/30 text-gold rounded font-bold transition-colors border border-gold/20">
+                                        {generatingCode ? "Generating..." : "Generate Referral Link"}
+                                    </button>
+                                )}
+                                <p className="text-[10px] text-gray-500 mt-2">
+                                    Refer a friend: If they subscribe to Pro, get 3 Months Pro Free. If Enterprise, get 3 Months Enterprise Free.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
                 <form onSubmit={handleUpdateProfile} className="space-y-6">

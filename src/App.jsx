@@ -8,6 +8,7 @@ import { OrionProvider, useOrion } from './contexts/OrionContext';
 import OrionOverlay from './components/OrionOverlay';
 import { TradingViewWidget } from './components/MarketDashboard';
 import UsernameSetupModal from './components/UsernameSetupModal';
+import BirthdayPopup from './components/BirthdayPopup';
 import { useAuth } from './contexts/AuthContext';
 
 import Layout from './components/Layout';
@@ -43,6 +44,7 @@ const PerformanceStream = React.lazy(() => import('./pages/PerformanceStream'));
 const SentinelAI = React.lazy(() => import('./pages/SentinelAI'));
 const DatabaseNodes = React.lazy(() => import('./pages/DatabaseNodes'));
 const StrategyRanking = React.lazy(() => import('./pages/StrategyRanking'));
+const MarketPredictions = React.lazy(() => import('./pages/MarketPredictions'));
 
 // --- PayPal Configuration (Safety Mode) ---
 const clientId = import.meta.env.VITE_PAYPAL_CLIENT_ID;
@@ -94,9 +96,11 @@ const ActiveChartPage = () => {
 
 const AppContent = () => {
     const { connect } = useOrion();
-    const { userProfile } = useAuth();
+    const { userProfile, currentUser } = useAuth();
     const [searchParams] = useSearchParams();
     const [showUsernameModal, setShowUsernameModal] = useState(false);
+    const [showBirthdayModal, setShowBirthdayModal] = useState(false);
+    const [accountYears, setAccountYears] = useState(0);
 
     useEffect(() => {
         // Only show modal if username is completely missing OR if it is a default "User_..." placeholder
@@ -107,8 +111,41 @@ const AppContent = () => {
             } else {
                 setShowUsernameModal(false);
             }
+
+            // Check Birthday / Anniversary
+            const checkAnniversary = () => {
+                const createdAt = userProfile.created_at?.toDate ? userProfile.created_at.toDate() : new Date(userProfile.created_at || currentUser?.metadata?.creationTime);
+                if (!createdAt) return;
+
+                const today = new Date();
+                const isAnniversaryMonth = today.getMonth() === createdAt.getMonth();
+                const isAnniversaryDay = today.getDate() === createdAt.getDate();
+
+                // For testing/demo logic: check if it's the exact day.
+                // In production, might want 'isAnniversaryMonth' or similar.
+                // Let's stick to exact day + year check to avoid spam.
+
+                if (isAnniversaryMonth && isAnniversaryDay) {
+                    const years = today.getFullYear() - createdAt.getFullYear();
+                    if (years > 0) {
+                        const lastShownYear = localStorage.getItem(`birthday_popup_shown_year_${currentUser.uid}`);
+                        if (lastShownYear !== String(today.getFullYear())) {
+                            setAccountYears(years);
+                            setShowBirthdayModal(true);
+                        }
+                    }
+                }
+            };
+            checkAnniversary();
         }
-    }, [userProfile]);
+    }, [userProfile, currentUser]);
+
+    const handleCloseBirthday = () => {
+        setShowBirthdayModal(false);
+        if (currentUser) {
+            localStorage.setItem(`birthday_popup_shown_year_${currentUser.uid}`, new Date().getFullYear().toString());
+        }
+    };
 
     useEffect(() => {
         if (searchParams.get('orion') === 'true') {
@@ -121,6 +158,7 @@ const AppContent = () => {
     return (
         <>
             <UsernameSetupModal isOpen={showUsernameModal} onClose={() => setShowUsernameModal(false)} />
+            <BirthdayPopup isOpen={showBirthdayModal} onClose={handleCloseBirthday} years={accountYears} />
             <OrionOverlay />
             <React.Suspense fallback={
                 <div className="h-screen w-full bg-black flex items-center justify-center">
@@ -165,7 +203,9 @@ const AppContent = () => {
                         <Route path="/sentinel-ai" element={<PageTransition><Layout><SentinelAI /></Layout></PageTransition>} />
                         <Route path="/asset-evaluator" element={<AssetEvaluator />} />
                         <Route path="/active-chart" element={<ActiveChartPage />} />
+                        <Route path="/active-chart" element={<ActiveChartPage />} />
                         <Route path="/strategy-ranking" element={<PageTransition><Layout><StrategyRanking /></Layout></PageTransition>} />
+                        <Route path="/market-predictions" element={<PageTransition><Layout><MarketPredictions /></Layout></PageTransition>} />
                     </Routes>
                 </AnimatePresence>
             </React.Suspense>

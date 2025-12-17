@@ -1,0 +1,30 @@
+
+def get_leaderboard():
+    """
+    Returns top 100 users by points who have opted in.
+    """
+    try:
+        db = get_db()
+        # Query users where settings.show_leaderboard == True
+        # Order by points desc
+        # Limit 100
+        
+        # Note: This requires a composite index on settings.show_leaderboard + points DESC
+        query = db.collection('users')\
+                  .where('settings.show_leaderboard', '==', True)\
+                  .order_by('points', direction=firestore.Query.DESCENDING)\
+                  .limit(100)
+                  
+        docs = query.stream()
+        leaderboard = []
+        for doc in docs:
+            d = doc.to_dict()
+            leaderboard.append({
+                "username": d.get('username') or d.get('email', 'Anonymous'), # Fallback to email/anon
+                "points": d.get('points', 0),
+                "tier": d.get('tier', 'Basic')
+            })
+        return leaderboard
+    except Exception as e:
+        print(f"Error getting leaderboard: {e}")
+        return []

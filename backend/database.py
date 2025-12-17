@@ -2,6 +2,9 @@ import csv
 import os
 import json
 import time
+import random
+import string
+import uuid
 from datetime import datetime
 from firebase_admin import firestore, auth
 from backend.firebase_admin_setup import get_db, get_auth
@@ -13,6 +16,7 @@ ARTICLES_CSV = os.path.join(DATA_DIR, 'articles.csv')
 IDEAS_CSV = os.path.join(DATA_DIR, 'ideas.csv')
 COMMENTS_CSV = os.path.join(DATA_DIR, 'comments.csv') 
 TIER_LIMITS_CSV = os.path.join(DATA_DIR, 'tier_limits.csv')
+POINTS_RULES_CSV = os.path.join(DATA_DIR, 'points_rules.csv')
 CHATS_FILE = os.path.join(BASE_DIR, 'chats.json')
 USER_PROFILES_CSV = os.path.join(BASE_DIR, 'user_profiles.csv')
 BANNERS_FILE = os.path.join(DATA_DIR, 'banners.json')
@@ -24,6 +28,13 @@ if not os.path.exists(DATA_DIR):
 
 # Tier Hierarchy for upgrades
 TIER_ORDER = ["Basic", "Pro", "Enterprise", "Singularity"]
+
+# --- GLOBAL CACHE ---
+_leaderboard_cache = {
+    "data": [],
+    "timestamp": 0
+}
+
 
 # --- LIMIT LOGIC (NEW) ---
 
@@ -202,6 +213,22 @@ def get_user_profile(email):
         print(f"Error fetching user profile: {e}")
         return None
 
+def get_user_points(email):
+    try:
+        db = get_db()
+        doc = db.collection('users').document(email).get()
+        if doc.exists:
+            data = doc.to_dict()
+            pending = data.get('pending_transactions', [])
+            pending_total = sum(t.get('amount', 0) for t in pending)
+            return {
+                "points": data.get('points', 0), 
+                "tier": data.get('tier', 'Basic'),
+                "pending_points": pending_total
+            }
+        return {"points": 0, "tier": "Basic", "pending_points": 0}
+    except: return {"points": 0, "tier": "Basic", "pending_points": 0}
+
 def update_user_tier(email, tier, subscription_id=None, status="active"):
     """Updates a user's subscription tier."""
     try:
@@ -215,6 +242,10 @@ def update_user_tier(email, tier, subscription_id=None, status="active"):
             data['subscription_id'] = subscription_id
             
         db.collection('users').document(email).set(data, merge=True)
+        
+        # Check for referral rewards
+        check_referral_reward(email, tier)
+        
         return True
     except Exception as e:
         print(f"Error updating tier: {e}")
@@ -249,7 +280,8 @@ def create_user_profile(email, uid, username=None):
                 'created_at': firestore.SERVER_TIMESTAMP,
                 'risk_tolerance': 5, # Default
                 'trading_frequency': 'Once A Week', # Default
-                'portfolio_types': ['Stocks'] # Default
+                'portfolio_types': ['Stocks'], # Default
+                'settings': {'show_leaderboard': True} # Default Opt-in
             }
             doc_ref.set(data)
             return True
@@ -263,7 +295,7 @@ def check_username_taken(username):
     try:
         db = get_db()
         # Query users collection where username == username
-        docs = db.collection('users').where('username', '==', username).stream()
+        docs = db.collection('users').where(field_path='username', op_string='==', value=username).stream()
         for _ in docs:
             return True # Found a match
         return False
@@ -881,3 +913,383 @@ def save_cached_sentiment(ticker, sentiment_data):
     except Exception as e:
         print(f"Error saving sentiment to DB: {e}")
         return False
+
+# --- POINTS & REFERRALS SYSTEM ---
+
+def load_points_rules():
+    """Loads points rules from CSV."""
+    rules = {}
+    if os.path.exists(POINTS_RULES_CSV):
+        try:
+            with open(POINTS_RULES_CSV, 'r') as f:
+                reader = csv.DictReader(f)
+                for row in reader:
+                    try:
+                        rules[row['action']] = int(row['points'])
+                    except: pass
+        except Exception as e:
+            print(f"Error loading points rules: {e}")
+    return rules
+
+def add_points(email, action):
+    """Adds points to a user's profile based on the action and tier rules."""
+    try:
+        rules = load_points_rules()
+        points_to_add = rules.get(action, 0)
+        
+        if points_to_add == 0:
+            return False
+            
+        db = get_db()
+        user_ref = db.collection('users').document(email)
+        
+        @firestore.transactional
+        def update_points_txn(transaction, ref):
+            snapshot = transaction.get(ref)
+            if not snapshot.exists: return False
+            
+            user_data = snapshot.to_dict()
+            tier = user_data.get('tier', 'Basic')
+            
+            # Singularity Logic: Instant
+            if tier == 'Singularity':
+                current_points = user_data.get('points', 0)
+                transaction.update(ref, {'points': current_points + points_to_add})
+                return True
+            
+            # Basic/Pro/Enterprise Logic: Pending 24h
+            else:
+                release_time = datetime.utcnow().timestamp() + (24 * 3600)
+                pending_txn = {
+                    "amount": points_to_add,
+                    "action": action,
+                    "release_at": release_time,
+                    "created_at": datetime.utcnow().isoformat()
+                }
+                # We can store pending_points as a subcollection or array. 
+                # Array is easier for read-heavy frontend, but limit is 1MB. 
+                # Pending points are transient, so array 'pending_points_log' is likely fine.
+                # However, for robustness, update 'pending_points_total' field for easy display?
+                # No, calculate total on client or read time? 
+                
+                # Let's use array for simplicity of cloud function/scheduler processing
+                current_pending = user_data.get('pending_transactions', [])
+                current_pending.append(pending_txn)
+                
+                transaction.update(ref, {
+                    'pending_transactions': current_pending
+                })
+                return True
+            
+        transaction = db.transaction()
+        return update_points_txn(transaction, user_ref)
+    except Exception as e:
+        print(f"Error adding points for {email}: {e}")
+        return False
+
+def get_user_points(email):
+    """Returns user's points and rank."""
+    try:
+        db = get_db()
+        doc = db.collection('users').document(email).get()
+        if doc.exists:
+            data = doc.to_dict()
+            pending = data.get('pending_transactions', [])
+            pending_total = sum(t.get('amount', 0) for t in pending)
+            points = data.get('points', 0)
+            
+            # Simple Rank Calculation (No heavy aggregation for single user fetch unless needed)
+            # For header display, rank is often less critical or can be lazily loaded.
+            # But let's keep it 0 for speed or implement cached rank later.
+            rank = 0 
+            
+            return {
+                "points": points, 
+                "tier": data.get('tier', 'Basic'),
+                "pending_points": pending_total,
+                "rank": rank
+            }
+        return {"points": 0, "tier": "Basic", "pending_points": 0, "rank": 0}
+    except Exception as e:
+        print(f"Error getting points for {email}: {e}")
+        return {"points": 0, "tier": "Basic", "pending_points": 0, "rank": 0}
+
+def get_leaderboard(limit=50):
+    """Returns top users who opted in to show points. Caches for 5 minutes."""
+    global _leaderboard_cache
+    try:
+        # Check Cache
+        if time.time() - _leaderboard_cache['timestamp'] < 300:
+            if _leaderboard_cache['data']:
+                return _leaderboard_cache['data']
+
+        db = get_db()
+        # Use keyword args to avoid warning
+        docs = db.collection('users')\
+                 .where(field_path='settings.show_leaderboard', op_string='==', value=True)\
+                 .order_by('points', direction=firestore.Query.DESCENDING)\
+                 .limit(limit).stream()
+        
+        leaderboard = []
+        for doc in docs:
+            d = doc.to_dict()
+            username = d.get('username')
+            if not username:
+                email = d.get('email', '')
+                username = email.split('@')[0] if '@' in email else 'Anonymous'
+
+            leaderboard.append({
+                "username": username,
+                "points": d.get('points', 0),
+                "tier": d.get('tier', 'Basic')
+            })
+            
+        # Update Cache
+        _leaderboard_cache['data'] = leaderboard
+        _leaderboard_cache['timestamp'] = time.time()
+        
+        return leaderboard
+    except Exception as e:
+        print(f"Leaderboard Error: {e}")
+        return []
+
+def generate_referral_code(email):
+    """Generates a unique referral code for the user."""
+    try:
+        db = get_db()
+        user_ref = db.collection('users').document(email)
+        user_doc = user_ref.get()
+        
+        if user_doc.exists and user_doc.get('referral_code'):
+            return user_doc.get('referral_code')
+            
+        # Generate new code
+        code = ''.join(random.choices(string.ascii_uppercase + string.digits, k=8))
+        
+        # Ensure Uniqueness (simple check)
+        existing = db.collection('users').where(field_path='referral_code', op_string='==', value=code).get()
+        if len(existing) > 0:
+            return generate_referral_code(email) # Retry
+            
+        user_ref.set({'referral_code': code}, merge=True)
+        return code
+    except Exception as e:
+        print(f"Error generating referral code: {e}")
+        return None
+
+def process_referral_signup(new_user_email, referral_code):
+    """Links new user to referrer."""
+    try:
+        db = get_db()
+        # Find referrer
+        referrer_docs = db.collection('users').where(field_path='referral_code', op_string='==', value=referral_code).limit(1).get()
+        if not referrer_docs: return False
+        
+        referrer_email = referrer_docs[0].id
+        if referrer_email == new_user_email: return False # Cannot refer self
+        
+        # Link
+        db.collection('users').document(new_user_email).set({'referred_by': referrer_email}, merge=True)
+        return True
+    except Exception as e:
+        print(f"Referral Signup Error: {e}")
+        return False
+
+def check_referral_reward(user_email, new_tier):
+    """
+    Called when a user upgrades tier. Checks if their referrer deserves a reward.
+    """
+    try:
+        if new_tier == "Basic": return # Only paid plans trigger rewards
+        
+        db = get_db()
+        user_ref = db.collection('users').document(user_email)
+        user_doc = user_ref.get()
+        
+        if not user_doc.exists: return
+        data = user_doc.to_dict()
+        
+        referrer_email = data.get('referred_by')
+        if not referrer_email: return
+        
+        # Check if already rewarded for this user? 
+        # For now, allow one reward per referred user
+        if data.get('referral_reward_processed'): return
+        
+        # Grant Reward to Referrer
+        trigger_reward(referrer_email)
+        
+        # Mark processed
+        user_ref.set({'referral_reward_processed': True}, merge=True)
+        
+    except Exception as e:
+        print(f"Check Referral Reward Error: {e}")
+
+def trigger_reward(referrer_email):
+    """
+    Calculates and applies the reward to the referrer.
+    """
+    try:
+        db = get_db()
+        ref_doc_ref = db.collection('users').document(referrer_email)
+        ref_doc = ref_doc_ref.get()
+        if not ref_doc.exists: return
+        
+        ref_data = ref_doc.to_dict()
+        current_tier = ref_data.get('tier', 'Basic')
+        
+        reward_months = 0
+        target_tier = "Pro"
+        
+        if current_tier == "Basic":
+            target_tier = "Pro"
+            reward_months = 3
+        elif current_tier == "Pro":
+            target_tier = "Enterprise"
+            reward_months = 3
+        elif current_tier == "Enterprise":
+            target_tier = "Enterprise"
+            reward_months = 3
+        elif current_tier == "Singularity":
+             # Admin or top tier, maybe points instead?
+             add_points(referrer_email, "enterprise_month") # Fallback to points
+             return
+
+        # Apply Reward (Extending expiry)
+        now = datetime.utcnow()
+        current_expiry = ref_data.get('free_tier_expiry')
+        
+        if current_expiry:
+            expiry_dt = datetime.fromisoformat(current_expiry)
+            if expiry_dt < now: expiry_dt = now
+        else:
+            expiry_dt = now
+            
+        # Add months (approx 30 days)
+        new_expiry = expiry_dt + datetime.timedelta(days=30 * reward_months)
+        
+        ref_doc_ref.set({
+            'tier': target_tier,
+            'free_tier_expiry': new_expiry.isoformat(),
+            'original_tier': ref_data.get('original_tier', current_tier) # Store original to revert
+        }, merge=True)
+        
+        print(f"Granted {reward_months} months of {target_tier} to {referrer_email}")
+        
+    except Exception as e:
+        print(f"Trigger Reward Error: {e}")
+
+# --- MARKET PREDICTIONS SYSTEM ---
+
+def create_prediction(title, stock, end_date, market_condition, wager_logic, author_email):
+    """Creates a new prediction event."""
+    try:
+        db = get_db()
+        prediction_id = str(uuid.uuid4())
+        
+        data = {
+            "id": prediction_id,
+            "title": title,
+            "stock": stock.upper(),
+            "end_date": end_date, # ISO string
+            "market_condition": market_condition, # e.g. "Up > 5%"
+            "wager_type": wager_logic, # "binary_odds"
+            "status": "active",
+            "created_by": author_email,
+            "created_at": datetime.utcnow().isoformat(),
+            "total_pool_yes": 0,
+            "total_pool_no": 0
+        }
+        
+        db.collection('predictions').document(prediction_id).set(data)
+        return True
+    except Exception as e:
+        print(f"Create Prediction Error: {e}")
+        return False
+
+def place_bet(email, prediction_id, choice, amount):
+    """
+    Places a bet on a prediction.
+    choice: 'yes' or 'no'
+    amount: int (points)
+    """
+    try:
+        db = get_db()
+        user_ref = db.collection('users').document(email)
+        pred_ref = db.collection('predictions').document(prediction_id)
+        
+        @firestore.transactional
+        def bet_txn(transaction, u_ref, p_ref):
+            # Fix for generator result
+            u_res = transaction.get(u_ref)
+            p_res = transaction.get(p_ref)
+            
+            # If generator, consume it
+            u_snap = next(u_res) if hasattr(u_res, '__iter__') and not hasattr(u_res, 'exists') else u_res
+            p_snap = next(p_res) if hasattr(p_res, '__iter__') and not hasattr(p_res, 'exists') else p_res
+            
+            if not p_snap.exists: raise Exception("Prediction not found")
+            if not u_snap.exists: raise Exception("User not found")
+            
+            p_data = p_snap.to_dict()
+            if p_data.get('status') != 'active': raise Exception("Prediction closed")
+            
+            # Check Balance
+            points = u_snap.get('points') or 0
+            if points < amount: raise Exception("Insufficient points")
+            
+            # Deduct Points
+            transaction.update(u_ref, {'points': points - amount})
+            
+            # Record Bet
+            bet_id = str(uuid.uuid4())
+            bet_data = {
+                "id": bet_id,
+                "user": email,
+                "prediction_id": prediction_id,
+                "choice": choice,
+                "amount": amount,
+                "timestamp": datetime.utcnow().isoformat(),
+                "status": "pending"
+            }
+            transaction.set(db.collection('bets').document(bet_id), bet_data)
+            
+            # Update Pool
+            pool_key = f"total_pool_{choice}"
+            current_pool = p_data.get(pool_key, 0)
+            transaction.update(p_ref, {pool_key: current_pool + amount})
+            
+            return True
+
+        transaction = db.transaction()
+        val = bet_txn(transaction, user_ref, pred_ref)
+        return {"success": True}
+        
+    except Exception as e:
+        return {"success": False, "message": str(e)}
+
+def get_active_predictions():
+    try:
+        db = get_db()
+        docs = db.collection('predictions').where(field_path='status', op_string='==', value='active').stream()
+        return [d.to_dict() for d in docs]
+    except: return []
+
+def get_user_bets(email):
+    try:
+        db = get_db()
+        docs = db.collection('bets').where(field_path='user', op_string='==', value=email)\
+                 .order_by('timestamp', direction=firestore.Query.DESCENDING).stream()
+        return [d.to_dict() for d in docs]
+    except: return []
+
+def delete_prediction(pred_id):
+    """Deletes prediction and refunds bets (if active)."""
+    try:
+        db = get_db()
+        # Look for bets to refund could be complex, for now just delete prediction doc if no bets or implement refund later
+        # Simple delete for Admin
+        db.collection('predictions').document(pred_id).delete()
+        return True
+    except: return False
+

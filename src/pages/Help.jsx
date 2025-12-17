@@ -1,7 +1,7 @@
 import React, { useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Bot, Search, Scale, Siren, HelpCircle, Terminal, Layers, Zap, Sprout, Activity, PieChart, BarChart2, TrendingUp, History, Globe, Briefcase, Settings, Database, AlertTriangle, Network, Maximize2, Cpu } from 'lucide-react';
+import { Bot, Search, Scale, Siren, HelpCircle, Terminal, Layers, Zap, Sprout, Activity, PieChart, BarChart2, TrendingUp, History, Globe, Briefcase, Settings, Database, AlertTriangle, Network, Maximize2, Cpu, Box } from 'lucide-react';
 
 const Help = () => {
     const { hash } = useLocation();
@@ -285,6 +285,37 @@ const Help = () => {
                         { name: "Execution Options", desc: "Send trades to Email, execute on Robinhood, or overwrite last save." }
                     ],
                     usage: "1. Define Components: Identify portfolio codes created in Portfolio Lab (e.g., 'TECH_GROWTH') or standard commands.\n2. Assign Weights: Determine what percentage of your total capital goes to each strategy.\n3. Execute: The Nexus recursively calculates share counts for every underlying ticker, aggregating duplicates.\n4. Rebalance: Run periodically to ensure your master allocation remains true to targets."
+                }
+            ]
+        },
+
+        {
+            id: 'market-predictions',
+            title: 'Market Predictions',
+            icon: DollarSign,
+            color: 'text-gold',
+            description: 'Wager your Singularity Points on real-world market events. Test your forecasting skills against the community and climb the leaderboard by predicting earnings beats, price targets, and economic data releases.',
+            subProducts: [
+                {
+                    id: 'predictions-active',
+                    title: "Active Events",
+                    icon: Activity,
+                    desc: "View and filter currently open prediction contracts.",
+                    inputs: [
+                        { name: "Wager Amount", desc: "Points to bet (Min 10)." },
+                        { name: "Side", desc: "Yes/Over or No/Under." }
+                    ],
+                    usage: "Find an event where you have a strong conviction (e.g., 'NVDA > $150'). Place a wager to potentiall win more points based on the pool odds."
+                },
+                {
+                    id: 'predictions-leaderboard',
+                    title: "Betting History",
+                    icon: History,
+                    desc: "Track your past performance and unsettled bets.",
+                    inputs: [
+                        { name: "N/A", desc: "Automatic tracking." }
+                    ],
+                    usage: "Review your win/loss ratio and claim winnings from settled events."
                 }
             ]
         },

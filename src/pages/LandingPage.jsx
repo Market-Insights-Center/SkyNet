@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, Suspense } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Link } from 'react-router-dom';
-import { ArrowRight, Check, ChevronDown, ChevronUp, Shield, Zap, Globe, BarChart2, Users, Lightbulb, HelpCircle, X, Cpu, Eye, EyeOff, Activity, Loader2 } from 'lucide-react';
+import { ArrowRight, Check, ChevronDown, ChevronUp, Shield, Zap, Globe, BarChart2, Users, Lightbulb, HelpCircle, X, Cpu, Eye, EyeOff, Activity, Loader2, Trophy } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import TiltCard from '../components/TiltCard';
 import TypewriterText from '../components/TypewriterText';
@@ -579,18 +579,73 @@ const CountdownTimer = ({ targetDate }) => {
     );
 };
 
+const LeaderboardDisplay = ({ currentUser, leaders }) => {
+    if (!leaders || leaders.length === 0) return <div className="text-center py-12 text-gray-500 italic">Leaderboard populating...</div>;
+
+    return (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {leaders.slice(0, 9).map((user, idx) => {
+                // Approximate match - backend returns username. currentUser has displayName.
+                // For exact match, API should return 'is_me' derived from session or we fetch profile.
+                // We'll trust displayName for now.
+                const isMe = currentUser && (user.username === currentUser.displayName || user.username === currentUser.email?.split('@')[0]);
+
+                return (
+                    <motion.div
+                        key={idx}
+                        initial={{ opacity: 0, y: 20 }}
+                        whileInView={{ opacity: 1, y: 0 }}
+                        transition={{ delay: idx * 0.1 }}
+                        className={`relative p-6 bg-white/5 border rounded-xl overflow-hidden group transition-all ${isMe
+                            ? 'border-gold ring-1 ring-gold/50 shadow-[0_0_30px_rgba(255,215,0,0.15)] bg-gold/5'
+                            : 'border-white/10 hover:border-gold/30'
+                            }`}
+                    >
+                        <div className="absolute top-4 right-4 text-4xl font-black text-white/5 opacity-20 pointer-events-none group-hover:text-gold/10 group-hover:scale-110 transition-all">
+                            #{idx + 1}
+                        </div>
+                        <div className="flex items-center gap-4 mb-4">
+                            <div className={`w-12 h-12 rounded-xl flex items-center justify-center font-bold text-xl border shadow-lg ${idx === 0 ? 'bg-gradient-to-br from-yellow-400/20 to-yellow-600/20 text-yellow-400 border-yellow-500/50' :
+                                idx === 1 ? 'bg-gradient-to-br from-gray-300/20 to-gray-500/20 text-gray-300 border-gray-400/50' :
+                                    idx === 2 ? 'bg-gradient-to-br from-amber-700/20 to-amber-900/20 text-amber-600 border-amber-700/50' :
+                                        'bg-gradient-to-br from-purple-900/20 to-purple-800/20 text-purple-400 border-purple-500/20'
+                                }`}>
+                                {idx < 3 ? <Trophy size={20} className={idx === 0 ? 'fill-yellow-400 drop-shadow-glow' : ''} /> : idx + 1}
+                            </div>
+                            <div>
+                                <div className="flex items-center gap-2">
+                                    <div className={`font-bold text-lg truncate max-w-[150px] ${isMe ? 'text-gold' : 'text-white'}`}>
+                                        {user.username || "Anonymous"}
+                                    </div>
+                                    {isMe && <span className="text-[10px] bg-gold text-black px-1.5 py-0.5 rounded font-bold">YOU</span>}
+                                </div>
+                                <div className="text-xs text-gray-400 font-mono">{user.tier} Agent</div>
+                            </div>
+                        </div>
+                        <div className="flex justify-between items-end border-t border-white/5 pt-4">
+                            <div className="text-xs uppercase tracking-widest text-gray-500">Singularity Score</div>
+                            <div className="text-2xl font-bold text-gold font-mono">{user.points?.toLocaleString()}</div>
+                        </div>
+                    </motion.div>
+                );
+            })}
+        </div>
+    );
+};
+
 const LandingPage = () => {
     const { currentUser } = useAuth();
     const [banners, setBanners] = useState([]);
     const [recentIdeas, setRecentIdeas] = useState([]);
     const [recentArticles, setRecentArticles] = useState([]);
+    const [leaderboard, setLeaderboard] = useState([]); // New State
     const [showCommunityStream, setShowCommunityStream] = useState(false);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
         const fetchBanners = async () => {
             try {
-                const bannerRes = await fetch('http://localhost:8000/banners');
+                const bannerRes = await fetch('/api/banners'); // Correct endpoint
                 if (bannerRes.ok) {
                     const data = await bannerRes.json();
                     setBanners(data.filter(b => b.active));
@@ -603,9 +658,10 @@ const LandingPage = () => {
         const fetchContent = async () => {
             try {
                 // Run these in parallel as well
-                const [ideaRes, newsRes] = await Promise.all([
-                    fetch('http://localhost:8000/ideas'),
-                    fetch('http://localhost:8000/news')
+                const [ideaRes, newsRes, lbRes] = await Promise.all([
+                    fetch('/api/ideas'),
+                    fetch('/api/articles'),
+                    fetch('/api/points/leaderboard')
                 ]);
 
                 if (ideaRes.ok) {
@@ -616,6 +672,13 @@ const LandingPage = () => {
                 if (newsRes.ok) {
                     const data = await newsRes.json();
                     setRecentArticles(data.slice(0, 3));
+                }
+
+                if (lbRes.ok) {
+                    const data = await lbRes.json();
+                    if (Array.isArray(data)) {
+                        setLeaderboard(data.slice(0, 10));
+                    }
                 }
             } catch (error) {
                 console.error("Error fetching content:", error);
@@ -795,8 +858,10 @@ const LandingPage = () => {
                 </section>
             </ErrorBoundary >
 
+
+
             {/* Wealth Calculator */}
-            < ErrorBoundary >
+            <ErrorBoundary>
                 <WealthCalculator />
             </ErrorBoundary >
 
@@ -978,6 +1043,29 @@ const LandingPage = () => {
                     </div>
                 </section>
             </ErrorBoundary >
+
+            {/* LEADERBOARD SECTION */}
+            <ErrorBoundary>
+                <section className="py-24 px-4 bg-gradient-to-b from-black to-deep-black relative overflow-hidden">
+                    {/* Background Elements */}
+                    <div className="absolute top-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-purple-500/50 to-transparent" />
+                    <div className="absolute inset-0 bg-[url('/grid.svg')] opacity-5 pointer-events-none" />
+
+                    <div className="max-w-7xl mx-auto relative z-10">
+                        <div className="text-center mb-16">
+                            <h2 className="text-4xl md:text-5xl font-bold mb-6 flex items-center justify-center gap-4">
+                                <Trophy className="text-gold stroke-[3]" size={48} />
+                                <span className="text-gold drop-shadow-[0_0_15px_rgba(255,215,0,0.3)] tracking-wide">
+                                    ELITE TRADERS
+                                </span>
+                            </h2>
+                            <p className="text-xl text-gray-400 font-mono tracking-wider">Top performers in the Singularity ecosystem.</p>
+                        </div>
+
+                        <LeaderboardDisplay currentUser={currentUser} leaders={leaderboard} />
+                    </div>
+                </section>
+            </ErrorBoundary>
 
             {/* Pricing Section */}
             < ErrorBoundary >

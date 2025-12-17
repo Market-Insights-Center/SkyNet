@@ -12,9 +12,14 @@ import requests
 from datetime import datetime
 import uuid
 import uuid
+from contextlib import asynccontextmanager
 import yfinance as yf
+
 # Database Manager Imports
-from integration.database_manager import read_nexus_codes, read_portfolio_codes, save_nexus_code, save_portfolio_code, delete_code
+try:
+    from integration.database_manager import read_nexus_codes, read_portfolio_codes, save_nexus_code, save_portfolio_code, delete_code
+except ImportError:
+    from backend.integration.database_manager import read_nexus_codes, read_portfolio_codes, save_nexus_code, save_portfolio_code, delete_code
 
 # Fix for WinError 183 in TzCache
 try:
@@ -101,7 +106,10 @@ try:
         get_user_profile, create_coupon, get_all_coupons, validate_coupon,   
         delete_coupon, verify_access_and_limits, delete_user_full, delete_article,
         delete_idea, delete_comment, create_user_profile, check_username_taken,
-        update_user_username, get_banners, create_banner, update_banner, delete_banner
+        update_user_username, get_banners, create_banner, update_banner, delete_banner,
+        generate_referral_code, process_referral_signup, get_user_points, get_leaderboard, 
+        create_prediction, place_bet, get_active_predictions, get_user_bets, delete_prediction, 
+        add_points, check_referral_reward
     )
 except ImportError:
     from database import (
@@ -111,7 +119,10 @@ except ImportError:
         get_user_profile, create_coupon, get_all_coupons, validate_coupon,   
         delete_coupon, verify_access_and_limits, delete_user_full, delete_article,
         delete_idea, delete_comment, create_user_profile, check_username_taken,
-        update_user_username, get_banners, create_banner, update_banner, delete_banner
+        update_user_username, get_banners, create_banner, update_banner, delete_banner,
+        generate_referral_code, process_referral_signup, get_user_points, get_leaderboard, 
+        create_prediction, place_bet, get_active_predictions, get_user_bets, delete_prediction, 
+        add_points, check_referral_reward
     )
 
 logging.basicConfig(level=logging.INFO)
@@ -119,7 +130,40 @@ logger = logging.getLogger("uvicorn")
 
 from fastapi.responses import JSONResponse, StreamingResponse
 
-app = FastAPI()
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup logic
+    
+    # 1. Start Risk/Performance Scheduler (Global)
+    try:
+        start_scheduler() # The one defined in this file
+    except Exception as e:
+        print(f"Failed to start Main Scheduler: {e}")
+
+    # 2. Start Points Scheduler (External)
+    try:
+        from backend.points_scheduler import start_scheduler as start_points_scheduler
+        start_points_scheduler()
+    except ImportError:
+        try:
+             from points_scheduler import start_scheduler as start_points_scheduler
+             start_points_scheduler()
+        except Exception as e:
+             print(f"Failed to start Points Scheduler: {e}")
+             
+    # 3. Initialize Firebase
+    try:
+        from backend.firebase_admin_setup import initialize_firebase
+        initialize_firebase()
+    except: pass
+    
+    yield
+    # Shutdown logic
+    if SCHEDULER:
+        SCHEDULER.shutdown()
+
+app = FastAPI(lifespan=lifespan)
+
 
 # 1. Global JSON Exception Handler (Fix for "Unexpected token <")
 @app.exception_handler(Exception)
@@ -187,7 +231,9 @@ def start_scheduler():
         print("Scheduler started.")
 
 # Start scheduler on startup
-start_scheduler()
+# Start scheduler on startup - MOVED TO LIFESPAN
+# start_scheduler()
+
 
 # --- PYDANTIC MODELS ---
 class ChatCreateRequest(BaseModel):
@@ -393,6 +439,27 @@ class SentinelRequest(BaseModel):
     user_prompt: str
     email: str
     plan: Optional[List[Dict[str, Any]]] = None
+
+class PredictionCreateRequest(BaseModel):
+    title: str
+    stock: str
+    end_date: str
+    market_condition: str
+    wager_logic: str
+    email: str 
+
+class BetRequest(BaseModel):
+    email: str
+    prediction_id: str
+    choice: str 
+    amount: int
+
+class ReferralRedeemRequest(BaseModel):
+    email: str
+    code: str
+    
+class PointsRequest(BaseModel):
+    email: str
 
 # --- HELPER FUNCTIONS ---
 def get_mod_list():
@@ -795,6 +862,58 @@ def api_check_username(req: UsernameCheckRequest):
 def api_update_username(req: UsernameUpdateRequest):
     result = update_user_username(req.email, req.username)
 
+# --- POINTS & REFERRALS ENDPOINTS ---
+@app.post("/api/points/user")
+def api_get_user_points_endpoint(req: PointsRequest):
+    return get_user_points(req.email)
+
+@app.get("/api/points/leaderboard")
+def api_get_leaderboard_endpoint():
+    return get_leaderboard()
+
+@app.post("/api/referrals/generate")
+def api_gen_referral(req: PointsRequest): 
+    code = generate_referral_code(req.email)
+    return {"code": code}
+
+@app.post("/api/referrals/redeem")
+def api_redeem_referral(req: ReferralRedeemRequest):
+    success = process_referral_signup(req.email, req.code)
+    return {"success": success}
+
+# --- PREDICTIONS ENDPOINTS ---
+@app.post("/api/predictions/create")
+def api_create_prediction(req: PredictionCreateRequest):
+    mods = get_mod_list()
+    # Basic check, detailed check in function or ensure UI restricts
+    if req.email.lower() not in mods: raise HTTPException(status_code=403, detail="Admins only")
+    
+    success = create_prediction(req.title, req.stock, req.end_date, req.market_condition, req.wager_logic, req.email)
+    return {"success": success}
+
+@app.get("/api/predictions/active")
+def api_get_predictions_endpoint():
+    return get_active_predictions()
+
+@app.post("/api/predictions/bet")
+def api_place_bet_endpoint(req: BetRequest):
+    return place_bet(req.email, req.prediction_id, req.choice, req.amount)
+
+@app.get("/api/user/bets")
+def api_get_user_bets_endpoint(email: str):
+    return get_user_bets(email)
+
+class PredictionDeleteRequest(BaseModel):
+    id: str
+    requester_email: str
+
+@app.post("/api/predictions/delete")
+def api_delete_prediction(req: PredictionDeleteRequest):
+    mods = get_mod_list()
+    if req.requester_email.lower() not in mods: raise HTTPException(status_code=403, detail="Admins only")
+    success = delete_prediction(req.id)
+    return {"success": success}
+
 # --- STRATEGY RANKING IMPORT ---
 try:
     from backend.integration import strategy_ranking
@@ -1142,6 +1261,7 @@ async def api_assess_command(req: AssessRequest):
             is_called_by_ai=True,
             user_id=req.user_id
         )
+        add_points(req.email, "assess")
         return {"result": result}
         
     except Exception as e:
@@ -1157,9 +1277,11 @@ async def api_mlforecast_command(req: MLForecastRequest):
     try:
         results = await mlforecast_command.handle_mlforecast_command(ai_params={"ticker": req.ticker}, is_called_by_ai=True)
         
+        
         if isinstance(results, dict) and "error" in results:
              raise Exception(results["error"])
         
+        add_points(req.email, "mlforecast")
         return {"results": results}
     except Exception as e:
         logger.error(f"MLForecast Error: {e}")
@@ -1174,6 +1296,7 @@ async def api_briefing(req: BriefingRequest):
         
     try:
         data = await briefing_command.handle_briefing_command([], is_called_by_ai=True)
+        add_points(req.email, "briefing")
         return data
     except Exception as e:
         logger.error(f"Briefing Error: {e}")
@@ -1190,6 +1313,7 @@ async def api_fundamentals(req: FundamentalsRequest):
         data = await fundamentals_command.handle_fundamentals_command([], ai_params={"ticker": req.ticker}, is_called_by_ai=True)
         if data and "error" in data:
              raise HTTPException(status_code=404, detail=data["error"])
+        add_points(req.email, "fundamentals")
         return data
     except HTTPException: raise
     except Exception as e:
@@ -1256,11 +1380,14 @@ def get_stats():
     }
 
 # --- COMMAND ENDPOINTS ---
+
 @app.post("/api/invest")
 async def api_invest(request: Request):
     try:
         data = await request.json()
         result = await invest_command.handle_invest_command([], ai_params=data, is_called_by_ai=True)
+        email = data.get('email')
+        if email: add_points(email, "invest")
         return result
     except Exception as e:
         logger.error(f"Error in /api/invest: {e}")
@@ -1271,6 +1398,8 @@ async def api_cultivate(request: Request):
     try:
         data = await request.json()
         result = await cultivate_command.handle_cultivate_command([], ai_params=data, is_called_by_ai=True)
+        email = data.get('email')
+        if email: add_points(email, "cultivate")
         return result
     except Exception as e:
         logger.error(f"Error in /api/cultivate: {e}")
@@ -1291,6 +1420,8 @@ async def api_tracking(request: Request):
     try:
         data = await request.json()
         result = await tracking_command.handle_tracking_command([], ai_params=data, is_called_by_ai=True)
+        email = data.get('email')
+        if email: add_points(email, "tracking")
         return result
     except Exception as e:
         logger.error(f"Error in /api/tracking: {e}")
@@ -1324,6 +1455,7 @@ async def run_quickscore(req: QuickscoreRequest):
     
     # Run command
     result = await quickscore_command.handle_quickscore_command([], ai_params={"ticker": req.ticker}, is_called_by_ai=True)
+    add_points(req.email, "quickscore")
     return result
 
 @app.post("/api/market")
@@ -1337,6 +1469,8 @@ async def run_market(req: MarketRequest):
         ai_params={"action": "display", "market_type": req.market_type, "sensitivity": req.sensitivity},
         is_called_by_ai=True
     )
+    # Market Junction is free/informational, but maybe points for checking? 
+    # add_points(req.email, "market") # Optional
     return result
 
 @app.post("/api/breakout")
@@ -1350,6 +1484,7 @@ async def run_breakout(req: BreakoutRequest):
         ai_params={"action": "run"},
         is_called_by_ai=True
     )
+    add_points(req.email, "breakout")
     return result
 
 @app.post("/api/sentiment")
@@ -1368,12 +1503,15 @@ async def run_sentiment(req: SentimentRequest):
         ai_params={"ticker": req.ticker},
         is_called_by_ai=True
     )
-    
+
     if not result:
         raise HTTPException(status_code=500, detail="Sentiment analysis failed to produce a result.")
     
     if result.get("status") == "error":
         raise HTTPException(status_code=400, detail=result.get("message"))
+
+    if req.email != 'guest':
+        add_points(req.email, "sentiment")
 
     return result
 
@@ -1397,6 +1535,9 @@ async def run_powerscore(req: PowerScoreRequest):
     if result.get("status") == "error":
          raise HTTPException(status_code=400, detail=result.get("message"))
          
+    if req.email != 'guest':
+        add_points(req.email, "quickscore") # Using quickscore points for powerscore as it's similar analysis
+
     return result
 
 @app.post("/api/summary")

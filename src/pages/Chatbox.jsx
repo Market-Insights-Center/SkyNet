@@ -24,7 +24,15 @@ const Chatbox = () => {
 
     const messagesEndRef = useRef(null);
 
-    // Fetch initial data
+    // Group conversations by type
+    const groupedConversations = React.useMemo(() => ({
+        'Custom Portfolio': conversations.filter(c => c.type === 'custom_portfolio'),
+        'Support': conversations.filter(c => c.type === 'admin_support'),
+        'Recommendations': conversations.filter(c => c.type === 'submission_recommendation'),
+        'Direct Messages': conversations.filter(c => c.type !== 'custom_portfolio' && c.type !== 'admin_support' && c.type !== 'submission_recommendation')
+    }), [conversations]);
+
+    // Increase polling interval
     useEffect(() => {
         if (!currentUser) return;
 
@@ -35,29 +43,26 @@ const Chatbox = () => {
             })
             .catch(err => console.log("Mod check skipped"));
 
-        // Fetch users immediately to build username map
         fetchUsers();
         fetchConversations();
 
-        const interval = setInterval(fetchConversations, 2000);
+        // POLL INTERVAL OPTIMIZED: 5000ms instead of 2000ms
+        const interval = setInterval(fetchConversations, 5000);
         return () => clearInterval(interval);
     }, [currentUser, adminViewAll]);
 
-    // Poll for messages ONLY if a chat is selected
+    // Poll for messages
     useEffect(() => {
         if (!selectedChat) return;
-
-        // Clear messages immediately when switching chats to prevent ghosting
         setMessages([]);
-
-        // Mark as read immediately when opening
         markChatRead(selectedChat.id);
-
         fetchChatMessages(selectedChat.id);
+
+        // POLL INTERVAL OPTIMIZED: 3000ms instead of 2000ms for messages
         const interval = setInterval(() => {
             fetchChatMessages(selectedChat.id);
-            markChatRead(selectedChat.id); // Keep marking read while open
-        }, 2000);
+            markChatRead(selectedChat.id);
+        }, 3000);
         return () => clearInterval(interval);
     }, [selectedChat]);
 
@@ -360,13 +365,7 @@ If everything looks correct, please reply with "Confirm" to proceed with the cus
         return `${names[0]} +${names.length - 1} others`;
     };
 
-    // Group conversations by type
-    const groupedConversations = {
-        'Custom Portfolio': conversations.filter(c => c.type === 'custom_portfolio'),
-        'Support': conversations.filter(c => c.type === 'admin_support'),
-        'Recommendations': conversations.filter(c => c.type === 'submission_recommendation'),
-        'Direct Messages': conversations.filter(c => c.type !== 'custom_portfolio' && c.type !== 'admin_support' && c.type !== 'submission_recommendation')
-    };
+
 
     return (
         <div className="fixed inset-0 pt-24 bg-deep-black flex overflow-hidden">

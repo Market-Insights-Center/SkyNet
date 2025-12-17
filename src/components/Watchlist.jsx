@@ -109,14 +109,14 @@ const SortableRow = ({ ticker, columns, onDelete, data, onSelect }) => {
     const tickerId = typeof ticker === 'string' ? ticker : (ticker?.symbol || 'UNKNOWN');
     const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: tickerId });
     const style = { transform: CSS.Transform.toString(transform), transition, zIndex: isDragging ? 10 : 1, opacity: isDragging ? 0.5 : 1 };
-    
+
     const rowData = data[tickerId] || {};
     const change = rowData.change !== undefined ? rowData.change : 0;
     const isPositive = parseFloat(change) >= 0;
     const name = rowData.companyName || TICKER_NAMES[tickerId] || '';
 
     return (
-        <div ref={setNodeRef} style={{ ...style, gridTemplateColumns: `40px 140px ${columns.map(() => '1fr').join(' ')} 40px` }} className="grid items-center gap-4 p-4 bg-white/5 border-b border-white/5 hover:bg-white/10 transition-colors group">
+        <div ref={setNodeRef} style={{ ...style, gridTemplateColumns: `40px 140px ${columns.map(() => '1fr').join(' ')} 60px` }} className="grid items-center gap-4 p-4 bg-white/5 border-b border-white/5 hover:bg-white/10 transition-colors group">
             <div {...attributes} {...listeners} className="cursor-grab text-gray-600 hover:text-gold"><GripVertical size={18} /></div>
             <div className="flex flex-col justify-center min-w-0">
                 <button onClick={(e) => { e.stopPropagation(); onSelect(tickerId); }} className="font-bold text-white hover:text-blue-400 hover:underline text-left text-lg leading-tight truncate">{tickerId}</button>
@@ -124,22 +124,22 @@ const SortableRow = ({ ticker, columns, onDelete, data, onSelect }) => {
             </div>
             {columns.map((col) => {
                 if (col.id === 'trend') return <div key={col.id} className="flex items-center justify-start h-full"><Sparkline data={rowData.sparkline} isPositive={isPositive} /></div>;
-                
+
                 const val = rowData[col.id];
                 let displayVal = val !== undefined ? val : '-';
                 let colorClass = 'text-gray-300';
 
-                if (col.id === 'price') { 
-                    const numVal = parseFloat(val); 
-                    if (!isNaN(numVal)) displayVal = `$${numVal.toFixed(2)}`; 
-                    colorClass = isPositive ? 'text-green-400' : 'text-red-400'; 
+                if (col.id === 'price') {
+                    const numVal = parseFloat(val);
+                    if (!isNaN(numVal)) displayVal = `$${numVal.toFixed(2)}`;
+                    colorClass = isPositive ? 'text-green-400' : 'text-red-400';
                 }
-                else if (['change', 'change1W', 'change1M', 'change1Y'].includes(col.id)) { 
-                    const numVal = parseFloat(val); 
-                    if (!isNaN(numVal)) { 
-                        displayVal = `${numVal > 0 ? '+' : ''}${numVal.toFixed(2)}%`; 
-                        colorClass = numVal > 0 ? 'text-green-400' : (numVal < 0 ? 'text-red-400' : 'text-gray-300'); 
-                    } 
+                else if (['change', 'change1W', 'change1M', 'change1Y'].includes(col.id)) {
+                    const numVal = parseFloat(val);
+                    if (!isNaN(numVal)) {
+                        displayVal = `${numVal > 0 ? '+' : ''}${numVal.toFixed(2)}%`;
+                        colorClass = numVal > 0 ? 'text-green-400' : (numVal < 0 ? 'text-red-400' : 'text-gray-300');
+                    }
                 }
                 else if (col.id === 'marketCap' || col.id === 'volume') {
                     displayVal = formatNumber(val);
@@ -158,7 +158,7 @@ const SortableRow = ({ ticker, columns, onDelete, data, onSelect }) => {
 const Watchlist = () => {
     const { currentUser } = useAuth();
     const [mounted, setMounted] = useState(false);
-    
+
     const [watchlistName, setWatchlistName] = useState("My Watchlist");
     const [tickers, setTickers] = useState(INITIAL_TICKERS);
     const [visibleColumns, setVisibleColumns] = useState(DEFAULT_COLUMNS);
@@ -179,7 +179,7 @@ const Watchlist = () => {
     const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }), useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }));
 
     useEffect(() => { setMounted(true); }, []);
-    
+
     const cleanColumns = (cols) => {
         if (!cols || !Array.isArray(cols)) return DEFAULT_COLUMNS;
         return cols.filter(c => AVAILABLE_COLUMNS.some(ac => ac.id === c.id));
@@ -195,7 +195,7 @@ const Watchlist = () => {
             try {
                 const docRef = doc(db, "users", currentUser.uid, "watchlists", "default");
                 const snap = await getDoc(docRef);
-                
+
                 if (snap.exists()) {
                     const data = snap.data();
                     if (data.name) setWatchlistName(data.name);
@@ -206,7 +206,7 @@ const Watchlist = () => {
                     if (data.columns && Array.isArray(data.columns)) setVisibleColumns(cleanColumns(data.columns));
                     if (data.sortConfig) setSortConfig(data.sortConfig);
                 }
-            } catch (e) { console.error("Error loading watchlist:", e); } 
+            } catch (e) { console.error("Error loading watchlist:", e); }
             finally { setIsDataLoaded(true); }
         };
         fetchWatchlist();
@@ -222,7 +222,7 @@ const Watchlist = () => {
                 await setDoc(docRef, {
                     name: watchlistName, tickers: tickers, columns: visibleColumns, sortConfig: sortConfig, lastUpdated: new Date()
                 }, { merge: true });
-            } catch (error) { console.error("Error saving watchlist:", error); } 
+            } catch (error) { console.error("Error saving watchlist:", error); }
             finally { setIsSaving(false); }
         };
         const timeoutId = setTimeout(saveData, 1000);
@@ -233,7 +233,7 @@ const Watchlist = () => {
     const fetchMarketData = useCallback(async () => {
         if (tickers.length === 0) return;
         setIsLoadingData(true);
-        
+
         const chunkSize = 3;
         const chunks = [];
         for (let i = 0; i < tickers.length; i += chunkSize) chunks.push(tickers.slice(i, i + chunkSize));
@@ -251,7 +251,7 @@ const Watchlist = () => {
                     if (Array.isArray(data)) {
                         const newMarketData = {};
                         data.forEach(item => { newMarketData[item.ticker] = item; });
-                        
+
                         // Update state immediately for these 3 tickers
                         setMarketData(prev => {
                             const updated = { ...prev };
@@ -330,9 +330,9 @@ const Watchlist = () => {
         setSearchQuery('');
         setIsAddOpen(false);
     };
-    
+
     const removeTicker = (symbol) => setTickers(prev => prev.filter(t => t !== symbol));
-    
+
     const handleDragEnd = (event) => {
         const { active, over } = event;
         if (!over) return;
@@ -342,7 +342,7 @@ const Watchlist = () => {
             if (active.id !== over.id) setTickers((items) => arrayMove(items, items.indexOf(active.id), items.indexOf(over.id)));
         }
     };
-    
+
     const toggleColumn = (col) => {
         if (visibleColumns.find(c => c.id === col.id)) {
             setVisibleColumns(prev => prev.filter(c => c.id !== col.id));
@@ -394,8 +394,8 @@ const Watchlist = () => {
                     </div>
                     <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
                         <div className="overflow-x-auto custom-scrollbar">
-                            <div className="min-w-[1200px]"> {/* Increased width for more columns */}
-                                <div className="grid gap-4 p-4 bg-white/5 border-b border-white/10 text-xs font-bold text-gray-500 uppercase tracking-wider" style={{ gridTemplateColumns: `40px 140px ${visibleColumns.map(() => '1fr').join(' ')} 40px` }}>
+                            <div className="w-full"> {/* Increased width for more columns */}
+                                <div className="grid gap-4 p-4 bg-white/5 border-b border-white/10 text-xs font-bold text-gray-500 uppercase tracking-wider" style={{ gridTemplateColumns: `40px 140px ${visibleColumns.map(() => '1fr').join(' ')} 60px` }}>
                                     <div></div><div>Ticker</div>
                                     <SortableContext items={visibleColumns.map(c => c.id)} strategy={horizontalListSortingStrategy}>{visibleColumns.map(col => (<SortableHeader key={col.id} column={col} isEditing={isEditingColumns} onToggle={toggleColumn} sortConfig={sortConfig} onSort={handleSort} />))}</SortableContext>
                                     <div></div>
