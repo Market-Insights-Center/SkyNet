@@ -13,6 +13,7 @@ from tabulate import tabulate
 
 # --- Imports from other command modules ---
 from backend.integration.invest_command import process_custom_portfolio
+from backend.usage_counter import increment_usage
 
 # --- Constants ---
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -384,6 +385,7 @@ async def get_comparison_for_custom_portfolio(ai_params: Optional[Dict] = None, 
     return {"status": "success", "summary": summary}
 
 async def handle_custom_command(args: List[str], ai_params: Optional[Dict] = None, is_called_by_ai: bool = False):
+    await increment_usage('custom')
     if not is_called_by_ai:
         print("\n--- /custom Command ---")
     

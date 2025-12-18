@@ -80,6 +80,9 @@ const SentinelAI = () => {
 
         if (!planToExecute) setLogs([]); // Only clear logs on fresh run
 
+        // Track Usage
+        import('../services/usageService').then(({ trackUsage }) => trackUsage('ml_forecast'));
+
         try {
             const effectivePrompt = prompt.trim() || "Manual Plan Execution";
             const bodyPayload = { user_prompt: effectivePrompt, email: userProfile?.email };

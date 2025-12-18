@@ -15,6 +15,7 @@ import base64
 import yfinance as yf
 from tabulate import tabulate
 from tradingview_screener import Query, Column
+from backend.usage_counter import increment_usage
 
 # --- Imports from other command modules ---
 from backend.integration.invest_command import calculate_ema_invest
@@ -284,6 +285,7 @@ async def save_breakout_data_singularity(date_str: str, is_called_by_ai: bool = 
    
 async def handle_breakout_command(args: List[str], ai_params: Optional[Dict] = None, is_called_by_ai: bool = False):
     """ Handles breakout stock analysis by running analysis or saving data. """
+    await increment_usage('breakout')
     action_to_perform = "run"; date_str_for_save = None
     if ai_params:
         action_to_perform = ai_params.get("action", "run")

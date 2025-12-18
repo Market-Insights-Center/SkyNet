@@ -18,6 +18,7 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from scipy.stats import percentileofscore
+from backend.usage_counter import increment_usage
 
 # --- Global Constants and Configuration ---
 EST_TIMEZONE = pytz.timezone('US/Eastern')
@@ -424,6 +425,7 @@ async def perform_risk_calculations_singularity(is_eod_save: bool = False, is_ca
 
 # --- Replace the existing handle_risk_command function in risk_command.py ---
 async def handle_risk_command(args: List[str], ai_params: Optional[Dict] = None, is_called_by_ai: bool = False):
+    await increment_usage('risk')
     is_eod = (args and args[0].lower() == 'eod') or \
              (ai_params and ai_params.get("assessment_type") == "eod")
     

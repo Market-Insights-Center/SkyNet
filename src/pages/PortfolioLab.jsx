@@ -104,7 +104,8 @@ const PortfolioLab = () => {
             icon: Trophy,
             path: "/strategy-ranking",
             delay: 0.6
-        }
+        },
+
     ];
 
     return (

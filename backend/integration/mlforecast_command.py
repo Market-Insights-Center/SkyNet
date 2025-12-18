@@ -12,6 +12,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
 from tabulate import tabulate
+from backend.usage_counter import increment_usage
 
 # --- Helper Function 1: Technical Indicators (from Singularity) ---
 def calculate_technical_indicators(data: pd.DataFrame, freq: str = 'D') -> pd.DataFrame:
@@ -155,6 +156,7 @@ async def handle_mlforecast_command(args: List[str] = None, ai_params: dict = No
     Handles the /mlforecast command. It trains models for key time horizons, generates a separate
     raw forecast for every week, and then adjusts the weekly path to align with the key forecasts.
     """
+    await increment_usage('mlforecast')
     ticker = None
     if is_called_by_ai and ai_params:
         ticker = ai_params.get("ticker")

@@ -133,6 +133,12 @@ const AssessTool = () => {
                 throw new Error(data.detail || 'Assessment failed');
             }
 
+            // Track Usage
+            import('../services/usageService').then(({ trackUsage }) => {
+                const metric = assessCode === 'D' ? 'cultivate' : 'assess';
+                trackUsage(metric);
+            });
+
             // Check for functional errors (like portfolio not found handled by backend returning 200 but error dict)
             // Or if backend returns 200 with error field
             let resData = data.result;

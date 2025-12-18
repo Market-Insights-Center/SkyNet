@@ -86,12 +86,16 @@ def verify_access_and_limits(email, product):
         SUPER_ADMIN_EMAIL = "marketinsightscenter@gmail.com"
         if email.lower() == SUPER_ADMIN_EMAIL:
             tier = "Singularity"
+            
+        if tier == "Singularity":
+            return {"allowed": True, "reason": "no_limit", "message": "Singularity Access."}
         else:
             user_ref = db.collection('users').document(email)
             user_doc = user_ref.get()
             tier = 'Basic'
             if user_doc.exists:
-                tier = user_doc.to_dict().get('tier', 'Basic')
+                raw_tier = user_doc.to_dict().get('tier', 'Basic')
+                tier = str(raw_tier).strip() if raw_tier else 'Basic'
             
         # 2. Get Limit for Tier/Product
         all_limits = load_tier_limits()
@@ -170,8 +174,10 @@ def verify_storage_limit(email, product, current_count):
         tier = profile.get('tier', 'Basic') if profile else 'Basic'
         
         # Super Admin Bypass
-        if email.lower() == "marketinsightscenter@gmail.com":
+        if email and email.lower().strip() == "marketinsightscenter@gmail.com":
             tier = "Singularity"
+            
+        if tier and str(tier).strip() == "Singularity": return {"allowed": True}
             
         # 2. Get Limits
         limits = load_tier_limits()
@@ -212,6 +218,117 @@ def get_user_profile(email):
     except Exception as e:
         print(f"Error fetching user profile: {e}")
         return None
+
+# --- SHARED AUTOMATIONS (COMMUNITY) ---
+
+def share_automation(automation_data, username):
+    """
+    Saves an automation to the public 'community_automations' collection.
+    """
+    try:
+        db = get_db()
+        # Create a new document in community_automations
+        # sanitize data
+        shared_doc = {
+            "name": automation_data.get("name", "Untitled"),
+            "description": automation_data.get("description", ""),
+            "nodes": automation_data.get("nodes", []),
+            "edges": automation_data.get("edges", []),
+            "creator": username,
+            "created_at": datetime.utcnow().isoformat(),
+            "copy_count": 0,
+            "original_id": automation_data.get("id")
+        }
+        res = db.collection('community_automations').add(shared_doc)
+        return {"success": True, "id": res[1].id}
+    except Exception as e:
+        print(f"Error sharing automation: {e}")
+        return {"success": False, "message": str(e)}
+
+def get_community_automations(sort_by="recent"):
+    """
+    Fetches shared automations.
+    sort_by: 'recent' or 'popular'
+    """
+    try:
+        db = get_db()
+        ref = db.collection('community_automations')
+        
+        if sort_by == 'popular':
+            docs = ref.order_by('copy_count', direction=firestore.Query.DESCENDING).limit(50).stream()
+        else:
+            docs = ref.order_by('created_at', direction=firestore.Query.DESCENDING).limit(50).stream()
+            
+        results = []
+        for d in docs:
+            data = d.to_dict()
+            data['id'] = d.id
+            results.append(data)
+        return results
+    except Exception as e:
+        print(f"Error fetching community automations: {e}")
+        return []
+
+def increment_copy_count(shared_id):
+    try:
+        db = get_db()
+        ref = db.collection('community_automations').document(shared_id)
+        ref.update({"copy_count": firestore.Increment(1)})
+        return True
+    except: return False
+
+# --- SHARED PORTFOLIOS (COMMUNITY) ---
+
+def share_portfolio(data, username):
+    """
+    Saves a portfolio/nexus code to 'community_portfolios'.
+    """
+    try:
+        db = get_db()
+        code_name = data.get('nexus_code') if data.get('type') == 'nexus' else data.get('portfolio_code')
+        
+        shared_doc = {
+            "type": data.get("type", "portfolio"),
+            "code": code_name, # Display name
+            "data": data, # Full payload
+            "creator": username,
+            "created_at": datetime.utcnow().isoformat(),
+            "copy_count": 0,
+            "original_id": code_name
+        }
+        res = db.collection('community_portfolios').add(shared_doc)
+        return {"success": True, "id": res[1].id}
+    except Exception as e:
+        print(f"Error sharing portfolio: {e}")
+        return {"success": False, "message": str(e)}
+
+def get_community_portfolios(sort_by="recent"):
+    try:
+        db = get_db()
+        ref = db.collection('community_portfolios')
+        
+        if sort_by == 'popular':
+            docs = ref.order_by('copy_count', direction=firestore.Query.DESCENDING).limit(50).stream()
+        else:
+            docs = ref.order_by('created_at', direction=firestore.Query.DESCENDING).limit(50).stream()
+            
+        results = []
+        for d in docs:
+            data = d.to_dict()
+            data['id'] = d.id
+            results.append(data)
+        return results
+    except Exception as e:
+        print(f"Error fetching community portfolios: {e}")
+        return []
+
+def increment_portfolio_copy(shared_id):
+    try:
+        db = get_db()
+        ref = db.collection('community_portfolios').document(shared_id)
+        ref.update({"copy_count": firestore.Increment(1)})
+        return True
+    except: return False
 
 def get_user_points(email):
     try:
@@ -1268,19 +1385,63 @@ def place_bet(email, prediction_id, choice, amount):
     except Exception as e:
         return {"success": False, "message": str(e)}
 
-def get_active_predictions():
+def get_active_predictions(include_recent=False):
     try:
         db = get_db()
-        docs = db.collection('predictions').where(field_path='status', op_string='==', value='active').stream()
-        return [d.to_dict() for d in docs]
+        # If include_recent, we get active OR ended recently.
+        # Firestore OR queries are limited. Best to query all active, and separate query for ended recently.
+        
+        active_docs = db.collection('predictions').where(field_path='status', op_string='==', value='active').stream()
+        results = [d.to_dict() for d in active_docs]
+        
+        if include_recent:
+            # Get ended in last 24h
+            yesterday = (datetime.utcnow() - timedelta(hours=24)).isoformat()
+            ended_docs = db.collection('predictions')\
+                           .where(field_path='status', op_string='==', value='ended')\
+                           .where(field_path='end_date', op_string='>=', value=yesterday)\
+                           .stream() # Index might be needed for composite query
+            
+            # Fallback if index missing: Get all ended and filter in memory (safer for small scale)
+            # Or just return all 'ended' and let frontend filter? Data size risk.
+            # Let's try simple query. If it fails due to index, we catch exception.
+            try:
+                 # Check if we can do this query.
+                 # status == ended AND end_date >= yesterday. Requires composite index.
+                 # Optimization: Just get all recent updates? resolved_at?
+                 pass 
+            except: pass
+            
+            # Simple InMemory Fallback for ended (assuming not millions)
+            # PROD: Ensure Index. 
+            # DEV: Just fetch recent ended or all ended (limit 20)
+            ended_ref = db.collection('predictions').where(field_path='status', op_string='==', value='ended').limit(20).stream()
+            for d in ended_ref:
+                data = d.to_dict()
+                # Check resolved_at or end_date
+                end_iso = data.get('end_date')
+                if end_iso and end_iso >= yesterday:
+                    results.append(data)
+
+        # Deduplicate by ID just in case
+        seen = set()
+        unique_results = []
+        for r in results:
+            if r['id'] not in seen:
+                seen.add(r['id'])
+                unique_results.append(r)
+                
+        return unique_results
     except: return []
 
 def get_user_bets(email):
     try:
         db = get_db()
-        docs = db.collection('bets').where(field_path='user', op_string='==', value=email)\
-                 .order_by('timestamp', direction=firestore.Query.DESCENDING).stream()
-        return [d.to_dict() for d in docs]
+        docs = db.collection('bets').where(field_path='user', op_string='==', value=email).stream()
+        bets = [d.to_dict() for d in docs]
+        # Sort in memory to avoid index requirement
+        bets.sort(key=lambda x: x.get('timestamp', ''), reverse=True)
+        return bets
     except: return []
 
 def delete_prediction(pred_id):

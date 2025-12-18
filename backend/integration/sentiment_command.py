@@ -168,6 +168,7 @@ async def scrape_yahoo_finance_news(ticker: str) -> list[str]:
 
 
 from backend.database import get_cached_sentiment, save_cached_sentiment
+from backend.usage_counter import increment_usage
 
 async def get_ai_sentiment_analysis(
     text_to_analyze: str,
@@ -266,6 +267,9 @@ async def handle_sentiment_command(
         msg = "Usage: /sentiment <TICKER>"
         if not is_called_by_ai: print(msg)
         return {"status": "error", "message": msg} if is_called_by_ai else None
+
+    if not is_called_by_ai:
+        await increment_usage('sentiment')
 
     ticker = ticker.upper().strip()
 

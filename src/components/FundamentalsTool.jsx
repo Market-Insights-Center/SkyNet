@@ -36,6 +36,8 @@ const FundamentalsTool = ({ email }) => {
             }
 
             setData(result);
+            // Track Usage
+            import('../services/usageService').then(({ trackUsage }) => trackUsage('fundamentals'));
         } catch (err) {
             setError(err.message);
         } finally {

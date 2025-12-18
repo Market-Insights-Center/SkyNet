@@ -13,6 +13,7 @@ import yfinance as yf
 import pandas as pd
 from tabulate import tabulate
 import humanize
+from backend.usage_counter import increment_usage
 
 # --- Imports from other command modules ---
 from backend.integration.risk_command import perform_risk_calculations_singularity
@@ -321,6 +322,7 @@ async def get_specific_economic_data() -> dict[str, str]:
     return data
 
 async def handle_briefing_command(args: List[str], ai_params: Optional[Dict] = None, is_called_by_ai: bool = False):
+    await increment_usage('briefing')
     if not is_called_by_ai: print("\n--- Generating Daily Market Briefing ---")
     watchlist_tickers = load_user_preferences().get('favorite_tickers', [])
     

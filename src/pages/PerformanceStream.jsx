@@ -185,6 +185,15 @@ const PerformanceStream = () => {
     const [loadingAI, setLoadingAI] = useState(false);
 
     const handleStockClick = async (stock) => {
+        // Track Click
+        try {
+            fetch('/api/usage/increment', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ key: 'stock_clicks' })
+            });
+        } catch (e) { console.error("Tracking Error:", e); }
+
         setSelectedStock(stock);
         setLoadingDetails(true);
         setLoadingAI(true);

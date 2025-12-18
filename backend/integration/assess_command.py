@@ -13,6 +13,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from tabulate import tabulate
 from scipy.stats import percentileofscore
+from backend.usage_counter import increment_usage
 
 # --- Imports from other command modules ---
 # from invest_command import plot_ticker_graph, calculate_ema_invest, process_custom_portfolio
@@ -259,6 +260,7 @@ async def handle_assess_command(args: List[str], ai_params: Optional[Dict] = Non
     Handles the /assess command for CLI and AI.
     Returns structured data for frontend integration (via ai_params) or text for CLI.
     """
+    await increment_usage('assess')
     summary_for_ai = "Assessment initiated."
     assess_code_input, specific_params_dict = None, {}
 

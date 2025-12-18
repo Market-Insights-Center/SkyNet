@@ -4,6 +4,7 @@ import csv
 import json
 from typing import List, Dict, Optional
 import pandas as pd
+from backend.usage_counter import increment_usage
 
 # --- Constants ---
 # FIX: Use absolute path to ensure file is found regardless of CWD (integration/ -> backend/)
@@ -48,5 +49,6 @@ async def handle_history_command(args: List[str], ai_params: Optional[Dict] = No
     """
     Handles the /history command by returning the data.
     """
+    await increment_usage('history')
     data = await get_risk_history_data(is_called_by_ai=is_called_by_ai)
     return data

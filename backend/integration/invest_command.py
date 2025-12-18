@@ -12,6 +12,7 @@ from typing import List, Dict, Any, Optional, Tuple
 import csv
 import traceback
 import numpy as np
+from backend.usage_counter import increment_usage
 
 # --- Constants ---
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -323,6 +324,7 @@ async def handle_invest_command(args: List[str], ai_params: Optional[Dict] = Non
     """
     Handles the /invest command with full crash protection.
     """
+    await increment_usage('invest')
     try:
         if ai_params:
             config = {

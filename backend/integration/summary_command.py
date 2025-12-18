@@ -3,6 +3,7 @@ import asyncio
 import yfinance as yf
 from backend.ai_service import ai
 from backend.database import get_cached_summary, save_cached_summary
+from backend.usage_counter import increment_usage
 
 # Helpers
 async def get_yf_info(ticker: str) -> dict:
@@ -20,6 +21,7 @@ async def handle_summary_command(
     """
     Generates a very brief 2-3 sentence summary of the company/ticker.
     """
+    await increment_usage('summary')
     ticker = None
     if is_called_by_ai and ai_params: ticker = ai_params.get("ticker")
     elif args: ticker = args[0]

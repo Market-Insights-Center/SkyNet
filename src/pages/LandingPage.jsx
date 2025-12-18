@@ -1121,80 +1121,144 @@ const LandingPage = () => {
 };
 
 const UsageTicker = () => {
-    const [stats, setStats] = useState({});
-    const [page, setPage] = useState(0);
+    const [stats, setStats] = useState({
+        cultivate: 0,
+        assess: 0,
+        ml_forecast: 0,
+        briefing: 0,
+        fundamentals: 0,
+        breakout: 0,
+        sentiment: 0,
+        powerscore: 0,
+        quickscore: 0,
+        nexus: 0,
+        tracking: 0,
+        invest: 0,
+        total_users: 0,
+        total_system_actions: 0,
+        automations_created: 0,
+        automations_ran: 0
+    });
+    const [currentIndex, setCurrentIndex] = useState(0);
 
     useEffect(() => {
         const fetchStats = async () => {
             try {
                 const res = await fetch('/api/usage');
                 if (res.ok) {
-                    setStats(await res.json());
+                    const data = await res.json();
+                    setStats(prev => ({ ...prev, ...data }));
                 }
             } catch (e) {
                 console.error("Failed to fetch usage:", e);
             }
         };
         fetchStats();
-        // Refresh data every 30s
-        const dataInterval = setInterval(fetchStats, 30000);
-        return () => clearInterval(dataInterval);
+        // Refresh data every 2s
+        const dataInterval = setInterval(fetchStats, 2000);
+
+        // Cycle displayed items every 4s
+        const cycleInterval = setInterval(() => {
+            setCurrentIndex(prev => (prev + 1));
+        }, 4000);
+
+        return () => { clearInterval(dataInterval); clearInterval(cycleInterval); };
     }, []);
 
-    const entries = Object.entries(stats);
-    const itemsPerPage = 5;
-    const totalPages = Math.ceil(entries.length / itemsPerPage);
+    // Static Metrics (Top Row)
+    const staticMetrics = [
+        { key: 'fundamentals', label: 'FUNDAMENTALS PREVIEW' }, // Placeholder/Mock if needed, or real
+        { key: 'total_users', label: 'ACTIVE USERS' },
+        { key: 'total_system_actions', label: 'TOTAL ACTIONS' },
+        { key: 'cultivate', label: 'CULTIVATE' } // Keeping structure balanced if desired, or just 2? 
+        // User asked for Active Users and Total Actions specifically outside.
+        // Let's make the Top Row strictly the "High Level" stats.
+    ];
 
-    // Rotation Timer
-    useEffect(() => {
-        if (totalPages <= 1) return;
-        const rotateInterval = setInterval(() => {
-            setPage(p => (p + 1) % totalPages);
-        }, 4000); // Rotate every 4s
-        return () => clearInterval(rotateInterval);
-    }, [totalPages]);
+    // Metrics to rotate
+    const allMetrics = [
+        { key: 'predictive_models', label: "Predictive Models Generated", value: stats?.mlforecast || 0 },
+        { key: 'executions_run', label: "Executions Run", value: stats?.execution_run || 0 },
+        { key: 'financial_briefings', label: "Financial Briefings Delivered", value: stats?.briefing || 0 },
+        { key: 'active_strategies', label: "Active Strategies", value: stats?.active_strategies || 0 },
+        { key: 'market_assessments', label: "Market Assessments Completed", value: stats?.assess || 0 },
+        { key: 'quickscores', label: "Quickscores Calculated", value: stats?.quickscore || 0 },
+        { key: 'stock_research', label: "Stock Research Clicks", value: stats?.stock_clicks || 0 },
+        { key: 'sentinel_plans', label: "Sentinel AI Plans", value: stats?.sentinel || 0 },
+        { key: 'portfolio_simulations', label: "Portfolio Simulations", value: stats?.nexus || 0 },
+        { key: 'cultivate_cycles', label: "Cultivate Cycles", value: stats?.cultivate || 0 },
+        { key: 'automations_run', label: "Automations Run", value: stats?.automations_run || 0 },
+        { key: 'market_scans', label: "Market Scans", value: stats?.market || 0 },
+        { key: 'summaries_generated', label: "Summaries Generated", value: stats?.summary || 0 },
+        { key: 'historical_lookups', label: "Historical Lookups", value: stats?.history || 0 },
+        { key: 'risks_assessed', label: "Risks Assessed", value: stats?.risk || 0 },
+        { key: 'investments_analyzed', label: "Investments Analyzed", value: stats?.invest || 0 },
+        { key: 'tracking_checks', label: "Tracking Checks", value: stats?.tracking || 0 },
+        { key: 'breakout_alerts', label: "Breakout Alerts", value: stats?.breakout || 0 },
+        { key: 'sentiment_analyzed', label: "Sentiment Analyzed", value: stats?.sentiment || 0 },
+        { key: 'powerscores', label: "PowerScores Generated", value: stats?.powerscore || 0 },
+        { key: 'custom_portfolios', label: "Custom Portfolios", value: stats?.custom || 0 },
+    ];
 
-    // Format keys for display
-    const formatKey = (key) => {
-        return key.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
-    };
-
-    if (entries.length === 0) return null;
-
-    // Get current page items
-    // Handle wrap-around or just ensure we have items.
-    // Basic slicing.
-    const currentItems = entries.slice(page * itemsPerPage, (page + 1) * itemsPerPage);
-
-    // If last page isn't full, maybe fill with start? optional. 
-    // For now simple slice is fine.
+    // Get 4 metrics for the current set
+    const totalSets = Math.ceil(allMetrics.length / 4);
+    // Ensure index is valid
+    const validIndex = currentIndex % totalSets;
+    const startIndex = validIndex * 4;
+    const currentMetrics = allMetrics.slice(startIndex, startIndex + 4);
 
     return (
-        <section className="py-6 bg-black border-t border-white/5 overflow-hidden" style={{ perspective: '1000px' }}>
-            <div className="max-w-7xl mx-auto px-6 h-12 flex items-center justify-center relative">
-                <AnimatePresence mode="popLayout">
-                    <motion.div
-                        key={page}
-                        initial={{ rotateX: -90, opacity: 0, y: 40 }}
-                        animate={{ rotateX: 0, opacity: 1, y: 0 }}
-                        exit={{ rotateX: 90, opacity: 0, y: -40 }}
-                        transition={{ type: "spring", stiffness: 100, damping: 20 }}
-                        className="flex gap-8 md:gap-16 items-center justify-center absolute w-full"
-                    >
-                        {currentItems.map(([key, value]) => (
-                            <div key={key} className="flex flex-col items-center gap-1 min-w-[100px]">
-                                <span className="text-xs text-gray-500 uppercase tracking-[0.2em] font-medium">{formatKey(key)}</span>
-                                <span className="text-xl font-bold bg-gradient-to-b from-white to-gray-400 bg-clip-text text-transparent font-mono">
-                                    {value.toLocaleString()}
-                                </span>
-                            </div>
-                        ))}
-                    </motion.div>
-                </AnimatePresence>
-            </div>
+        <section className="py-12 bg-black border-t border-white/5 overflow-hidden">
+            <div className="max-w-7xl mx-auto px-6">
 
-            {/* Decorative Gradients for "Wheel" depth */}
-            <div className="absolute inset-0 bg-gradient-to-b from-black via-transparent to-black pointer-events-none opacity-50"></div>
+                {/* Static High-Level Stats (Above Wheel) */}
+                <div className="flex flex-wrap justify-center items-center gap-12 md:gap-24 mb-12 border-b border-white/5 pb-8">
+
+                    {/* Active Users (Center Left) */}
+                    <div className="flex flex-col items-center gap-2 min-w-[150px]">
+                        <span className="text-xs text-gold/80 uppercase tracking-[0.2em] font-bold glow-gold">ACTIVE USERS</span>
+                        <span className="text-4xl font-black text-white font-mono drop-shadow-[0_0_10px_rgba(255,255,255,0.3)]">
+                            {stats.total_users?.toLocaleString() || 0}
+                        </span>
+                    </div>
+
+                    {/* Total Actions (Center Right) */}
+                    <div className="flex flex-col items-center gap-2 min-w-[150px]">
+                        <span className="text-xs text-gold/80 uppercase tracking-[0.2em] font-bold glow-gold">TOTAL ACTIONS</span>
+                        <span className="text-4xl font-black text-white font-mono drop-shadow-[0_0_10px_rgba(255,255,255,0.3)]">
+                            {(stats.total_system_actions || stats.automations_run || 0)?.toLocaleString()}
+                        </span>
+                    </div>
+
+                </div>
+
+                {/* Rotating Product Wheel */}
+                <div className="h-24 flex items-center justify-center relative">
+                    {/* Fade Edges */}
+                    <div className="absolute left-0 top-0 bottom-0 w-24 bg-gradient-to-r from-black to-transparent z-10 pointer-events-none" />
+                    <div className="absolute right-0 top-0 bottom-0 w-24 bg-gradient-to-l from-black to-transparent z-10 pointer-events-none" />
+
+                    <AnimatePresence mode="wait">
+                        <motion.div
+                            key={currentIndex}
+                            initial={{ opacity: 0, y: 30, filter: 'blur(5px)' }}
+                            animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+                            exit={{ opacity: 0, y: -30, filter: 'blur(5px)' }}
+                            transition={{ duration: 0.6, ease: "circOut" }}
+                            className="flex flex-wrap justify-center items-center gap-16 w-full"
+                        >
+                            {currentMetrics.map(({ key, label }) => (
+                                <div key={`${key}-${currentIndex}`} className="flex flex-col items-center gap-3">
+                                    <span className="text-[10px] text-gray-600 uppercase tracking-[0.3em] font-bold">{label}</span>
+                                    <span className="text-2xl font-bold text-gray-400 font-mono group-hover:text-white transition-colors">
+                                        {stats[key]?.toLocaleString() || 0}
+                                    </span>
+                                </div>
+                            ))}
+                        </motion.div>
+                    </AnimatePresence>
+                </div>
+            </div>
         </section>
     );
 };

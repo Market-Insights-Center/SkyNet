@@ -19,6 +19,7 @@ import base64
 from tabulate import tabulate
 import traceback
 from tradingview_screener import Column, Query
+from backend.usage_counter import increment_usage
 
 # --- Constants ---
 MARKET_FULL_SENS_DATA_FILE_PREFIX = 'market_full_sens_'
@@ -353,6 +354,7 @@ async def run_market_analysis(market_type: str, sensitivity: int) -> Dict[str, A
 # --- Main Command Handler ---
 async def handle_market_command(args: List[str], ai_params: Optional[Dict] = None, is_called_by_ai: bool = False):
     """Handles displaying or saving market data based on different stock lists."""
+    await increment_usage('market')
     try:
         action = "display"
         market_type = "sp500"  # default

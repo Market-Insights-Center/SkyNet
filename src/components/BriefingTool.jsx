@@ -25,6 +25,8 @@ const BriefingTool = ({ email }) => {
 
                 const result = await response.json();
                 setData(result);
+                // Track Usage
+                import('../services/usageService').then(({ trackUsage }) => trackUsage('briefing'));
             } catch (err) {
                 setError(err.message);
             } finally {

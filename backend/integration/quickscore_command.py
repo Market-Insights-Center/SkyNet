@@ -13,6 +13,7 @@ import io
 import base64
 from tabulate import tabulate
 from typing import Optional, List, Dict
+from backend.usage_counter import increment_usage
 
 # --- Dependencies for this command ---
 YFINANCE_API_SEMAPHORE = asyncio.Semaphore(8)
@@ -84,6 +85,7 @@ def plot_ticker_graph(ticker: str, ema_interval: int, is_called_by_ai: bool = Fa
 # --- Main Command Handler ---
 async def handle_quickscore_command(args: List[str], ai_params: Optional[Dict]=None, is_called_by_ai: bool = False):
     """Handles the /quickscore command for CLI and AI."""
+    await increment_usage('quickscore')
     if not is_called_by_ai: print("\n--- /quickscore Command ---")
     ticker_qs = None
     if ai_params: ticker_qs = ai_params.get("ticker")

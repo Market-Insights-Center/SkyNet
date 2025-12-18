@@ -3,19 +3,23 @@ import { motion } from 'framer-motion';
 import {
     Save, Play, Pause, Plus, Trash2, ArrowLeft,
     Workflow, Activity, DollarSign, Percent,
-    Target, Layers, Mail, Lock, X, Clock
+    Target, Layers, Mail, Lock, X, Clock,
+    GitBranch, Zap, Globe
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+
+import { useAuth } from '../contexts/AuthContext';
 
 const API_URL = 'http://localhost:8000/api'; // Adjust if needed
 
 const WorkflowAutomation = () => {
     const navigate = useNavigate();
+    const { currentUser, userProfile } = useAuth();
     const [automations, setAutomations] = useState([]);
     const [currentAuto, setCurrentAuto] = useState(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
-    const [userEmail, setUserEmail] = useState(''); // Need to get this from Auth context ideally
+    const userEmail = currentUser?.email || '';
 
     // Editor State
     const [nodes, setNodes] = useState([]);
@@ -29,15 +33,14 @@ const WorkflowAutomation = () => {
 
     // Fetch user info + automations
     useEffect(() => {
-        // Mock Auth for now - replace with actual auth hook
-        const email = localStorage.getItem('user_email') || 'test@example.com';
-        setUserEmail(email);
-        fetchAutomations();
-    }, []);
+        if (userEmail) {
+            fetchAutomations();
+        }
+    }, [userEmail]);
 
     const fetchAutomations = async () => {
         try {
-            const res = await fetch(`${API_URL}/automations`);
+            const res = await fetch(`/api/automations?email=${userEmail || 'demo'}`); // Fixed missing email param that might be needed
             if (!res.ok) throw new Error(res.statusText);
             const data = await res.json();
             setAutomations(Array.isArray(data) ? data : []);
@@ -45,6 +48,92 @@ const WorkflowAutomation = () => {
             console.error("Failed to fetch automations:", e);
             setAutomations([]);
         }
+    };
+
+    // --- COMMUNITY & SHARE ---
+    const [viewMode, setViewMode] = useState('my'); // 'my' or 'community'
+    const [communityAutos, setCommunityAutos] = useState([]);
+    const [communitySort, setCommunitySort] = useState('recent'); // 'recent' | 'popular'
+
+    useEffect(() => {
+        if (viewMode === 'community') {
+            fetchCommunity();
+        }
+    }, [viewMode, communitySort]);
+
+    const fetchCommunity = async () => {
+        try {
+            setLoading(true);
+            const res = await fetch(`/api/automations/community?sort=${communitySort}`);
+            const data = await res.json();
+            setCommunityAutos(Array.isArray(data) ? data : []);
+        } catch (e) { console.error(e); }
+        finally { setLoading(false); }
+    };
+
+    const handleShare = async (auto, e) => {
+        if (e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+        console.log("handleShare clicked", auto);
+        const username = userProfile?.username || "Anonymous";
+        if (!confirm(`Share "${auto.name}" with the community as ${username}?`)) return;
+
+        try {
+            const res = await fetch('/api/automations/share', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ automation: auto, username })
+            });
+            const d = await res.json();
+            if (d.success) alert("Shared successfully!");
+            else alert("Error sharing: " + d.message);
+        } catch (e) {
+            console.error(e);
+            alert("Error: " + e.message);
+        }
+    };
+
+    const handleCopy = async (sharedAuto) => {
+        if (!confirm(`Import "${sharedAuto.name}" to your automations?`)) return;
+
+        // 1. Increment Count
+        fetch('/api/automations/copy-count', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ shared_id: sharedAuto.id })
+        });
+
+        // 2. Add to Local List (Clone)
+        const newAuto = {
+            ...sharedAuto,
+            id: Date.now().toString(), // New ID
+            name: `Copy of ${sharedAuto.name}`,
+            creator: userEmail, // Now owned by me
+            active: false
+            // remove shared metadata
+        };
+        delete newAuto.copy_count;
+        delete newAuto.original_id;
+
+        // Save to DB
+        try {
+            const res = await fetch('/api/automations/save', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    ...newAuto,
+                    user_email: userEmail
+                })
+            });
+            if (res.ok) {
+                alert("Imported successfully!");
+                fetchAutomations();
+                setViewMode('my');
+            } else {
+                alert("Failed to save imported automation.");
+            }
+        } catch (e) { console.error(e); }
     };
 
     // --- EDITOR ACTIONS ---
@@ -67,8 +156,8 @@ const WorkflowAutomation = () => {
         // 1. Must start with Conditional (Risk/Price/Percent/Time)
         // 2. Must end with Action (Tracking/Nexus/Email)
         console.log("Validating Automation...");
-        const conditionals = nodes.filter(n => ['risk', 'price', 'percentage', 'time_interval'].includes(n.type));
-        const actions = nodes.filter(n => ['tracking', 'nexus', 'send_email'].includes(n.type));
+        const conditionals = nodes.filter(n => ['risk', 'price', 'percentage', 'time_interval', 'sentinel_trigger'].includes(n.type));
+        const actions = nodes.filter(n => ['tracking', 'nexus', 'send_email', 'webhook'].includes(n.type));
 
         console.log("Conditionals:", conditionals.length, "Actions:", actions.length);
 
@@ -105,6 +194,7 @@ const WorkflowAutomation = () => {
 
             const data = await res.json();
             if (data.status === 'success') {
+                import('../services/usageService').then(({ trackUsage }) => trackUsage('cultivate')); // Track usage
                 await fetchAutomations();
                 setCurrentAuto(null); // Redirect to list
             } else {
@@ -149,6 +239,66 @@ const WorkflowAutomation = () => {
         });
     };
 
+    const [errorMessage, setErrorMessage] = useState(null);
+
+    // Clear error after 3 seconds
+    useEffect(() => {
+        if (errorMessage) {
+            const timer = setTimeout(() => setErrorMessage(null), 3000);
+            return () => clearTimeout(timer);
+        }
+    }, [errorMessage]);
+
+    // Validation Logic
+    const validateConnection = (sourceId, sourceHandle, targetId, targetHandle) => {
+        const sourceNode = nodes.find(n => n.id === sourceId);
+        const targetNode = nodes.find(n => n.id === targetId);
+
+        if (!sourceNode || !targetNode) return false;
+
+        const sourceType = sourceNode.type;
+        const targetType = targetNode.type;
+
+        // Categories
+        const isConditional = ['risk', 'price', 'percentage', 'sentiment_trigger', 'time_interval'].includes(sourceType);
+        const isLogic = ['logic_gate', 'if_gate'].includes(sourceType);
+        const isInfo = ['email_info', 'rh_info'].includes(sourceType);
+        const isAction = ['tracking', 'nexus', 'send_email', 'webhook'].includes(targetType);
+        const isTargetLogic = ['logic_gate', 'if_gate'].includes(targetType);
+
+        // Rules
+        // 1. Conditionals -> Logic or Action
+        if (isConditional) {
+            if (!(isAction || isTargetLogic)) {
+                return `${sourceType.replace('_', ' ')} blocks cannot be connected to ${targetType.replace('_', ' ')} blocks. Connected to Action or Logic only.`;
+            }
+        }
+
+        // 2. Logic -> Logic or Action
+        if (isLogic) {
+            if (!(isAction || isTargetLogic)) {
+                return `${sourceType.replace('_', ' ')} blocks cannot be connected to ${targetType.replace('_', ' ')} blocks. Connect to Action or Logic only.`;
+            }
+        }
+
+        // 3. Info -> Compatible Actions only
+        if (isInfo) {
+            // Info blocks usually connect to specific actions or any action that needs data?
+            // For simplicity, let's allow Info -> Actions, but NOT Info -> Logic or Info -> Conditional
+            if (!isAction) {
+                return `${sourceType.replace('_', ' ')} blocks cannot be connected to ${targetType.replace('_', ' ')} blocks. Connect to Action only.`;
+            }
+        }
+
+        // 4. Action -> Nothing (End of flow)
+        // (Handled by the fact that Actions usually don't have "Right" handles, but if they did...)
+        if (['tracking', 'nexus', 'send_email', 'webhook'].includes(sourceType)) {
+            return "Action blocks cannot have outgoing connections.";
+        }
+
+        return null; // Valid
+    };
+
     const handleDotClick = (e, nodeId, handle, type) => {
         e.stopPropagation();
 
@@ -163,7 +313,14 @@ const WorkflowAutomation = () => {
         } else {
             // Complete Connection
             if (connecting.nodeId === nodeId) {
-                // Clicked same node, cancel
+                setConnecting(null);
+                return;
+            }
+
+            // Validate
+            const errorMsg = validateConnection(connecting.nodeId, connecting.handle, nodeId, handle);
+            if (errorMsg) {
+                setErrorMessage(errorMsg);
                 setConnecting(null);
                 return;
             }
@@ -205,11 +362,15 @@ const WorkflowAutomation = () => {
         if (type === 'risk') initialData = { metric: 'general', op: '>', value: 50 };
         if (type === 'price') initialData = { ticker: 'AAPL', op: '>', value: 150 };
         if (type === 'percentage') initialData = { ticker: 'AAPL', op: '>', value: 5, timeframe: '1d' };
+        if (type === 'sentiment_trigger') initialData = { ticker: 'NVDA', op: '>', value: 75 };
+        if (type === 'logic_gate') initialData = { operation: 'AND' };
+        if (type === 'if_gate') initialData = { conditions: [{ id: 'c1', outputId: 'out1' }], elseOutputId: 'out_else' };
         if (type === 'tracking') initialData = { code: '', value: 1000, fractional: false, actions: [] };
         if (type === 'nexus') initialData = { code: '', value: 5000, fractional: true, actions: [] };
         if (type === 'email_info') initialData = { email: '' };
         if (type === 'rh_info') initialData = { email: '', password: '' };
         if (type === 'send_email') initialData = { subject: 'Automation Alert' };
+        if (type === 'webhook') initialData = { url: '', platform: 'discord', message: 'Alert Triggered' };
         if (type === 'time_interval') initialData = { interval: 1, unit: 'days', target_time: '09:30', last_run: null };
 
         const newNode = {
@@ -221,25 +382,20 @@ const WorkflowAutomation = () => {
         setNodes([...nodes, newNode]);
     };
 
-    // ... (Existing List View) ...
-    // Note: Render logic for List View is unchanged, so we assume the previous context handles it if we don't touch it.
-    // Wait, I am replacing a huge chunk. I need to make sure I don't delete the List View render block if it's inside the replace range?
-    // The previous `view_file` showed the List View code inside `if (!currentAuto) { ... }`.
-    // My StartLine is 142 (handleCanvasMouseDown). My EndLine is 602.
-    // The List View code starts around line 218.
-    // I MUST include the List View code in my replacement or it will be deleted.
+    // ... (Existing Render) ...
 
     if (!currentAuto) {
         return (
             <div className="min-h-screen bg-black text-white p-8 font-sans selection:bg-purple-500/30">
                 <div className="max-w-6xl mx-auto">
-                    <div className="flex justify-between items-center mb-12">
+                    {/* Header */}
+                    <div className="flex justify-between items-center mb-8">
                         <div>
                             <h1 className="text-5xl font-bold bg-gradient-to-r from-purple-400 to-blue-500 bg-clip-text text-transparent mb-2">
                                 Workflow Automation
                             </h1>
                             <p className="text-gray-400 text-lg">
-                                Create autonomous trading agents that run 24/7.
+                                Create and share autonomous trading agents.
                             </p>
                         </div>
                         <button
@@ -253,50 +409,116 @@ const WorkflowAutomation = () => {
                         </button>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        {automations.map(auto => (
-                            <div key={auto.id} className="bg-gray-900/50 border border-gray-800 rounded-2xl p-6 hover:border-purple-500/50 transition-colors group relative">
-                                <div className="flex justify-between items-start mb-4">
-                                    <div className="p-3 bg-purple-500/10 rounded-lg text-purple-400">
-                                        <Workflow size={24} />
+                    {/* Tabs */}
+                    <div className="flex items-center gap-6 mb-8 border-b border-gray-800 pb-2">
+                        <button
+                            onClick={() => setViewMode('my')}
+                            className={`pb-2 px-1 text-lg font-medium transition-colors ${viewMode === 'my' ? 'text-purple-400 border-b-2 border-purple-400' : 'text-gray-400 hover:text-white'}`}
+                        >
+                            My Automations
+                        </button>
+                        <button
+                            onClick={() => setViewMode('community')}
+                            className={`pb-2 px-1 text-lg font-medium transition-colors ${viewMode === 'community' ? 'text-blue-400 border-b-2 border-blue-400' : 'text-gray-400 hover:text-white'}`}
+                        >
+                            Community
+                        </button>
+                    </div>
+
+                    {/* Content */}
+                    {viewMode === 'my' ? (
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                            {automations.map(auto => (
+                                <div key={auto.id} onClick={() => { setNodes(auto.nodes || []); setEdges(auto.edges || []); setCurrentAuto(auto); }} className="cursor-pointer bg-gray-900/50 border border-gray-800 rounded-2xl p-6 hover:border-purple-500/50 transition-colors group relative">
+                                    <div className="flex justify-between items-start mb-4">
+                                        <div className="p-3 bg-purple-500/10 rounded-lg text-purple-400">
+                                            <Workflow size={24} />
+                                        </div>
+                                        <div className="flex gap-2 z-50 pointer-events-auto" onClick={e => e.stopPropagation()}>
+                                            <button
+                                                type="button"
+                                                onClick={(e) => handleShare(auto, e)}
+                                                className="p-2 text-gray-400 hover:text-white bg-gray-600 hover:bg-blue-600 rounded-full transition-all"
+                                                style={{ zIndex: 100, position: 'relative' }}
+                                            >
+                                                <Globe size={16} />
+                                            </button>
+                                            <button
+                                                onClick={() => handleToggle(auto)}
+                                                className={`p-2 rounded-lg transition-colors ${auto.active ? 'text-green-400 bg-green-500/10' : 'text-gray-500 bg-gray-800'}`}
+                                            >
+                                                {auto.active ? <Play size={16} /> : <Pause size={16} />}
+                                            </button>
+                                            <button
+                                                onClick={async () => {
+                                                    if (confirm('Delete?')) {
+                                                        await fetch(`${API_URL}/automations/delete`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: auto.id }) });
+                                                        fetchAutomations();
+                                                    }
+                                                }}
+                                                className="p-2 text-gray-500 hover:text-red-400 transition-colors"
+                                            >
+                                                <Trash2 size={16} />
+                                            </button>
+                                        </div>
                                     </div>
-                                    <div className="flex gap-2 z-10">
-                                        <button
-                                            onClick={() => handleToggle(auto)}
-                                            className={`p-2 rounded-lg transition-colors ${auto.active ? 'text-green-400 bg-green-500/10' : 'text-gray-500 bg-gray-800'}`}
-                                        >
-                                            {auto.active ? <Play size={16} /> : <Pause size={16} />}
-                                        </button>
-                                        <button
-                                            onClick={async () => {
-                                                if (confirm('Delete?')) {
-                                                    await fetch(`${API_URL}/automations/delete`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: auto.id }) });
-                                                    fetchAutomations();
-                                                }
-                                            }}
-                                            className="p-2 text-gray-500 hover:text-red-400 transition-colors"
-                                        >
-                                            <Trash2 size={16} />
-                                        </button>
+                                    <h3 className="text-xl font-bold mb-2">{auto.name}</h3>
+                                    <p className="text-sm text-gray-500 mb-6">
+                                        {auto.nodes?.length || 0} Blocks
+                                    </p>
+                                    <div className="flex items-center justify-between text-xs text-gray-500">
+                                        <span>Click to Edit</span>
+                                        {auto.active && <span className="text-green-400 flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" /> Active</span>}
                                     </div>
                                 </div>
-                                <h3 className="text-xl font-bold mb-2">{auto.name}</h3>
-                                <p className="text-sm text-gray-500 mb-6">
-                                    {auto.nodes?.length || 0} Blocks
-                                </p>
-                                <button
-                                    onClick={() => {
-                                        setNodes(auto.nodes || []);
-                                        setEdges(auto.edges || []);
-                                        setCurrentAuto(auto);
-                                    }}
-                                    className="w-full py-2 border border-gray-700 rounded-lg hover:bg-gray-800 transition-colors"
-                                >
-                                    Edit Workflow
-                                </button>
+                            ))}
+                            {automations.length === 0 && (
+                                <div className="col-span-full py-20 text-center text-gray-500">
+                                    No automations found. Create your first one above!
+                                </div>
+                            )}
+                        </div>
+                    ) : (
+                        <div className="space-y-6">
+                            {/* Sort Controls */}
+                            <div className="flex items-center gap-4">
+                                <span className="text-gray-400 text-sm">Sort By:</span>
+                                <button onClick={() => setCommunitySort('recent')} className={`text-sm px-3 py-1 rounded ${communitySort === 'recent' ? 'bg-blue-600/20 text-blue-400' : 'text-gray-400 hover:text-white'}`}>Most Recent</button>
+                                <button onClick={() => setCommunitySort('popular')} className={`text-sm px-3 py-1 rounded ${communitySort === 'popular' ? 'bg-blue-600/20 text-blue-400' : 'text-gray-400 hover:text-white'}`}>Most Copied</button>
                             </div>
-                        ))}
-                    </div>
+
+                            {/* Community Grid */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                {communityAutos.map(auto => (
+                                    <div key={auto.id} className="bg-gray-900/50 border border-gray-800 rounded-2xl p-6 hover:border-blue-500/50 transition-colors group relative">
+                                        <div className="flex justify-between items-start mb-4">
+                                            <div className="p-3 bg-blue-500/10 rounded-lg text-blue-400">
+                                                <Globe size={24} />
+                                            </div>
+                                            <div className="flex items-center gap-1 bg-gray-800 px-2 py-1 rounded text-xs text-gray-400">
+                                                <Layers size={12} /> {auto.copy_count || 0} Copies
+                                            </div>
+                                        </div>
+                                        <h3 className="text-xl font-bold mb-1">{auto.name}</h3>
+                                        <p className="text-xs text-blue-400 mb-4">by @{auto.creator}</p>
+                                        <div className="flex items-center gap-4">
+                                            <button
+                                                onClick={() => handleCopy(auto)}
+                                                className="flex-1 flex items-center justify-center gap-2 bg-gray-800 hover:bg-white hover:text-black transition-colors py-2 rounded-lg text-sm font-medium"
+                                            >
+                                                <Plus size={16} /> Import
+                                            </button>
+                                        </div>
+                                    </div>
+                                ))}
+                                {communityAutos.length === 0 && !loading && (
+                                    <div className="col-span-full py-20 text-center text-gray-500">
+                                        No shared automations yet. Be the first!
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    )}
                 </div>
             </div>
         );
@@ -338,6 +560,14 @@ const WorkflowAutomation = () => {
                             <BlockButton label="Price" icon={DollarSign} onClick={() => addNode('price')} color="text-green-400" />
                             <BlockButton label="Percentage" icon={Percent} onClick={() => addNode('percentage')} color="text-blue-400" />
                             <BlockButton label="Time Interval" icon={Clock} onClick={() => addNode('time_interval')} color="text-cyan-400" />
+                            <BlockButton label="Sentiment" icon={Zap} onClick={() => addNode('sentiment_trigger')} color="text-yellow-400" />
+                        </div>
+                    </div>
+                    <div>
+                        <h4 className="text-xs font-bold text-gray-500 uppercase mb-3 tracking-wider">Logic</h4>
+                        <div className="flex flex-col gap-2">
+                            <BlockButton label="And/Or Gate" icon={GitBranch} onClick={() => addNode('logic_gate')} color="text-pink-400" />
+                            <BlockButton label="If / Else Gate" icon={GitBranch} onClick={() => addNode('if_gate')} color="text-orange-400" />
                         </div>
                     </div>
                     <div>
@@ -346,6 +576,7 @@ const WorkflowAutomation = () => {
                             <BlockButton label="Tracking" icon={Target} onClick={() => addNode('tracking')} color="text-amber-400" />
                             <BlockButton label="Nexus" icon={Layers} onClick={() => addNode('nexus')} color="text-purple-400" />
                             <BlockButton label="Send Email" icon={Mail} onClick={() => addNode('send_email')} color="text-blue-400" />
+                            <BlockButton label="Webhook" icon={Globe} onClick={() => addNode('webhook')} color="text-indigo-400" />
                         </div>
                     </div>
                     <div>
@@ -380,30 +611,85 @@ const WorkflowAutomation = () => {
 
                             const getHandlePos = (node, handle) => {
                                 const el = document.getElementById(`node-${node.id}`);
-                                const w = el ? el.offsetWidth : 320;
-                                const h = el ? el.offsetHeight : 150;
+                                if (!el) return { x: node.position.x, y: node.position.y }; // Fallback
 
-                                const cx = node.position.x + w / 2;
-                                const cy = node.position.y + h / 2;
+                                const w = el.offsetWidth;
+                                const h = el.offsetHeight;
 
-                                if (handle === 'top') return { x: cx, y: node.position.y };
-                                if (handle === 'bottom') return { x: cx, y: node.position.y + h };
-                                if (handle === 'left') return { x: node.position.x, y: cy };
-                                if (handle === 'right') return { x: node.position.x + w, y: cy };
-                                return { x: cx, y: cy };
+                                // Standard Handles
+                                if (handle === 'top') return { x: node.position.x + w / 2, y: node.position.y };
+                                if (handle === 'bottom') return { x: node.position.x + w / 2, y: node.position.y + h };
+                                if (handle === 'left') return { x: node.position.x, y: node.position.y + h / 2 };
+                                if (handle === 'right') return { x: node.position.x + w, y: node.position.y + h / 2 };
+
+                                // Dynamic Handles (if_gate)
+                                // Format: "in-0", "out-0", "out-else"
+                                // We assume rows are ~40px height, starting after header (~45px)
+                                const headerHeight = 45;
+                                const rowHeight = 40;
+
+                                if (handle.startsWith('in-')) {
+                                    const index = parseInt(handle.split('-')[1]);
+                                    const yOffset = headerHeight + (index * rowHeight) + (rowHeight / 2);
+                                    return { x: node.position.x, y: node.position.y + yOffset };
+                                }
+                                if (handle.startsWith('out-')) {
+                                    if (handle === 'out-else') {
+                                        // Specific calculation for else (last item)
+                                        // Need to know total conditions to place 'else' correctly?
+                                        // Easier: The 'Else' row is rendered last. 
+                                        // Limitation: We don't verify node data count here easily without potentially stale state.
+                                        // BUT we can map it to node.data.conditions length if available.
+                                        const count = node.data.conditions?.length || 0;
+                                        const yOffset = headerHeight + (count * rowHeight) + (rowHeight / 2);
+                                        return { x: node.position.x + w, y: node.position.y + yOffset };
+                                    } else {
+                                        const index = parseInt(handle.split('-')[1]);
+                                        const yOffset = headerHeight + (index * rowHeight) + (rowHeight / 2);
+                                        return { x: node.position.x + w, y: node.position.y + yOffset };
+                                    }
+                                }
+
+                                return { x: node.position.x + w / 2, y: node.position.y + h / 2 };
                             };
 
                             const start = getHandlePos(sourceNode, edge.sourceHandle);
                             const end = getHandlePos(targetNode, edge.targetHandle);
 
+                            // Calculate Midpoint for Delete Button
+                            const midX = (start.x + end.x) / 2;
+                            const midY = (start.y + end.y) / 2;
+
                             return (
-                                <line
-                                    key={i}
-                                    x1={start.x} y1={start.y}
-                                    x2={end.x} y2={end.y}
-                                    stroke="#666"
-                                    strokeWidth="2"
-                                />
+                                <g key={i}>
+                                    <line
+                                        x1={start.x} y1={start.y}
+                                        x2={end.x} y2={end.y}
+                                        stroke="#666"
+                                        strokeWidth="2"
+                                    />
+                                    {/* Delete Handle */}
+                                    <g
+                                        className="cursor-pointer pointer-events-auto hover:opacity-80 transition-opacity"
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            deleteEdge(i);
+                                        }}
+                                    >
+                                        <circle cx={midX} cy={midY} r="8" fill="#1f2937" stroke="#ef4444" strokeWidth="1" />
+                                        <text
+                                            x={midX}
+                                            y={midY}
+                                            dy="3"
+                                            textAnchor="middle"
+                                            fontSize="10"
+                                            fill="#ef4444"
+                                            fontWeight="bold"
+                                        >
+                                            ×
+                                        </text>
+                                    </g>
+                                </g>
                             );
                         })}
                         {connecting && (
@@ -440,6 +726,12 @@ const WorkflowAutomation = () => {
                             />
                         </div>
                     ))}
+                    {errorMessage && (
+                        <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2 bg-red-500/90 text-white px-6 py-3 rounded-full shadow-[0_0_20px_rgba(239,68,68,0.6)] backdrop-blur-md flex items-center gap-3 z-50 animate-bounce">
+                            <X size={20} className="cursor-pointer" onClick={() => setErrorMessage(null)} />
+                            <span className="font-bold">{errorMessage}</span>
+                        </div>
+                    )}
                 </div>
             </div>
         </div>
@@ -461,9 +753,13 @@ const NodeComponent = ({ node, onDelete, updateData, onDotClick, connecting }) =
             case 'price': return 'border-green-500/50 bg-green-900/40 shadow-[0_0_15px_rgba(34,197,94,0.2)]';
             case 'percentage': return 'border-blue-500/50 bg-blue-900/40 shadow-[0_0_15px_rgba(59,130,246,0.2)]';
             case 'time_interval': return 'border-cyan-500/50 bg-cyan-900/40 shadow-[0_0_15px_rgba(6,182,212,0.2)]';
+            case 'sentiment_trigger': return 'border-yellow-500/50 bg-yellow-900/40 shadow-[0_0_15px_rgba(234,179,8,0.2)]';
+            case 'logic_gate': return 'border-pink-500/50 bg-pink-900/40 shadow-[0_0_15px_rgba(236,72,153,0.2)]';
+            case 'if_gate': return 'border-orange-500/50 bg-orange-900/40 shadow-[0_0_15px_rgba(249,115,22,0.2)]';
             case 'tracking': return 'border-amber-500/50 bg-amber-900/40 shadow-[0_0_15px_rgba(245,158,11,0.2)]';
             case 'nexus': return 'border-purple-500/50 bg-purple-900/40 shadow-[0_0_15px_rgba(168,85,247,0.2)]';
             case 'send_email': return 'border-blue-500/50 bg-blue-900/40 shadow-[0_0_15px_rgba(59,130,246,0.2)]';
+            case 'webhook': return 'border-indigo-500/50 bg-indigo-900/40 shadow-[0_0_15px_rgba(99,102,241,0.2)]';
             case 'email_info': return 'border-gray-500/50 bg-gray-800/40';
             case 'rh_info': return 'border-green-600/50 bg-green-900/20';
             default: return 'border-gray-700 bg-gray-900';
@@ -471,20 +767,22 @@ const NodeComponent = ({ node, onDelete, updateData, onDotClick, connecting }) =
     };
 
     // Click-to-Connect Dot
-    const Dot = ({ handle }) => {
+    const Dot = ({ handle, style }) => {
         const isSelected = connecting?.nodeId === node.id && connecting?.handle === handle;
         return (
             <div
                 className={`connection-dot absolute w-4 h-4 rounded-full cursor-pointer z-50 transition-all
                     ${isSelected ? 'bg-purple-500 scale-125 border-white' : 'bg-gray-400 border-black hover:bg-white'}
                     border-2 
-                    ${handle === 'top' ? '-top-2 left-1/2 -translate-x-1/2' : ''}
-                    ${handle === 'bottom' ? '-bottom-2 left-1/2 -translate-x-1/2' : ''}
-                    ${handle === 'left' ? 'top-1/2 -left-2 -translate-y-1/2' : ''}
-                    ${handle === 'right' ? 'top-1/2 -right-2 -translate-y-1/2' : ''}
+                    ${!style && handle === 'top' ? '-top-2 left-1/2 -translate-x-1/2' : ''}
+                    ${!style && handle === 'bottom' ? '-bottom-2 left-1/2 -translate-x-1/2' : ''}
+                    ${!style && handle === 'left' ? 'top-1/2 -left-2 -translate-y-1/2' : ''}
+                    ${!style && handle === 'right' ? 'top-1/2 -right-2 -translate-y-1/2' : ''}
                 `}
+                style={style}
                 onClick={(e) => onDotClick(e, node.id, handle, node.type)}
                 onMouseDown={(e) => e.stopPropagation()}
+                title={handle}
             />
         );
     };
@@ -566,14 +864,134 @@ const NodeComponent = ({ node, onDelete, updateData, onDotClick, connecting }) =
                     </div>
                 )}
 
+                {node.type === 'sentiment_trigger' && (
+                    <div className="space-y-2">
+                        <div className="text-xs text-yellow-500 font-bold flex items-center gap-1">
+                            <Zap size={12} /> AI Sentiment
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2">
+                            <span>When</span>
+                            <input className="w-16 bg-black/40 rounded px-2 py-1 border border-white/10" placeholder="NVDA" value={node.data.ticker} onChange={e => updateData({ ticker: e.target.value })} />
+                            <select className="bg-black/40 rounded px-2 py-1 border border-white/10" value={node.data.op} onChange={e => updateData({ op: e.target.value })}>
+                                <option value=">">{'>'}</option>
+                                <option value="<">{'<'}</option>
+                                <option value=">=">{'>='}</option>
+                                <option value="<=">{'<='}</option>
+                            </select>
+                            <input type="number" className="w-16 bg-black/40 rounded px-2 py-1 border border-white/10" value={node.data.value} onChange={e => updateData({ value: e.target.value })} />
+                        </div>
+                        <div className="text-[10px] text-gray-500">Score 0-100</div>
+                    </div>
+                )}
+
+                {node.type === 'logic_gate' && (
+                    <div className="flex flex-col items-center justify-center py-2">
+                        <div className="text-xs text-pink-400 mb-2 font-bold uppercase tracking-wider">And/Or Gate</div>
+                        <select
+                            className="bg-black/40 rounded px-4 py-2 border border-white/10 text-xl font-bold font-mono text-center w-full"
+                            value={node.data.operation}
+                            onChange={e => updateData({ operation: e.target.value })}
+                        >
+                            <option value="AND">AND</option>
+                            <option value="OR">OR</option>
+                            <option value="XOR">XOR</option>
+                            <option value="NAND">NAND</option>
+                        </select>
+                        <span className="text-[10px] text-gray-500 mt-2">Connect 2+ Inputs</span>
+                    </div>
+                )}
+
+                {node.type === 'if_gate' && (
+                    <div className="space-y-0">
+                        {(node.data.conditions || []).map((cond, idx) => (
+                            <div key={idx} className="flex items-center justify-between h-[40px] px-2 bg-white/5 mb-1 rounded relative">
+                                <div className="font-mono text-orange-400 font-bold text-xs">{idx === 0 ? 'IF' : 'ELSE IF'}</div>
+                                {/* Custom Dots */}
+                                <Dot handle={`in-${idx}`} style={{ top: '50%', left: '-8px', transform: 'translateY(-50%)' }} />
+                                <Dot handle={`out-${idx}`} style={{ top: '50%', right: '-8px', transform: 'translateY(-50%)' }} />
+
+                                <button
+                                    onClick={() => {
+                                        const newConds = node.data.conditions.filter((_, i) => i !== idx);
+                                        updateData({ conditions: newConds });
+                                    }}
+                                    className="text-gray-600 hover:text-red-400 ml-4 hover:scale-110 transition-transform"
+                                    disabled={idx === 0} // Prevent deleting first
+                                >
+                                    <X size={12} />
+                                </button>
+                            </div>
+                        ))}
+                        {/* Else Row */}
+                        <div className="flex items-center justify-between h-[40px] px-2 bg-white/5 rounded relative">
+                            <div className="font-mono text-gray-400 font-bold text-xs">ELSE</div>
+                            <Dot handle="out-else" style={{ top: '50%', right: '-8px', transform: 'translateY(-50%)' }} />
+                        </div>
+
+                        <div className="mt-2 text-center">
+                            <button
+                                onClick={() => updateData({ conditions: [...(node.data.conditions || []), { id: `c${Date.now()}` }] })}
+                                className="text-[10px] bg-orange-500/20 text-orange-400 hover:bg-orange-500 hover:text-white px-2 py-1 rounded transition-colors"
+                            >
+                                + Add Condition
+                            </button>
+                        </div>
+                    </div>
+                )}
+
                 {/* --- ACTION BLOCKS --- */}
                 {(node.type === 'tracking' || node.type === 'nexus') && (
                     <div className="space-y-2">
-                        <div>
-                            <div className="text-xs text-gray-400 mb-1">Portfolio Code</div>
-                            <input className="w-full bg-black/40 rounded px-2 py-1 border border-white/10" placeholder="Code..." value={node.data.code} onChange={e => updateData({ code: e.target.value })} />
+                        {/* Track Type Selector */}
+                        <div className="flex gap-1 mb-1">
+                            <select
+                                className="w-full bg-black/40 rounded px-2 py-1 border border-white/10 text-xs"
+                                value={node.data.trackType || 'portfolio'}
+                                onChange={e => updateData({ trackType: e.target.value })}
+                            >
+                                <option value="portfolio">Portfolio Code</option>
+                                <option value="market">Custom Tickers</option>
+                                <option value="copy_user">Copy User (Social)</option>
+                            </select>
                         </div>
-                        <div className="flex items-center gap-2">
+
+                        {/* Dynamic Inputs */}
+                        {node.data.trackType === 'copy_user' ? (
+                            <div className="space-y-2">
+                                <div>
+                                    <div className="text-xs text-gray-400 mb-1">Target Username</div>
+                                    <input
+                                        className="w-full bg-black/40 rounded px-2 py-1 border border-white/10"
+                                        placeholder="e.g. QuantMaster"
+                                        value={node.data.target_username || ''}
+                                        onChange={e => updateData({ target_username: e.target.value })}
+                                    />
+                                </div>
+                                <div>
+                                    <div className="text-xs text-gray-400 mb-1">Target Portfolio Code</div>
+                                    <input
+                                        className="w-full bg-black/40 rounded px-2 py-1 border border-white/10"
+                                        placeholder="e.g. ALPHA_V1"
+                                        value={node.data.target_code || ''}
+                                        onChange={e => updateData({ target_code: e.target.value })}
+                                    />
+                                </div>
+                            </div>
+                        ) : (
+                            <div>
+                                <div className="text-xs text-gray-400 mb-1">
+                                    {node.data.trackType === 'market' ? 'Tickers list' : 'Target Code'}
+                                </div>
+                                <input
+                                    className="w-full bg-black/40 rounded px-2 py-1 border border-white/10"
+                                    placeholder={node.data.trackType === 'market' ? "AAPL, NVDA, TSLA" : "Code..."}
+                                    value={node.data.code}
+                                    onChange={e => updateData({ code: e.target.value })}
+                                />
+                            </div>
+                        )}
+
+                        <div className="flex items-center gap-2 mt-2">
                             <span className="text-gray-400">$</span>
                             <input type="number" className="flex-1 bg-black/40 rounded px-2 py-1 border border-white/10" placeholder="Value" value={node.data.value} onChange={e => updateData({ value: e.target.value })} />
                         </div>
@@ -644,6 +1062,25 @@ const NodeComponent = ({ node, onDelete, updateData, onDotClick, connecting }) =
                     </div>
                 )}
 
+                {node.type === 'webhook' && (
+                    <div className="space-y-2">
+                        <div className="flex items-center gap-2 mb-2">
+                            <select className="bg-black/40 rounded px-2 py-1 border border-white/10 text-xs" value={node.data.platform} onChange={e => updateData({ platform: e.target.value })}>
+                                <option value="discord">Discord</option>
+                                <option value="slack">Slack</option>
+                            </select>
+                        </div>
+                        <input className="w-full bg-black/40 rounded px-2 py-1 border border-white/10 text-xs font-mono" placeholder="Webhook URL..." value={node.data.url} onChange={e => updateData({ url: e.target.value })} />
+                        <textarea
+                            className="w-full bg-black/40 rounded px-2 py-1 border border-white/10 text-xs resize-none"
+                            rows={2}
+                            placeholder="Message payload..."
+                            value={node.data.message}
+                            onChange={e => updateData({ message: e.target.value })}
+                        />
+                    </div>
+                )}
+
                 {/* --- INFO BLOCKS --- */}
                 {node.type === 'email_info' && (
                     <input className="w-full bg-black/40 rounded px-2 py-1 border border-white/10" placeholder="Email Address..." value={node.data.email} onChange={e => updateData({ email: e.target.value })} />
@@ -656,11 +1093,30 @@ const NodeComponent = ({ node, onDelete, updateData, onDotClick, connecting }) =
                 )}
             </div>
 
-            {/* Connection Dots */}
-            <Dot handle="top" />
-            <Dot handle="bottom" />
-            <Dot handle="left" />
-            <Dot handle="right" />
+            {/* Connection Dots (Normal) */}
+            {/* If Gate has custom dots, so we might want to hide default ones or keep them key to logic? */}
+            {/* Logic: If Gate uses dynamic dots. Do we need standard dots too? 
+               Usually Logic blocks have Inputs (Left) and Outputs (Right).
+               If Gate has 'Left' inputs for each condition? Or one main Input?
+               "Connect to one output nodule for each if and else path" -> Output side.
+               "Schecks for a true condition starting with the first if statement"
+               Wait, does the If Gate RECEIVE a boolean signal (from a Condition block)?
+               YES. It's a Logic block. It receives inputs.
+               So:
+               - Input 0 (Left) -> Condition A
+               - Input 1 (Left) -> Condition B
+               
+               My dynamic renderer adds these.
+               So I should NOT render standard dots for if_gate if I use custom ones.
+            */}
+            {node.type !== 'if_gate' && (
+                <>
+                    <Dot handle="top" />
+                    <Dot handle="bottom" />
+                    <Dot handle="left" />
+                    <Dot handle="right" />
+                </>
+            )}
         </div>
     );
 };

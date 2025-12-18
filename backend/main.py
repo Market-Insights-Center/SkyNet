@@ -190,6 +190,33 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("uvicorn")
 
 from fastapi.responses import JSONResponse, StreamingResponse
+
+# --- SHARED FUNCTIONS IMPORT ---
+try:
+    from backend.database import (
+        get_db, 
+        get_user_points, 
+        add_points, 
+        share_automation, 
+        get_community_automations, 
+        increment_copy_count,
+        share_portfolio,
+        get_community_portfolios,
+        increment_portfolio_copy
+    )
+except ImportError:
+    from database import (
+        get_db, 
+        get_user_points, 
+        add_points, 
+        share_automation, 
+        get_community_automations, 
+        increment_copy_count,
+        share_portfolio,
+        get_community_portfolios,
+        increment_portfolio_copy
+    )
+
 try:
     from backend.usage_counter import increment_usage, get_all_usage
 except ImportError:
@@ -467,6 +494,9 @@ class PowerScoreRequest(BaseModel):
     email: str
     ticker: str
     sensitivity: int = 2
+
+class UsageIncrementRequest(BaseModel):
+    key: str
 
 class SummaryRequest(BaseModel):
     ticker: str
@@ -988,8 +1018,8 @@ def api_create_prediction(req: PredictionCreateRequest):
     return {"success": success}
 
 @app.get("/api/predictions/active")
-def api_get_predictions_endpoint():
-    return get_active_predictions()
+def api_get_predictions_endpoint(include_recent: bool = False):
+    return get_active_predictions(include_recent=include_recent)
 
 @app.post("/api/predictions/bet")
 def api_place_bet_endpoint(req: BetRequest):
@@ -1844,7 +1874,48 @@ async def save_database_code(req: DatabaseSaveRequest):
 
 @app.post("/api/database/delete")
 async def delete_database_code(req: DatabaseDeleteRequest):
-    delete_code(req.type, req.id)
+    success = delete_code(req.type, req.id)
+    if not success:
+        raise HTTPException(status_code=500, detail="Delete failed")
+    return {"status": "success"}
+
+# --- AUTOMATION ENDPOINTS ---
+class ShareAutomationRequest(BaseModel):
+    automation: Dict[str, Any]
+    username: str
+
+class CopyAutomationRequest(BaseModel):
+    shared_id: str
+
+# --- DATABASE COMMUNITY ENDPOINTS ---
+
+@app.post("/api/database/share")
+async def api_share_portfolio(req: ShareAutomationRequest): # Reuse ShareAutomationRequest as payload is similar (automation/data + username)
+    # The request body for sharing is consistent: data + username
+    return share_portfolio(req.automation, req.username)
+
+@app.get("/api/database/community")
+async def api_get_community_portfolios(sort: str = "recent"):
+    return get_community_portfolios(sort_by=sort)
+
+@app.post("/api/database/copy-count")
+async def api_inc_portfolio_copy(req: CopyAutomationRequest): # Reuse structure: { shared_id: ... }
+    increment_portfolio_copy(req.shared_id)
+    return {"status": "success"}
+
+# --- AUTOMATION API ---
+
+@app.post("/api/automations/share")
+def api_share_automation(req: ShareAutomationRequest):
+    return share_automation(req.automation, req.username)
+
+@app.get("/api/automations/community")
+def api_get_community_automations(sort: str = "recent"):
+    return get_community_automations(sort_by=sort)
+
+@app.post("/api/automations/copy-count")
+def api_inc_copy_count(req: CopyAutomationRequest):
+    increment_copy_count(req.shared_id)
     return {"status": "success"}
 
 
@@ -1922,7 +1993,30 @@ def delete_automation_endpoint(req: AutomationDeleteRequest):
 # --- USAGE STATS ENDPOINT ---
 @app.get("/api/usage")
 def get_usage_stats_endpoint():
-    return get_all_usage()
+    stats = get_all_usage()
+    # Add real user count
+    try:
+        users = get_all_users_from_db()
+        stats["total_users"] = len(users)
+    except:
+        stats["total_users"] = 0
+    
+    # Add automations count
+    try:
+        automations = load_automations()
+        stats["automations_created"] = len(automations)
+    except:
+         stats["automations_created"] = 0
+
+    return stats
+
+@app.post("/api/usage/increment")
+async def increment_usage_endpoint(req: UsageIncrementRequest):
+    try:
+        new_val = await increment_usage(req.key)
+        return {"status": "success", "new_value": new_val}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == "__main__":
     import uvicorn

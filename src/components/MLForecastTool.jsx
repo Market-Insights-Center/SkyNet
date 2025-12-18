@@ -43,6 +43,8 @@ const MLForecastTool = () => {
 
             // data.results should contain { table: [...], graph: filename }
             setResult(data.results);
+            // Track Usage
+            import('../services/usageService').then(({ trackUsage }) => trackUsage('ml_forecast'));
         } catch (err) {
             setError(err.message);
         } finally {

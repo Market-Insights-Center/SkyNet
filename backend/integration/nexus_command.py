@@ -5,6 +5,7 @@ import math
 import traceback
 from typing import List, Dict, Any, Optional, Tuple
 from collections import defaultdict
+from backend.usage_counter import increment_usage
 
 # --- CONSTANTS ---
 # Robust path finding
@@ -402,6 +403,7 @@ async def process_nexus_portfolio(nexus_config, total_value, nexus_code, ai_para
     return final, final_cash
 
 async def handle_nexus_command(args: List[str], ai_params: Optional[Dict] = None, is_called_by_ai: bool = False):
+    await increment_usage('nexus')
     print(f"\n[DEBUG NEXUS] handle_nexus_command Called. Args={args}, AI Params={ai_params}")
     """
     MAIN ENTRY POINT - GUARANTEED RETURN

@@ -19,6 +19,7 @@ from tradingview_screener import Column, Query
 
 # --- Local Imports ---
 from backend.integration.invest_command import calculate_ema_invest, safe_score, get_allocation_score
+from backend.usage_counter import increment_usage
 
 # --- Constants ---
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -359,6 +360,7 @@ async def handle_cultivate_command(args: List[str], ai_params: Optional[Dict] = 
     """
     Handles the /cultivate command for CLI and AI.
     """
+    await increment_usage('cultivate')
     try:
         cult_code, portfolio_val, frac_s_bool, action_type, date_to_save_val = None, None, None, "run_analysis", None
 

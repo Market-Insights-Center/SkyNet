@@ -6,6 +6,7 @@ from typing import List, Dict, Any, Optional
 import yfinance as yf
 import numpy as np
 from tabulate import tabulate
+from backend.usage_counter import increment_usage
 
 # --- Global Variables & Constants ---
 YFINANCE_API_SEMAPHORE = asyncio.Semaphore(8)
@@ -40,6 +41,7 @@ async def handle_fundamentals_command(args: list = None, ai_params: dict = None,
     """
     Fetches key fundamental data for a stock and calculates a dynamic fundamental score.
     """
+    await increment_usage('fundamentals')
     if is_called_by_ai:
         ticker = ai_params.get("ticker") if ai_params else None
     else:

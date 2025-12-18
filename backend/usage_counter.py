@@ -12,7 +12,8 @@ def _load_usage():
          "quickscore": 0, "sentinel": 0, "tracking": 0, "nexus": 0, "invest": 0, 
          "cultivate": 0, "assess": 0, "mlforecast": 0, "briefing": 0, 
          "fundamentals": 0, "breakout": 0, "sentiment": 0, "powerscore": 0,
-         "automations_ran": 0, "custom": 0
+         "automations_run": 0, "custom": 0, "market": 0, "summary": 0, "history": 0,
+         "execution_run": 0, "stock_clicks": 0
     }
     if not os.path.exists(USAGE_FILE):
         return defaults
@@ -52,7 +53,27 @@ async def increment_usage(product_key: str):
 
 def get_all_usage():
     """Returns the complete dictionary of usage stats."""
-    # Read-only access doesn't strictly need async lock if just reading file, 
-    # but for consistency we just load direct. 
-    # To avoid async overhead in synch endpoints, we'll just read.
-    return _load_usage()
+    stats = _load_usage()
+    
+    # helper to get active strategy count dynamically
+    try:
+        # Import internally to avoid circular imports if any
+        # We need to read the strategy_rankings.json file directly or use the module
+        from backend.integration.strategy_ranking import load_rankings
+        rankings = load_rankings()
+        active_count = len(rankings.get("active", []))
+        stats["active_strategies"] = active_count
+    except ImportError:
+        # Try relative import
+        try:
+            from integration.strategy_ranking import load_rankings
+            rankings = load_rankings()
+            active_count = len(rankings.get("active", []))
+            stats["active_strategies"] = active_count
+        except:
+            stats["active_strategies"] = 0
+    except Exception as e:
+        print(f"[USAGE] Error fetching strategy count: {e}")
+        stats["active_strategies"] = 0
+        
+    return stats

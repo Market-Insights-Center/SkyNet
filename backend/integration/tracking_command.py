@@ -6,6 +6,7 @@ import os
 import csv
 from typing import List, Dict, Any, Optional
 from collections import defaultdict
+from backend.usage_counter import increment_usage
 import pandas as pd
 from tabulate import tabulate
 import matplotlib.pyplot as plt
@@ -287,6 +288,7 @@ async def get_all_time_performance_data(
 
 # --- Main Handler (Backend /tracking) ---
 async def handle_tracking_command(args: List[str], ai_params: Optional[Dict] = None, is_called_by_ai: bool = False):
+    await increment_usage('tracking')
     print(f"\n[DEBUG TRACKING] handle_tracking_command Called. Args={args}")
     # If called via frontend/AI, args might be empty or come through ai_params
     portfolio_code = None

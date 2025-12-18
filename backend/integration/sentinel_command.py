@@ -4,6 +4,7 @@ import json
 import logging
 import traceback
 from typing import List, Dict, Any, Optional
+from backend.usage_counter import increment_usage
 
 from backend.ai_service import ai
 from backend.integration import (
@@ -285,6 +286,7 @@ async def run_sentinel(user_prompt: str, plan_override: Optional[List[Dict[str, 
     2. Execute Loop
     3. Summarize
     """
+    await increment_usage('sentinel')
     yield {"type": "status", "message": "Analyzing request..."}
     
     plan = []

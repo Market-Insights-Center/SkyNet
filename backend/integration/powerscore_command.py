@@ -18,6 +18,7 @@ from backend.ai_service import ai
 # --- Imports from other command modules ---
 from backend.integration.invest_command import calculate_ema_invest
 from backend.integration.sentiment_command import handle_sentiment_command, GEMINI_API_LOCK
+from backend.usage_counter import increment_usage
 
 # --- Global Variables & Constants ---
 YFINANCE_API_SEMAPHORE = asyncio.Semaphore(8)
@@ -455,6 +456,7 @@ async def handle_powerscore_command(
     api_lock_override: asyncio.Lock = None,
     **kwargs
 ):
+    await increment_usage('powerscore')
     model_to_use = None # Deprecated
     lock_to_use = None # Deprecated
 

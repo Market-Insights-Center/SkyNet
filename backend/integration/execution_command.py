@@ -7,6 +7,8 @@ import pyotp
 from typing import List, Dict, Any, Optional
 import math
 import os
+import asyncio
+from backend.usage_counter import increment_usage
 
 # Load Configuration
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -105,6 +107,21 @@ def execute_portfolio_rebalance(trades: List[Dict[str, Any]], known_holdings: Op
 
     print(f"\n--- 🏹 Robinhood Trade Execution ({len(trades)} orders) ---")
     
+    # Track usage (Synchronous fallback)
+    try:
+        data_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'data')
+        usage_file = os.path.join(data_dir, 'usage_stats.json')
+        if os.path.exists(usage_file):
+            import json
+            with open(usage_file, 'r') as f:
+                stats = json.load(f)
+            stats['execution_run'] = stats.get('execution_run', 0) + 1
+            stats['total_system_actions'] = stats.get('total_system_actions', 0) + 1
+            with open(usage_file, 'w') as f:
+                json.dump(stats, f, indent=4)
+    except Exception as e:
+        print(f"Usage update failed: {e}")
+
     # Backend Safety: We rely on the caller to have obtained user consent.
     # No 'input()' check here.
     
