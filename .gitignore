@@ -58,6 +58,8 @@ backend/market_data.csv
 backend/risk_eod_data.csv
 backend/*_cache.csv
 backend/data/*.json
+backend/data/*.db
+backend/.cache/
 !backend/data/banners_default.json
 
 # 4. CREDENTIALS (CRITICAL FIX for Firestore dropping)
