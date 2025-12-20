@@ -2,6 +2,8 @@
 # Full reset for VPS deployment
 # Run this to kill all processes, pull latest code, and restart everything.
 
+set -e # Exit on error
+
 echo "🛑 RED ALERT: Killing ALL background processes..."
 
 # 1. Kill PM2 processes
@@ -20,6 +22,8 @@ fi
 echo "⬇️  Pulling latest code..."
 git reset --hard HEAD
 git pull
+echo "✅ Code pulled. Current Commit:"
+git log -1 --oneline
 
 echo "📦 Re-installing dependencies..."
 # Frontend
@@ -36,8 +40,16 @@ fi
 pip install -r requirements.txt
 cd ..
 
+echo "🧹 Cleaning old build..."
+rm -rf dist
+
 echo "🏗️  Rebuilding Frontend..."
 npm run build
+
+if [ ! -d "dist" ]; then
+    echo "❌ BUILD FAILED: dist directory not found!"
+    exit 1
+fi
 
 echo "🚀 Restarting Backend..."
 # Switch to backend directory for correct path resolution
@@ -47,3 +59,4 @@ pm2 save
 cd ..
 
 echo "✅ Full Reset Complete! Access your site to verify."
+echo "Current Time: $(date)"
