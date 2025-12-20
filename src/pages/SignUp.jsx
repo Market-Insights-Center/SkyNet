@@ -2,7 +2,6 @@ import React, { useRef, useState, useEffect } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import { Link, useNavigate } from "react-router-dom";
 import { AlertCircle, Loader2 } from "lucide-react";
-import LiquidBackground from "../components/LiquidBackground";
 import MagneticButton from '../components/MagneticButton';
 import WaveBackground from '../components/WaveBackground';
 
