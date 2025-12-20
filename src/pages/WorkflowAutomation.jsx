@@ -10,7 +10,7 @@ import { useNavigate } from 'react-router-dom';
 
 import { useAuth } from '../contexts/AuthContext';
 
-const API_URL = 'http://localhost:8000/api'; // Adjust if needed
+const API_URL = '/api'; // Adjust if needed
 
 const WorkflowAutomation = () => {
     const navigate = useNavigate();

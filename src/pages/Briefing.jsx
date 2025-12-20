@@ -7,7 +7,7 @@ import {
 import { useAuth } from '../contexts/AuthContext';
 import AccessGate from '../components/AccessGate';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+const API_URL = import.meta.env.VITE_API_URL || '/api';
 
 export default function Briefing() {
     const { userProfile } = useAuth();
