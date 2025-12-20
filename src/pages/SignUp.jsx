@@ -3,7 +3,7 @@ import { useAuth } from "../contexts/AuthContext";
 import { Link, useNavigate } from "react-router-dom";
 import { AlertCircle, Loader2 } from "lucide-react";
 import MagneticButton from '../components/MagneticButton';
-import WaveBackground from '../components/WaveBackground.jsx';
+import { WaveBackground } from '../components/WaveBackground.jsx';
 
 export default function SignUp() {
     const emailRef = useRef();

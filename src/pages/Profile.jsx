@@ -4,7 +4,7 @@ import { useNavigate, Link } from "react-router-dom";
 import { AlertCircle, CheckCircle, LogOut, User, Lock, ArrowLeft, Loader2, Shield, ArrowRight, Edit3 } from "lucide-react";
 import { doc, getDoc, setDoc } from "firebase/firestore";
 import { db } from "../firebase";
-import WaveBackground from "../components/WaveBackground.jsx";
+import { WaveBackground } from "../components/WaveBackground.jsx";
 import { motion, AnimatePresence } from "framer-motion";
 
 export default function Profile() {

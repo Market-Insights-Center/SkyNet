@@ -2,7 +2,7 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
 import { Layers, Zap, Sprout, Activity, ArrowRight, Database, Trophy } from 'lucide-react';
-import WaveBackground from '../components/WaveBackground.jsx';
+import { WaveBackground } from '../components/WaveBackground.jsx';
 import TiltCard from '../components/TiltCard';
 
 const Hero = () => {
