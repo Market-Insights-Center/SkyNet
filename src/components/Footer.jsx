@@ -19,6 +19,13 @@ const Footer = () => {
                     </div>
 
                     <div>
+                        <h4 className="text-white font-bold mb-6 uppercase tracking-wider text-xs border-b border-white/10 pb-2 inline-block">Company</h4>
+                        <ul className="space-y-3 text-sm">
+                            <li><Link to="/about" className="text-gray-400 hover:text-gold transition-colors flex items-center gap-2 hover:translate-x-1 duration-200">About Us</Link></li>
+                        </ul>
+                    </div>
+
+                    <div>
                         <h4 className="text-white font-bold mb-6 uppercase tracking-wider text-xs border-b border-white/10 pb-2 inline-block">Platform</h4>
                         <ul className="space-y-3 text-sm">
                             <li><Link to="/products" className="text-gray-400 hover:text-gold transition-colors flex items-center gap-2 hover:translate-x-1 duration-200">Products Suite</Link></li>
@@ -52,7 +59,7 @@ const Footer = () => {
 
                 <div className="border-t border-white/10 pt-8 flex flex-col md:flex-row justify-between items-center gap-4">
                     <p className="text-gray-500 text-sm">
-                        &copy; {new Date().getFullYear()} Market Insights Center LLC. All rights reserved.
+                        &copy; 2024-{new Date().getFullYear()} Market Insights Center LLC. All rights reserved.
                     </p>
                     <div className="flex items-center gap-6">
                         {/* SOCIAL LINKS - Update hrefs with actual URLs */}

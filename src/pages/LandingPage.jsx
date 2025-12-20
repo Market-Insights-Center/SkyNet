@@ -441,6 +441,10 @@ const WealthCalculator = () => {
                                         +${Math.round(singularityValue - spyValue).toLocaleString()}
                                     </p>
                                 </div>
+                                <p className="text-[10px] text-gray-500 italic text-center mt-2 leading-tight">
+                                    *Past performance is not indicative of future results.<br />
+                                    The most recent year of data includes forward-tested results from our live model.
+                                </p>
                             </div>
                         </div>
                     </div>
@@ -458,16 +462,16 @@ const WealthCalculator = () => {
 const FAQSection = () => {
     const faqs = [
         {
-            q: "What is M.I.C. and how does it achieve high returns?",
-            a: "M.I.C. (Market Intelligence Center) uses institutional-grade algorithms, including the 'Singularity' model, which combines quantitative momentum strategies with deep learning. It analyzes price action, volatility, and sentiment to dynamically shift between offensive and defensive positions, aiming to outperform the market while managing risk."
+            q: "How does M.I.C. actually work?",
+            a: "We connect exclusively to supported brokerages via their official APIs. Our system analyzes market data using our 'Singularity' model to identify potential opportunities. If you choose to enable automation (Nexus), it executes trades within your defined risk parameters. You maintain full custody of your funds at all times."
         },
         {
             q: "Do I need to be an experienced trader to use this?",
-            a: "Not at all. While we offer deep tools for experts, our 'Singularity' model is designed to be a complete portfolio solution. You can simply follow its signals or use our Nexus tool to automate trade execution, making it accessible for ANY investor level."
+            a: "Not at all. While we offer deep tools for experts, our platform is designed to be a complete solution. You can simply monitor the 'Singularity' signals or use our Nexus tool to automate trade execution based on those signals."
         },
         {
             q: "Is my personal data and brokerage connection secure?",
-            a: "Yes. We use AES-256 encryption and follow strict security protocols. We do NOT have withdrawal access to your funds. Your brokerage connection is used solely for analyzing your portfolio and executing trades you authorize."
+            a: "Security is our priority. We use AES-256 encryption for all data in transit and at rest. We do NOT have withdrawal access to your funds, meaning we cannot move money out of your account. Your brokerage connection is used solely for portfolio analysis and authorized trade execution."
         },
         {
             q: "Can I cancel my subscription easily?",
@@ -785,12 +789,14 @@ const LandingPage = () => {
                             animate={{ opacity: 1, y: 0 }}
                             transition={{ duration: 0.8 }}
                         >
-                            {/* UPDATED: Removed Singularity text */}
+                            {/* UPDATED: Clearer Value Proposition */}
                             <h1 className="text-6xl md:text-8xl font-bold mb-6 tracking-tight">
                                 M.I.C.
                             </h1>
                             <p className="text-xl md:text-2xl text-gray-300 mb-10 max-w-3xl mx-auto leading-relaxed">
-                                The next evolution in wealth management. AI-driven insights, institutional-grade strategies, and automated portfolio optimization.
+                                Automate your portfolio with data-backed strategies.
+                                <br className="hidden md:block" />
+                                Sync your brokerage, choose a model, and let our algorithms handle the rest.
                             </p>
                             <div className="flex flex-col md:flex-row gap-6 justify-center">
                                 <Link to="/portfolio-lab" className="bg-gold text-black px-8 py-4 rounded-full font-bold text-lg hover:bg-yellow-500 transition-all transform hover:scale-105 flex items-center justify-center">
@@ -800,6 +806,7 @@ const LandingPage = () => {
                                     Explore Products
                                 </Link>
                             </div>
+
                         </motion.div>
                     </div>
                 </section>

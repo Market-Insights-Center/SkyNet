@@ -45,6 +45,7 @@ const SentinelAI = React.lazy(() => import('./pages/SentinelAI'));
 const DatabaseNodes = React.lazy(() => import('./pages/DatabaseNodes'));
 const StrategyRanking = React.lazy(() => import('./pages/StrategyRanking'));
 const MarketPredictions = React.lazy(() => import('./pages/MarketPredictions'));
+const About = React.lazy(() => import('./pages/About'));
 
 const WorkflowAutomation = React.lazy(() => import('./pages/WorkflowAutomation'));
 
@@ -195,6 +196,7 @@ const AppContent = () => {
                         <Route path="/privacy" element={<PageTransition><Layout><PrivacyPolicy /></Layout></PageTransition>} />
                         <Route path="/social" element={<PageTransition><Layout><Forum /></Layout></PageTransition>} />
                         <Route path="/help" element={<PageTransition><Layout><Help /></Layout></PageTransition>} />
+                        <Route path="/about" element={<PageTransition><Layout><About /></Layout></PageTransition>} />
 
                         {/* --- ORION DETACHED CONTROLS & SIDEBAR (No Transition Wrapper needed as they pop up) --- */}
                         {/* Note: lazy loaded components work fine here too */}
