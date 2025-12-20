@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Trophy, Clock, Activity, Trash2, TrendingUp, TrendingDown, ArrowLeft } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import WaveBackground from '../components/WaveBackground';
+import WaveBackground from '../components/WaveBackground.jsx';
 import { useAuth } from '../contexts/AuthContext';
 
 const StrategyRanking = () => {
