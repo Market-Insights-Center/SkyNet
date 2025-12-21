@@ -68,7 +68,7 @@ const ExecutionModal = ({ isOpen, onClose, onExecute }) => {
 
             if (savedEmail) {
                 setEmail(savedEmail);
-                setSendEmail(true);
+                // setSendEmail(true); // check removed
             }
             if (savedUser) {
                 setRhUser(savedUser);
@@ -84,11 +84,10 @@ const ExecutionModal = ({ isOpen, onClose, onExecute }) => {
         if (isProcessing) return;
         setIsProcessing(true);
 
-        if (sendEmail && email) localStorage.setItem('mic_email', email);
         if (execRh && rhUser) localStorage.setItem('mic_rh_user', rhUser);
         if (execRh && rhPass) localStorage.setItem('mic_rh_pass', rhPass);
 
-        onExecute({ email, rhUser, rhPass, sendEmail, execRh, overwrite });
+        onExecute({ rhUser, rhPass, execRh });
     };
 
     if (!isOpen) return null;
@@ -104,19 +103,7 @@ const ExecutionModal = ({ isOpen, onClose, onExecute }) => {
                 </h3>
 
                 <div className="space-y-6">
-                    <div className={`p-4 rounded-lg border ${sendEmail ? 'border-gold bg-gold/5' : 'border-gray-700 bg-black/30'}`}>
-                        <label className="flex items-center gap-3 cursor-pointer mb-2">
-                            <input type="checkbox" checked={sendEmail} onChange={(e) => setSendEmail(e.target.checked)} className="accent-gold w-5 h-5" />
-                            <span className="font-bold text-white">Send Trades to Email</span>
-                        </label>
-                        {sendEmail && (
-                            <input
-                                type="email" placeholder="Enter your email address"
-                                value={email} onChange={(e) => setEmail(e.target.value)}
-                                className="w-full bg-black border border-gray-700 rounded p-2 text-white mt-2 focus:border-gold outline-none"
-                            />
-                        )}
-                    </div>
+                    {/* Email option removed per request */}
 
                     <div className={`p-4 rounded-lg border ${execRh ? 'border-gold bg-gold/5' : 'border-gray-700 bg-black/30'}`}>
                         <label className="flex items-center gap-3 cursor-pointer mb-2">
@@ -134,10 +121,25 @@ const ExecutionModal = ({ isOpen, onClose, onExecute }) => {
                         )}
                     </div>
 
-                    <label className="flex items-center gap-3 cursor-pointer p-2 hover:bg-white/5 rounded">
-                        <input type="checkbox" checked={overwrite} onChange={(e) => setOverwrite(e.target.checked)} className="accent-gold w-5 h-5" />
-                        <span className="text-gray-300">Overwrite last save file?</span>
-                    </label>
+                    {/* Overwrite option is now handled by the tool inputs or defaults, not this modal, unless we want to force it here?
+                        The user said "send email and overwrite options must be only on the inputs menu". 
+                        However, Results.jsx is often displayed AFTER inputs are gone (if navigating back).
+                        But usually for Tracking, inputs are on the Wizard page.
+                        If this is just the results view, we might not have access to the original inputs state unless passed down.
+                        But wait, `stableData` comes from `window.analysisResults`.
+                        If the original request had `overwrite`, maybe we should honor it?
+                        Or does the user want these options completely GONE from the execution modal? yes.
+                        "Overwrite" logic is usually passed to `execute-trades` endpoint.
+                        If we remove it from modal, we need to know if we should overwrite.
+                        Let's assume "Overwrite" is FALSE by default here if not in modal, OR we assume the previous `run` already handled the "save" part, and this is just "execute trades".
+                        Execute Trades endpoint DOES NOT save/overwrite database. It just executes on RH.
+                        So "Overwrite" here might be irrelevant for `execute-trades` endpoint UNLESS `execute-trades` calls save?
+                        Looking at `main.py`, `execute_trades_endpoint` calls `execute_portfolio_rebalance`. It does NOT seem to save to DB.
+                        So "Overwrite" in Execution Modal was likely misleading or for a different purpose?
+                        Actually, `PortfolioNexus` has an `overwrite` option that interacts with `runNexus`.
+                        But `Results.jsx` calls `/api/execute-trades`.
+                        Let's remove it as requested.
+                     */}
                 </div>
 
                 <div className="mt-8 flex justify-end gap-4">
@@ -240,11 +242,34 @@ const Results = ({ toolType, onBack }) => {
             return;
         }
 
+        // User requested removing email/overwrite from modal.
+        // We need to decide where to get them.
+        // If this is `Results.jsx`, we are likely viewing a result.
+        // If we want to support email here without a modal input, we'd need to fetch it from localStorage or raw_result metadata.
+        // For now, let's check `localStorage` for email if we implicitly want to send it?
+        // Or if the user meant "inputs menu" (Wizard), then maybe those inputs were already passed to the backend during analysis and stored in result?
+        // `raw_result` might have `email_to`.
+        // Let's try to grab from raw_result or localStorage if we want to support it, otherwise we send null.
+
+        const storedEmail = localStorage.getItem('mic_email');
+        // We won't prompt, but if we have an email and the user originally requested it... 
+        // Actually, without the checkbox in modal, the user can't "opt-in" at this stage.
+        // So we will only send email if `options.sendEmail` is passed? But we removed the checkbox!
+        // So `options.sendEmail` will probably be false/undefined.
+        // Effectively, this disables email sending from this specific modal unless we force it.
+        // Given the instructions "send email... only on the inputs menu", it implies that if I set it in inputs, it should happen.
+        // BUT `Results.jsx` is a separate view. If I ran the tool with "Send Email" checked, the backend likely ALREADY sent the email during the analysis breakdown?
+        // No, usually "Execute Trades" is a separate step for RH.
+        // Use Case: User runs analysis -> sees results -> clicks "Execute Trades".
+        // If they checked "Send Email" in inputs, maybe they want the EXECUTION confirmation email?
+        // Let's rely on standard args. If we extracted email from valid inputs earlier, we might not have it here.
+        // We'll proceed with just RH execution for now as that seems to be the core request.
+
         const body = {
             trades: payloadData,
             rh_username: options.execRh ? options.rhUser : null,
             rh_password: options.execRh ? options.rhPass : null,
-            email_to: options.sendEmail ? options.email : null,
+            email_to: null, // explicit null as we removed the input
             portfolio_code: raw_result?.portfolio_code || "Unknown"
         };
 

@@ -88,6 +88,7 @@ def verify_access_and_limits(email, product):
             tier = "Singularity"
             
         if tier == "Singularity":
+            add_points(email, product)
             return {"allowed": True, "reason": "no_limit", "message": "Singularity Access."}
         else:
             user_ref = db.collection('users').document(email)
@@ -112,6 +113,7 @@ def verify_access_and_limits(email, product):
             }
             
         if limit_str == "NL":
+            add_points(email, product)
             return {"allowed": True, "reason": "no_limit", "message": "Access granted."}
 
         # 4. Parse Limit (e.g., "10/day")
@@ -151,6 +153,13 @@ def verify_access_and_limits(email, product):
         success = increment_usage(transaction, usage_ref)
         
         if success:
+            # AUTOMATICALLY AWARD POINTS FOR USAGE
+            # This ensures every successful command usage that hits a limit check gets points.
+            try:
+                 add_points(email, product)
+            except Exception as e:
+                 print(f"Error auto-awarding points for {product}: {e}")
+
             return {"allowed": True, "reason": "authorized", "message": "Access granted."}
         else:
              return {
@@ -362,6 +371,20 @@ def update_user_tier(email, tier, subscription_id=None, status="active"):
         
         # Check for referral rewards
         check_referral_reward(email, tier)
+
+        # AWARD POINTS FOR SUBSCRIPTION
+        # Map tier to action key in points_rules.csv
+        tier_action_map = {
+            "Pro": "pro_month",
+            "Enterprise": "enterprise_month"
+        }
+        action = tier_action_map.get(tier)
+        if action:
+            try:
+                add_points(email, action)
+                print(f"Awarded subscription points ({action}) to {email}")
+            except Exception as e:
+                print(f"Error awarding subscription points: {e}")
         
         return True
     except Exception as e:
@@ -1062,7 +1085,10 @@ def add_points(email, action):
         
         @firestore.transactional
         def update_points_txn(transaction, ref):
-            snapshot = transaction.get(ref)
+            res = transaction.get(ref)
+            # Fix for generator result (common in some lib versions)
+            snapshot = next(res) if hasattr(res, '__iter__') and not hasattr(res, 'exists') else res
+
             if not snapshot.exists: return False
             
             user_data = snapshot.to_dict()
@@ -1071,7 +1097,16 @@ def add_points(email, action):
             # Singularity Logic: Instant
             if tier == 'Singularity':
                 current_points = user_data.get('points', 0)
-                transaction.update(ref, {'points': current_points + points_to_add})
+                new_total = current_points + points_to_add
+                transaction.update(ref, {'points': new_total})
+                
+                # USER DEBUG
+                print(f"\n[POINTS DEBUG] Adding Instant Points for {email} (Singularity Tier)")
+                print(f" > Action: {action}")
+                print(f" > Amount: {points_to_add}")
+                print(f" > Status: INSTANT")
+                print(f" > Old Balance: {current_points}")
+                print(f" > New Balance: {new_total}\n")
                 return True
             
             # Basic/Pro/Enterprise Logic: Pending 24h
@@ -1083,19 +1118,24 @@ def add_points(email, action):
                     "release_at": release_time,
                     "created_at": datetime.utcnow().isoformat()
                 }
-                # We can store pending_points as a subcollection or array. 
-                # Array is easier for read-heavy frontend, but limit is 1MB. 
-                # Pending points are transient, so array 'pending_points_log' is likely fine.
-                # However, for robustness, update 'pending_points_total' field for easy display?
-                # No, calculate total on client or read time? 
                 
-                # Let's use array for simplicity of cloud function/scheduler processing
                 current_pending = user_data.get('pending_transactions', [])
                 current_pending.append(pending_txn)
                 
                 transaction.update(ref, {
                     'pending_transactions': current_pending
                 })
+                
+                # USER DEBUG:
+                print(f"\n[POINTS DEBUG] Queueing Points for {email}")
+                print(f" > Action: {action}")
+                print(f" > Amount: {points_to_add}")
+                print(f" > Release Delay: 24 Hours")
+                print(f" > Release Time (UTC): {datetime.fromtimestamp(release_time)}")
+                print(f" > Status: PENDING")
+                print(f" > Current Available Balance: {user_data.get('points', 0)}")
+                print(f" > Projected Balance (After Release): {user_data.get('points', 0) + points_to_add}\n")
+                
                 return True
             
         transaction = db.transaction()

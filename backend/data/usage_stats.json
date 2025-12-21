@@ -1,7 +1,7 @@
 {
-    "quickscore": 1,
+    "quickscore": 8,
     "sentinel": 0,
-    "tracking": 0,
+    "tracking": 3,
     "nexus": 5,
     "invest": 0,
     "cultivate": 0,
@@ -13,12 +13,12 @@
     "sentiment": 0,
     "powerscore": 0,
     "automations_run": 1,
-    "custom": 0,
+    "custom": 1,
     "market": 0,
     "summary": 0,
     "history": 0,
     "execution_run": 0,
     "stock_clicks": 0,
-    "total_system_actions": 36,
-    "risk": 29
+    "total_system_actions": 56,
+    "risk": 38
 }

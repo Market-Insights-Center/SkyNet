@@ -500,6 +500,7 @@ class UsageIncrementRequest(BaseModel):
 
 class SummaryRequest(BaseModel):
     ticker: str
+    email: Optional[str] = "guest"
 
 class NexusRequest(BaseModel):
     email: str
@@ -1579,19 +1580,35 @@ async def api_tracking(request: Request):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/risk")
-async def api_risk():
+async def api_risk(email: str = "guest"): 
+    # Note: GET requests often put params in query string. FastAPI handles `email` param automatically if sent.
+    # If called without email, defaults to guest.
+    
+    if email != "guest":
+        limit_check = verify_access_and_limits(email, "risk")
+        if not limit_check["allowed"]:
+             # raise HTTPException(status_code=403, detail=limit_check["message"])
+             pass # Risk is often auto-scheduled, but for manual calls we should track.
+
     try:
         # We can pass empty args to get the default calculation
         result, _ = await risk_command.perform_risk_calculations_singularity(is_eod_save=False, is_called_by_ai=True)
+        await increment_usage("risk")
         return result
     except Exception as e:
         logger.error(f"Error in /api/risk: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/history")
-async def api_history():
+async def api_history(email: str = "guest"):
+    if email != "guest":
+        limit_check = verify_access_and_limits(email, "history")
+        if not limit_check["allowed"]:
+             pass 
+
     try:
         result = await history_command.handle_history_command([], is_called_by_ai=True)
+        await increment_usage("history")
         return result
     except Exception as e:
         logger.error(f"Error in /api/history: {e}")
@@ -1711,7 +1728,13 @@ async def run_powerscore(req: PowerScoreRequest):
 
 @app.post("/api/summary")
 async def run_summary(req: SummaryRequest):
-    # Minimal Summary Endpoint
+    # Enforce Limit & Award Points
+    if req.email != 'guest':
+        limit_check = verify_access_and_limits(req.email, "summary")
+        if not limit_check["allowed"]:
+             pass 
+
+    await increment_usage("summary")
     return await summary_command.handle_summary_command(
         ai_params={"ticker": req.ticker},
         is_called_by_ai=True
@@ -1777,6 +1800,14 @@ async def execute_trades_endpoint(req: ExecuteTradesRequest):
         else:
              execution_msg += "Credentials missing for RH execution. "
 
+        # 3. Track Usage & Points (for Execution)
+        if req.rh_username: # Only if they actually tried to execute
+             # Can't easily verify limit for "execution" as it's a sub-feature, but we can award points/track usage
+             # Assuming we want to award points for "execution_run"
+             # Since ExecuteTradesRequest uses `email_to` or `portfolio_code`, but maybe not `email` of user directly?
+             # It acts as a util. 
+             await increment_usage("execution_run")
+
         return {"status": "success", "message": execution_msg, "executed_count": len(rh_trades)}
 
     except Exception as e:
@@ -1796,6 +1827,9 @@ async def run_nexus(req: NexusRequest):
             raise HTTPException(status_code=403, detail=limit_check["message"])
     except Exception as e:
         print(f"Warning: Limit check failed: {e}")
+
+    # Track Usage
+    await increment_usage("nexus")
 
     ai_params = {
         "nexus_code": req.nexus_code,

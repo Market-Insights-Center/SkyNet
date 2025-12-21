@@ -18,3 +18,6 @@ sentinel,30
 custom,20
 history,10
 risk,10
+automations,20
+summary,5
+execution_run,10

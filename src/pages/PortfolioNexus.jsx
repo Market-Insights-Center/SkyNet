@@ -461,16 +461,32 @@ export default function PortfolioNexus() {
                         onClose={() => setShowExecModal(false)}
                         onExecute={async (options) => {
                             // Handle Execution
-                            const trades = result.trades || [];
-                            if (!trades.length) { alert("No trades to execute."); return; }
+                            const trades = result.trades || (result.table ? result.table.filter(t => t.ticker !== 'Cash' && t.ticker !== 'Total') : []);
+                            // Fallback logic for trades if result.trades is empty but table exists? 
+                            // Usually Nexus returns `trades` key specifically for rebalancing. If empty, maybe just holdings?
+                            // The user said "No trade data found". This implies result.trades is missing. 
+                            // If Nexus was run with "Execute RH", the backend might have already executed? 
+                            // No, this modal is for manual "Execute Trades" button press AFTER run.
+                            if (!trades || trades.length === 0) { alert("No trades to execute."); return; }
+
+
+                            // MERGE logic: Use Modal's RH opts, but Parent's Execution Opts for email
+                            // The user said "send email... only on the inputs menu".
+                            // So we use `executionOpts` for email/overwrite.
 
                             const body = {
                                 trades: trades,
                                 rh_username: options.execRh ? options.rhUser : null,
                                 rh_password: options.execRh ? options.rhPass : null,
-                                email_to: options.sendEmail ? options.email : null,
+                                email_to: executionOpts.send_email ? (executionOpts.email_to || localStorage.getItem('mic_email')) : null,
                                 portfolio_code: result.nexus_code || "Nexus"
                             };
+
+                            // Ensure email is valid if checked
+                            if (executionOpts.send_email && !body.email_to) {
+                                alert("Please enter an email address in the configuration panel.");
+                                return;
+                            }
 
                             try {
                                 const response = await fetch('/api/execute-trades', {
@@ -679,10 +695,6 @@ const ExecutionModal = ({ isOpen, onClose, onExecute }) => {
             const savedUser = localStorage.getItem('mic_rh_user');
             const savedPass = localStorage.getItem('mic_rh_pass');
 
-            if (savedEmail) {
-                setEmail(savedEmail);
-                setSendEmail(true);
-            }
             if (savedUser) {
                 setRhUser(savedUser);
                 setExecRh(true);
@@ -697,11 +709,17 @@ const ExecutionModal = ({ isOpen, onClose, onExecute }) => {
         if (isProcessing) return;
         setIsProcessing(true);
 
-        if (sendEmail && email) localStorage.setItem('mic_email', email);
         if (execRh && rhUser) localStorage.setItem('mic_rh_user', rhUser);
         if (execRh && rhPass) localStorage.setItem('mic_rh_pass', rhPass);
 
-        onExecute({ email, rhUser, rhPass, sendEmail, execRh });
+        // We only pass back RH credentials. Email, overwrite are handled by initial configuration or main state if passed down, 
+        // BUT wait, execution happens here on "Execute Trades" button which invokes /api/execute-trades.
+        // The /api/execute-trades endpoint NEEDS email_to if we want to send email. 
+        // We removed email input from Modal, so we rely on what was set in Main UI? 
+        // Issue: ExecutionModal is a child, it doesn't know about Main UI state unless passed. 
+        // We should pass `executionOpts` from parent to this modal or `onExecute` should merge it.
+        // Let's rely on `onExecute` merging it.
+        onExecute({ rhUser, rhPass, execRh });
     };
 
     if (!isOpen) return null;
@@ -717,18 +735,13 @@ const ExecutionModal = ({ isOpen, onClose, onExecute }) => {
                 </h3>
 
                 <div className="space-y-6">
-                    <div className={`p-4 rounded-lg border ${sendEmail ? 'border-gold bg-gold/5' : 'border-gray-700 bg-black/30'}`}>
-                        <label className="flex items-center gap-3 cursor-pointer mb-2">
-                            <input type="checkbox" checked={sendEmail} onChange={(e) => setSendEmail(e.target.checked)} className="accent-gold w-5 h-5" />
-                            <span className="font-bold text-white">Send Trades to Email</span>
-                        </label>
-                        {sendEmail && (
-                            <input
-                                type="email" placeholder="Enter your email address"
-                                value={email} onChange={(e) => setEmail(e.target.value)}
-                                className="w-full bg-black border border-gray-700 rounded p-2 text-white mt-2 focus:border-gold outline-none"
-                            />
-                        )}
+                    {/* Send Email and Overwrite are now handled in the main UI config, not here. This modal is strictly for RH confirmation if enabled, or just confirmation. */}
+
+                    <div className="p-4 bg-gray-800 rounded-lg border border-gray-700">
+                        <p className="text-sm text-gray-300 mb-2">
+                            You are about to execute trades.
+                            {/* Check if main UI opts are on */}
+                        </p>
                     </div>
 
                     <div className={`p-4 rounded-lg border ${execRh ? 'border-gold bg-gold/5' : 'border-gray-700 bg-black/30'}`}>

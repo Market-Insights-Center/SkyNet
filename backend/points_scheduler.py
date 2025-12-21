@@ -75,7 +75,15 @@ def process_pending_points():
                 
                 transaction = db.transaction()
                 release_txn(transaction, user_ref)
-                print(f"Released {points_to_release} points for {user.id}")
+                
+                # Fetch new balance for logging
+                # (Note: we approximate or re-fetch if precise is needed, but 'curr_points + points_to_release' is accurate for the txn)
+                # But release_txn runs inside a transaction, so we can't easily extract the exact final number unless we return it.
+                # However, since we just ran the transaction, we can assume success if no error.
+                print(f"\n[POINTS DEBUG] Released Pending Points for {user.id}")
+                print(f" > Amount Released: {points_to_release}")
+                print(f" > Time: {datetime.utcnow()}")
+                print(f" > Points are now available in main balance.\n")
 
     except Exception as e:
         print(f"Error processing pending points: {e}")
