@@ -74,3 +74,4 @@ serviceAccountKey.json
 
 # 6. Generated Prompt/Run Data
 backend/saved_runs/
+backend/portfolio_outputs/
