@@ -20,8 +20,25 @@ server {
     root /var/www/marketinsights/dist;
     index index.html;
 
-    # 1. Frontend Routing
-    # Serves index.html for any unknown paths (Required for React Router)
+    # 1. Frontend Routing (Corrected)
+    
+    # A. Assets: specific handling to avoid index.html fallback
+    location /assets {
+        # If file not found, return 404 immediately (fixes "MIME type" error)
+        try_files $uri =404;
+        
+        # Cache correct assets for a long time (filenames are hashed)
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+    }
+
+    # B. Index: Force revalidation to catch new deployments
+    location = /index.html {
+        add_header Cache-Control "no-store, no-cache, must-revalidate";
+        try_files $uri =404;
+    }
+
+    # C. SPA Catch-all
     location / {
         try_files $uri $uri/ /index.html;
     }
