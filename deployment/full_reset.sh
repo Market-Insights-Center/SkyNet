@@ -21,6 +21,7 @@ fi
 
 echo "⬇️  Pulling latest code..."
 git reset --hard HEAD
+git clean -fd
 git pull
 echo "✅ Code pulled. Current Commit:"
 git log -1 --oneline
