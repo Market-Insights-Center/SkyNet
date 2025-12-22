@@ -1135,17 +1135,22 @@ def calculate_user_rank(points):
     try:
         db = get_db()
         # Count users with MORE points than this user
-        # Note: count() is efficient in Firestore if aggregation queries are enabled/supported or we just stream keys
-        # For simplicity and small scale, we can use a query. 
-        # For scale, this should be a cached counter or estimated.
         
-        # Method 1: Count documents where points > user_points
-        query = db.collection('users').where(field_path='points', op_string='>', value=points).count()
-        results = query.get()
-        
-        # Rank is (number of people with more points) + 1
-        rank = results[0][0].value + 1
-        return rank
+        try:
+            # Method 1: Efficient Count (Requires newer firebase-admin)
+            query = db.collection('users').where(field_path='points', op_string='>', value=points).count()
+            results = query.get()
+            return results[0][0].value + 1
+            
+        except (AttributeError, Exception) as e:
+            # Method 2: Fallback for older versions or if aggregation fails
+            # Stream keys only if possible, or just huge query (warning: read costs)
+            # For small scale this is fine.
+            print(f"Rank calc fallback (count() failed): {e}")
+            docs = db.collection('users').where(field_path='points', op_string='>', value=points).stream()
+            count = sum(1 for _ in docs)
+            return count + 1
+            
     except Exception as e:
         print(f"Error calculating rank: {e}")
         return 0
