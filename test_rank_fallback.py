@@ -45,6 +45,37 @@ class TestRankFallback(unittest.TestCase):
         # Verify that count() was called, failed, and then stream() was called
         mock_query.count.assert_called_once()
         mock_query.stream.assert_called_once()
+    
+    @patch('backend.database.get_db')    
+    def test_caching_logic(self, mock_get_db):
+        print("\nTesting Rank Caching...")
+        # Reset global cache if needed, but for unit test simpler to just run
+        # We need to ensure _rank_cache is empty or mocked? 
+        # Since it's global in module, we might need to clear it or reload module.
+        # Minimal test: call twice, see if db hit twice.
+        
+        from backend.database import calculate_user_rank, _rank_cache
+        _rank_cache.clear() 
+        
+        mock_db = MagicMock()
+        mock_get_db.return_value = mock_db
+        mock_query = MagicMock()
+        mock_db.collection.return_value.where.return_value = mock_query
+        
+        # Setup normal return
+        mock_query.count.return_value.get.return_value = [[MagicMock(value=4)]] # Rank 5
+        
+        # Call 1
+        rank1 = calculate_user_rank(500)
+        self.assertEqual(rank1, 5)
+        
+        # Call 2 (Should hit cache)
+        rank2 = calculate_user_rank(500)
+        self.assertEqual(rank2, 5)
+        
+        # Verify DB hit only once
+        mock_query.count.assert_called_once()
+        print("SUCCESS: Caching prevented second DB call.")
 
 if __name__ == '__main__':
     unittest.main()

@@ -35,6 +35,8 @@ _leaderboard_cache = {
     "timestamp": 0
 }
 
+_rank_cache = {}
+
 
 # --- LIMIT LOGIC (NEW) ---
 
@@ -1136,20 +1138,37 @@ def calculate_user_rank(points):
         db = get_db()
         # Count users with MORE points than this user
         
+        # Check Cache for Rank
+        # For simplicity, we can use a small in-memory LRU or similar, but global dict with timestamp works for single worker
+        global _rank_cache
+        
+        # Cache Key: Points (Rank depends on points value mostly, but actually depends on others. 
+        # Ideally key is user_email, but rank function only takes points. 
+        # Let's trust that identical points = identical rank roughly. 
+        # BUT this function is `calculate_user_rank(points)`, so it returns standard rank for that score.
+        cache_key = f"rank_{points}"
+        if cache_key in _rank_cache:
+            data, timestamp = _rank_cache[cache_key]
+            if time.time() - timestamp < 300: # 5 mins
+                return data
+
         try:
             # Method 1: Efficient Count (Requires newer firebase-admin)
             query = db.collection('users').where(field_path='points', op_string='>', value=points).count()
             results = query.get()
-            return results[0][0].value + 1
+            rank = results[0][0].value + 1
             
         except (AttributeError, Exception) as e:
             # Method 2: Fallback for older versions or if aggregation fails
             # Stream keys only if possible, or just huge query (warning: read costs)
-            # For small scale this is fine.
             print(f"Rank calc fallback (count() failed): {e}")
             docs = db.collection('users').where(field_path='points', op_string='>', value=points).stream()
             count = sum(1 for _ in docs)
-            return count + 1
+            rank = count + 1
+
+        # Save to Cache
+        _rank_cache[cache_key] = (rank, time.time())
+        return rank
             
     except Exception as e:
         print(f"Error calculating rank: {e}")
@@ -1166,8 +1185,12 @@ def get_user_points(email):
             pending_total = sum(t.get('amount', 0) for t in pending)
             points = data.get('points', 0)
             
-            # Calculate Rank
-            rank = calculate_user_rank(points)
+            # Calculate Rank (Safe Call)
+            try:
+                rank = calculate_user_rank(points)
+            except Exception as re:
+                print(f"Failed to calculate rank for {email}: {re}")
+                rank = 0
             
             return {
                 "points": points, 
