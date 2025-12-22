@@ -1,0 +1,28 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // User Profiles: Users can read/write ONLY their own document
+    match /users/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    // Community Portfolios: Readable by all, writable by auth users (create only?) 
+    // Adjust logic as needed, but for now simple read is safe for public data.
+    match /community_portfolios/{docId} {
+      allow read: if true;
+      allow write: if request.auth != null;
+    }
+    
+    // Predictions: Public read
+    match /predictions/{predId} {
+      allow read: if true;
+      allow write: if request.auth != null; // Ideally admin only
+    }
+
+    // Default: Deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
