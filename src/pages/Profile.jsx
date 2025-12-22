@@ -53,7 +53,7 @@ export default function Profile() {
                     .catch(err => console.error("Error checking mods:", err));
 
                 try {
-                    const docRef = doc(db, "users", currentUser.uid);
+                    const docRef = doc(db, "users", currentUser.email);
                     const docSnap = await getDoc(docRef);
                     if (docSnap.exists()) {
                         const data = docSnap.data();
@@ -212,7 +212,7 @@ export default function Profile() {
     const toggleLeaderboard = async () => {
         const newVal = !showLeaderboard;
         setShowLeaderboard(newVal);
-        await setDoc(doc(db, "users", currentUser.uid), { settings: { show_leaderboard: newVal } }, { merge: true });
+        await setDoc(doc(db, "users", currentUser.email), { settings: { show_leaderboard: newVal } }, { merge: true });
     };
 
     const handleQuestionnaireSubmit = async (e) => {
@@ -234,7 +234,7 @@ export default function Profile() {
 
         try {
             // 1. Save to Firestore
-            await setDoc(doc(db, "users", currentUser.uid), profileData, { merge: true });
+            await setDoc(doc(db, "users", currentUser.email), profileData, { merge: true });
 
             // 2. Save to Backend CSV (Optional/If implemented)
             // await saveProfileToBackend(currentUser.uid, currentUser.email, profileData);

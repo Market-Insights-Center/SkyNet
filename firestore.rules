@@ -2,9 +2,9 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     
-    // User Profiles: Users can read/write ONLY their own document
+    // User Profiles: Users can read/write their own document (Key = Email)
     match /users/{userId} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+      allow read, write: if request.auth != null && (request.auth.uid == userId || request.auth.token.email == userId);
     }
     
     // Community Portfolios: Readable by all, writable by auth users (create only?) 
