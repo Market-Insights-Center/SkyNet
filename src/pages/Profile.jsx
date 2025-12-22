@@ -558,7 +558,7 @@ export default function Profile() {
                                             {[
                                                 "Low Risk", "Medium Risk", "High Risk",
                                                 "Stocks", "ETFs", "Options",
-                                                "Crypto", "Indexs", "Futures",
+                                                "Crypto", "Indices", "Futures",
                                                 "Sector Specific", "M.I.C. Algorithm Strategies", "Other"
                                             ].map((type) => (
                                                 <label key={type} className="flex items-center gap-2 cursor-pointer p-2 rounded hover:bg-white/5">
