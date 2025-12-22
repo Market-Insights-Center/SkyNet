@@ -87,6 +87,7 @@ export default function Profile() {
                             .then(d => {
                                 setPoints(d.points || 0);
                                 setRank(d.rank || 0);
+                                setPendingPoints(d.pending_points || 0);
                             }).catch(e => {
                                 console.error("Points API Error:", e);
                                 setPoints(data.points || 0); // Fallback to Firestore
@@ -357,27 +358,36 @@ export default function Profile() {
                 <div className="mb-8 p-6 bg-black/30 rounded-lg border border-white/5 grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div>
                         <h3 className="text-xl font-bold text-gold mb-4 flex items-center gap-2"><Shield size={20} /> Singularity Points</h3>
-                        <div className="flex items-center gap-6 mb-4">
-                            <div>
+                        <div className="grid grid-cols-2 gap-4 mb-4">
+                            <div className="bg-white/5 border border-white/10 rounded-lg p-4 flex flex-col items-center justify-center">
                                 <div className="text-3xl font-bold text-white">{points.toLocaleString()}</div>
-                                <div className="text-xs text-gray-400">Total Points</div>
+                                <div className="text-xs text-gray-400 mt-1 uppercase tracking-wider">Total Points</div>
                             </div>
-                            <div className="h-8 w-px bg-white/10"></div>
-                            <div>
+                            <div className="bg-white/5 border border-white/10 rounded-lg p-4 flex flex-col items-center justify-center">
                                 <div className="text-3xl font-bold text-gold">#{rank}</div>
-                                <div className="text-xs text-gray-400">Global Rank</div>
+                                <div className="text-xs text-gray-400 mt-1 uppercase tracking-wider">Global Rank</div>
                             </div>
-                            {pendingPoints > 0 && (
-                                <>
-                                    <div className="h-8 w-px bg-white/10"></div>
-                                    <div>
-                                        <div className="text-3xl font-bold text-gray-400 opacity-80">{pendingPoints.toLocaleString()}</div>
-                                        <div className="text-xs text-gray-500">Pending (24h)</div>
-                                    </div>
-                                </>
-                            )}
                         </div>
-                        <label className="flex items-center gap-2 cursor-pointer text-sm text-gray-400 hover:text-white">
+
+                        {/* PENDING POINTS BOX - Always show if > 0, or maybe even if 0 if requested prominently */}
+                        {pendingPoints > 0 && (
+                            <div className="bg-purple-900/20 border border-purple-500/30 rounded-lg p-4 mb-4 flex items-center justify-between">
+                                <div className="flex items-center gap-3">
+                                    <div className="bg-purple-500/20 p-2 rounded-full text-purple-400">
+                                        <Loader2 size={20} className="animate-spin-slow" />
+                                    </div>
+                                    <div>
+                                        <div className="text-sm text-purple-200 font-bold">Pending Distribution</div>
+                                        <div className="text-xs text-purple-400/80">Available in 24 Hours</div>
+                                    </div>
+                                </div>
+                                <div className="text-2xl font-bold text-purple-300">
+                                    {pendingPoints.toLocaleString()}
+                                </div>
+                            </div>
+                        )}
+
+                        <label className="flex items-center gap-2 cursor-pointer text-sm text-gray-400 hover:text-white mt-2">
                             <input type="checkbox" checked={showLeaderboard} onChange={toggleLeaderboard} className="accent-gold" />
                             Show me on public leaderboard
                         </label>

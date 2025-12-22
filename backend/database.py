@@ -339,21 +339,7 @@ def increment_portfolio_copy(shared_id):
         return True
     except: return False
 
-def get_user_points(email):
-    try:
-        db = get_db()
-        doc = db.collection('users').document(email).get()
-        if doc.exists:
-            data = doc.to_dict()
-            pending = data.get('pending_transactions', [])
-            pending_total = sum(t.get('amount', 0) for t in pending)
-            return {
-                "points": data.get('points', 0), 
-                "tier": data.get('tier', 'Basic'),
-                "pending_points": pending_total
-            }
-        return {"points": 0, "tier": "Basic", "pending_points": 0}
-    except: return {"points": 0, "tier": "Basic", "pending_points": 0}
+
 
 def update_user_tier(email, tier, subscription_id=None, status="active"):
     """Updates a user's subscription tier."""
@@ -1144,6 +1130,26 @@ def add_points(email, action):
         print(f"Error adding points for {email}: {e}")
         return False
 
+def calculate_user_rank(points):
+    """Calculates rank based on points (Higher points = Lower Rank Number)."""
+    try:
+        db = get_db()
+        # Count users with MORE points than this user
+        # Note: count() is efficient in Firestore if aggregation queries are enabled/supported or we just stream keys
+        # For simplicity and small scale, we can use a query. 
+        # For scale, this should be a cached counter or estimated.
+        
+        # Method 1: Count documents where points > user_points
+        query = db.collection('users').where(field_path='points', op_string='>', value=points).count()
+        results = query.get()
+        
+        # Rank is (number of people with more points) + 1
+        rank = results[0][0].value + 1
+        return rank
+    except Exception as e:
+        print(f"Error calculating rank: {e}")
+        return 0
+
 def get_user_points(email):
     """Returns user's points and rank."""
     try:
@@ -1155,10 +1161,8 @@ def get_user_points(email):
             pending_total = sum(t.get('amount', 0) for t in pending)
             points = data.get('points', 0)
             
-            # Simple Rank Calculation (No heavy aggregation for single user fetch unless needed)
-            # For header display, rank is often less critical or can be lazily loaded.
-            # But let's keep it 0 for speed or implement cached rank later.
-            rank = 0 
+            # Calculate Rank
+            rank = calculate_user_rank(points)
             
             return {
                 "points": points, 
