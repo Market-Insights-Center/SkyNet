@@ -64,8 +64,20 @@ def process_pending_points():
                 
                 @firestore.transactional
                 def release_txn(transaction, ref):
-                    snap = transaction.get(ref)
-                    if not snap.exists: return
+                    # Fix: transaction.get(ref) might return a generator in some lib versions
+                    snap_or_gen = transaction.get(ref)
+                    
+                    snap = None
+                    # Check if generator (iterator)
+                    if hasattr(snap_or_gen, '__iter__') and not hasattr(snap_or_gen, 'exists'):
+                        try:
+                            snap = next(snap_or_gen)
+                        except StopIteration:
+                            return # No doc
+                    else:
+                        snap = snap_or_gen
+
+                    if not snap or not snap.exists: return
                     
                     curr_points = snap.get('points') or 0
                     transaction.update(ref, {
@@ -76,10 +88,7 @@ def process_pending_points():
                 transaction = db.transaction()
                 release_txn(transaction, user_ref)
                 
-                # Fetch new balance for logging
-                # (Note: we approximate or re-fetch if precise is needed, but 'curr_points + points_to_release' is accurate for the txn)
-                # But release_txn runs inside a transaction, so we can't easily extract the exact final number unless we return it.
-                # However, since we just ran the transaction, we can assume success if no error.
+                # Fetch new balance for logging (approx)
                 print(f"\n[POINTS DEBUG] Released Pending Points for {user.id}")
                 print(f" > Amount Released: {points_to_release}")
                 print(f" > Time: {datetime.utcnow()}")
@@ -100,11 +109,9 @@ def process_singularity_refill():
     try:
         db = get_db()
         # Query Singularity Users
-        # Requires index on 'tier' potentially, or just iterate all and check tier (slower but works without index)
-        # Assuming we can filter by tier if index exists. If not, error.
-        # Let's try filtering.
+        # Fix: Use positional args for where() to avoid warnings
         try:
-            users = db.collection('users').where(field_path='tier', op_string='==', value='Singularity').stream()
+            users = db.collection('users').where('tier', '==', 'Singularity').stream()
         except:
             # Fallback if index missing
              users = db.collection('users').stream()
@@ -176,7 +183,8 @@ def process_expiring_predictions():
     try:
         db = get_db()
         # Get all Active Predictions
-        docs = db.collection('predictions').where(field_path='status', op_string='==', value='active').stream()
+        # Fix: Positional args for where()
+        docs = db.collection('predictions').where('status', '==', 'active').stream()
         
         now = datetime.utcnow()
         
@@ -244,8 +252,9 @@ def process_expiring_predictions():
                 
                 winning_pool = pool_yes if winner == 'yes' else pool_no
                 
-                bets = db.collection('bets').where(field_path='prediction_id', op_string='==', value=pid)\
-                         .where(field_path='status', op_string='==', value='pending').stream()
+                # Fix: Positional args for where()
+                bets = db.collection('bets').where('prediction_id', '==', pid)\
+                         .where('status', '==', 'pending').stream()
                 
                 batch = db.batch()
                 payout_count = 0
