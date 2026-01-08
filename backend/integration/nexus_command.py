@@ -139,7 +139,7 @@ async def _save_nexus_config(config_data: Dict[str, Any]):
     except Exception as e:
         print(f"Error saving nexus config: {e}")
 
-async def _resolve_nexus_component(comp_type: str, comp_value: str, allocated_value: float, parent_path: str, allow_fractional: bool = True) -> List[Dict[str, Any]]:
+async def _resolve_nexus_component(comp_type: str, comp_value: str, allocated_value: float, parent_path: str, allow_fractional: bool = True, pre_calculated_data: Any = None) -> List[Dict[str, Any]]:
     print(f"[DEBUG NEXUS] Resolving Component: Type={comp_type}, Value={comp_value}, Alloc=${allocated_value:.2f}, Frac={allow_fractional}")
     holdings = []
     try:
@@ -222,7 +222,12 @@ async def _resolve_nexus_component(comp_type: str, comp_value: str, allocated_va
             
             elif "breakout" in comp_val_lower:
                 print("[DEBUG NEXUS] Resolving 'Breakout' command...")
-                res = await run_breakout_analysis_singularity(is_called_by_ai=True)
+                if pre_calculated_data:
+                    print("[DEBUG NEXUS] Using Pre-Calculated Breakout Data.")
+                    res = pre_calculated_data
+                else:
+                    res = await run_breakout_analysis_singularity(is_called_by_ai=True)
+                
                 if isinstance(res, dict) and res.get('status') == 'success':
                     # Fix: Handle potential key differences
                     start_list = res.get('current_breakout_stocks', [])
@@ -309,7 +314,62 @@ async def process_nexus_portfolio(nexus_config, total_value, nexus_code, ai_para
     num_components = int(nexus_config.get('num_components', 0))
     allow_fractional = str(nexus_config.get('frac_shares', 'true')).lower() == 'true'
 
-    # Check Total Weight First
+    # --- PRE-SCAN FOR BREAKOUT (Dynamic Reallocation) ---
+    # Research task: "in cases when the Breakout list is empty, the allocation is split among the other parts... voiding the Breakout allocation"
+    
+    breakout_indices = []
+    for i in range(1, num_components + 1):
+        c_type = nexus_config.get(f'component_{i}_type')
+        c_value = str(nexus_config.get(f'component_{i}_value', '')).lower()
+        if c_type == 'command' and 'breakout' in c_value:
+             breakout_indices.append(i)
+    
+    breakout_cache = {}
+
+    if breakout_indices:
+        print(f"[DEBUG NEXUS] Found Breakout Components at indices: {breakout_indices}. Checking for tickers...")
+        # Run Breakout Once
+        try:
+            bk_res = await run_breakout_analysis_singularity(is_called_by_ai=True)
+            bk_list = bk_res.get('current_breakout_stocks', []) if isinstance(bk_res, dict) else []
+            
+            if not bk_list:
+                print(f"[DEBUG NEXUS] Breakout returned 0 tickers. DYNAMIC REALLOCATION TRIGGERED.")
+                
+                # 1. Zero out Breakout weights
+                for idx in breakout_indices:
+                    print(f"[DEBUG NEXUS] Zeroing component_{idx}_weight")
+                    nexus_config[f'component_{idx}_weight'] = 0
+                
+                # 2. Normalize remaining weights
+                # Identify remaining total weight
+                remaining_weight_sum = 0.0
+                for i in range(1, num_components + 1):
+                    w = float(nexus_config.get(f'component_{i}_weight', 0))
+                    print(f"[DEBUG NEXUS] Component {i} weight: {w}")
+                    remaining_weight_sum += w
+                
+                if remaining_weight_sum > 0:
+                    scale_factor = 100.0 / remaining_weight_sum
+                    print(f"[DEBUG NEXUS] Scaling (Sum={remaining_weight_sum}, Factor={scale_factor:.4f})")
+                    for i in range(1, num_components + 1):
+                        old_w = float(nexus_config.get(f'component_{i}_weight', 0))
+                        if old_w > 0:
+                            new_w = old_w * scale_factor
+                            nexus_config[f'component_{i}_weight'] = new_w
+                            print(f"[DEBUG NEXUS] Updated Component {i} to {new_w}")
+                else: 
+                     print("[DEBUG NEXUS] Remaining weight sum is 0. No scaling.")
+            else:
+                # Valid Breakout - Cache it
+                print(f"[DEBUG NEXUS] Breakout has {len(bk_list)} tickers. Keeping allocation.")
+                breakout_cache['data'] = bk_res
+                
+        except Exception as e:
+            print(f"[DEBUG NEXUS] Error in Breakout Prescan: {e}")
+            traceback.print_exc()
+
+    # Check Total Weight First (After Reallocation)
     total_assigned_weight = 0.0
     for i in range(1, num_components + 1):
         total_assigned_weight += float(nexus_config.get(f'component_{i}_weight', 0))
@@ -333,7 +393,14 @@ async def process_nexus_portfolio(nexus_config, total_value, nexus_code, ai_para
             continue
         
         alloc = total_value * (c_weight / 100.0)
-        res = await _resolve_nexus_component(c_type, c_value, alloc, nexus_code, allow_fractional)
+        
+        # Check for pre-calculated data (Breakout)
+        pre_calc = None
+        if c_type == 'command' and 'breakout' in str(c_value).lower():
+            if 'data' in breakout_cache:
+                pre_calc = breakout_cache['data']
+        
+        res = await _resolve_nexus_component(c_type, c_value, alloc, nexus_code, allow_fractional, pre_calculated_data=pre_calc)
         if res: all_holdings.extend(res)
 
     # Aggregation

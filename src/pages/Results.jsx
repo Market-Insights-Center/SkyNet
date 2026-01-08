@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { motion } from 'framer-motion';
-import { ArrowLeft, ArrowUp, ArrowDown, Activity, Layers } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { ArrowLeft, ArrowUp, ArrowDown, Activity, Layers, X } from 'lucide-react';
+import TradingViewWidget from '../components/TradingViewWidget';
 
 const CHART_COLORS = [
     '#D4AF37', '#6A0DAD', '#FFFFFF', '#9370DB', '#B8860B', '#4B0082', '#FFD700', '#8A2BE2', '#6B7280', '#10B981'
@@ -174,6 +175,7 @@ const Results = ({ toolType, onBack }) => {
 
     const [sortConfig, setSortConfig] = useState({ key: 'allocPercent', direction: 'desc' });
     const [showExecModal, setShowExecModal] = useState(false);
+    const [activeTicker, setActiveTicker] = useState(null);
 
     // Destructure stable state
     const { summary: summaryStats, table: rawTableData, raw_result, comparison, performance, since_last_save } = stableData;
@@ -350,7 +352,7 @@ const Results = ({ toolType, onBack }) => {
                                     if (!row) return null;
                                     return (
                                         <tr key={i} className="border-b border-white/5 hover:bg-white/5">
-                                            <td className="p-4 font-bold text-white">{row.ticker || "N/A"}</td>
+                                            <td className="p-4 font-bold text-white cursor-pointer hover:text-gold transition-colors" onClick={() => setActiveTicker(row.ticker)}>{row.ticker || "N/A"}</td>
                                             <td className="p-4 text-gray-300">
                                                 {(row.shares || 0).toLocaleString(undefined, { maximumFractionDigits: 5 })}
                                             </td>
@@ -383,7 +385,7 @@ const Results = ({ toolType, onBack }) => {
                                             if (!row) return null;
                                             return (
                                                 <tr key={i} className="border-b border-white/5 hover:bg-white/5 text-sm">
-                                                    <td className="p-3 font-bold text-white">{row.ticker || "N/A"}</td>
+                                                    <td className="p-3 font-bold text-white cursor-pointer hover:text-gold transition-colors" onClick={() => setActiveTicker(row.ticker)}>{row.ticker || "N/A"}</td>
                                                     <td className={`p-3 font-bold ${row.action === 'Buy' ? 'text-green-400' : 'text-red-400'}`}>{row.action || "-"}</td>
                                                     <td className="p-3 text-right text-gray-300">{(row.diff || 0) > 0 ? '+' : ''}{(parseFloat(row.diff) || 0).toFixed(4)}</td>
                                                 </tr>
@@ -406,7 +408,7 @@ const Results = ({ toolType, onBack }) => {
                                             const pnl = parseFloat(row.pnl) || 0;
                                             return (
                                                 <tr key={i} className="border-b border-white/5 hover:bg-white/5 text-sm">
-                                                    <td className="p-3 font-bold text-white">{row.ticker || "N/A"}</td>
+                                                    <td className="p-3 font-bold text-white cursor-pointer hover:text-gold transition-colors" onClick={() => setActiveTicker(row.ticker)}>{row.ticker || "N/A"}</td>
                                                     <td className="p-3 text-right text-gray-400">${(parseFloat(row.origin_price) || 0).toFixed(2)}</td>
                                                     <td className="p-3 text-right text-gray-300">${(parseFloat(row.live_price) || 0).toFixed(2)}</td>
                                                     <td className={`p-3 text-right font-bold ${pnl >= 0 ? 'text-green-400' : 'text-red-400'}`}>
@@ -433,7 +435,7 @@ const Results = ({ toolType, onBack }) => {
                                         const pnl = parseFloat(row.pnl) || 0;
                                         return (
                                             <tr key={i} className="border-b border-white/5 hover:bg-white/5 text-sm">
-                                                <td className="p-3 font-bold text-white">{row.ticker || "N/A"}</td>
+                                                <td className="p-3 font-bold text-white cursor-pointer hover:text-gold transition-colors" onClick={() => setActiveTicker(row.ticker)}>{row.ticker || "N/A"}</td>
                                                 <td className="p-3 text-right text-gray-300">{(parseFloat(row.shares) || 0).toLocaleString(undefined, { maximumFractionDigits: 5 })}</td>
                                                 <td className="p-3 text-right text-gray-400">${(parseFloat(row.last_save_price) || 0).toFixed(2)}</td>
                                                 <td className="p-3 text-right text-gray-300">${(parseFloat(row.current_price) || 0).toFixed(2)}</td>
@@ -452,6 +454,37 @@ const Results = ({ toolType, onBack }) => {
             )}
 
             <ExecutionModal isOpen={showExecModal} onClose={() => setShowExecModal(false)} onExecute={handleExecution} />
+
+            {/* TradingView Widget Modal */}
+            <AnimatePresence>
+                {activeTicker && (
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
+                        onClick={() => setActiveTicker(null)}
+                    >
+                        <motion.div
+                            initial={{ scale: 0.95, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            exit={{ scale: 0.95, opacity: 0 }}
+                            className="w-full max-w-5xl h-[80vh] bg-gray-900 border border-gray-700 rounded-xl overflow-hidden relative shadow-2xl"
+                            onClick={e => e.stopPropagation()}
+                        >
+                            <button
+                                onClick={() => setActiveTicker(null)}
+                                className="absolute top-4 right-4 z-10 bg-gray-800 text-gray-400 hover:text-white p-2 rounded-full hover:bg-gray-700 transition-colors"
+                            >
+                                <X size={20} />
+                            </button>
+                            <div className="h-full w-full">
+                                <TradingViewWidget ticker={activeTicker} />
+                            </div>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
         </motion.div>
     );
 };

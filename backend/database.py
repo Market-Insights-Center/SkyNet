@@ -99,6 +99,10 @@ def verify_access_and_limits(email, product):
             if user_doc.exists:
                 raw_tier = user_doc.to_dict().get('tier', 'Basic')
                 tier = str(raw_tier).strip() if raw_tier else 'Basic'
+            else:
+                 # No user doc? Likely guest or sync issue
+                 if not email or email == 'guest':
+                      return {"allowed": False, "reason": "auth_required", "message": "Please sign in to use this feature."}
             
         # 2. Get Limit for Tier/Product
         all_limits = load_tier_limits()
@@ -110,8 +114,8 @@ def verify_access_and_limits(email, product):
             next_tier = get_next_tier_with_access(tier, product)
             return {
                 "allowed": False, 
-                "reason": "no_access", 
-                "message": f"Your current tier ({tier}) does not have access to {product}. Please upgrade to {next_tier}."
+                "reason": "locked", 
+                "message": f"This feature is locked to the {next_tier} tier. Please upgrade to access {product}."
             }
             
         if limit_str == "NL":
@@ -164,10 +168,11 @@ def verify_access_and_limits(email, product):
 
             return {"allowed": True, "reason": "authorized", "message": "Access granted."}
         else:
+             next_tier = get_next_tier_with_access(tier, product)
              return {
                  "allowed": False, 
                  "reason": "limit_exceeded", 
-                 "message": f"You have reached your {product} limit of {limit_str}. Please upgrade to increase your limits."
+                 "message": f"You have reached your {limit_str} limit for {product}. Please upgrade to {next_tier} to increase your limits."
              }
 
     except Exception as e:
@@ -197,7 +202,9 @@ def verify_storage_limit(email, product, current_count):
         
         # 3. Handle Special Strings
         if limit_str == "NL": return {"allowed": True}
-        if limit_str == "NA": return {"allowed": False, "message": f"Upgrade required for {product}."}
+        if limit_str == "NA": 
+             next_tier = get_next_tier_with_access(tier, product)
+             return {"allowed": False, "message": f"This feature is locked to the {next_tier} tier."}
         
         # 4. Check Count
         try:
@@ -206,7 +213,7 @@ def verify_storage_limit(email, product, current_count):
                  next_tier = get_next_tier_with_access(tier, product)
                  return {
                      "allowed": False, 
-                     "message": f"Limit Reached ({current_count}/{max_limit}). Upgrade to {next_tier} for more."
+                     "message": f"You have reached your limit of {max_limit} for {product}. Upgrade to {next_tier} for more."
                  }
              return {"allowed": True}
         except ValueError:

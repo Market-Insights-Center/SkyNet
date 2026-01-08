@@ -3,10 +3,11 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
     Network, Play, Plus, Trash2, Save, BarChart3,
     PieChart, ChevronRight, AlertTriangle, CheckCircle,
-    Database, RefreshCw, Mail, Shield, Check, ArrowUp, ArrowDown
+    Database, RefreshCw, Mail, Shield, Check, ArrowUp, ArrowDown, X
 } from 'lucide-react';
 import AccessGate from '../components/AccessGate';
 import TierGate from '../components/TierGate';
+import TradingViewWidget from '../components/TradingViewWidget';
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
 
@@ -18,6 +19,7 @@ export default function PortfolioNexus() {
     const [error, setError] = useState(null);
     const [showCreateModal, setShowCreateModal] = useState(false);
     const [showExecModal, setShowExecModal] = useState(false);
+    const [activeTicker, setActiveTicker] = useState(null);
 
     // Sorting State
     const [sortConfig, setSortConfig] = useState({ key: 'weight', direction: 'desc' });
@@ -372,7 +374,7 @@ export default function PortfolioNexus() {
                                                 <tbody className="divide-y divide-gray-800">
                                                     {sortedHoldings.map((h, i) => (
                                                         <tr key={i} className="hover:bg-gray-800/50 transition-colors">
-                                                            <td className="px-6 py-3 font-bold text-blue-300">{h.ticker}</td>
+                                                            <td className="px-6 py-3 font-bold text-blue-300 cursor-pointer hover:text-blue-400 transition-colors" onClick={() => setActiveTicker(h.ticker)}>{h.ticker}</td>
                                                             <td className="px-6 py-3 text-right font-mono text-gray-300">{Number(h.shares).toFixed(4)}</td>
                                                             <td className="px-6 py-3 text-right font-mono text-gray-300">${Number(h.value).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
                                                             <td className="px-6 py-3 text-right font-mono text-gray-300">
@@ -512,6 +514,37 @@ export default function PortfolioNexus() {
                             }
                         }}
                     />
+
+                    {/* TradingView Widget Modal */}
+                    <AnimatePresence>
+                        {activeTicker && (
+                            <motion.div
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 1 }}
+                                exit={{ opacity: 0 }}
+                                className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
+                                onClick={() => setActiveTicker(null)}
+                            >
+                                <motion.div
+                                    initial={{ scale: 0.95, opacity: 0 }}
+                                    animate={{ scale: 1, opacity: 1 }}
+                                    exit={{ scale: 0.95, opacity: 0 }}
+                                    className="w-full max-w-5xl h-[80vh] bg-gray-900 border border-gray-700 rounded-xl overflow-hidden relative shadow-2xl"
+                                    onClick={e => e.stopPropagation()}
+                                >
+                                    <button
+                                        onClick={() => setActiveTicker(null)}
+                                        className="absolute top-4 right-4 z-10 bg-gray-800 text-gray-400 hover:text-white p-2 rounded-full hover:bg-gray-700 transition-colors"
+                                    >
+                                        <X size={20} />
+                                    </button>
+                                    <div className="h-full w-full">
+                                        <TradingViewWidget ticker={activeTicker} />
+                                    </div>
+                                </motion.div>
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
 
                 </div >
             </div >

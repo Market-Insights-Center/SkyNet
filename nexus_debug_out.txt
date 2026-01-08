@@ -1,0 +1,19 @@
+--- Testing Nexus Reallocation ---
+DEBUG: Config Before Reallocation Check: {'nexus_code': 'TEST_CODE', 'num_components': 2, 'frac_shares': 'true', 'component_1_type': 'command', 'component_1_value': 'breakout', 'component_1_weight': 50, 'component_2_type': 'command', 'component_2_value': 'market', 'component_2_weight': 50}
+[DEBUG NEXUS] Processing Portfolio TEST_CODE Value=$10000
+[DEBUG NEXUS] Found Breakout Components at indices: [1]. Checking for tickers...
+[DEBUG NEXUS] Breakout returned 0 tickers. DYNAMIC REALLOCATION TRIGGERED.
+[DEBUG NEXUS] Zeroing component_1_weight
+[DEBUG NEXUS] Component 1 weight: 0.0
+[DEBUG NEXUS] Component 2 weight: 50.0
+[DEBUG NEXUS] Scaling (Sum=50.0, Factor=2.0000)
+[DEBUG NEXUS] Updated Component 2 to 100.0
+[DEBUG NEXUS] Aggregating 1 stored positions...
+[DEBUG NEXUS] Final Holdings List: [{'ticker': 'TEST', 'shares': 10.0, 'actual_money_allocation': 100.0, 'live_price_at_eval': 10.0, 'actual_percent_allocation': 0, 'path': []}]
+[DEBUG NEXUS] Final Holdings Count: 1, Cash Left: $9900.00
+DEBUG: Config After Reallocation: {'nexus_code': 'TEST_CODE', 'num_components': 2, 'frac_shares': 'true', 'component_1_type': 'command', 'component_1_value': 'breakout', 'component_1_weight': 0, 'component_2_type': 'command', 'component_2_value': 'market', 'component_2_weight': 100.0}
+Process finished.
+SUCCESS: breakout analysis was called.
+Market Allocation: $10000.0
+SUCCESS: Market received 100% allocation ($10,000).
+SUCCESS: Breakout received $0 allocation (or wasn't called).
