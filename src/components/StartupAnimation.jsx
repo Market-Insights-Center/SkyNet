@@ -6,8 +6,17 @@ const StartupAnimation = ({ onComplete }) => {
     const canvasRef = useRef(null);
 
     useEffect(() => {
+        const hasSeenAnimation = sessionStorage.getItem('startup_animation_shown');
+
+        if (hasSeenAnimation) {
+            setIsVisible(false);
+            if (onComplete) onComplete();
+            return;
+        }
+
         const timer = setTimeout(() => {
             setIsVisible(false);
+            sessionStorage.setItem('startup_animation_shown', 'true');
             if (onComplete) setTimeout(onComplete, 500);
         }, 2000); // 2 Seconds
         return () => clearTimeout(timer);

@@ -770,16 +770,19 @@ const LandingPage = () => {
 
                 {/* Hero Section */}
                 <section className="relative h-screen flex items-center justify-center overflow-hidden">
-                    <div className="absolute inset-0 z-0">
+                    <div className="absolute inset-0 z-0 bg-black">
                         <video
+                            ref={(el) => {
+                                if (el && !el.src) {
+                                    el.src = "/landingpagestocks.mp4";
+                                }
+                            }}
                             autoPlay
                             loop
                             muted
                             playsInline
-                            className="w-full h-full object-cover opacity-30"
-                        >
-                            <source src="/landingpagestocks.mp4" type="video/mp4" />
-                        </video>
+                            className="w-full h-full object-cover opacity-30 transition-opacity duration-1000"
+                        />
                         <div className="absolute inset-0 bg-gradient-to-b from-black/20 via-black/50 to-black/80"></div>
                     </div>
 
@@ -1083,31 +1086,33 @@ const LandingPage = () => {
                             <p className="text-xl text-gray-400">Unlock the full potential of M.I.C. Singularity.</p>
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                            <SubscriptionCard
-                                title="Basic"
-                                price="$0"
-                                period="/month"
-                                planId="FREE_TIER"
-                                features={["Limited product usage", "Community access"]}
-                                delay={0.1}
-                            />
-                            <SubscriptionCard
-                                title="Pro"
-                                price="$19"
-                                period="/month"
-                                planId={import.meta.env.VITE_PAYPAL_VISIONARY_PLAN_ID}
-                                features={["Priority support", "Higher product usage limits", "Community access"]}
-                                isPopular={true}
-                                delay={0.2}
-                            />
-                            <SubscriptionCard
-                                title="Enterprise"
-                                price="$49"
-                                period="/month"
-                                planId={import.meta.env.VITE_PAYPAL_INSTITUTIONAL_PLAN_ID}
-                                features={["High product usage limits", "Community access", "Priority support", "Early access to new features"]}
-                                delay={0.3}
-                            />
+                            <Suspense fallback={<div className="col-span-3 md:col-span-3 h-[400px] flex items-center justify-center text-gold"><Loader2 className="animate-spin" /></div>}>
+                                <SubscriptionCard
+                                    title="Basic"
+                                    price="$0"
+                                    period="/month"
+                                    planId="FREE_TIER"
+                                    features={["Limited product usage", "Community access"]}
+                                    delay={0.1}
+                                />
+                                <SubscriptionCard
+                                    title="Pro"
+                                    price="$19"
+                                    period="/month"
+                                    planId={import.meta.env.VITE_PAYPAL_VISIONARY_PLAN_ID}
+                                    features={["Priority support", "Higher product usage limits", "Community access"]}
+                                    isPopular={true}
+                                    delay={0.2}
+                                />
+                                <SubscriptionCard
+                                    title="Enterprise"
+                                    price="$49"
+                                    period="/month"
+                                    planId={import.meta.env.VITE_PAYPAL_INSTITUTIONAL_PLAN_ID}
+                                    features={["High product usage limits", "Community access", "Priority support", "Early access to new features"]}
+                                    delay={0.3}
+                                />
+                            </Suspense>
                         </div>
                     </div>
                 </section>
@@ -1121,7 +1126,9 @@ const LandingPage = () => {
             {/* Footer */}
             <ErrorBoundary>
                 <UsageTicker />
-                <Footer />
+                <Suspense fallback={<div className="h-24 bg-black" />}>
+                    <Footer />
+                </Suspense>
             </ErrorBoundary>
         </div>
     );
