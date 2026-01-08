@@ -20,7 +20,7 @@ const UsernameSetupModal = ({ isOpen, onClose }) => {
     const checkAvailability = async (val) => {
         if (!val || val.length < 3) return;
         try {
-            const response = await fetch('/api/check-username', {
+            const response = await fetch('/api/auth/check-username', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ username: val })

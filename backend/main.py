@@ -678,6 +678,29 @@ def check_username_availability(req: UsernameCheckRequest):
              
     return {"available": True, "message": "Username is available"}
 
+@app.post("/api/user/username")
+def update_username_endpoint(req: UsernameUpdateRequest):
+    # 1. Verify availability again to be safe
+    users = get_all_users_from_db()
+    requested = req.username.strip()
+    
+    # Check if taken by someone else
+    for u in users:
+        if u.get('email') != req.email:
+             if (u.get('username') or "").lower() == requested.lower():
+                 raise HTTPException(status_code=400, detail="Username already taken")
+
+    # 2. Update via database manager
+    try:
+        success = update_user_username(req.email, requested)
+        if success:
+            return {"status": "success", "username": requested}
+        else:
+            raise HTTPException(status_code=500, detail="Database update failed")
+    except Exception as e:
+        logger.error(f"Failed to update username: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 # -----------------------------
 # CHAT ENDPOINTS 
 # -----------------------------
