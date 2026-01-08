@@ -10,7 +10,8 @@ import {
     updatePassword,
     updateProfile,
     GoogleAuthProvider,
-    signInWithPopup
+    signInWithPopup,
+    deleteUser
 } from "firebase/auth";
 
 const AuthContext = React.createContext();
@@ -57,6 +58,17 @@ export function AuthProvider({ children }) {
         return updateProfile(currentUser, {
             displayName: name
         });
+    }
+
+    function deleteAccount() {
+        return deleteUser(currentUser);
+    }
+
+    // QA: Allow mods to temporarily override their tier locally
+    function overrideUserTier(tier) {
+        if (!currentUser) return;
+        const updatedUser = { ...currentUser, tier: tier, isTestingTier: true };
+        setCurrentUser(updatedUser);
     }
 
     // NEW: Fetch user profile (Tier) from backend
@@ -110,8 +122,10 @@ export function AuthProvider({ children }) {
         updateUserEmail,
         updateUserPassword,
         updateUsername,
+        deleteAccount,
         refreshUserProfile,
         fetchUserProfile: refreshUserProfile,
+        overrideUserTier,
         loading, // Expose loading state
         userProfile: currentUser // Expose currentUser as userProfile for compatibility
     };

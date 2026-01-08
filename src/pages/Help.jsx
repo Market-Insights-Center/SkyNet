@@ -1,7 +1,7 @@
 import React, { useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Bot, Search, Scale, Siren, HelpCircle, Terminal, Layers, Zap, Sprout, Activity, PieChart, BarChart2, TrendingUp, History, Globe, Briefcase, Settings, Database, AlertTriangle, Network, Maximize2, Cpu, Box, Workflow } from 'lucide-react';
+import { Bot, Search, Scale, Siren, HelpCircle, Terminal, Layers, Zap, Sprout, Activity, PieChart, BarChart2, TrendingUp, History, Globe, Briefcase, Settings, Database, AlertTriangle, Network, Maximize2, Cpu, Box, Workflow, DollarSign } from 'lucide-react';
 
 const Help = () => {
     const { hash } = useLocation();

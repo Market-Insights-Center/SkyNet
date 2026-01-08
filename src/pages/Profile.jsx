@@ -1,8 +1,8 @@
 import React, { useState, useRef, useEffect } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import { useNavigate, Link } from "react-router-dom";
-import { AlertCircle, CheckCircle, LogOut, User, Lock, ArrowLeft, Loader2, Shield, ArrowRight, Edit3 } from "lucide-react";
-import { doc, getDoc, setDoc } from "firebase/firestore";
+import { AlertCircle, CheckCircle, LogOut, User, Lock, ArrowLeft, Loader2, Shield, ArrowRight, Edit3, AlertTriangle } from "lucide-react";
+import { doc, getDoc, setDoc, deleteDoc } from "firebase/firestore";
 import { db } from "../firebase";
 import { WaveBackground } from "../components/WaveBackground.jsx";
 import { motion, AnimatePresence } from "framer-motion";
@@ -10,7 +10,7 @@ import { motion, AnimatePresence } from "framer-motion";
 export default function Profile() {
     const [error, setError] = useState("");
     const [message, setMessage] = useState("");
-    const { currentUser, logout, updateUsername, updateUserPassword } = useAuth();
+    const { currentUser, logout, updateUsername, updateUserPassword, deleteAccount, overrideUserTier } = useAuth();
     const navigate = useNavigate();
     const [loading, setLoading] = useState(false);
     const [showQuestionnaire, setShowQuestionnaire] = useState(false);
@@ -477,6 +477,73 @@ export default function Profile() {
                         </button>
                     </div>
                 </form>
+
+                {/* DANGER ZONE */}
+                <div className="mt-12 pt-8 border-t border-red-500/20">
+                    <h3 className="text-xl font-bold text-red-500 mb-4 flex items-center gap-2">
+                        <AlertTriangle size={20} /> Danger Zone
+                    </h3>
+                    <div className="bg-red-500/5 border border-red-500/10 rounded-lg p-6 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                        <div>
+                            <h4 className="text-white font-bold mb-1">Delete Account</h4>
+                            <p className="text-sm text-gray-400">
+                                Permanently delete your account and all of your content. This action cannot be undone.
+                            </p>
+                        </div>
+                        <button
+                            onClick={async () => {
+                                if (window.confirm("Are you ABSOLUTELY SURE? This will permanently delete your account, portfolio data, and settings. This action cannot be undone.")) {
+                                    setLoading(true);
+                                    try {
+                                        // 1. Delete Firestore Data
+                                        await deleteDoc(doc(db, "users", currentUser.email));
+
+                                        // 2. Delete Auth Account
+                                        await deleteAccount();
+
+                                        navigate("/login");
+                                    } catch (err) {
+                                        console.error(err);
+                                        setError("Failed to delete account. You may need to log out and log back in to verify your identity before deleting.");
+                                        setLoading(false);
+                                    }
+                                }
+                            }}
+                            className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white font-bold rounded-lg transition-colors shadow-[0_0_15px_rgba(239,68,68,0.2)]"
+                        >
+                            Delete Account
+                        </button>
+                    </div>
+                </div>
+
+                {/* QA CONTROLS (MODS ONLY) */}
+                {isMod && (
+                    <div className="mt-8 pt-8 border-t border-purple-500/20">
+                        <h3 className="text-xl font-bold text-purple-400 mb-4 flex items-center gap-2">
+                            <Shield size={20} /> QA Controls
+                        </h3>
+                        <div className="bg-purple-500/5 border border-purple-500/10 rounded-lg p-6">
+                            <h4 className="text-white font-bold mb-3">Test Subscription Tiers</h4>
+                            <p className="text-sm text-gray-400 mb-4">
+                                Temporarily override your local session tier to test UI/UX differences. Resets on refresh.
+                            </p>
+                            <div className="flex flex-wrap gap-3">
+                                {['Basic', 'Pro', 'Enterprise'].map((tier) => (
+                                    <button
+                                        key={tier}
+                                        onClick={() => overrideUserTier(tier)}
+                                        className={`px-4 py-2 rounded-lg font-bold transition-all border ${currentUser?.tier === tier
+                                            ? 'bg-purple-500 text-white border-purple-500 shadow-[0_0_10px_rgba(168,85,247,0.4)]'
+                                            : 'bg-black/50 text-gray-400 border-gray-700 hover:text-white hover:border-gray-500'
+                                            }`}
+                                    >
+                                        Set {tier}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+                )}
             </div>
 
             {/* Questionnaire Modal - Mobile Optimized */}

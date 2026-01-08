@@ -4,7 +4,7 @@ import {
     Save, Play, Pause, Plus, Trash2, ArrowLeft,
     Workflow, Activity, DollarSign, Percent,
     Target, Layers, Mail, Lock, X, Clock,
-    GitBranch, Zap, Globe
+    GitBranch, Zap, Globe, MousePointer, Hand, ZoomIn, ZoomOut, Maximize
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
@@ -30,6 +30,28 @@ const WorkflowAutomation = () => {
     const [connecting, setConnecting] = useState(null); // { nodeId, handle, x, y }
     const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
     const canvasRef = useRef(null);
+
+    // Canvas Transform State (Pan & Zoom)
+    const [viewTransform, setViewTransform] = useState({ x: 0, y: 0, scale: 1 });
+    const [isPanning, setIsPanning] = useState(false);
+    const [lastPanPosition, setLastPanPosition] = useState({ x: 0, y: 0 });
+    const [toolMode, setToolMode] = useState('select'); // 'select' | 'pan'
+
+    // Mobile UI State
+    const [isSidebarOpen, setIsSidebarOpen] = useState(true); // Default open on desktop, check width for mobile
+    const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+
+    useEffect(() => {
+        const handleResize = () => {
+            const mobile = window.innerWidth < 768;
+            setIsMobile(mobile);
+            if (mobile) setIsSidebarOpen(false);
+            else setIsSidebarOpen(true);
+        };
+        window.addEventListener('resize', handleResize);
+        handleResize(); // Init
+        return () => window.removeEventListener('resize', handleResize);
+    }, []);
 
     // Fetch user info + automations
     useEffect(() => {
@@ -221,21 +243,75 @@ const WorkflowAutomation = () => {
 
     // --- CLICK-TO-CONNECT INTERACTION ---
 
+    // --- CANVAS TRANSFORMS & INTERACTION ---
+
+    const getCanvasCoordinates = (clientX, clientY) => {
+        if (!canvasRef.current) return { x: 0, y: 0 };
+        const rect = canvasRef.current.getBoundingClientRect();
+        return {
+            x: (clientX - rect.left - viewTransform.x) / viewTransform.scale,
+            y: (clientY - rect.top - viewTransform.y) / viewTransform.scale
+        };
+    };
+
     const handleCanvasMouseDown = (e) => {
-        // Cancel connecting if clicking on canvas
+        // Middle mouse or Space+Click (optional) or just click on background
+        // If clicking on a node or dot, propagation stops there.
+        // So here we assume we are clicking on empty space.
+
+        // If connection active, cancel it
         if (connecting && !e.target.closest('.connection-dot')) {
             setConnecting(null);
+            return;
+        }
+
+        // Only Pan if in Pan Mode
+        if (toolMode === 'pan') {
+            setIsPanning(true);
+            setLastPanPosition({ x: e.clientX, y: e.clientY });
         }
     };
 
+    const handleCanvasTouchStart = (e) => {
+        if (e.touches.length === 1 && toolMode === 'pan') {
+            // Single touch pan
+            const touch = e.touches[0];
+            setLastPanPosition({ x: touch.clientX, y: touch.clientY });
+            setIsPanning(true);
+        }
+    };
+
+    const handleZoom = (delta) => {
+        const newScale = Math.min(Math.max(0.1, viewTransform.scale + delta), 5);
+        setViewTransform(prev => ({ ...prev, scale: newScale }));
+    };
+
+    const handleWheel = (e) => {
+        // Optional: Disable wheel zoom if user strictly wants buttons only?
+        // "usable through buttons ... and activated as such"
+        // I will Disable wheel zoom to strictly follow request, or make it Ctrl+Scroll?
+        // Let's disable pure wheel zoom to force button usage as requested.
+        // e.preventDefault(); 
+        // return;  <-- Strictly following "functions are only usable through buttons"
+    };
+
     const handleNodeMouseDown = (e, nodeId) => {
-        if (connecting) return; // Don't drag if connecting
+        if (connecting) return;
         e.stopPropagation();
-        const rect = e.currentTarget.getBoundingClientRect();
+
+        // Only Drag if in Select Mode
+        if (toolMode !== 'select') return;
+
+        // Calculate offset based on current transform
+        // Node Position is in "World Space"
+        // Mouse Client is "Screen Space"
+        const { x, y } = getCanvasCoordinates(e.clientX, e.clientY);
+        const node = nodes.find(n => n.id === nodeId);
+
         setDragNode({
             id: nodeId,
-            offsetX: e.clientX - rect.left,
-            offsetY: e.clientY - rect.top
+            offsetX: x - node.position.x,
+            offsetY: y - node.position.y
         });
     };
 
@@ -302,14 +378,13 @@ const WorkflowAutomation = () => {
     const handleDotClick = (e, nodeId, handle, type) => {
         e.stopPropagation();
 
+        if (toolMode !== 'select') return; // Only allow connections in Select Mode
+
         if (!connecting) {
             // Start Connection
-            const rect = e.target.getBoundingClientRect();
-            const canvasRect = canvasRef.current.getBoundingClientRect();
-            const x = rect.left + rect.width / 2 - canvasRect.left;
-            const y = rect.top + rect.height / 2 - canvasRect.top;
-
-            setConnecting({ nodeId, handle, type, startX: x, startY: y });
+            // Start Connection
+            const coords = getCanvasCoordinates(e.clientX, e.clientY);
+            setConnecting({ nodeId, handle, type, startX: coords.x, startY: coords.y });
         } else {
             // Complete Connection
             if (connecting.nodeId === nodeId) {
@@ -337,20 +412,49 @@ const WorkflowAutomation = () => {
     };
 
     const handleMouseMove = (e) => {
-        if (canvasRef.current) {
-            const rect = canvasRef.current.getBoundingClientRect();
-            setMousePos({ x: e.clientX - rect.left, y: e.clientY - rect.top });
+        // Mouse Position for "Connection Line" (World Space)
+        const coords = getCanvasCoordinates(e.clientX, e.clientY);
+        setMousePos(coords);
 
-            if (dragNode) {
-                const x = e.clientX - rect.left - dragNode.offsetX;
-                const y = e.clientY - rect.top - dragNode.offsetY;
-                setNodes(nodes.map(n => n.id === dragNode.id ? { ...n, position: { x, y } } : n));
+        if (dragNode && toolMode === 'select') {
+            setNodes(nodes.map(n =>
+                n.id === dragNode.id
+                    ? { ...n, position: { x: coords.x - dragNode.offsetX, y: coords.y - dragNode.offsetY } }
+                    : n
+            ));
+        }
+
+        if (isPanning && toolMode === 'pan') {
+            const deltaX = e.clientX - lastPanPosition.x;
+            const deltaY = e.clientY - lastPanPosition.y;
+            setViewTransform(prev => ({ ...prev, x: prev.x + deltaX, y: prev.y + deltaY }));
+            setLastPanPosition({ x: e.clientX, y: e.clientY });
+        }
+    };
+
+    const handleTouchMove = (e) => {
+        if (e.touches.length === 1) {
+            const touch = e.touches[0];
+            const coords = getCanvasCoordinates(touch.clientX, touch.clientY);
+
+            if (dragNode && toolMode === 'select') {
+                setNodes(nodes.map(n =>
+                    n.id === dragNode.id
+                        ? { ...n, position: { x: coords.x - dragNode.offsetX, y: coords.y - dragNode.offsetY } }
+                        : n
+                ));
+            } else if (isPanning && toolMode === 'pan') {
+                const deltaX = touch.clientX - lastPanPosition.x;
+                const deltaY = touch.clientY - lastPanPosition.y;
+                setViewTransform(prev => ({ ...prev, x: prev.x + deltaX, y: prev.y + deltaY }));
+                setLastPanPosition({ x: touch.clientX, y: touch.clientY });
             }
         }
     };
 
     const handleMouseUp = () => {
         setDragNode(null);
+        setIsPanning(false);
     };
 
     // --- RENDER HELPERS ---
@@ -531,7 +635,7 @@ const WorkflowAutomation = () => {
             onMouseUp={handleMouseUp}
         >
             {/* Toolbar */}
-            <div className="h-16 border-b border-gray-800 flex items-center justify-between px-6 bg-[#0a0a0a] z-50">
+            <div className="h-16 border-b border-gray-800 flex items-center justify-between px-4 sm:px-6 bg-[#0a0a0a] z-50">
                 <div className="flex items-center gap-4">
                     <button onClick={() => setCurrentAuto(null)} className="text-gray-400 hover:text-white">
                         <ArrowLeft size={20} />
@@ -539,193 +643,308 @@ const WorkflowAutomation = () => {
                     <input
                         value={currentAuto.name}
                         onChange={(e) => setCurrentAuto({ ...currentAuto, name: e.target.value })}
-                        className="bg-transparent text-xl font-bold focus:outline-none"
+                        className="bg-transparent text-lg sm:text-xl font-bold focus:outline-none w-full max-w-[200px] sm:max-w-none text-ellipsis"
                     />
                 </div>
-                <div className="flex gap-4">
-                    <button onClick={handleSave} className="flex items-center gap-2 px-4 py-2 rounded-lg bg-purple-600 hover:bg-purple-500 transition-colors">
-                        <Save size={18} /> Save
+                <div className="flex gap-2 sm:gap-4">
+                    {/* Mobile Menu Toggle */}
+                    {isMobile && (
+                        <button
+                            onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+                            className={`p-2 rounded-lg ${isSidebarOpen ? 'bg-purple-600 text-white' : 'bg-gray-800 text-gray-400'}`}
+                        >
+                            <Plus size={20} className={isSidebarOpen ? 'rotate-45 transition-transform' : ''} />
+                        </button>
+                    )}
+                    <button onClick={handleSave} className="flex items-center gap-2 px-3 py-2 sm:px-4 rounded-lg bg-purple-600 hover:bg-purple-500 transition-colors text-sm sm:text-base font-bold shadow-lg shadow-purple-900/20">
+                        <Save size={18} /> <span className="hidden sm:inline">Save</span>
                     </button>
                 </div>
             </div>
 
             {/* Main Area */}
-            <div className="flex-1 flex overflow-hidden">
+            <div className="flex-1 flex overflow-hidden relative">
                 {/* Sidebar */}
-                <div className="w-64 border-r border-gray-800 bg-[#0f0f0f] p-4 flex flex-col gap-6 overflow-y-auto z-40 select-none">
-                    <div>
-                        <h4 className="text-xs font-bold text-gray-500 uppercase mb-3 tracking-wider">Conditional</h4>
-                        <div className="flex flex-col gap-2">
-                            <BlockButton label="Risk" icon={Activity} onClick={() => addNode('risk')} color="text-red-400" />
-                            <BlockButton label="Price" icon={DollarSign} onClick={() => addNode('price')} color="text-green-400" />
-                            <BlockButton label="Percentage" icon={Percent} onClick={() => addNode('percentage')} color="text-blue-400" />
-                            <BlockButton label="Time Interval" icon={Clock} onClick={() => addNode('time_interval')} color="text-cyan-400" />
-                            <BlockButton label="Sentiment" icon={Zap} onClick={() => addNode('sentiment_trigger')} color="text-yellow-400" />
+                <div className={`
+                    fixed inset-y-0 left-0 w-64 bg-[#0f0f0f] border-r border-gray-800 z-40 transform transition-transform duration-300 ease-in-out
+                    ${isMobile ? (isSidebarOpen ? 'translate-x-0' : '-translate-x-full') : 'translate-x-0 relative'}
+                    flex flex-col
+                `}>
+                    {/* Mobile Close Handle (Optional, clicked outside to close?) */}
+                    {isMobile && isSidebarOpen && (
+                        <div className="absolute top-4 right-4 text-gray-400" onClick={() => setIsSidebarOpen(false)}>
+                            <X size={20} />
+                        </div>
+                    )}
+
+                    <div className="p-4 flex-1 overflow-y-auto custom-scrollbar">
+                        <div className="mb-6">
+                            <h4 className="text-xs font-bold text-gray-500 uppercase mb-3 tracking-wider">Conditional</h4>
+                            <div className="flex flex-col gap-2">
+                                <BlockButton label="Risk" icon={Activity} onClick={() => addNode('risk')} color="text-red-400" />
+                                <BlockButton label="Price" icon={DollarSign} onClick={() => addNode('price')} color="text-green-400" />
+                                <BlockButton label="Percentage" icon={Percent} onClick={() => addNode('percentage')} color="text-blue-400" />
+                                <BlockButton label="Time Interval" icon={Clock} onClick={() => addNode('time_interval')} color="text-cyan-400" />
+                                <BlockButton label="Sentiment" icon={Zap} onClick={() => addNode('sentiment_trigger')} color="text-yellow-400" />
+                            </div>
+                        </div>
+                        <div className="mb-6">
+                            <h4 className="text-xs font-bold text-gray-500 uppercase mb-3 tracking-wider">Logic</h4>
+                            <div className="flex flex-col gap-2">
+                                <BlockButton label="And/Or Gate" icon={GitBranch} onClick={() => addNode('logic_gate')} color="text-pink-400" />
+                                <BlockButton label="If / Else Gate" icon={GitBranch} onClick={() => addNode('if_gate')} color="text-orange-400" />
+                            </div>
+                        </div>
+                        <div className="mb-6">
+                            <h4 className="text-xs font-bold text-gray-500 uppercase mb-3 tracking-wider">Action</h4>
+                            <div className="flex flex-col gap-2">
+                                <BlockButton label="Tracking" icon={Target} onClick={() => addNode('tracking')} color="text-amber-400" />
+                                <BlockButton label="Nexus" icon={Layers} onClick={() => addNode('nexus')} color="text-purple-400" />
+                                <BlockButton label="Send Email" icon={Mail} onClick={() => addNode('send_email')} color="text-blue-400" />
+
+                                {/* Enterprise Only: Webhooks */}
+                                <div className="relative group">
+                                    <BlockButton
+                                        label="Webhook"
+                                        icon={Globe}
+                                        onClick={() => {
+                                            if (currentUser?.tier === 'Enterprise') addNode('webhook');
+                                            else alert("Upgrade to Enterprise to use Webhooks.");
+                                        }}
+                                        color={currentUser?.tier === 'Enterprise' ? "text-indigo-400" : "text-gray-600"}
+                                    />
+                                    {currentUser?.tier !== 'Enterprise' && (
+                                        <div className="absolute right-3 top-1/2 -translate-y-1/2 text-gold">
+                                            <Lock size={14} />
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                        <div>
+                            <h4 className="text-xs font-bold text-gray-500 uppercase mb-3 tracking-wider">Information</h4>
+                            <div className="flex flex-col gap-2">
+                                <BlockButton label="Email Info" icon={Mail} onClick={() => addNode('email_info')} color="text-gray-400" />
+                                <BlockButton label="Robinhood" icon={Lock} onClick={() => addNode('rh_info')} color="text-green-600" />
+                            </div>
                         </div>
                     </div>
-                    <div>
-                        <h4 className="text-xs font-bold text-gray-500 uppercase mb-3 tracking-wider">Logic</h4>
-                        <div className="flex flex-col gap-2">
-                            <BlockButton label="And/Or Gate" icon={GitBranch} onClick={() => addNode('logic_gate')} color="text-pink-400" />
-                            <BlockButton label="If / Else Gate" icon={GitBranch} onClick={() => addNode('if_gate')} color="text-orange-400" />
-                        </div>
+                </div>
+
+                {/* Floating Toolbar (Tools & Zoom) */}
+                <div className="absolute bottom-6 right-6 flex flex-col gap-4 z-50">
+                    {/* Tool Switcher */}
+                    <div className="flex flex-col bg-[#111] border border-gray-800 rounded-xl p-1 shadow-2xl">
+                        <button
+                            onClick={() => setToolMode('select')}
+                            className={`p-3 rounded-lg transition-all ${toolMode === 'select' ? 'bg-purple-600 text-white shadow-lg' : 'text-gray-400 hover:text-white hover:bg-gray-800'}`}
+                            title="Select Tool (Move Nodes)"
+                        >
+                            <MousePointer size={20} />
+                        </button>
+                        <button
+                            onClick={() => setToolMode('pan')}
+                            className={`p-3 rounded-lg transition-all ${toolMode === 'pan' ? 'bg-purple-600 text-white shadow-lg' : 'text-gray-400 hover:text-white hover:bg-gray-800'}`}
+                            title="Hand Tool (Pan Canvas)"
+                        >
+                            <Hand size={20} />
+                        </button>
                     </div>
-                    <div>
-                        <h4 className="text-xs font-bold text-gray-500 uppercase mb-3 tracking-wider">Action</h4>
-                        <div className="flex flex-col gap-2">
-                            <BlockButton label="Tracking" icon={Target} onClick={() => addNode('tracking')} color="text-amber-400" />
-                            <BlockButton label="Nexus" icon={Layers} onClick={() => addNode('nexus')} color="text-purple-400" />
-                            <BlockButton label="Send Email" icon={Mail} onClick={() => addNode('send_email')} color="text-blue-400" />
-                            <BlockButton label="Webhook" icon={Globe} onClick={() => addNode('webhook')} color="text-indigo-400" />
-                        </div>
-                    </div>
-                    <div>
-                        <h4 className="text-xs font-bold text-gray-500 uppercase mb-3 tracking-wider">Information</h4>
-                        <div className="flex flex-col gap-2">
-                            <BlockButton label="Email Info" icon={Mail} onClick={() => addNode('email_info')} color="text-gray-400" />
-                            <BlockButton label="Robinhood" icon={Lock} onClick={() => addNode('rh_info')} color="text-green-600" />
-                        </div>
+
+                    {/* Zoom Controls */}
+                    <div className="flex flex-col bg-[#111] border border-gray-800 rounded-xl p-1 shadow-2xl">
+                        <button
+                            onClick={() => handleZoom(0.1)}
+                            className="p-3 text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition-colors"
+                            title="Zoom In"
+                        >
+                            <ZoomIn size={20} />
+                        </button>
+                        <button
+                            onClick={() => setViewTransform({ x: 0, y: 0, scale: 1 })}
+                            className="p-3 text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition-colors"
+                            title="Reset View"
+                        >
+                            <Maximize size={20} />
+                        </button>
+                        <button
+                            onClick={() => handleZoom(-0.1)}
+                            className="p-3 text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition-colors"
+                            title="Zoom Out"
+                        >
+                            <ZoomOut size={20} />
+                        </button>
                     </div>
                 </div>
 
                 {/* Canvas */}
                 <div
-                    className="flex-1 relative bg-[#050505] overflow-hidden"
+                    className={`flex-1 relative bg-[#050505] overflow-hidden ${toolMode === 'pan' ? 'cursor-grab active:cursor-grabbing' : 'cursor-default'}`}
                     ref={canvasRef}
                     onMouseDown={handleCanvasMouseDown}
+                    onTouchStart={handleCanvasTouchStart}
+                    onWheel={handleWheel}
+                    onTouchMove={handleTouchMove}
+                    onMouseUp={handleMouseUp}
+                    onTouchEnd={handleMouseUp}
                 >
-                    {/* Dot Grid */}
-                    <div className="absolute inset-0 opacity-20 pointer-events-none"
+                    {/* Transform Container */}
+                    <div
+                        className="absolute inset-0 origin-top-left will-change-transform"
                         style={{
-                            backgroundImage: 'radial-gradient(#444 1px, transparent 1px)',
-                            backgroundSize: '20px 20px'
+                            transform: `translate(${viewTransform.x}px, ${viewTransform.y}px) scale(${viewTransform.scale})`
                         }}
-                    />
+                    >
+                        {/* Dot Grid - Make it huge to cover panning area, BUT center it? 
+                           Actually, standard practice for simple infinite canvas:
+                           Just use a very large grid or Background Image on container?
+                           Let's stick to the large grid but ensure it doesn't shift origin if possible.
+                           If we use negative inset, we shift origin.
+                           Pattern origin is usually top-left of element.
+                           We can just use a large div starting at -5000px?
+                           
+                           Better: Use inset-0 and just let the background repeat?
+                           No, we want the grid to move.
+                           
+                           Let's use a very large div but use coordinates relative to (0,0).
+                           If I use `top: -2000px`, the (0,0) of this div is at -2000px.
+                           
+                           Reverting to simpler grid for now to avoid complexity: 
+                           Just `inset-[-1000%]` is fine for GRID if it's just visual.
+                           BUT for SVG, it MUST match the coordinate system.
+                        */}
+                        <div className="absolute inset-[-300%] opacity-20 pointer-events-none"
+                            style={{
+                                backgroundImage: 'radial-gradient(#444 1px, transparent 1px)',
+                                backgroundSize: '20px 20px',
+                                // Attempt to align grid with 0,0?
+                                backgroundPosition: 'center'
+                            }}
+                        />
 
-                    {/* Edges (SVG Layer) */}
-                    <svg className="absolute inset-0 w-full h-full pointer-events-none z-0">
-                        {edges.map((edge, i) => {
-                            const sourceNode = nodes.find(n => n.id === edge.source);
-                            const targetNode = nodes.find(n => n.id === edge.target);
-                            if (!sourceNode || !targetNode) return null;
+                        {/* Edges (SVG Layer) - REQUIRED: inset-0 to match Node Coordinates */}
+                        <svg className="absolute inset-0 w-full h-full pointer-events-none z-0 overflow-visible">
+                            {edges.map((edge, i) => {
+                                const sourceNode = nodes.find(n => n.id === edge.source);
+                                const targetNode = nodes.find(n => n.id === edge.target);
+                                if (!sourceNode || !targetNode) return null;
 
-                            const getHandlePos = (node, handle) => {
-                                const el = document.getElementById(`node-${node.id}`);
-                                if (!el) return { x: node.position.x, y: node.position.y }; // Fallback
+                                const getHandlePos = (node, handle) => {
+                                    // With transform, position is relative to this container.
+                                    // But we rely on DOM elements for dimensions. Width/Height shouldn't change with scale (layout size)
+                                    // Scale is applied to parent.
 
-                                const w = el.offsetWidth;
-                                const h = el.offsetHeight;
+                                    const el = document.getElementById(`node-${node.id}`);
+                                    const w = el ? el.offsetWidth : 320; // Default fallback width
+                                    const h = el ? el.offsetHeight : 100; // Default fallback height
 
-                                // Standard Handles
-                                if (handle === 'top') return { x: node.position.x + w / 2, y: node.position.y };
-                                if (handle === 'bottom') return { x: node.position.x + w / 2, y: node.position.y + h };
-                                if (handle === 'left') return { x: node.position.x, y: node.position.y + h / 2 };
-                                if (handle === 'right') return { x: node.position.x + w, y: node.position.y + h / 2 };
+                                    // Standard Handles
+                                    if (handle === 'top') return { x: node.position.x + w / 2, y: node.position.y };
+                                    if (handle === 'bottom') return { x: node.position.x + w / 2, y: node.position.y + h };
+                                    if (handle === 'left') return { x: node.position.x, y: node.position.y + h / 2 };
+                                    if (handle === 'right') return { x: node.position.x + w, y: node.position.y + h / 2 };
 
-                                // Dynamic Handles (if_gate)
-                                // Format: "in-0", "out-0", "out-else"
-                                // We assume rows are ~40px height, starting after header (~45px)
-                                const headerHeight = 45;
-                                const rowHeight = 40;
+                                    // ... (Dynamic handles logic same as before, but relative to node.position) ...
+                                    const headerHeight = 45;
+                                    const rowHeight = 40;
 
-                                if (handle.startsWith('in-')) {
-                                    const index = parseInt(handle.split('-')[1]);
-                                    const yOffset = headerHeight + (index * rowHeight) + (rowHeight / 2);
-                                    return { x: node.position.x, y: node.position.y + yOffset };
-                                }
-                                if (handle.startsWith('out-')) {
-                                    if (handle === 'out-else') {
-                                        // Specific calculation for else (last item)
-                                        // Need to know total conditions to place 'else' correctly?
-                                        // Easier: The 'Else' row is rendered last. 
-                                        // Limitation: We don't verify node data count here easily without potentially stale state.
-                                        // BUT we can map it to node.data.conditions length if available.
-                                        const count = node.data.conditions?.length || 0;
-                                        const yOffset = headerHeight + (count * rowHeight) + (rowHeight / 2);
-                                        return { x: node.position.x + w, y: node.position.y + yOffset };
-                                    } else {
+                                    if (handle.startsWith('in-')) {
+                                        const index = parseInt(handle.split('-')[1]);
+                                        const yOffset = headerHeight + (index * rowHeight) + (rowHeight / 2);
+                                        return { x: node.position.x, y: node.position.y + yOffset };
+                                    }
+                                    if (handle.startsWith('out-')) {
+                                        if (handle === 'out-else') {
+                                            // If we can't get exact height, guess?
+                                            // Actually, we can rely on node input
+                                            const count = node.data.conditions?.length || 0;
+                                            // The else block is after all conditions
+                                            // header + (conditions * row) + else_row
+                                            // Wait, previous logic was:
+                                            const yOffset = headerHeight + (count * rowHeight) + (rowHeight / 2);
+                                            return { x: node.position.x + w, y: node.position.y + yOffset };
+                                        }
                                         const index = parseInt(handle.split('-')[1]);
                                         const yOffset = headerHeight + (index * rowHeight) + (rowHeight / 2);
                                         return { x: node.position.x + w, y: node.position.y + yOffset };
                                     }
-                                }
 
-                                return { x: node.position.x + w / 2, y: node.position.y + h / 2 };
-                            };
+                                    return { x: node.position.x + w / 2, y: node.position.y + h / 2 };
+                                };
 
-                            const start = getHandlePos(sourceNode, edge.sourceHandle);
-                            const end = getHandlePos(targetNode, edge.targetHandle);
+                                const start = getHandlePos(sourceNode, edge.sourceHandle);
+                                const end = getHandlePos(targetNode, edge.targetHandle);
+                                const midX = (start.x + end.x) / 2;
+                                const midY = (start.y + end.y) / 2;
 
-                            // Calculate Midpoint for Delete Button
-                            const midX = (start.x + end.x) / 2;
-                            const midY = (start.y + end.y) / 2;
-
-                            return (
-                                <g key={i}>
-                                    <line
-                                        x1={start.x} y1={start.y}
-                                        x2={end.x} y2={end.y}
-                                        stroke="#666"
-                                        strokeWidth="2"
-                                    />
-                                    {/* Delete Handle */}
-                                    <g
-                                        className="cursor-pointer pointer-events-auto hover:opacity-80 transition-opacity"
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            deleteEdge(i);
-                                        }}
-                                    >
-                                        <circle cx={midX} cy={midY} r="8" fill="#1f2937" stroke="#ef4444" strokeWidth="1" />
-                                        <text
-                                            x={midX}
-                                            y={midY}
-                                            dy="3"
-                                            textAnchor="middle"
-                                            fontSize="10"
-                                            fill="#ef4444"
-                                            fontWeight="bold"
+                                return (
+                                    <g key={i}>
+                                        <line
+                                            x1={start.x} y1={start.y}
+                                            x2={end.x} y2={end.y}
+                                            stroke="#666"
+                                            strokeWidth="2"
+                                        />
+                                        <g
+                                            className="cursor-pointer pointer-events-auto hover:opacity-80 transition-opacity"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                deleteEdge(i);
+                                            }}
                                         >
-                                            ×
-                                        </text>
+                                            <circle cx={midX} cy={midY} r={8 / viewTransform.scale} fill="#1f2937" stroke="#ef4444" strokeWidth={1 / viewTransform.scale} />
+                                            <text
+                                                x={midX}
+                                                y={midY}
+                                                dy={3 / viewTransform.scale}
+                                                textAnchor="middle"
+                                                fontSize={10 / viewTransform.scale}
+                                                fill="#ef4444"
+                                                fontWeight="bold"
+                                            >
+                                                ×
+                                            </text>
+                                        </g>
                                     </g>
-                                </g>
-                            );
-                        })}
-                        {connecting && (
-                            <line
-                                x1={connecting.startX} y1={connecting.startY}
-                                x2={mousePos.x} y2={mousePos.y}
-                                stroke="#a855f7"
-                                strokeWidth="2"
-                                strokeDasharray="5,5"
-                            />
-                        )}
-                    </svg>
+                                );
+                            })}
+                            {connecting && (
+                                <line
+                                    x1={connecting.startX} y1={connecting.startY}
+                                    x2={mousePos.x} y2={mousePos.y}
+                                    stroke="#a855f7"
+                                    strokeWidth="2"
+                                    strokeDasharray="5,5"
+                                />
+                            )}
+                        </svg>
 
-                    {/* Nodes */}
-                    {nodes.map(node => (
-                        <div
-                            key={node.id}
-                            id={`node-${node.id}`}
-                            style={{
-                                left: node.position.x,
-                                top: node.position.y
-                            }}
-                            className="absolute"
-                            onMouseDown={(e) => handleNodeMouseDown(e, node.id)}
-                        >
-                            <NodeComponent
-                                node={node}
-                                onDelete={() => deleteNode(node.id)}
-                                updateData={(data) => {
-                                    setNodes(nodes.map(n => n.id === node.id ? { ...n, data: { ...n.data, ...data } } : n));
+                        {/* Nodes */}
+                        {nodes.map(node => (
+                            <div
+                                key={node.id}
+                                id={`node-${node.id}`}
+                                style={{
+                                    left: node.position.x,
+                                    top: node.position.y,
+                                    // Scale cancel if we want nodes to stay same size? No, we want zoom.
                                 }}
-                                onDotClick={handleDotClick}
-                                connecting={connecting}
-                            />
-                        </div>
-                    ))}
+                                className="absolute"
+                                onMouseDown={(e) => handleNodeMouseDown(e, node.id)}
+                                onTouchStart={(e) => { e.stopPropagation(); /* Enable Node Drag on Touch */ }}
+                            >
+                                <NodeComponent
+                                    node={node}
+                                    onDelete={() => deleteNode(node.id)}
+                                    updateData={(data) => {
+                                        setNodes(nodes.map(n => n.id === node.id ? { ...n, data: { ...n.data, ...data } } : n));
+                                    }}
+                                    onDotClick={handleDotClick}
+                                    connecting={connecting}
+                                />
+                            </div>
+                        ))}
+                    </div>
                     {errorMessage && (
                         <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2 bg-red-500/90 text-white px-6 py-3 rounded-full shadow-[0_0_20px_rgba(239,68,68,0.6)] backdrop-blur-md flex items-center gap-3 z-50 animate-bounce">
                             <X size={20} className="cursor-pointer" onClick={() => setErrorMessage(null)} />

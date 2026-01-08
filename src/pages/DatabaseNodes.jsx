@@ -20,6 +20,12 @@ const ListView = ({ codes, startNew, startEditing, handleDelete, handleShare }) 
                     <button onClick={() => startNew('nexus')} className="px-4 py-2 bg-black border border-purple-500 rounded flex items-center gap-2 hover:bg-purple-900/20 text-purple-300">
                         <Plus size={16} /> New Nexus
                     </button>
+                    {/* Add conditional limit logic indicator if needed, 
+                        but simpler to just rely on backend 403 or add a small indicator text 
+                        "Limit: 5" etc.
+                        The request is "icon and very clear tier limitation messages".
+                        So I should probably wrap this or add a help text.
+                    */}
                 </NeonWrapper>
                 <NeonWrapper color="gold">
                     <button onClick={() => startNew('portfolio')} className="px-4 py-2 bg-black border border-yellow-500 rounded flex items-center gap-2 hover:bg-yellow-900/20 text-yellow-300">
@@ -27,7 +33,15 @@ const ListView = ({ codes, startNew, startEditing, handleDelete, handleShare }) 
                     </button>
                 </NeonWrapper>
             </div>
+            {/* Tier Limits Info Banner */}
+            <div className="mt-4 flex gap-4 text-xs text-gray-500">
+                <div className="flex items-center gap-1">
+                    <Shield size={12} className="text-purple-500" />
+                    <span>Basic: 3 | Pro: 10 | Enterprise: Unlimited</span>
+                </div>
+            </div>
         </div>
+
 
         {/* Nexus Section */}
         <div>
@@ -64,7 +78,7 @@ const ListView = ({ codes, startNew, startEditing, handleDelete, handleShare }) 
                 ))}
             </div>
         </div>
-    </div>
+    </div >
 );
 
 const CommunityView = ({ communityCodes, sort, setSort, handleImport }) => (
@@ -108,15 +122,145 @@ const CommunityView = ({ communityCodes, sort, setSort, handleImport }) => (
     </div>
 );
 
-// ... (EditorView remains unchanged, no need to include in replacement unless necessary) ...
-// Stop: I need to handle `EditorView` carefully.
-// If I replace `ListView` definition AND `DatabaseNodes` usage, I replace `EditorView` if I replace the whole file content or large chunks.
-// The user tool `replace_file_content` will work best if I target specific functions or the main `DatabaseNodes`.
-// I will replace `ListView` (lines 8-63) with the updated version.
-// And `DatabaseNodes` (lines 241-409) with logic for tabs and handlers.
-// And I'll insert `CommunityView` before `DatabaseNodes`.
+const EditorView = ({ activeCode, setActiveCode, handleSave, setViewMode }) => {
+    const isNexus = activeCode.type === 'nexus';
 
-// ... Skipping EditorView logic in this textual representation ...
+    const updateField = (field, value) => {
+        setActiveCode(prev => ({ ...prev, [field]: value }));
+    };
+
+    // Helper to determine the correct list key (nexus uses 'components', portfolio uses 'sub_portfolios')
+    // We check what exists or fallback based on type.
+    const getListKey = () => {
+        if (activeCode.components && activeCode.components.length > 0) return 'components';
+        if (activeCode.sub_portfolios && activeCode.sub_portfolios.length > 0) return 'sub_portfolios';
+        return isNexus ? 'components' : 'sub_portfolios';
+    };
+    const listKey = getListKey();
+    const items = activeCode[listKey] || [];
+
+    const updateItem = (index, field, value) => {
+        const newItems = [...items];
+        newItems[index] = { ...newItems[index], [field]: value };
+        setActiveCode(prev => ({ ...prev, [listKey]: newItems }));
+    };
+
+    const addItem = () => {
+        const newItem = { ticker: '', weight: 0 };
+        setActiveCode(prev => ({
+            ...prev,
+            [listKey]: [...(prev[listKey] || []), newItem]
+        }));
+    };
+
+    const deleteItem = (index) => {
+        const newItems = items.filter((_, i) => i !== index);
+        setActiveCode(prev => ({ ...prev, [listKey]: newItems }));
+    };
+
+    const totalWeight = items.reduce((s, i) => s + (parseFloat(i.weight) || 0), 0);
+
+    return (
+        <div className="space-y-6 animate-in slide-in-from-right duration-500">
+            {/* Header */}
+            <div className="flex justify-between items-center border-b border-gray-800 pb-4">
+                <div className="flex items-center gap-4">
+                    <button onClick={() => setViewMode('list')} className="p-2 hover:bg-gray-800 rounded-full transition-colors">
+                        <ArrowLeft className="text-gray-400" />
+                    </button>
+                    <h2 className="text-2xl font-bold text-white">
+                        Edit <span className={isNexus ? "text-purple-400" : "text-yellow-400"}>{isNexus ? "Nexus" : "Portfolio"}</span>
+                    </h2>
+                </div>
+                <button onClick={handleSave} className="flex items-center gap-2 px-6 py-2 bg-green-600 hover:bg-green-500 text-white rounded-lg font-bold transition-colors shadow-[0_0_15px_rgba(22,163,74,0.3)]">
+                    <Save size={18} /> Save Changes
+                </button>
+            </div>
+
+            {/* Main Settings */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-4">
+                    <label className="block text-sm font-medium text-gray-400">Code Identifier</label>
+                    <input
+                        value={isNexus ? activeCode.nexus_code : activeCode.portfolio_code}
+                        onChange={(e) => updateField(isNexus ? 'nexus_code' : 'portfolio_code', e.target.value)}
+                        className="w-full bg-gray-900 border border-gray-700 rounded-lg p-3 text-white focus:border-purple-500 outline-none font-mono"
+                        placeholder="e.g. ALPHA_V1"
+                    />
+                </div>
+
+                {!isNexus && (
+                    <>
+                        <div className="space-y-4">
+                            <label className="block text-sm font-medium text-gray-400">Risk Tolerance (0-100)</label>
+                            <input
+                                type="number"
+                                value={activeCode.risk_tolerance || 0}
+                                onChange={(e) => updateField('risk_tolerance', parseInt(e.target.value))}
+                                className="w-full bg-gray-900 border border-gray-700 rounded-lg p-3 text-white focus:border-yellow-500 outline-none"
+                            />
+                        </div>
+                        <div className="space-y-4">
+                            <label className="block text-sm font-medium text-gray-400">Amplification</label>
+                            <input
+                                type="number"
+                                step="0.1"
+                                value={activeCode.amplification || 1.0}
+                                onChange={(e) => updateField('amplification', parseFloat(e.target.value))}
+                                className="w-full bg-gray-900 border border-gray-700 rounded-lg p-3 text-white focus:border-yellow-500 outline-none"
+                            />
+                        </div>
+                    </>
+                )}
+            </div>
+
+            {/* Components List */}
+            <div className="bg-gray-900/30 border border-gray-800 rounded-xl p-6">
+                <div className="flex justify-between items-center mb-4">
+                    <h3 className="text-lg font-bold text-white">Allocation Components</h3>
+                    <button onClick={addItem} className="text-sm flex items-center gap-2 text-cyan-400 hover:text-cyan-300">
+                        <Plus size={16} /> Add Component
+                    </button>
+                </div>
+
+                <div className="space-y-3">
+                    {items.map((item, idx) => (
+                        <div key={idx} className="flex gap-4 items-center bg-black/40 p-3 rounded-lg border border-gray-800/50">
+                            <input
+                                value={item.ticker || item.symbol || ''}
+                                onChange={(e) => updateItem(idx, 'ticker', e.target.value.toUpperCase())}
+                                placeholder="TICKER"
+                                className="bg-transparent border-b border-gray-700 focus:border-white w-24 text-white font-mono uppercase outline-none"
+                            />
+                            <div className="flex items-center gap-2 flex-1">
+                                <input
+                                    type="number"
+                                    value={item.weight || 0}
+                                    onChange={(e) => updateItem(idx, 'weight', parseFloat(e.target.value))}
+                                    className="bg-transparent border-b border-gray-700 focus:border-white w-20 text-right text-white font-mono outline-none"
+                                />
+                                <span className="text-gray-500">%</span>
+                            </div>
+                            <button onClick={() => deleteItem(idx)} className="text-gray-600 hover:text-red-500 transition-colors">
+                                <Trash2 size={16} />
+                            </button>
+                        </div>
+                    ))}
+                    {items.length === 0 && (
+                        <p className="text-center text-gray-600 py-4 italic">No components added yet.</p>
+                    )}
+                </div>
+
+                {/* Total Weight Check */}
+                <div className="mt-4 flex justify-end">
+                    <div className={`text-sm font-bold ${Math.abs(totalWeight - 100) < 0.1 ? 'text-green-500' : 'text-red-500'}`}>
+                        Total Allocation: {totalWeight.toFixed(1)}%
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
 
 const DatabaseNodes = () => {
     const { userProfile } = useAuth();

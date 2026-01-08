@@ -6,6 +6,7 @@ import {
     Database, RefreshCw, Mail, Shield, Check, ArrowUp, ArrowDown
 } from 'lucide-react';
 import AccessGate from '../components/AccessGate';
+import TierGate from '../components/TierGate';
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
 
@@ -222,29 +223,33 @@ export default function PortfolioNexus() {
                                         </div>
 
                                         {/* Robinhood */}
-                                        <div className="bg-white/5 p-3 rounded-lg border border-gray-800">
-                                            <label className="flex items-center gap-2 cursor-pointer mb-2">
-                                                <input type="checkbox" checked={executionOpts.execute_rh} onChange={e => updateExecOpt('execute_rh', e.target.checked)} className="accent-gold" />
-                                                <span className="text-sm">Execute on Robinhood</span>
-                                            </label>
-                                            {executionOpts.execute_rh && (
-                                                <div className="space-y-2">
-                                                    <input
-                                                        type="text"
-                                                        placeholder="RH Username"
-                                                        value={executionOpts.rh_user}
-                                                        onChange={e => updateExecOpt('rh_user', e.target.value)}
-                                                        className="w-full bg-black border border-gray-700 rounded p-2 text-xs"
-                                                    />
-                                                    <input
-                                                        type="password"
-                                                        placeholder="RH Password"
-                                                        value={executionOpts.rh_pass}
-                                                        onChange={e => updateExecOpt('rh_pass', e.target.value)}
-                                                        className="w-full bg-black border border-gray-700 rounded p-2 text-xs"
-                                                    />
-                                                </div>
-                                            )}
+                                        <div className="relative group">
+                                            <div className={`p-3 rounded-lg border border-gray-800 transition-all ${executionOpts.execute_rh ? 'bg-gold/10 border-gold/30' : 'bg-white/5'}`}>
+                                                <TierGate type="overlay" requiredTier="Pro" showLock={!['Pro', 'Enterprise'].includes(localStorage.getItem('mic_tier') || 'Basic')}>
+                                                    <label className="flex items-center gap-2 cursor-pointer mb-2">
+                                                        <input type="checkbox" checked={executionOpts.execute_rh} onChange={e => updateExecOpt('execute_rh', e.target.checked)} className="accent-gold" />
+                                                        <span className="text-sm">Execute on Robinhood</span>
+                                                    </label>
+                                                    {executionOpts.execute_rh && (
+                                                        <div className="space-y-2">
+                                                            <input
+                                                                type="text"
+                                                                placeholder="RH Username"
+                                                                value={executionOpts.rh_user}
+                                                                onChange={e => updateExecOpt('rh_user', e.target.value)}
+                                                                className="w-full bg-black border border-gray-700 rounded p-2 text-xs"
+                                                            />
+                                                            <input
+                                                                type="password"
+                                                                placeholder="RH Password"
+                                                                value={executionOpts.rh_pass}
+                                                                onChange={e => updateExecOpt('rh_pass', e.target.value)}
+                                                                className="w-full bg-black border border-gray-700 rounded p-2 text-xs"
+                                                            />
+                                                        </div>
+                                                    )}
+                                                </TierGate>
+                                            </div>
                                         </div>
 
                                         {/* Overwrite */}
