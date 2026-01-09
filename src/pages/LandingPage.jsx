@@ -30,7 +30,7 @@ class ErrorBoundary extends React.Component {
     }
 }
 
-const FeatureCard = ({ icon: Icon, title, desc, delay }) => (
+const FeatureCard = React.memo(({ icon: Icon, title, desc, delay }) => (
     <TiltCard
         initial={{ opacity: 0, y: 20 }}
         whileInView={{ opacity: 1, y: 0 }}
@@ -44,7 +44,7 @@ const FeatureCard = ({ icon: Icon, title, desc, delay }) => (
         <h3 className="text-2xl font-bold mb-4 text-white">{title}</h3>
         <p className="text-gray-400 leading-relaxed flex-grow">{desc}</p>
     </TiltCard>
-);
+));
 
 // --- Portal-based Tooltip Component ---
 const Tooltip = ({ text, children }) => {
@@ -583,7 +583,7 @@ const CountdownTimer = ({ targetDate }) => {
     );
 };
 
-const LeaderboardDisplay = ({ currentUser, leaders }) => {
+const LeaderboardDisplay = React.memo(({ currentUser, leaders }) => {
     if (!leaders || leaders.length === 0) return <div className="text-center py-12 text-gray-500 italic">Leaderboard populating...</div>;
 
     return (
@@ -635,7 +635,7 @@ const LeaderboardDisplay = ({ currentUser, leaders }) => {
             })}
         </div>
     );
-};
+});
 
 const LandingPage = () => {
     const { currentUser } = useAuth();
@@ -886,11 +886,10 @@ const LandingPage = () => {
                             <div className="absolute inset-0 overflow-hidden opacity-20 pointer-events-none">
                                 <div className="absolute top-0 right-[15%] w-[1px] h-[200%] bg-gradient-to-b from-transparent via-purple-400 to-transparent animate-data-stream" />
                                 <div className="absolute top-0 left-[25%] w-[1px] h-[200%] bg-gradient-to-b from-transparent via-gold to-transparent animate-data-stream" style={{ animationDelay: '3s' }} />
-                                <div className="grid grid-cols-[repeat(auto-fill,minmax(40px,1fr))] h-full w-full opacity-5">
-                                    {Array.from({ length: 150 }).map((_, i) => (
-                                        <div key={i} className="border-r border-b border-purple-500/10" />
-                                    ))}
-                                </div>
+                                <div className="absolute inset-0 opacity-5 pointer-events-none" style={{
+                                    backgroundImage: 'linear-gradient(to right, rgba(168, 85, 247, 0.1) 1px, transparent 1px), linear-gradient(to bottom, rgba(168, 85, 247, 0.1) 1px, transparent 1px)',
+                                    backgroundSize: '40px 40px'
+                                }} />
                             </div>
 
                             <div className="relative z-10 p-6 rounded-xl bg-black/40 border border-purple-500/20 shadow-[0_0_50px_rgba(168,85,247,0.1)]">
@@ -926,11 +925,10 @@ const LandingPage = () => {
                                 <div className="absolute top-0 left-[10%] w-[1px] h-[200%] bg-gradient-to-b from-transparent via-purple-400 to-transparent animate-data-stream" />
                                 <div className="absolute top-0 right-[20%] w-[1px] h-[200%] bg-gradient-to-b from-transparent via-fuchsia-400 to-transparent animate-data-stream" style={{ animationDelay: '2s' }} />
                                 <div className="absolute top-0 left-[40%] w-[1px] h-[200%] bg-gradient-to-b from-transparent via-gold to-transparent animate-data-stream" style={{ animationDelay: '5s' }} />
-                                <div className="grid grid-cols-[repeat(auto-fill,minmax(50px,1fr))] h-full w-full opacity-10">
-                                    {Array.from({ length: 100 }).map((_, i) => (
-                                        <div key={i} className="border-r border-b border-purple-500/20" />
-                                    ))}
-                                </div>
+                                <div className="absolute inset-0 opacity-10 pointer-events-none" style={{
+                                    backgroundImage: 'linear-gradient(to right, rgba(168, 85, 247, 0.2) 1px, transparent 1px), linear-gradient(to bottom, rgba(168, 85, 247, 0.2) 1px, transparent 1px)',
+                                    backgroundSize: '50px 50px'
+                                }} />
                             </div>
 
                             <div className="relative z-10 p-8 rounded-xl bg-black/40 border border-purple-500/20 shadow-[0_0_50px_rgba(168,85,247,0.1)]">
@@ -1134,7 +1132,7 @@ const LandingPage = () => {
     );
 };
 
-const UsageTicker = () => {
+const UsageTicker = React.memo(() => {
     const [stats, setStats] = useState({
         cultivate: 0,
         assess: 0,
@@ -1168,8 +1166,8 @@ const UsageTicker = () => {
             }
         };
         fetchStats();
-        // Refresh data every 2s
-        const dataInterval = setInterval(fetchStats, 2000);
+        // Refresh data every 10s
+        const dataInterval = setInterval(fetchStats, 10000);
 
         // Cycle displayed items every 4s
         const cycleInterval = setInterval(() => {
@@ -1261,11 +1259,11 @@ const UsageTicker = () => {
                             transition={{ duration: 0.6, ease: "circOut" }}
                             className="flex flex-wrap justify-center items-center gap-16 w-full"
                         >
-                            {currentMetrics.map(({ key, label }) => (
+                            {currentMetrics.map(({ key, label, value }) => (
                                 <div key={`${key}-${currentIndex}`} className="flex flex-col items-center gap-3">
                                     <span className="text-[10px] text-gray-600 uppercase tracking-[0.3em] font-bold">{label}</span>
                                     <span className="text-2xl font-bold text-gray-400 font-mono group-hover:text-white transition-colors">
-                                        {stats[key]?.toLocaleString() || 0}
+                                        {value?.toLocaleString() || 0}
                                     </span>
                                 </div>
                             ))}
@@ -1275,6 +1273,6 @@ const UsageTicker = () => {
             </div>
         </section>
     );
-};
+});
 
 export default LandingPage;

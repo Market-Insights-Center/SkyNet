@@ -1,6 +1,7 @@
 from fastapi import FastAPI, HTTPException, Request, UploadFile, File
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
 import sys
@@ -11,6 +12,7 @@ import logging
 import requests 
 from datetime import datetime
 import uuid
+import time
 import uuid
 from contextlib import asynccontextmanager
 import yfinance as yf
@@ -32,6 +34,17 @@ except ImportError:
         print(f"✅ LOADED: automation_storage (Absolute)")
     except ImportError as e:
         print(f"❌ CRITICAL FAIL: automation_storage: {e}")
+
+# Database & Predictions Imports
+try:
+    from backend.database import create_prediction, place_bet, get_active_predictions, get_user_bets, delete_prediction, get_user_points
+    print(f"✅ LOADED: prediction logic (database.py)")
+except ImportError:
+    try:
+        from database import create_prediction, place_bet, get_active_predictions, get_user_bets, delete_prediction, get_user_points
+        print(f"✅ LOADED: prediction logic (Relative)")
+    except ImportError as e:
+        print(f"❌ FAIL: prediction logic import: {e}")
 
 # Fix for WinError 183 in TzCache
 try:
@@ -276,6 +289,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.add_middleware(GZipMiddleware, minimum_size=1000)
+
 STATIC_DIR = os.path.join(CURRENT_DIR, "static")
 if not os.path.exists(STATIC_DIR):
     os.makedirs(STATIC_DIR)
@@ -497,6 +512,23 @@ class PowerScoreRequest(BaseModel):
 
 class UsageIncrementRequest(BaseModel):
     key: str
+
+class PredictionCreateRequest(BaseModel):
+    title: str
+    stock: str
+    end_date: str
+    market_condition: str
+    email: str
+    wager_logic: str = "binary_odds"
+
+class BetRequest(BaseModel):
+    email: str
+    prediction_id: str
+    choice: str
+    amount: int
+
+class UserPointsRequest(BaseModel):
+    email: str
 
 class SummaryRequest(BaseModel):
     ticker: str
@@ -788,17 +820,31 @@ def delete_chat(req: ChatDeleteRequest):
         return {"status": "success"}
     raise HTTPException(status_code=404, detail="Chat not found")
 
+# Simple in-memory cache
+MARKET_CACHE = {}
+CACHE_TTL = 300  # 5 minutes
+
 @app.post("/api/market-data")
 async def get_market_data(request: MarketDataRequest):
     try:
         tickers = [t.upper().strip() for t in request.tickers if t]
         if not tickers: return []
         
-        df = yf.download(tickers, period="1y", interval="1d", progress=False, auto_adjust=True)
+        # Check cache
+        cache_key = tuple(sorted(tickers))
+        current_time = time.time()
+        
+        if cache_key in MARKET_CACHE:
+            timestamp, data = MARKET_CACHE[cache_key]
+            if current_time - timestamp < CACHE_TTL:
+                return data
+        
+        df = yf.download(tickers, period="1y", interval="1d", progress=False, access_token=None, auto_adjust=True)
         
         results = []
         for ticker in tickers:
             try:
+                # Handle DataFrame structure differences for single vs multi ticker
                 if len(tickers) > 1:
                     if ticker not in df['Close'].columns: continue
                     hist_close = df['Close'][ticker].dropna()
@@ -859,7 +905,9 @@ async def get_market_data(request: MarketDataRequest):
             except Exception as e: 
                 print(f"Error processing {ticker}: {e}")
                 continue
-                
+        
+        # Save to cache
+        MARKET_CACHE[cache_key] = (current_time, results)
         return results
     except Exception as e:
         print(f"Global Market Data Error: {e}")
@@ -2049,6 +2097,22 @@ async def execute_sentinel(req: SentinelRequest):
     return StreamingResponse(event_generator(), media_type="application/x-ndjson")
 
 # --- AUTOMATION ENDPOINTS ---
+
+class AutomationSaveRequest(BaseModel):
+    id: str
+    name: str = "Untitled"
+    active: bool = False
+    nodes: List[Dict[str, Any]] = []
+    edges: List[Dict[str, Any]] = []
+    user_email: str = "guest"
+    description: Optional[str] = ""
+
+class AutomationToggleRequest(BaseModel):
+    id: str
+    active: bool
+
+class AutomationDeleteRequest(BaseModel):
+    id: str
 @app.get("/api/automations")
 def get_automations_endpoint():
     return load_automations()
@@ -2112,6 +2176,36 @@ async def increment_usage_endpoint(req: UsageIncrementRequest):
         return {"status": "success", "new_value": new_val}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+# --- MARKET PREDICTIONS ENDPOINTS ---
+
+@app.post("/api/predictions/create")
+def create_prediction_endpoint(req: PredictionCreateRequest):
+    success = create_prediction(req.title, req.stock, req.end_date, req.market_condition, req.wager_logic, req.email)
+    return {"success": success}
+
+@app.post("/api/predictions/bet")
+def place_bet_endpoint(req: BetRequest):
+    res = place_bet(req.email, req.prediction_id, req.choice, req.amount)
+    return res
+
+@app.get("/api/predictions/active")
+def get_active_predictions_endpoint(include_recent: bool = False):
+    return get_active_predictions(include_recent)
+
+@app.get("/api/user/bets")
+def get_user_bets_endpoint(email: str):
+    return get_user_bets(email)
+
+@app.post("/api/points/user")
+def get_user_points_endpoint(req: UserPointsRequest):
+    return get_user_points(req.email)
+
+@app.get("/api/mods")
+def get_mods_endpoint():
+    # Simple Admin/Mod Check
+    admin = os.getenv("SUPER_ADMIN_EMAIL", "admin@example.com")
+    return {"mods": [admin.lower()]}
 
 if __name__ == "__main__":
     import uvicorn

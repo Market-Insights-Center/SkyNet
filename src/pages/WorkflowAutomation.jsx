@@ -229,15 +229,22 @@ const WorkflowAutomation = () => {
     };
 
     const handleToggle = async (auto) => {
+        // Optimistic Update
+        const newActive = !auto.active;
+        setAutomations(prev => prev.map(a => a.id === auto.id ? { ...a, active: newActive } : a));
+
         try {
             await fetch(`${API_URL}/automations/toggle`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ id: auto.id, active: !auto.active })
+                body: JSON.stringify({ id: auto.id, active: newActive })
             });
-            fetchAutomations();
+            // fetchAutomations(); // No need to re-fetch if successful, prevents UI flicker
         } catch (e) {
             console.error(e);
+            // Revert on error
+            setAutomations(prev => prev.map(a => a.id === auto.id ? { ...a, active: !newActive } : a));
+            alert("Failed to toggle automation. Please try again.");
         }
     };
 
@@ -538,7 +545,7 @@ const WorkflowAutomation = () => {
                                         <div className="p-3 bg-purple-500/10 rounded-lg text-purple-400">
                                             <Workflow size={24} />
                                         </div>
-                                        <div className="flex gap-2 z-50 pointer-events-auto" onClick={e => e.stopPropagation()}>
+                                        <div className="flex gap-2 z-50 pointer-events-auto items-center" onClick={e => e.stopPropagation()}>
                                             <button
                                                 type="button"
                                                 onClick={(e) => handleShare(auto, e)}
@@ -547,12 +554,14 @@ const WorkflowAutomation = () => {
                                             >
                                                 <Globe size={16} />
                                             </button>
-                                            <button
+                                            <div
                                                 onClick={() => handleToggle(auto)}
-                                                className={`p-2 rounded-lg transition-colors ${auto.active ? 'text-green-400 bg-green-500/10' : 'text-gray-500 bg-gray-800'}`}
+                                                className={`w-14 h-8 rounded-full p-1 cursor-pointer transition-colors duration-200 ease-in-out flex items-center ${auto.active ? 'bg-green-500' : 'bg-gray-600 hover:bg-gray-500'}`}
+                                                role="switch"
+                                                aria-checked={auto.active}
                                             >
-                                                {auto.active ? <Play size={16} /> : <Pause size={16} />}
-                                            </button>
+                                                <div className={`bg-white w-6 h-6 rounded-full shadow-md transform transition-transform duration-200 ease-in-out ${auto.active ? 'translate-x-6' : 'translate-x-0'}`} />
+                                            </div>
                                             <button
                                                 onClick={async () => {
                                                     if (confirm('Delete?')) {
