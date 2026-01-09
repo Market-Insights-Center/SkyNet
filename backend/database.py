@@ -7,7 +7,10 @@ import string
 import uuid
 from datetime import datetime
 from firebase_admin import firestore, auth
-from backend.firebase_admin_setup import get_db, get_auth
+try:
+    from backend.firebase_admin_setup import get_db, get_auth
+except ImportError:
+    from firebase_admin_setup import get_db, get_auth
 
 # --- Paths ---
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))

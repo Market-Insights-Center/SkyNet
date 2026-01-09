@@ -17,6 +17,13 @@ import uuid
 from contextlib import asynccontextmanager
 import yfinance as yf
 
+# --- PATH SETUP ---
+# Ensure 'backend' package is resolvable
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+PARENT_DIR = os.path.dirname(BASE_DIR)
+if PARENT_DIR not in sys.path:
+    sys.path.insert(0, PARENT_DIR)
+
 # Database Manager Imports
 # Database Manager Imports
 try:
@@ -839,7 +846,7 @@ async def get_market_data(request: MarketDataRequest):
             if current_time - timestamp < CACHE_TTL:
                 return data
         
-        df = yf.download(tickers, period="1y", interval="1d", progress=False, access_token=None, auto_adjust=True)
+        df = yf.download(tickers, period="1y", interval="1d", progress=False, auto_adjust=True)
         
         results = []
         for ticker in tickers:

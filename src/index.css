@@ -119,3 +119,8 @@ body {
 .animate-data-stream {
   animation: data-stream 20s linear infinite;
 }
+
+.dud {
+  color: #FFD700;
+  opacity: 0.7;
+}
