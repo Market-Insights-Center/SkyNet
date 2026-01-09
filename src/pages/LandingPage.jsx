@@ -15,7 +15,6 @@ const IdeaCard = React.lazy(() => import('../components/IdeaCard'));
 const Footer = React.lazy(() => import('../components/Footer'));
 const SubscriptionCard = React.lazy(() => import('../components/SubscriptionCard'));
 // WealthCalculator is defined locally
-import RainingLetters from '../components/ui/modern-animated-hero-section';
 
 
 class ErrorBoundary extends React.Component {
@@ -771,44 +770,48 @@ const LandingPage = () => {
 
                 {/* Hero Section */}
                 <section className="relative h-screen flex items-center justify-center overflow-hidden">
-                    {/* Video Background */}
-                    <video
-                        autoPlay
-                        loop
-                        muted
-                        playsInline
-                        className="absolute inset-0 w-full h-full object-cover z-0"
-                    >
-                        <source src="/landingpagestocks.mp4" type="video/mp4" />
-                    </video>
-
-                    {/* Overlay for contrast */}
-                    <div className="absolute inset-0 bg-black/60 z-0" />
-
-                    <div className="relative z-10 text-center px-4 max-w-5xl mx-auto flex flex-col items-center">
-                        {/* Animated Title Area */}
-                        <div className="relative w-full h-48 md:h-64 mb-6">
-                            <RainingLetters phrases={["Investments", "Predict", "Automate", "SkyNet", "M.I.C."]} />
-                        </div>
-
-                        {/* Subtitle & Buttons (Restored to original styles) */}
-                        <p className="text-xl md:text-2xl text-gray-300 mb-10 max-w-3xl mx-auto leading-relaxed">
-                            Automate your portfolio with data-backed strategies.
-                            <br className="hidden md:block" />
-                            Sync your brokerage, choose a model, and let our algorithms handle the rest.
-                        </p>
-                        <div className="flex flex-col md:flex-row gap-6 justify-center">
-                            <Link to="/portfolio-lab" className="bg-gold text-black px-8 py-4 rounded-full font-bold text-lg hover:bg-yellow-500 transition-all transform hover:scale-105 flex items-center justify-center">
-                                Launch Portfolio Lab <ArrowRight className="ml-2" />
-                            </Link>
-                            <Link to="/products" className="bg-white/10 text-white px-8 py-4 rounded-full font-bold text-lg hover:bg-white/20 transition-all backdrop-blur-sm flex items-center justify-center">
-                                Explore Products
-                            </Link>
-                        </div>
+                    <div className="absolute inset-0 z-0 bg-black">
+                        <video
+                            ref={(el) => {
+                                if (el && !el.src) {
+                                    el.src = "/landingpagestocks.mp4";
+                                }
+                            }}
+                            autoPlay
+                            loop
+                            muted
+                            playsInline
+                            className="w-full h-full object-cover opacity-30 transition-opacity duration-1000"
+                        />
+                        <div className="absolute inset-0 bg-gradient-to-b from-black/20 via-black/50 to-black/80"></div>
                     </div>
 
-                    {/* Bottom Fade Overlay */}
-                    <div className="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-black via-black/80 to-transparent z-10 pointer-events-none" />
+                    <div className="relative z-10 text-center px-4 max-w-5xl mx-auto mt-16">
+                        <motion.div
+                            initial={{ opacity: 0, y: 30 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ duration: 0.8 }}
+                        >
+                            {/* UPDATED: Clearer Value Proposition */}
+                            <h1 className="text-6xl md:text-8xl font-bold mb-6 tracking-tight">
+                                M.I.C.
+                            </h1>
+                            <p className="text-xl md:text-2xl text-gray-300 mb-10 max-w-3xl mx-auto leading-relaxed">
+                                Automate your portfolio with data-backed strategies.
+                                <br className="hidden md:block" />
+                                Sync your brokerage, choose a model, and let our algorithms handle the rest.
+                            </p>
+                            <div className="flex flex-col md:flex-row gap-6 justify-center">
+                                <Link to="/portfolio-lab" className="bg-gold text-black px-8 py-4 rounded-full font-bold text-lg hover:bg-yellow-500 transition-all transform hover:scale-105 flex items-center justify-center">
+                                    Launch Portfolio Lab <ArrowRight className="ml-2" />
+                                </Link>
+                                <Link to="/products" className="bg-white/10 text-white px-8 py-4 rounded-full font-bold text-lg hover:bg-white/20 transition-all backdrop-blur-sm flex items-center justify-center">
+                                    Explore Products
+                                </Link>
+                            </div>
+
+                        </motion.div>
+                    </div>
                 </section>
             </ErrorBoundary>
 

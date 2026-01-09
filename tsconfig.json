@@ -24,8 +24,7 @@
     "noUnusedParameters": true,
     "erasableSyntaxOnly": true,
     "noFallthroughCasesInSwitch": true,
-    "noUncheckedSideEffectImports": true,
-    "jsx": "react-jsx"
+    "noUncheckedSideEffectImports": true
   },
   "include": [
     "src"
