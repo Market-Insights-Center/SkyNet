@@ -12,7 +12,13 @@ import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
 from tabulate import tabulate
-from backend.usage_counter import increment_usage
+try:
+    from backend.usage_counter import increment_usage
+except ImportError:
+    try:
+        from usage_counter import increment_usage
+    except ImportError:
+        def increment_usage(*args): pass
 
 # --- Helper Function 1: Technical Indicators (from Singularity) ---
 def calculate_technical_indicators(data: pd.DataFrame, freq: str = 'D') -> pd.DataFrame:

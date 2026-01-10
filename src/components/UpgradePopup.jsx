@@ -13,7 +13,7 @@ const UpgradePopup = ({ isOpen, onClose, featureName }) => {
                     initial={{ opacity: 0, scale: 0.9 }}
                     animate={{ opacity: 1, scale: 1 }}
                     exit={{ opacity: 0, scale: 0.9 }}
-                    className="bg-gray-900 border border-gold/30 rounded-2xl p-8 max-w-md w-full relative shadow-[0_0_50px_rgba(212,175,55,0.2)]"
+                    className="glass-panel bg-deep-black/90 border border-gold/30 rounded-2xl p-8 max-w-md w-full relative shadow-[0_0_50px_rgba(212,175,55,0.15)]"
                 >
                     <button
                         onClick={onClose}

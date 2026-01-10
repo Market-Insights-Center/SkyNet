@@ -3,7 +3,13 @@ import asyncio
 import yfinance as yf
 from backend.ai_service import ai
 from backend.database import get_cached_summary, save_cached_summary
-from backend.usage_counter import increment_usage
+try:
+    from backend.usage_counter import increment_usage
+except ImportError:
+    try:
+        from usage_counter import increment_usage
+    except ImportError:
+        def increment_usage(*args): pass
 
 # Helpers
 async def get_yf_info(ticker: str) -> dict:

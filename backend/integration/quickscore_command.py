@@ -13,7 +13,13 @@ import io
 import base64
 from tabulate import tabulate
 from typing import Optional, List, Dict
-from backend.usage_counter import increment_usage
+try:
+    from backend.usage_counter import increment_usage
+except ImportError:
+    try:
+        from usage_counter import increment_usage
+    except ImportError:
+        def increment_usage(*args): pass
 
 # --- Dependencies for this command ---
 YFINANCE_API_SEMAPHORE = asyncio.Semaphore(8)

@@ -18,7 +18,13 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from scipy.stats import percentileofscore
-from backend.usage_counter import increment_usage
+try:
+    from backend.usage_counter import increment_usage
+except ImportError:
+    try:
+        from usage_counter import increment_usage
+    except ImportError:
+        def increment_usage(*args): pass
 
 # --- Global Constants and Configuration ---
 EST_TIMEZONE = pytz.timezone('US/Eastern')

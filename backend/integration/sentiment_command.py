@@ -168,7 +168,13 @@ async def scrape_yahoo_finance_news(ticker: str) -> list[str]:
 
 
 from backend.database import get_cached_sentiment, save_cached_sentiment
-from backend.usage_counter import increment_usage
+try:
+    from backend.usage_counter import increment_usage
+except ImportError:
+    try:
+        from usage_counter import increment_usage
+    except ImportError:
+        def increment_usage(*args): pass
 
 async def get_ai_sentiment_analysis(
     text_to_analyze: str,

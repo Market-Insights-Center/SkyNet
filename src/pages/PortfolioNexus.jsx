@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import AccessGate from '../components/AccessGate';
 import TierGate from '../components/TierGate';
+import UpgradePopup from '../components/UpgradePopup';
 import TradingViewWidget from '../components/TradingViewWidget';
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
@@ -20,6 +21,7 @@ export default function PortfolioNexus() {
     const [showCreateModal, setShowCreateModal] = useState(false);
     const [showExecModal, setShowExecModal] = useState(false);
     const [activeTicker, setActiveTicker] = useState(null);
+    const [showUpgradeModal, setShowUpgradeModal] = useState(false);
 
     // Sorting State
     const [sortConfig, setSortConfig] = useState({ key: 'weight', direction: 'desc' });
@@ -98,6 +100,11 @@ export default function PortfolioNexus() {
             }
 
             if (!response.ok) {
+                if (response.status === 403) {
+                    setShowUpgradeModal(true);
+                    setLoading(false);
+                    return;
+                }
                 throw new Error(data.detail || data.message || `Failed to run Nexus (Status ${response.status})`);
             }
 
@@ -548,6 +555,12 @@ export default function PortfolioNexus() {
 
                 </div >
             </div >
+
+            <UpgradePopup
+                isOpen={showUpgradeModal}
+                onClose={() => setShowUpgradeModal(false)}
+                featureName="Nexus Limit Reached"
+            />
         </AccessGate >
     );
 }

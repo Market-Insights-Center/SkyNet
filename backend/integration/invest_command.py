@@ -12,7 +12,13 @@ from typing import List, Dict, Any, Optional, Tuple
 import csv
 import traceback
 import numpy as np
-from backend.usage_counter import increment_usage
+try:
+    from backend.usage_counter import increment_usage
+except ImportError:
+    try:
+        from usage_counter import increment_usage
+    except ImportError:
+        def increment_usage(*args): pass
 
 # --- Constants ---
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))

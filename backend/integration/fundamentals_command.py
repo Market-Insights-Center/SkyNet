@@ -6,7 +6,13 @@ from typing import List, Dict, Any, Optional
 import yfinance as yf
 import numpy as np
 from tabulate import tabulate
-from backend.usage_counter import increment_usage
+try:
+    from backend.usage_counter import increment_usage
+except ImportError:
+    try:
+        from usage_counter import increment_usage
+    except ImportError:
+        def increment_usage(*args): pass
 
 # --- Global Variables & Constants ---
 YFINANCE_API_SEMAPHORE = asyncio.Semaphore(8)

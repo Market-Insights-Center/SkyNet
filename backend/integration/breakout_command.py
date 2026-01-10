@@ -15,7 +15,13 @@ import base64
 import yfinance as yf
 from tabulate import tabulate
 from tradingview_screener import Query, Column
-from backend.usage_counter import increment_usage
+try:
+    from backend.usage_counter import increment_usage
+except ImportError:
+    try:
+        from usage_counter import increment_usage
+    except ImportError:
+        def increment_usage(*args): pass
 
 # --- Imports from other command modules ---
 from backend.integration.invest_command import calculate_ema_invest

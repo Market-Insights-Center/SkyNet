@@ -4,7 +4,13 @@ import json
 import logging
 import traceback
 from typing import List, Dict, Any, Optional
-from backend.usage_counter import increment_usage
+try:
+    from backend.usage_counter import increment_usage
+except ImportError:
+    try:
+        from usage_counter import increment_usage
+    except ImportError:
+        def increment_usage(*args): pass
 
 from backend.ai_service import ai
 from backend.integration import (

@@ -13,7 +13,13 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from tabulate import tabulate
 from scipy.stats import percentileofscore
-from backend.usage_counter import increment_usage
+try:
+    from backend.usage_counter import increment_usage
+except ImportError:
+    try:
+        from usage_counter import increment_usage
+    except ImportError:
+         def increment_usage(*args): pass
 
 # --- Imports from other command modules ---
 # from invest_command import plot_ticker_graph, calculate_ema_invest, process_custom_portfolio

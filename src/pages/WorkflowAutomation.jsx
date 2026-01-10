@@ -11,6 +11,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 
 const API_URL = '/api'; // Adjust if needed
+import UpgradePopup from '../components/UpgradePopup';
 
 const WorkflowAutomation = () => {
     const navigate = useNavigate();
@@ -40,6 +41,10 @@ const WorkflowAutomation = () => {
     // Mobile UI State
     const [isSidebarOpen, setIsSidebarOpen] = useState(true); // Default open on desktop, check width for mobile
     const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+
+    // Limit / Upgrade State
+    const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+    const [upgradeFeature, setUpgradeFeature] = useState("Premium Feature");
 
     useEffect(() => {
         const handleResize = () => {
@@ -633,6 +638,14 @@ const WorkflowAutomation = () => {
                         </div>
                     )}
                 </div>
+
+
+                {/* Upgrade Modal for Dashboard */}
+                <UpgradePopup
+                    isOpen={showUpgradeModal}
+                    onClose={() => setShowUpgradeModal(false)}
+                    featureName={upgradeFeature}
+                />
             </div>
         );
     }
@@ -718,7 +731,10 @@ const WorkflowAutomation = () => {
                                         icon={Globe}
                                         onClick={() => {
                                             if (currentUser?.tier === 'Enterprise') addNode('webhook');
-                                            else alert("Upgrade to Enterprise to use Webhooks.");
+                                            else {
+                                                setUpgradeFeature("Webhooks");
+                                                setShowUpgradeModal(true);
+                                            }
                                         }}
                                         color={currentUser?.tier === 'Enterprise' ? "text-indigo-400" : "text-gray-600"}
                                     />
@@ -797,6 +813,12 @@ const WorkflowAutomation = () => {
                     onMouseUp={handleMouseUp}
                     onTouchEnd={handleMouseUp}
                 >
+                    {/* Upgrade Modal for Editor */}
+                    <UpgradePopup
+                        isOpen={showUpgradeModal}
+                        onClose={() => setShowUpgradeModal(false)}
+                        featureName={upgradeFeature}
+                    />
                     {/* Transform Container */}
                     <div
                         className="absolute inset-0 origin-top-left will-change-transform"

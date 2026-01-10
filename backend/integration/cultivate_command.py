@@ -19,7 +19,13 @@ from tradingview_screener import Column, Query
 
 # --- Local Imports ---
 from backend.integration.invest_command import calculate_ema_invest, safe_score, get_allocation_score
-from backend.usage_counter import increment_usage
+try:
+    from backend.usage_counter import increment_usage
+except ImportError:
+    try:
+        from usage_counter import increment_usage
+    except ImportError:
+        def increment_usage(*args): pass
 
 # --- Constants ---
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))

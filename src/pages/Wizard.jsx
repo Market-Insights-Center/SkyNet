@@ -6,6 +6,7 @@ import { useAuth } from '../contexts/AuthContext';
 import WizardInputs, { PortfolioConfigForm } from '../components/WizardInputs.jsx';
 import WizardPreview from '../components/WizardPreview.jsx';
 import Results from './Results.jsx';
+import UpgradePopup from '../components/UpgradePopup';
 
 const Wizard = () => {
     const location = useLocation();
@@ -14,6 +15,7 @@ const Wizard = () => {
     const [isAnalyzing, setIsAnalyzing] = useState(false);
     const [showResults, setShowResults] = useState(false);
     const [toolType, setToolType] = useState('');
+    const [showUpgradeModal, setShowUpgradeModal] = useState(false);
 
     // Modal state for Custom/Tracking not found
     const [showConfigModal, setShowConfigModal] = useState(false);
@@ -190,7 +192,7 @@ const Wizard = () => {
             if (!response.ok) {
                 // Handle 403 specifically
                 if (response.status === 403) {
-                    alert(data.detail || "Usage limit reached. Please upgrade.");
+                    setShowUpgradeModal(true);
                     setIsAnalyzing(false);
                     return;
                 }
@@ -375,6 +377,12 @@ const Wizard = () => {
                     </motion.div>
                 )}
             </AnimatePresence>
+
+            <UpgradePopup
+                isOpen={showUpgradeModal}
+                onClose={() => setShowUpgradeModal(false)}
+                featureName="Strategy Limit Reached"
+            />
         </div>
     );
 };

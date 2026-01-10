@@ -13,7 +13,13 @@ import yfinance as yf
 import pandas as pd
 from tabulate import tabulate
 import humanize
-from backend.usage_counter import increment_usage
+try:
+    from backend.usage_counter import increment_usage
+except ImportError:
+    try:
+        from usage_counter import increment_usage
+    except ImportError:
+        def increment_usage(*args): pass
 
 # --- Imports from other command modules ---
 from backend.integration.risk_command import perform_risk_calculations_singularity

@@ -5,7 +5,13 @@ import math
 import traceback
 from typing import List, Dict, Any, Optional, Tuple
 from collections import defaultdict
-from backend.usage_counter import increment_usage
+try:
+    from backend.usage_counter import increment_usage
+except ImportError:
+    try:
+        from usage_counter import increment_usage
+    except ImportError:
+         def increment_usage(*args): pass # Dummy fallback
 
 # --- CONSTANTS ---
 # Robust path finding
@@ -22,12 +28,30 @@ try:
         from backend.integration.invest_command import process_custom_portfolio, calculate_ema_invest
     except ImportError:
         from integration.invest_command import process_custom_portfolio, calculate_ema_invest
-    from backend.integration.market_command import calculate_market_invest_scores_singularity, get_sp500_symbols_singularity
-    from backend.integration.breakout_command import run_breakout_analysis_singularity
-    from backend.integration.cultivate_command import run_cultivate_analysis_singularity
-    from backend.integration.custom_command import load_portfolio_config, _save_custom_portfolio_run_to_csv, _get_custom_portfolio_run_csv_filepath
     try:
-        from backend.integration.execution_command import get_robinhood_equity, get_robinhood_holdings, execute_portfolio_rebalance
+        from backend.integration.market_command import calculate_market_invest_scores_singularity, get_sp500_symbols_singularity
+    except ImportError:
+        from integration.market_command import calculate_market_invest_scores_singularity, get_sp500_symbols_singularity
+
+    try:
+        from backend.integration.breakout_command import run_breakout_analysis_singularity
+    except ImportError:
+        from integration.breakout_command import run_breakout_analysis_singularity
+
+    try:
+        from backend.integration.cultivate_command import run_cultivate_analysis_singularity
+    except ImportError:
+        from integration.cultivate_command import run_cultivate_analysis_singularity
+
+    try:
+        from backend.integration.custom_command import load_portfolio_config, _save_custom_portfolio_run_to_csv, _get_custom_portfolio_run_csv_filepath
+    except ImportError:
+         from integration.custom_command import load_portfolio_config, _save_custom_portfolio_run_to_csv, _get_custom_portfolio_run_csv_filepath
+    try:
+        try:
+            from backend.integration.execution_command import get_robinhood_equity, get_robinhood_holdings, execute_portfolio_rebalance
+        except ImportError:
+            from integration.execution_command import get_robinhood_equity, get_robinhood_holdings, execute_portfolio_rebalance
     except ImportError:
         def get_robinhood_equity(): return 0.0
         def get_robinhood_holdings(): return {}

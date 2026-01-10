@@ -13,7 +13,13 @@ from tabulate import tabulate
 
 # --- Imports from other command modules ---
 from backend.integration.invest_command import process_custom_portfolio
-from backend.usage_counter import increment_usage
+try:
+    from backend.usage_counter import increment_usage
+except ImportError:
+    try:
+        from usage_counter import increment_usage
+    except ImportError:
+        def increment_usage(*args): pass
 
 # --- Constants ---
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))

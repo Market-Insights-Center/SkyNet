@@ -17,12 +17,36 @@ import uuid
 from contextlib import asynccontextmanager
 import yfinance as yf
 
+# --- SYSTEM PATH FIX ---
+# Add parent directory to sys.path to ensure 'backend' package is resolvable
+current_dir = os.path.dirname(os.path.abspath(__file__))
+parent_dir = os.path.dirname(current_dir)
+if parent_dir not in sys.path:
+    sys.path.insert(0, parent_dir)
+# -----------------------
+
 # Database Manager Imports
 # Database Manager Imports
 try:
     from integration.database_manager import read_nexus_codes, read_portfolio_codes, save_nexus_code, save_portfolio_code, delete_code
 except ImportError:
     from backend.integration.database_manager import read_nexus_codes, read_portfolio_codes, save_nexus_code, save_portfolio_code, delete_code
+
+
+
+# Legacy Database Import for Points
+try:
+    import database
+except ImportError:
+    import backend.database as database
+
+
+
+# Legacy Database Import for Points
+try:
+    import database
+except ImportError:
+    import backend.database as database
 
 # Automation Storage Imports (Fixes Save/Load)
 try:
@@ -2002,6 +2026,20 @@ class ShareAutomationRequest(BaseModel):
 class CopyAutomationRequest(BaseModel):
     shared_id: str
 
+class PredictionCreateRequest(BaseModel):
+    title: str
+    stock: str
+    end_date: str
+    market_condition: str
+    email: str
+    wager_logic: Optional[str] = "binary_odds"
+
+class BetRequest(BaseModel):
+    email: str
+    prediction_id: str
+    choice: str
+    amount: int
+
 # --- DATABASE COMMUNITY ENDPOINTS ---
 
 @app.post("/api/database/share")
@@ -2141,6 +2179,56 @@ def get_usage_stats_endpoint():
 
     return stats
 
+# --- MARKET PREDICTIONS ENDPOINTS ---
+@app.post("/api/predictions/create")
+def create_prediction_endpoint(req: PredictionCreateRequest):
+    try:
+        new_pred = prediction_manager.create_prediction(req.title, req.stock, req.end_date, req.market_condition, req.email)
+        return {"success": True, "prediction": new_pred}
+    except Exception as e:
+        print(f"Error creating prediction: {e}")
+        return {"success": False, "message": str(e)}
+
+@app.post("/api/predictions/bet")
+def place_bet_endpoint(req: BetRequest):
+    try:
+        # TODO: Deduct points from user using database.py logic
+        # For now we assume deduction logic is handled or we just record the bet
+        # Ideally: database.deduct_points(req.email, req.amount)
+        
+        new_bet = prediction_manager.place_bet(req.email, req.prediction_id, req.choice, req.amount)
+        return {"success": True, "bet": new_bet}
+    except Exception as e:
+        return {"success": False, "message": str(e)}
+
+@app.get("/api/predictions/active")
+def get_active_predictions_endpoint(include_recent: bool = False):
+    return prediction_manager.get_active_predictions(include_recent)
+
+@app.get("/api/user/bets")
+def get_user_bets_endpoint(email: str):
+    return prediction_manager.get_user_bets(email)
+
+@app.get("/api/mods")
+def get_mods_endpoint():
+    # Return admin list for frontend check
+    admin_email = os.getenv("SUPER_ADMIN_EMAIL", "")
+    return {"mods": [admin_email] if admin_email else []}
+
+@app.post("/api/points/user")
+def get_user_points_endpoint_post(req: Dict[str, str]):
+    email = req.get("email")
+    if not email: return {"points": 0, "pending_points": 0}
+    
+    try:
+        # Use existing database function
+        points = database.get_user_points(email)
+        # Pending? database might not have it exposed easily, default 0
+        return {"points": points, "pending_points": 0}
+    except Exception as e:
+        print(f"Error fetching points: {e}")
+        return {"points": 0, "pending_points": 0}
+
 @app.post("/api/usage/increment")
 async def increment_usage_endpoint(req: UsageIncrementRequest):
     try:
@@ -2149,6 +2237,48 @@ async def increment_usage_endpoint(req: UsageIncrementRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+
+
+# --- MARKET PREDICTIONS ENDPOINTS ---
+@app.post("/api/predictions/create")
+def create_prediction_endpoint(req: PredictionCreateRequest):
+    try:
+        success = database.create_prediction(req.title, req.stock, req.end_date, req.market_condition, req.wager_logic, req.email)
+        return {"success": success}
+    except Exception as e:
+        print(f"Error creating prediction: {e}")
+        return {"success": False, "message": str(e)}
+
+@app.post("/api/predictions/bet")
+def place_bet_endpoint(req: BetRequest):
+    try:
+        return database.place_bet(req.email, req.prediction_id, req.choice, req.amount)
+    except Exception as e:
+        return {"success": False, "message": str(e)}
+
+@app.get("/api/predictions/active")
+def get_active_predictions_endpoint(include_recent: bool = False):
+    return database.get_active_predictions(include_recent)
+
+@app.get("/api/user/bets")
+def get_user_bets_endpoint(email: str):
+    return database.get_user_bets(email)
+
+@app.get("/api/mods")
+def get_mods_endpoint():
+    admin_email = os.getenv("SUPER_ADMIN_EMAIL", "")
+    return {"mods": [admin_email] if admin_email else []}
+
+@app.post("/api/points/user")
+def get_user_points_endpoint_post(req: Dict[str, str]):
+    email = req.get("email")
+    if not email: return {"points": 0, "pending_points": 0}
+    try:
+        points = database.get_user_points(email)
+        return {"points": points, "pending_points": 0}
+    except Exception as e:
+        print(f"Error fetching points: {e}")
+        return {"points": 0, "pending_points": 0}
 if __name__ == "__main__":
     import uvicorn
     # Use 0.0.0.0 to listen on all interfaces, typically on port 8000

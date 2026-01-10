@@ -3,7 +3,13 @@ import traceback
 import yfinance as yf
 from datetime import datetime, timedelta
 from typing import List, Dict, Any
-from backend.usage_counter import increment_usage
+try:
+    from backend.usage_counter import increment_usage
+except ImportError:
+    try: 
+        from usage_counter import increment_usage
+    except ImportError:
+        def increment_usage(*args): pass
 
     # Imports
 # Imports
@@ -21,25 +27,41 @@ try:
         from backend.integration import risk_command
         print("[DEBUG AUTO] ✅ risk_command loaded")
     except ImportError as e:
-        print(f"[DEBUG AUTO] ⚠️ risk_command failed: {e}")
+        try:
+             from integration import risk_command
+             print("[DEBUG AUTO] ✅ risk_command loaded (relative)")
+        except ImportError as e2:
+             print(f"[DEBUG AUTO] ⚠️ risk_command failed: {e2}")
 
     try:
         from backend.integration import sentiment_command
         print("[DEBUG AUTO] ✅ sentiment_command loaded")
     except ImportError as e:
-        print(f"[DEBUG AUTO] ⚠️ sentiment_command failed: {e}")
+         try:
+            from integration import sentiment_command
+            print("[DEBUG AUTO] ✅ sentiment_command loaded (relative)")
+         except ImportError as e2:
+            print(f"[DEBUG AUTO] ⚠️ sentiment_command failed: {e2}")
 
     try:
         from backend.integration import tracking_command
         print("[DEBUG AUTO] ✅ tracking_command loaded")
     except ImportError as e:
-        print(f"[DEBUG AUTO] ⚠️ tracking_command failed: {e}")
+         try:
+            from integration import tracking_command
+            print("[DEBUG AUTO] ✅ tracking_command loaded (relative)")
+         except ImportError as e2:
+            print(f"[DEBUG AUTO] ⚠️ tracking_command failed: {e2}")
 
     try:
         from backend.integration import nexus_command
         print("[DEBUG AUTO] ✅ nexus_command loaded")
     except ImportError as e:
-        print(f"[DEBUG AUTO] ⚠️ nexus_command failed: {e}")
+        try:
+            from integration import nexus_command
+            print("[DEBUG AUTO] ✅ nexus_command loaded (relative)")
+        except ImportError as e2:
+            print(f"[DEBUG AUTO] ⚠️ nexus_command failed: {e2}")
 
     from cli_commands import monitor_command
     print("[DEBUG AUTO] ✅ monitor_command loaded")

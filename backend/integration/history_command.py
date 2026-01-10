@@ -4,7 +4,13 @@ import csv
 import json
 from typing import List, Dict, Optional
 import pandas as pd
-from backend.usage_counter import increment_usage
+try:
+    from backend.usage_counter import increment_usage
+except ImportError:
+    try:
+        from usage_counter import increment_usage
+    except ImportError:
+        def increment_usage(*args): pass
 
 # --- Constants ---
 # FIX: Use absolute path to ensure file is found regardless of CWD (integration/ -> backend/)

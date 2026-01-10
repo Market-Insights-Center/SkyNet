@@ -19,7 +19,13 @@ import base64
 from tabulate import tabulate
 import traceback
 from tradingview_screener import Column, Query
-from backend.usage_counter import increment_usage
+try:
+    from backend.usage_counter import increment_usage
+except ImportError:
+    try:
+        from usage_counter import increment_usage
+    except ImportError:
+        def increment_usage(*args): pass
 
 # --- Constants ---
 MARKET_FULL_SENS_DATA_FILE_PREFIX = 'market_full_sens_'

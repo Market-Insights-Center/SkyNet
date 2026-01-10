@@ -8,7 +8,13 @@ from typing import List, Dict, Any, Optional
 import math
 import os
 import asyncio
-from backend.usage_counter import increment_usage
+try:
+    from backend.usage_counter import increment_usage
+except ImportError:
+    try:
+        from usage_counter import increment_usage
+    except ImportError:
+        def increment_usage(*args): pass
 
 # Load Configuration
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
