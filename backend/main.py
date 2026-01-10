@@ -35,17 +35,6 @@ except ImportError:
     except ImportError as e:
         print(f"❌ CRITICAL FAIL: automation_storage: {e}")
 
-# Database & Predictions Imports
-try:
-    from backend.database import create_prediction, place_bet, get_active_predictions, get_user_bets, delete_prediction, get_user_points
-    print(f"✅ LOADED: prediction logic (database.py)")
-except ImportError:
-    try:
-        from database import create_prediction, place_bet, get_active_predictions, get_user_bets, delete_prediction, get_user_points
-        print(f"✅ LOADED: prediction logic (Relative)")
-    except ImportError as e:
-        print(f"❌ FAIL: prediction logic import: {e}")
-
 # Fix for WinError 183 in TzCache
 try:
     cache_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".cache", "py-yfinance")
@@ -512,23 +501,6 @@ class PowerScoreRequest(BaseModel):
 
 class UsageIncrementRequest(BaseModel):
     key: str
-
-class PredictionCreateRequest(BaseModel):
-    title: str
-    stock: str
-    end_date: str
-    market_condition: str
-    email: str
-    wager_logic: str = "binary_odds"
-
-class BetRequest(BaseModel):
-    email: str
-    prediction_id: str
-    choice: str
-    amount: int
-
-class UserPointsRequest(BaseModel):
-    email: str
 
 class SummaryRequest(BaseModel):
     ticker: str
@@ -2176,36 +2148,6 @@ async def increment_usage_endpoint(req: UsageIncrementRequest):
         return {"status": "success", "new_value": new_val}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
-# --- MARKET PREDICTIONS ENDPOINTS ---
-
-@app.post("/api/predictions/create")
-def create_prediction_endpoint(req: PredictionCreateRequest):
-    success = create_prediction(req.title, req.stock, req.end_date, req.market_condition, req.wager_logic, req.email)
-    return {"success": success}
-
-@app.post("/api/predictions/bet")
-def place_bet_endpoint(req: BetRequest):
-    res = place_bet(req.email, req.prediction_id, req.choice, req.amount)
-    return res
-
-@app.get("/api/predictions/active")
-def get_active_predictions_endpoint(include_recent: bool = False):
-    return get_active_predictions(include_recent)
-
-@app.get("/api/user/bets")
-def get_user_bets_endpoint(email: str):
-    return get_user_bets(email)
-
-@app.post("/api/points/user")
-def get_user_points_endpoint(req: UserPointsRequest):
-    return get_user_points(req.email)
-
-@app.get("/api/mods")
-def get_mods_endpoint():
-    # Simple Admin/Mod Check
-    admin = os.getenv("SUPER_ADMIN_EMAIL", "admin@example.com")
-    return {"mods": [admin.lower()]}
 
 if __name__ == "__main__":
     import uvicorn
