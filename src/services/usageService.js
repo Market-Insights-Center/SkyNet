@@ -9,7 +9,7 @@ export const trackUsage = async (metric) => {
         await fetch(`${API_URL}/usage/increment`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ metric })
+            body: JSON.stringify({ key: metric })
         });
     } catch (error) {
         console.error(`Failed to track usage for ${metric}:`, error);

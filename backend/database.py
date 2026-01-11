@@ -87,25 +87,26 @@ def verify_access_and_limits(email, product):
         db = get_db()
         
         # 1. Get User Tier
+        tier = "Basic" # Default
+        
         # Hardcode Super Admin to Singularity to avoid DB sync issues
         SUPER_ADMIN_EMAIL = "marketinsightscenter@gmail.com"
-        if email.lower() == SUPER_ADMIN_EMAIL:
+        if email and email.lower().strip() == SUPER_ADMIN_EMAIL:
             tier = "Singularity"
-            
-        if tier == "Singularity":
-            add_points(email, product)
-            return {"allowed": True, "reason": "no_limit", "message": "Singularity Access."}
         else:
+            # Fetch from DB
             user_ref = db.collection('users').document(email)
             user_doc = user_ref.get()
-            tier = 'Basic'
             if user_doc.exists:
-                raw_tier = user_doc.to_dict().get('tier', 'Basic')
-                tier = str(raw_tier).strip() if raw_tier else 'Basic'
-            else:
-                 # No user doc? Likely guest or sync issue
-                 if not email or email == 'guest':
-                      return {"allowed": False, "reason": "auth_required", "message": "Please sign in to use this feature."}
+                tier = user_doc.to_dict().get('tier', 'Basic')
+
+        if tier == "Singularity":
+            try:
+                add_points(email, product)
+            except: pass
+            return {"allowed": True, "reason": "no_limit", "message": "Singularity Access."}
+
+
             
         # 2. Get Limit for Tier/Product
         all_limits = load_tier_limits()

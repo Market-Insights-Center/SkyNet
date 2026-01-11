@@ -27,6 +27,23 @@ except ImportError:
     except ImportError:
         def increment_usage(*args): pass
 
+# --- Imports ---
+try:
+    from backend.integration.invest_command import calculate_ema_invest, screen_custom_market_stocks
+except ImportError:
+    try:
+        from integration.invest_command import calculate_ema_invest, screen_custom_market_stocks
+    except ImportError:
+         print("CRITICAL: invest_command not found for market_command.")
+
+# --- Helper Functions ---
+def safe_score(val):
+    if val is None: return -float('inf')
+    try:
+        return float(val)
+    except:
+        return -float('inf')
+
 # --- Constants ---
 MARKET_FULL_SENS_DATA_FILE_PREFIX = 'market_full_sens_'
 
@@ -116,6 +133,92 @@ async def calculate_ema_invest(ticker: str, ema_interval: int, is_called_by_ai: 
         return None, None
 
 # --- Core Logic Functions (from market.py) ---
+
+def process_market_chart_data(top_tickers: List[str], bot_tickers: List[str], df: pd.DataFrame) -> Dict[str, Any]:
+    """
+    Processes yfinance MultiIndex DataFrame into two JSON-friendly structures for frontend charts.
+    Calculates percentage change from the start of the period for each ticker.
+    """
+    if df.empty: 
+        print("Chart Data Gen: DF is empty.")
+        return {}
+    
+    # Helper to process a group of tickers normalized vs SPY
+    def process_group(tickers):
+        group_tickers = list(set(tickers + ['SPY']))
+        
+        # Determine accessible tickers based on DF structure
+        available_cols = []
+        is_multi = isinstance(df.columns, pd.MultiIndex)
+        
+        if is_multi:
+            # MultiIndex: (Ticker, PriceType) -> df.columns.levels[0]
+            available_cols = df.columns.levels[0].tolist()
+        else:
+            # Single Index or different structure.
+            # If group_by='ticker' is used but only 1 ticker, it might not be MultiIndex depending on version.
+            # Or if auto_adjust=True, might be flat if 1 ticker.
+            # But here we likely have many.
+            pass
+            
+        closes = pd.DataFrame()
+        
+        for t in group_tickers:
+            try:
+                if is_multi:
+                    if t in df.columns.levels[0]:
+                        if 'Close' in df[t]:
+                            closes[t] = df[t]['Close']
+                        elif 'Adj Close' in df[t]: # Fallback
+                             closes[t] = df[t]['Adj Close']
+                else:
+                    # Fallback flat structure: "Ticker" or "Close" if single?
+                    # If multiple tickers and flat, maybe "Close" "Close" "Close"? No, yfinance usually gives MultiIndex
+                    # If flat with one ticker, columns are Open, High, Low, Close...
+                    # If flat with multiple tickers (legacy?), columns are Tickers (if only Close downloaded?)
+                    if t in df.columns:
+                        closes[t] = df[t]
+            except Exception as e:
+                # print(f"DEBUG: Failed to extract {t}: {e}")
+                continue
+            
+        closes.dropna(inplace=True)
+        if closes.empty: 
+            print(f"Chart Data Gen: Closes DF empty for group {tickers[:3]}...")
+            return []
+
+        # Normalize to percent change from start
+        # Use first valid index
+        first_valid_idx = closes.first_valid_index()
+        if not first_valid_idx: return []
+        
+        base_vals = closes.loc[first_valid_idx]
+        normalized = (closes / base_vals - 1) * 100
+        # Ensure stocks don't drop below -100% (impossible price < 0)
+        normalized = normalized.clip(lower=-100.0)
+        normalized.reset_index(inplace=True)
+        
+        # Convert to records: [{date: '...', SPY: 10.5, AAPL: 12.0}, ...]
+        records = []
+        for _, row in normalized.iterrows():
+            record = {'date': row['Date'].strftime('%Y-%m-%d')}
+            for t in closes.columns:
+                if t in row and t != 'Date':
+                   val = row[t]
+                   if pd.notna(val) and not np.isinf(val):
+                        record[t] = val
+            records.append(record)
+        return records
+
+    try:
+        return {
+            "top_10_data": process_group(top_tickers),
+            "bottom_10_data": process_group(bot_tickers)
+        }
+    except Exception as e:
+        print(f"Chart Processing Error: {e}")
+        traceback.print_exc()
+        return {}
 
 async def calculate_market_invest_scores_singularity(tickers: List[str], ema_sens: int, progress_callback: Optional[Any] = None) -> List[Dict[str, Any]]:
     """Calculates INVEST scores for a list of tickers in parallel."""
@@ -234,7 +337,9 @@ async def run_market_analysis(market_type: str, sensitivity: int, progress_callb
 
         chart_data_struct = await asyncio.to_thread(process_market_chart_data, top_tickers, bot_tickers, hist_data)
     except Exception as e:
-        print(f"Chart gen failed: {e}")
+        import traceback
+        traceback.print_exc()
+        print(f"Chart gen failed in run_market_analysis: {e}")
         chart_data_struct = {}
     
     return {

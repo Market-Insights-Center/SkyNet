@@ -2,14 +2,14 @@ import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { useAuth } from '../contexts/AuthContext';
 import { Scale, Activity, Zap, Search, AlertTriangle, FileText, BarChart2 } from 'lucide-react';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Brush } from 'recharts';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '';
 
 // --- Interactive Chart Component ---
 const MarketPerformanceChart = ({ data, title, colorBase }) => {
     // Extract unique keys (tickers) excluding 'date'
-    // Modified to scan ALL data points, not just the first one, to catch tickers that might start later
+    // Modified to scan ALL data points
     const allKeys = React.useMemo(() => {
         if (!data || data.length === 0) return [];
         const keys = new Set();
@@ -18,18 +18,28 @@ const MarketPerformanceChart = ({ data, title, colorBase }) => {
                 if (k !== 'date') keys.add(k);
             });
         });
+
+        // Sort keys by their FINAL value in the data (descending)
+        const lastItem = data[data.length - 1];
+        if (lastItem) {
+            return Array.from(keys).sort((a, b) => {
+                const valA = lastItem[a] !== undefined ? lastItem[a] : -999999;
+                const valB = lastItem[b] !== undefined ? lastItem[b] : -999999;
+                return valB - valA;
+            });
+        }
         return Array.from(keys).sort();
     }, [data]);
 
     // State for toggling visibility
-    const [visibility, setVisibility] = useState(() =>
-        allKeys.reduce((acc, key) => ({ ...acc, [key]: true }), {})
-    );
+    const [visibility, setVisibility] = useState({});
+    const [useLogScale, setUseLogScale] = useState(false);
 
-    // Update visibility state when allKeys changes (e.g. data update)
+    // Initialize/Update visibility state when allKeys changes
     React.useEffect(() => {
         setVisibility(prev => {
             const next = { ...prev };
+            // Ensure any new keys are visible by default
             allKeys.forEach(key => {
                 if (next[key] === undefined) next[key] = true;
             });
@@ -42,12 +52,25 @@ const MarketPerformanceChart = ({ data, title, colorBase }) => {
         setVisibility(prev => ({ ...prev, [dataKey]: !prev[dataKey] }));
     };
 
+    const toggleAll = (visible) => {
+        const next = {};
+        allKeys.forEach(k => {
+            if (k === 'SPY') next[k] = true; // Always keep SPY visible by default preference, or toggle it too? User choice. Let's toggle all.
+            else next[k] = visible;
+        });
+        // Override SPY to always be visible if "Deselect All" to keep reference? 
+        // User asked to "unselect and select which tickers". 
+        // Let's allow toggling everything, but maybe keep SPY on "Select All".
+        if (!visible) next['SPY'] = true; // Keep SPY as anchor if clearing
+        setVisibility(next);
+    };
+
     // Generate colors dynamically or mapped
     const getColor = (key, index) => {
         if (key === 'SPY') return '#ffffff'; // White for SPY
-        // Generate gradients based on index
+        // Generate gradients 
         const base = colorBase === 'green' ? 120 : 0; // Hue
-        const lightness = 50 + (index * 5) % 40;
+        const lightness = 50 + (index * 4) % 40;
         return `hsl(${base}, 70%, ${lightness}%)`;
     };
 
@@ -55,10 +78,34 @@ const MarketPerformanceChart = ({ data, title, colorBase }) => {
 
     return (
         <div className="bg-white/5 border border-white/10 rounded-2xl p-6 mb-8">
-            <h3 className="text-xl font-bold mb-4 flex items-center gap-2 text-gold">
-                <BarChart2 size={24} /> {title}
-            </h3>
-            <div className="h-[400px] w-full bg-black/50 rounded-lg p-4">
+            <div className="flex flex-col md:flex-row justify-between items-center mb-4 gap-4">
+                <h3 className="text-xl font-bold flex items-center gap-2 text-gold">
+                    <BarChart2 size={24} /> {title}
+                </h3>
+                <div className="flex flex-wrap items-center gap-2">
+                    <button
+                        onClick={() => setUseLogScale(!useLogScale)}
+                        className={`px-3 py-1 text-xs rounded border border-white/10 transition-colors ${useLogScale ? 'bg-gold text-black font-bold' : 'bg-white/5 hover:bg-white/10'}`}
+                    >
+                        Scale: {useLogScale ? 'Logarithmic' : 'Linear'}
+                    </button>
+                    <div className="w-px h-4 bg-gray-600 mx-2"></div>
+                    <button
+                        onClick={() => toggleAll(true)}
+                        className="px-3 py-1 bg-white/5 hover:bg-white/10 text-xs rounded border border-white/10 transition-colors"
+                    >
+                        Select All
+                    </button>
+                    <button
+                        onClick={() => toggleAll(false)}
+                        className="px-3 py-1 bg-white/5 hover:bg-white/10 text-xs rounded border border-white/10 transition-colors"
+                    >
+                        Deselect All (Except SPY)
+                    </button>
+                </div>
+            </div>
+
+            <div className="h-[500px] w-full bg-black/50 rounded-lg p-4">
                 <ResponsiveContainer width="100%" height="100%">
                     <LineChart data={data}>
                         <CartesianGrid strokeDasharray="3 3" stroke="#333" />
@@ -70,8 +117,16 @@ const MarketPerformanceChart = ({ data, title, colorBase }) => {
                                 const d = new Date(str);
                                 return `${d.getMonth() + 1}/${d.getDate()}`;
                             }}
+                            minTickGap={30}
                         />
-                        <YAxis stroke="#888" fontSize={12} unit="%" />
+                        <YAxis
+                            stroke="#888"
+                            fontSize={12}
+                            unit="%"
+                            scale={useLogScale ? 'symlog' : 'auto'}
+                            domain={['auto', 'auto']}
+                            allowDataOverflow={true}
+                        />
                         <Tooltip
                             contentStyle={{ backgroundColor: '#111', border: '1px solid #333' }}
                             itemStyle={{ fontSize: '12px' }}
@@ -81,7 +136,23 @@ const MarketPerformanceChart = ({ data, title, colorBase }) => {
                         />
                         <Legend
                             onClick={handleLegendClick}
-                            wrapperStyle={{ cursor: 'pointer', paddingTop: '10px' }}
+                            wrapperStyle={{ cursor: 'pointer', paddingTop: '20px' }}
+                            payload={allKeys.map(key => ({
+                                id: key,
+                                type: 'line',
+                                value: `${key}${visibility[key] === false ? ' (Hidden)' : ''}`,
+                                color: visibility[key] === false ? '#666' : getColor(key, allKeys.indexOf(key))
+                            }))}
+                        />
+                        <Brush
+                            dataKey="date"
+                            height={30}
+                            stroke="#8884d8"
+                            fill="#1f1f1f"
+                            tickFormatter={(str) => {
+                                const d = new Date(str);
+                                return `${d.getMonth() + 1}/${d.getDate()}`;
+                            }}
                         />
                         {allKeys.map((key, index) => (
                             <Line
@@ -99,7 +170,9 @@ const MarketPerformanceChart = ({ data, title, colorBase }) => {
                     </LineChart>
                 </ResponsiveContainer>
             </div>
-            <p className="text-center text-xs text-gray-500 mt-2">Click legend items to toggle visibility</p>
+            <p className="text-center text-xs text-gray-500 mt-2">
+                Use the slider below the chart to zoom time range. Click legend items to toggle visibility.
+            </p>
         </div>
     );
 };

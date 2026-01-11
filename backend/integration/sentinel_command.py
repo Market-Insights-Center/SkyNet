@@ -318,104 +318,117 @@ async def run_sentinel(user_prompt: str, plan_override: Optional[List[Dict[str, 
     2. Execute Loop
     3. Summarize
     """
-    await increment_usage('sentinel')
-    yield {"type": "status", "message": "Analyzing request..."}
-    
-    plan = []
-    if plan_override:
-        plan = plan_override
-        yield {"type": "status", "message": "Using provided execution plan..."}
-    else:
-        plan = await plan_execution(user_prompt)
-        yield {"type": "plan", "plan": plan}
-    
-    if not plan:
-         yield {"type": "error", "message": "Failed to generate a valid execution plan."}
-         return
-
-    
-    context = {}
-    
-    for step in plan:
-        step_id = step.get("step_id")
-        tool_name = step.get("tool")
-        description = step.get("description", tool_name)
-        output_key = step.get("output_key", f"step_{step_id}_output")
+    try:
+        await increment_usage('sentinel')
+        yield {"type": "status", "message": "Analyzing request..."}
         
-        yield {"type": "status", "message": f"Step {step_id}: {description}..."}
-        
-        # --- Queue-Based Progress Streaming ---
-        queue = asyncio.Queue()
-        
-        async def progress_callback(msg: str):
-            await queue.put(msg)
-            
-        async def wrapped_execution():
-            res = await execute_step(step, context, progress_callback=progress_callback)
-            await queue.put(None) # Sentinel
-            return res
-
-        exec_task = asyncio.create_task(wrapped_execution())
-        
-        # Consume updates while task runs
-        while True:
-            # Check if task failed immediately
-            if exec_task.done() and queue.empty():
-                 break
-            
-            # Wait for message or task completion
-            get_future = asyncio.ensure_future(queue.get())
-            done_futures, pending = await asyncio.wait(
-                [get_future, exec_task], 
-                return_when=asyncio.FIRST_COMPLETED
-            )
-            
-            if get_future in done_futures:
-                msg = get_future.result()
-                if msg is None: break
-                yield {"type": "status", "message": f"Step {step_id}: {msg}"}
-            else:
-                # Task finished but maybe queue not empty yet?
-                # Cancel get if strictly task done
-                if not exec_task.exception():
-                     # drain queue
-                     while not queue.empty():
-                         msg = await queue.get()
-                         if msg is None: break
-                         yield {"type": "status", "message": f"Step {step_id}: {msg}"}
-                get_future.cancel()
-                break
-
-        result = await exec_task
-        # --------------------------------------
-
-        # Store Result
-        if isinstance(result, dict) and "error" in result:
-             yield {"type": "error", "message": f"Step {step_id} failed: {result['error']}"}
-             # Continue or break? Usually continue best effort.
-             context[output_key] = result
+        plan = []
+        if plan_override:
+            plan = plan_override
+            yield {"type": "status", "message": "Using provided execution plan..."}
         else:
-             context[output_key] = result
-             
-             if tool_name == "summary":
-                 yield {"type": "summary", "message": result}
-             else:
-                 yield {"type": "step_result", "step_id": step_id, "result": result}
+            plan = await plan_execution(user_prompt)
+            yield {"type": "plan", "plan": plan}
         
-    yield {"type": "status", "message": "Finalizing..."}
-    logger.info("Sentinel: Finalizing... Yielding context.")
-    
-    # Safe Context Yielding (Prevent huge payloads)
-    safe_context = {}
-    for k, v in context.items():
-        try:
-             # Basic check using str representation length
-             if len(str(v)) > 500000: # 500KB limit per item
-                 safe_context[k] = "Data too large for full display. Check specific step outputs."
-                 logger.warning(f"Truncated context key {k} due to size.")
-             else:
-                 safe_context[k] = v
-        except:
-             safe_context[k] = v
+        if not plan:
+             yield {"type": "error", "message": "Failed to generate a valid execution plan."}
+             return
 
-    yield {"type": "final", "context": safe_context}
+        context = {}
+        
+        for step in plan:
+            step_id = step.get("step_id")
+            tool_name = step.get("tool")
+            description = step.get("description", tool_name)
+            output_key = step.get("output_key", f"step_{step_id}_output")
+            
+            yield {"type": "status", "message": f"Step {step_id}: {description}..."}
+            
+            # --- Queue-Based Progress Streaming ---
+            queue = asyncio.Queue()
+            
+            async def progress_callback(msg: str):
+                await queue.put(msg)
+                
+            async def wrapped_execution():
+                return await execute_step(step, context, progress_callback=progress_callback)
+
+            exec_task = asyncio.create_task(wrapped_execution())
+            
+            # Consume updates while task runs
+            while True:
+                # Check if task failed immediately
+                if exec_task.done() and queue.empty():
+                     break
+                
+                # Wait for message or task completion
+                get_future = asyncio.ensure_future(queue.get())
+                done_futures, pending = await asyncio.wait(
+                    [get_future, exec_task], 
+                    return_when=asyncio.FIRST_COMPLETED
+                )
+                
+                if get_future in done_futures:
+                    try:
+                        msg = get_future.result()
+                        if msg is None: break
+                        yield {"type": "status", "message": f"Step {step_id}: {msg}"}
+                    except Exception:
+                        pass # Queue empty or cancelled
+                
+                if exec_task.done():
+                    # Task finished, drain remaining queue
+                    if not get_future.done(): get_future.cancel()
+                    
+                    while not queue.empty():
+                         try:
+                            msg = queue.get_nowait()
+                            if msg: yield {"type": "status", "message": f"Step {step_id}: {msg}"}
+                         except: break
+                    break
+            
+            try:
+                result = await exec_task
+            except Exception as e:
+                logger.error(f"Step {step_id} execution exception: {e}")
+                result = {"error": str(e)}
+
+            # --------------------------------------
+
+            # Store Result
+            if isinstance(result, dict) and "error" in result:
+                 yield {"type": "error", "message": f"Step {step_id} failed: {result['error']}"}
+                 context[output_key] = result
+            else:
+                 context[output_key] = result
+                 
+                 if tool_name == "summary":
+                     yield {"type": "summary", "message": result}
+                 else:
+                     yield {"type": "step_result", "step_id": step_id, "result": result}
+            
+        yield {"type": "status", "message": "Finalizing..."}
+        logger.info("Sentinel: Finalizing... Yielding context.")
+        
+        # Safe Context Yielding (Prevent huge payloads)
+        safe_context = {}
+        for k, v in context.items():
+            try:
+                 # Basic check using str representation length
+                 if len(str(v)) > 500000: # 500KB limit per item
+                     safe_context[k] = "Data too large for full display. Check specific step outputs."
+                     logger.warning(f"Truncated context key {k} due to size.")
+                 else:
+                     safe_context[k] = v
+            except:
+                 safe_context[k] = v
+
+        yield {"type": "final", "context": safe_context}
+        
+    except Exception as e:
+        logger.error(f"Sentinel Global Crash: {e}")
+        traceback.print_exc()
+        yield {"type": "error", "message": f"Sentinel System Error: {str(e)}"}
+    finally:
+        # Ensure generator closes
+        pass

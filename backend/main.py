@@ -614,6 +614,10 @@ class AutomationToggleRequest(BaseModel):
 class AutomationDeleteRequest(BaseModel):
     id: str
 
+class UsageIncrementRequest(BaseModel):
+    key: str
+    email: Optional[str] = None
+
 
 
 # --- HELPER FUNCTIONS ---
