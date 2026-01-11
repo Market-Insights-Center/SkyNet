@@ -618,6 +618,10 @@ class UsageIncrementRequest(BaseModel):
     key: str
     email: Optional[str] = None
 
+class SubscriptionVerifyRequest(BaseModel):
+    subscriptionId: str
+    email: str
+
 
 
 # --- HELPER FUNCTIONS ---
