@@ -330,5 +330,19 @@ async def run_sentinel(user_prompt: str, plan_override: Optional[List[Dict[str, 
              yield {"type": "step_result", "step_id": step_id, "result": result}
         
     yield {"type": "status", "message": "Finalizing..."}
+    logger.info("Sentinel: Finalizing... Yielding context.")
     
-    yield {"type": "final", "context": context}
+    # Safe Context Yielding (Prevent huge payloads)
+    safe_context = {}
+    for k, v in context.items():
+        try:
+             # Basic check using str representation length
+             if len(str(v)) > 500000: # 500KB limit per item
+                 safe_context[k] = "Data too large for full display. Check specific step outputs."
+                 logger.warning(f"Truncated context key {k} due to size.")
+             else:
+                 safe_context[k] = v
+        except:
+             safe_context[k] = v
+
+    yield {"type": "final", "context": safe_context}

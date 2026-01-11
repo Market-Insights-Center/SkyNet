@@ -835,7 +835,7 @@ async def get_market_data(request: MarketDataRequest):
             if current_time - timestamp < CACHE_TTL:
                 return data
         
-        df = yf.download(tickers, period="1y", interval="1d", progress=False, access_token=None, auto_adjust=True)
+        df = yf.download(tickers, period="1y", interval="1d", progress=False, auto_adjust=True)
         
         results = []
         for ticker in tickers:
@@ -1593,6 +1593,7 @@ async def api_invest(request: Request):
         # if email: add_points(email, "invest") # Now handled above
         await increment_usage("invest") # Keep global usage stats
         return result
+    except HTTPException: raise
     except Exception as e:
         logger.error(f"Error in /api/invest: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -1612,6 +1613,7 @@ async def api_cultivate(request: Request):
         # if email: add_points(email, "cultivate")
         await increment_usage("cultivate")
         return result
+    except HTTPException: raise
     except Exception as e:
         logger.error(f"Error in /api/cultivate: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -1623,6 +1625,7 @@ async def api_custom(request: Request):
         result = await custom_command.handle_custom_command([], ai_params=data, is_called_by_ai=True)
         await increment_usage("custom")
         return result
+    except HTTPException: raise
     except Exception as e:
         logger.error(f"Error in /api/custom: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -1642,6 +1645,7 @@ async def api_tracking(request: Request):
         # if email: add_points(email, "tracking")
         await increment_usage("tracking")
         return result
+    except HTTPException: raise
     except Exception as e:
         logger.error(f"Error in /api/tracking: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -1662,6 +1666,7 @@ async def api_risk(email: str = "guest"):
         result, _ = await risk_command.perform_risk_calculations_singularity(is_eod_save=False, is_called_by_ai=True)
         await increment_usage("risk")
         return result
+    except HTTPException: raise
     except Exception as e:
         logger.error(f"Error in /api/risk: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -1677,6 +1682,7 @@ async def api_history(email: str = "guest"):
         result = await history_command.handle_history_command([], is_called_by_ai=True)
         await increment_usage("history")
         return result
+    except HTTPException: raise
     except Exception as e:
         logger.error(f"Error in /api/history: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -2099,10 +2105,10 @@ async def execute_sentinel(req: SentinelRequest):
         try:
              # Pass the plan if provided (Interactive Mode), otherwise generates it (Quick Run)
              async for update in sentinel_command.run_sentinel(req.user_prompt, plan_override=req.plan):
-                  yield json.dumps(update) + "\n"
+                  yield json.dumps(update, default=str) + "\n"
         except Exception as e:
              traceback.print_exc()
-             yield json.dumps({"type": "error", "message": f"Server Error: {str(e)}"}) + "\n"
+             yield json.dumps({"type": "error", "message": f"Server Error: {str(e)}"}, default=str) + "\n"
 
     return StreamingResponse(event_generator(), media_type="application/x-ndjson")
 
