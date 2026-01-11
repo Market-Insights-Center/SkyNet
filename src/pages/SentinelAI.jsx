@@ -532,7 +532,7 @@ const SentinelAI = () => {
                                                                 </>
                                                             )}
 
-                                                            {['sentiment', 'powerscore', 'fundamentals'].includes(step.tool) && (
+                                                            {['sentiment', 'powerscore', 'fundamentals', 'quickscore'].includes(step.tool) && (
                                                                 <div>
                                                                     <label className="text-[10px] text-gray-500 font-bold uppercase tracking-wider block mb-1">Limit (Max Items)</label>
                                                                     <input
