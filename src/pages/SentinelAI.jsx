@@ -122,6 +122,8 @@ const SentinelAI = () => {
                         console.error("JSON Parse Error:", e, line);
                     }
                 }
+                // Allow UI to breathe/render
+                await new Promise(resolve => setTimeout(resolve, 0));
             }
 
         } catch (error) {
@@ -274,43 +276,50 @@ const SentinelAI = () => {
                         <AnimatePresence>
                             {finalSummary && (
                                 <motion.div
-                                    initial={{ opacity: 0, scale: 0.95 }}
-                                    animate={{ opacity: 1, scale: 1 }}
-                                    className="bg-black border border-yellow-500/50 rounded-xl p-6 shadow-[0_0_50px_rgba(234,179,8,0.2)] relative overflow-hidden group mt-4"
+                                    initial={{ opacity: 0, y: 50, scale: 0.95 }}
+                                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                                    transition={{ duration: 0.5, type: "spring" }}
+                                    className="bg-black/90 backdrop-blur-xl border border-gold/50 rounded-2xl p-8 shadow-[0_0_100px_rgba(234,179,8,0.15)] relative overflow-hidden group mt-12 mb-12"
                                 >
-                                    <div className="absolute top-0 right-0 p-8 opacity-10 text-yellow-500">
-                                        <CheckCircle size={150} />
+                                    <div className="absolute top-0 right-0 p-12 opacity-5 text-gold">
+                                        <Bot size={300} />
                                     </div>
-                                    <div className="absolute -left-10 -bottom-10 w-40 h-40 bg-yellow-500/10 rounded-full blur-3xl"></div>
+                                    <div className="absolute -left-20 -bottom-20 w-64 h-64 bg-gold/5 rounded-full blur-[100px]"></div>
 
-                                    <h3 className="text-xl font-bold text-yellow-400 mb-6 flex items-center gap-2 tracking-widest border-b border-yellow-500/30 pb-4 relative z-10">
-                                        <Cpu size={24} /> MISSION DEBRIEF
-                                    </h3>
+                                    {/* Header */}
+                                    <div className="flex items-center justify-between border-b border-gold/20 pb-6 mb-8 relative z-10">
+                                        <h3 className="text-3xl font-black text-gold flex items-center gap-4 tracking-widest font-mono">
+                                            <div className="p-3 bg-gold/10 rounded-lg border border-gold/30">
+                                                <Cpu size={32} />
+                                            </div>
+                                            MISSION REPORT
+                                        </h3>
+                                        <div className="flex gap-3">
+                                            <button
+                                                onClick={() => navigator.clipboard.writeText(finalSummary)}
+                                                className="px-4 py-2 bg-black border border-gold/30 rounded-lg text-gold hover:bg-gold/10 transition-all font-mono text-xs font-bold flex items-center gap-2"
+                                            >
+                                                <Layers size={14} /> COPY REPORT
+                                            </button>
+                                        </div>
+                                    </div>
 
-                                    <div className="text-gray-200 whitespace-pre-wrap font-sans text-sm leading-7 space-y-4 relative z-10 max-h-[600px] overflow-y-auto pr-2 custom-scrollbar">
-                                        {/* Markdown-like rendering */}
+                                    {/* Content */}
+                                    <div className="text-gray-200 whitespace-pre-wrap font-sans text-base leading-relaxed space-y-6 relative z-10 max-h-[800px] overflow-y-auto pr-6 custom-scrollbar-gold">
                                         {finalSummary.split('\n').map((line, i) => {
-                                            if (line.trim().startsWith('# ')) return <h1 key={i} className="text-2xl font-bold text-white mt-6 mb-3 border-b border-gray-800 pb-1">{line.replace('# ', '')}</h1>;
-                                            if (line.trim().startsWith('## ')) return <h2 key={i} className="text-xl font-bold text-yellow-200 mt-5 mb-2">{line.replace('## ', '')}</h2>;
-                                            if (line.trim().startsWith('### ')) return <h3 key={i} className="text-lg font-bold text-yellow-100 mt-4 mb-2">{line.replace('### ', '')}</h3>;
-                                            if (line.trim().startsWith('- ')) return <li key={i} className="ml-4 list-disc text-gray-300 marker:text-yellow-500/50 pl-1">{line.replace('- ', '')}</li>;
-                                            if (line.trim().match(/^\d+\./)) return <div key={i} className="ml-4 font-bold text-gray-300 mt-2">{line}</div>;
-                                            if (line.trim().startsWith('**') && line.trim().endsWith('**')) return <p key={i} className="font-bold text-white mt-2">{line.replace(/\*\*/g, '')}</p>;
-                                            return <p key={i} className={`${line.length < 50 && line.includes(':') ? 'font-bold text-gray-400 mt-2' : 'text-gray-300'}`}>{line}</p>;
-                                        })}
-                                    </div>
+                                            // Enhanced Markdown Rendering
+                                            if (line.trim().startsWith('# ')) return <h1 key={i} className="text-3xl font-black text-white mt-8 mb-4 border-b border-gray-800 pb-2">{line.replace('# ', '')}</h1>;
+                                            if (line.trim().startsWith('## ')) return <h2 key={i} className="text-2xl font-bold text-gold mt-8 mb-3 flex items-center gap-2"><span className="w-1 h-6 bg-gold rounded-full"></span>{line.replace('## ', '')}</h2>;
+                                            if (line.trim().startsWith('### ')) return <h3 key={i} className="text-xl font-bold text-white mt-6 mb-2">{line.replace('### ', '')}</h3>;
+                                            if (line.trim().startsWith('- ')) return <div key={i} className="flex gap-3 ml-2"><span className="text-gold mt-2">•</span><p className="flex-1 text-gray-300">{line.replace('- ', '')}</p></div>;
+                                            if (line.trim().match(/^\d+\./)) return <div key={i} className="ml-2 font-bold text-white mt-3 p-3 bg-white/5 rounded-lg border-l-2 border-gold">{line}</div>;
+                                            if (line.trim().startsWith('**') && line.trim().endsWith('**')) return <p key={i} className="font-bold text-gold text-lg mt-4">{line.replace(/\*\*/g, '')}</p>;
 
-                                    {/* Action Footer */}
-                                    <div className="mt-6 pt-4 border-t border-yellow-500/20 flex justify-end gap-2 relative z-10">
-                                        <button
-                                            onClick={() => {
-                                                navigator.clipboard.writeText(finalSummary);
-                                                // Optional: Add toast here
-                                            }}
-                                            className="text-xs text-yellow-500/70 hover:text-yellow-400 flex items-center gap-1 uppercase tracking-wider font-bold"
-                                        >
-                                            <Layers size={12} /> Copy Report
-                                        </button>
+                                            // Dynamic Highlighting logic
+                                            const isKeyMetric = line.includes(':') && /\d/.test(line);
+
+                                            return <p key={i} className={`${isKeyMetric ? 'font-mono text-cyan-200 bg-cyan-900/20 p-2 rounded -mx-2' : 'text-gray-300'}`}>{line}</p>;
+                                        })}
                                     </div>
                                 </motion.div>
                             )}

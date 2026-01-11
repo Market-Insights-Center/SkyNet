@@ -3,7 +3,8 @@ import asyncio
 import json
 import logging
 import traceback
-from typing import List, Dict, Any, Optional
+import inspect
+from typing import List, Dict, Any, Optional, AsyncGenerator
 try:
     from backend.usage_counter import increment_usage
 except ImportError:
@@ -46,35 +47,51 @@ COMMAND_REGISTRY = {
 
 async def handle_summary_tool(params: Dict[str, Any]) -> str:
     """
-    Summarizes the provided context data.
+    Summarizes the provided context data, optimized for speed.
     """
     data = params.get("context_data", {})
     user_query = params.get("user_query", "the user request")
     
-    # If data is large string/dict, truncate if needed, but for now just dump it.
-    prompt = f"Summarize these execution results for {user_query}:\n\nData:\n{json.dumps(data, default=str)[:15000]}"
+    # Smart Context Truncation (Pre-JSON)
+    # This prevents dumping 10MB strings only to slice them later.
+    optimized_data = {}
+    for k, v in data.items():
+        if isinstance(v, list) and len(v) > 20:
+            optimized_data[k] = {"summary": f"List with {len(v)} items", "preview": v[:20]}
+        elif isinstance(v, dict) and "all_data" in v: # Handle market command specific large outputs
+             # Keep summary stats if available, drop raw 'all_data'
+             safe_v = v.copy()
+             safe_v["all_data"] = "Truncated for summary"
+             if "chart_data" in safe_v: safe_v["chart_data"] = "Chart data excluded"
+             optimized_data[k] = safe_v
+        else:
+            optimized_data[k] = v
+
+    # Serialize
+    context_str = json.dumps(optimized_data, default=str)
     
-    """
-    Summarizes the provided context data.
-    """
-    data = params.get("context_data", {})
-    user_query = params.get("user_query", "the user request")
-    
-    # Explicitly request Markdown and Text
+    # Final Safety Limit
+    if len(context_str) > 25000:
+        context_str = context_str[:25000] + "...(truncated)"
+
     prompt = f"""
-    Write a comprehensive Mission Report for this request: "{user_query}".
+    Write a concise Mission Report for: "{user_query}".
     
     Data:
-    {json.dumps(data, default=str)[:15000]}
+    {context_str}
     
     Format Rules:
-    1. Use Markdown formatting (headers, bold, bullet points).
-    2. If there are lists of stocks, use a Markdown Table.
-    3. Do NOT output a code block (no ```json).
-    4. Start with a clear "Mission Outcome" statement.
+    1. Mission Outcome (1 sentence).
+    2. Key Findings (Bullet points).
+    3. Markdown Tables for data.
+    4. NO code blocks.
     """
     
-    return await ai.generate_content(prompt)
+    try:
+        # Use a timeout for the AI generation if possible, but here we just await
+        return await ai.generate_content(prompt)
+    except Exception as e:
+        return f"Summary generation failed: {e}. Raw data available in logs."
 
 SYSTEM_PROMPT_PLANNER = """
 You are the "Sentinel AI" Execution Planner. 
@@ -188,7 +205,7 @@ async def plan_execution(user_prompt: str) -> List[Dict[str, Any]]:
         logger.error(f"Planning failed: {e}")
         return []
 
-async def execute_step(step: Dict[str, Any], context: Dict[str, Any]) -> Any:
+async def execute_step(step: Dict[str, Any], context: Dict[str, Any], progress_callback: Optional[Any] = None) -> Any:
     """
     Executes a single step of the plan.
     """
@@ -263,7 +280,10 @@ async def execute_step(step: Dict[str, Any], context: Dict[str, Any]) -> Any:
         # We will iterate here for this specific meta-command logic.
         
         results = []
-        for t in target_tickers:
+        total = len(target_tickers)
+        for idx, t in enumerate(target_tickers):
+             if progress_callback:
+                 await progress_callback(f"Processing {t} ({idx+1}/{total})...")
              # Prepare args/params for the function
              # Most handlers take (args, ai_params, is_called_by_ai)
              # args[0] is usually ticker
@@ -279,13 +299,19 @@ async def execute_step(step: Dict[str, Any], context: Dict[str, Any]) -> Any:
     # We pass ai_params = params
     
     try:
-        result = await handler(args=[], ai_params=params, is_called_by_ai=True)
+        # Check if handler accepts progress_callback
+        sig = inspect.signature(handler)
+        kwargs = {"args": [], "ai_params": params, "is_called_by_ai": True}
+        if "progress_callback" in sig.parameters:
+            kwargs["progress_callback"] = progress_callback
+
+        result = await handler(**kwargs)
         return result
     except Exception as e:
         logger.error(f"Step Execution Error: {e}")
         return {"error": str(e)}
 
-async def run_sentinel(user_prompt: str, plan_override: Optional[List[Dict[str, Any]]] = None) -> Dict[str, Any]:
+async def run_sentinel(user_prompt: str, plan_override: Optional[List[Dict[str, Any]]] = None) -> AsyncGenerator[Dict[str, Any], None]:
     """
     Main entry point for Sentinel AI.
     1. Plan (or use override)
@@ -301,33 +327,80 @@ async def run_sentinel(user_prompt: str, plan_override: Optional[List[Dict[str, 
         yield {"type": "status", "message": "Using provided execution plan..."}
     else:
         plan = await plan_execution(user_prompt)
+        yield {"type": "plan", "plan": plan}
     
     if not plan:
          yield {"type": "error", "message": "Failed to generate a valid execution plan."}
          return
 
-    yield {"type": "plan", "plan": plan}
     
     context = {}
     
     for step in plan:
         step_id = step.get("step_id")
-        tool = step.get("tool")
-        desc = step.get("description")
+        tool_name = step.get("tool")
+        description = step.get("description", tool_name)
         output_key = step.get("output_key", f"step_{step_id}_output")
         
-        yield {"type": "status", "message": f"Executing Step {step_id}: {desc}..."}
+        yield {"type": "status", "message": f"Step {step_id}: {description}..."}
         
-        result = await execute_step(step, context)
+        # --- Queue-Based Progress Streaming ---
+        queue = asyncio.Queue()
         
-        # Store result in context
-        context[output_key] = result
+        async def progress_callback(msg: str):
+            await queue.put(msg)
+            
+        async def wrapped_execution():
+            res = await execute_step(step, context, progress_callback=progress_callback)
+            await queue.put(None) # Sentinel
+            return res
+
+        exec_task = asyncio.create_task(wrapped_execution())
         
-        # Yield result - distinguishing Summary for special UI handling
-        if tool == "summary":
-             yield {"type": "summary", "message": result, "step_id": step_id}
+        # Consume updates while task runs
+        while True:
+            # Check if task failed immediately
+            if exec_task.done() and queue.empty():
+                 break
+            
+            # Wait for message or task completion
+            get_future = asyncio.ensure_future(queue.get())
+            done_futures, pending = await asyncio.wait(
+                [get_future, exec_task], 
+                return_when=asyncio.FIRST_COMPLETED
+            )
+            
+            if get_future in done_futures:
+                msg = get_future.result()
+                if msg is None: break
+                yield {"type": "status", "message": f"Step {step_id}: {msg}"}
+            else:
+                # Task finished but maybe queue not empty yet?
+                # Cancel get if strictly task done
+                if not exec_task.exception():
+                     # drain queue
+                     while not queue.empty():
+                         msg = await queue.get()
+                         if msg is None: break
+                         yield {"type": "status", "message": f"Step {step_id}: {msg}"}
+                get_future.cancel()
+                break
+
+        result = await exec_task
+        # --------------------------------------
+
+        # Store Result
+        if isinstance(result, dict) and "error" in result:
+             yield {"type": "error", "message": f"Step {step_id} failed: {result['error']}"}
+             # Continue or break? Usually continue best effort.
+             context[output_key] = result
         else:
-             yield {"type": "step_result", "step_id": step_id, "result": result}
+             context[output_key] = result
+             
+             if tool_name == "summary":
+                 yield {"type": "summary", "message": result}
+             else:
+                 yield {"type": "step_result", "step_id": step_id, "result": result}
         
     yield {"type": "status", "message": "Finalizing..."}
     logger.info("Sentinel: Finalizing... Yielding context.")

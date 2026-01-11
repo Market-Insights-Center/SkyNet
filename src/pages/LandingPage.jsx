@@ -6,6 +6,7 @@ import { ArrowRight, Check, ChevronDown, ChevronUp, Shield, Zap, Globe, BarChart
 import { useAuth } from '../contexts/AuthContext';
 import TiltCard from '../components/TiltCard';
 import TypewriterText from '../components/TypewriterText';
+import CountUp from '../components/CountUp';
 
 // Lazy Load Heavy Components
 const MarketDashboard = React.lazy(() => import('../components/MarketDashboard'));
@@ -1229,16 +1230,16 @@ const UsageTicker = React.memo(() => {
                     {/* Active Users (Center Left) */}
                     <div className="flex flex-col items-center gap-2 min-w-[150px]">
                         <span className="text-xs text-gold/80 uppercase tracking-[0.2em] font-bold glow-gold">ACTIVE USERS</span>
-                        <span className="text-4xl font-black text-white font-mono drop-shadow-[0_0_10px_rgba(255,255,255,0.3)]">
-                            {stats.total_users?.toLocaleString() || 0}
+                        <span className="text-4xl font-black font-mono drop-shadow-[0_0_10px_rgba(255,255,255,0.3)]">
+                            <CountUp className="bg-clip-text text-transparent bg-gradient-to-r from-white via-gray-200 to-gray-400" to={stats.total_users || 0} separator="," duration={2.5} />
                         </span>
                     </div>
 
                     {/* Total Actions (Center Right) */}
                     <div className="flex flex-col items-center gap-2 min-w-[150px]">
                         <span className="text-xs text-gold/80 uppercase tracking-[0.2em] font-bold glow-gold">TOTAL ACTIONS</span>
-                        <span className="text-4xl font-black text-white font-mono drop-shadow-[0_0_10px_rgba(255,255,255,0.3)]">
-                            {(stats.total_system_actions || stats.automations_run || 0)?.toLocaleString()}
+                        <span className="text-4xl font-black font-mono drop-shadow-[0_0_10px_rgba(255,255,255,0.3)]">
+                            <CountUp className="bg-clip-text text-transparent bg-gradient-to-r from-gold via-yellow-200 to-yellow-500" to={(stats.total_system_actions || stats.automations_run || 0)} separator="," duration={2.5} />
                         </span>
                     </div>
 

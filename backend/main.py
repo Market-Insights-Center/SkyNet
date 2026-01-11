@@ -302,7 +302,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.add_middleware(GZipMiddleware, minimum_size=1000)
+# app.add_middleware(GZipMiddleware, minimum_size=1000)
 
 STATIC_DIR = os.path.join(CURRENT_DIR, "static")
 if not os.path.exists(STATIC_DIR):
