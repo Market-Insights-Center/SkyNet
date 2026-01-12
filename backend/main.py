@@ -2106,7 +2106,7 @@ async def execute_sentinel(req: SentinelRequest):
     # ideally we verify.
     profile = get_user_profile(req.email)
     tier = profile.get("tier", "Basic")
-    if tier != "Singularity" and req.email.lower() != SUPER_ADMIN_EMAIL:
+    if str(tier).strip().lower() != "singularity" and req.email.lower() != SUPER_ADMIN_EMAIL:
          raise HTTPException(status_code=403, detail="Sentinel AI requires Singularity Tier.")
 
     async def event_generator():

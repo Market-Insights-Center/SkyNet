@@ -100,7 +100,7 @@ def verify_access_and_limits(email, product):
             if user_doc.exists:
                 tier = user_doc.to_dict().get('tier', 'Basic')
 
-        if tier == "Singularity":
+        if str(tier).strip().lower() == "singularity":
             try:
                 add_points(email, product)
             except: pass
@@ -197,7 +197,7 @@ def verify_storage_limit(email, product, current_count):
         if email and email.lower().strip() == "marketinsightscenter@gmail.com":
             tier = "Singularity"
             
-        if tier and str(tier).strip() == "Singularity": return {"allowed": True}
+        if tier and str(tier).strip().lower() == "singularity": return {"allowed": True}
             
         # 2. Get Limits
         limits = load_tier_limits()
