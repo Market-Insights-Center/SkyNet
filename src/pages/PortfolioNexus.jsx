@@ -14,23 +14,8 @@ const API_URL = import.meta.env.VITE_API_URL || '/api';
 
 import { useAuth } from '../contexts/AuthContext';
 
-const DebugBanner = ({ profile }) => (
-    <div className="bg-red-900/50 border border-red-500 text-white p-2 text-xs font-mono mb-4 rounded">
-        <strong>DEBUG_MODE:</strong> Tier=[{profile?.tier}] |
-        IsSingularity? {['pro', 'enterprise', 'singularity'].includes((profile?.tier || '').toLowerCase()) ? 'YES' : 'NO'} |
-        Raw: {JSON.stringify(profile)}
-    </div>
-);
-
 export default function PortfolioNexus() {
     const { userProfile } = useAuth();
-
-    // DEBUG LOGGING
-    useEffect(() => {
-        console.log("[PortfolioNexus] User Profile:", userProfile);
-        console.log("[PortfolioNexus] Current Tier:", userProfile?.tier);
-        console.log("[PortfolioNexus] Is Singularity Included?", ['Pro', 'Enterprise', 'Singularity', 'Visionary', 'Institutional'].includes(userProfile?.tier));
-    }, [userProfile]);
 
     const [nexusCode, setNexusCode] = useState('');
     const [totalValue, setTotalValue] = useState(10000);

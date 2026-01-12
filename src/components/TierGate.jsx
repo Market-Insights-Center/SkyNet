@@ -64,7 +64,7 @@ const TierGate = ({
                         Available on <span className="text-gold font-bold">{requiredTier}</span> plan.
                     </p>
                     <button onClick={() => window.location.href = '/products'} className="text-xs bg-gold text-black font-bold px-4 py-2 rounded-full hover:bg-white transition-colors">
-                        Upgrade to Unlock
+                        Upgrade to {requiredTier}
                     </button>
                 </div>
             </div>
@@ -82,7 +82,7 @@ const TierGate = ({
                 This advanced feature requires a <span className="text-white font-bold">{requiredTier}</span> subscription or higher.
             </p>
             <a href="/products" className="px-6 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-lg font-bold transition-colors">
-                View Upgrade Options
+                Upgrade to {requiredTier}
             </a>
         </div>
     );
