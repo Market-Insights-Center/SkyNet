@@ -1041,7 +1041,8 @@ def api_get_user_profile(email: str, uid: Optional[str] = None, username: Option
             "subscription_status": "active", 
             "risk_tolerance": 10, 
             "trading_frequency": "Daily", 
-            "portfolio_types": ["All"]
+            "portfolio_types": ["All"],
+            "settings": {"show_leaderboard": True}
         })
         # If username is missing in DB for admin, set a default to prevent loop
         if "username" not in profile:
@@ -2193,35 +2194,7 @@ def get_usage_stats_endpoint():
 
     return stats
 
-# --- MARKET PREDICTIONS ENDPOINTS ---
-@app.post("/api/predictions/create")
-def create_prediction_endpoint(req: PredictionCreateRequest):
-    try:
-        new_pred = prediction_manager.create_prediction(req.title, req.stock, req.end_date, req.market_condition, req.email)
-        return {"success": True, "prediction": new_pred}
-    except Exception as e:
-        print(f"Error creating prediction: {e}")
-        return {"success": False, "message": str(e)}
 
-@app.post("/api/predictions/bet")
-def place_bet_endpoint(req: BetRequest):
-    try:
-        # TODO: Deduct points from user using database.py logic
-        # For now we assume deduction logic is handled or we just record the bet
-        # Ideally: database.deduct_points(req.email, req.amount)
-        
-        new_bet = prediction_manager.place_bet(req.email, req.prediction_id, req.choice, req.amount)
-        return {"success": True, "bet": new_bet}
-    except Exception as e:
-        return {"success": False, "message": str(e)}
-
-@app.get("/api/predictions/active")
-def get_active_predictions_endpoint(include_recent: bool = False):
-    return prediction_manager.get_active_predictions(include_recent)
-
-@app.get("/api/user/bets")
-def get_user_bets_endpoint(email: str):
-    return prediction_manager.get_user_bets(email)
 
 @app.get("/api/mods")
 def get_mods_endpoint():
@@ -2253,30 +2226,7 @@ async def increment_usage_endpoint(req: UsageIncrementRequest):
 
 
 
-# --- MARKET PREDICTIONS ENDPOINTS ---
-@app.post("/api/predictions/create")
-def create_prediction_endpoint(req: PredictionCreateRequest):
-    try:
-        success = database.create_prediction(req.title, req.stock, req.end_date, req.market_condition, req.wager_logic, req.email)
-        return {"success": success}
-    except Exception as e:
-        print(f"Error creating prediction: {e}")
-        return {"success": False, "message": str(e)}
 
-@app.post("/api/predictions/bet")
-def place_bet_endpoint(req: BetRequest):
-    try:
-        return database.place_bet(req.email, req.prediction_id, req.choice, req.amount)
-    except Exception as e:
-        return {"success": False, "message": str(e)}
-
-@app.get("/api/predictions/active")
-def get_active_predictions_endpoint(include_recent: bool = False):
-    return database.get_active_predictions(include_recent)
-
-@app.get("/api/user/bets")
-def get_user_bets_endpoint(email: str):
-    return database.get_user_bets(email)
 
 @app.get("/api/mods")
 def get_mods_endpoint():

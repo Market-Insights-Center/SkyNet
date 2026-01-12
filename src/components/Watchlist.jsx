@@ -193,11 +193,12 @@ const Watchlist = () => {
         }
         const fetchWatchlist = async () => {
             try {
-                const docRef = doc(db, "users", currentUser.uid, "watchlists", "default");
+                // Use main user document to ensure permissions
+                const docRef = doc(db, "users", currentUser.email);
                 const snap = await getDoc(docRef);
 
                 if (snap.exists()) {
-                    const data = snap.data();
+                    const data = snap.data().watchlist || {};
                     if (data.name) setWatchlistName(data.name);
                     if (data.tickers && Array.isArray(data.tickers)) {
                         const cleanTickers = data.tickers.map(t => typeof t === 'string' ? t : (t.id || t.symbol || '')).filter(Boolean);
@@ -218,9 +219,12 @@ const Watchlist = () => {
         const saveData = async () => {
             setIsSaving(true);
             try {
-                const docRef = doc(db, "users", currentUser.uid, "watchlists", "default");
+                // Use main user document to ensure permissions
+                const docRef = doc(db, "users", currentUser.email);
                 await setDoc(docRef, {
-                    name: watchlistName, tickers: tickers, columns: visibleColumns, sortConfig: sortConfig, lastUpdated: new Date()
+                    watchlist: {
+                        name: watchlistName, tickers: tickers, columns: visibleColumns, sortConfig: sortConfig, lastUpdated: new Date()
+                    }
                 }, { merge: true });
             } catch (error) { console.error("Error saving watchlist:", error); }
             finally { setIsSaving(false); }

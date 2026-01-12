@@ -2,22 +2,13 @@ import React, { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const StartupAnimation = ({ onComplete }) => {
-    // Check storage immediately to prevent 1-frame flash
-    const [isVisible, setIsVisible] = useState(() => !sessionStorage.getItem('startup_animation_shown'));
+    // Always visible on mount
+    const [isVisible, setIsVisible] = useState(true);
     const canvasRef = useRef(null);
 
     useEffect(() => {
-        const hasSeenAnimation = sessionStorage.getItem('startup_animation_shown');
-
-        if (hasSeenAnimation) {
-            setIsVisible(false);
-            if (onComplete) onComplete();
-            return;
-        }
-
         const timer = setTimeout(() => {
             setIsVisible(false);
-            sessionStorage.setItem('startup_animation_shown', 'true');
             if (onComplete) setTimeout(onComplete, 500);
         }, 2000); // 2 Seconds
         return () => clearTimeout(timer);

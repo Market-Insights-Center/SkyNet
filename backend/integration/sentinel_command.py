@@ -331,7 +331,8 @@ async def run_sentinel(user_prompt: str, plan_override: Optional[List[Dict[str, 
             yield {"type": "plan", "plan": plan}
         
         if not plan:
-             yield {"type": "error", "message": "Failed to generate a valid execution plan."}
+             yield {"type": "error", "message": "Failed to generate a valid execution plan. The AI service may be unresponsive or returned empty output."}
+             # Do not just return; ensure we finish cleanly
              return
 
         context = {}
