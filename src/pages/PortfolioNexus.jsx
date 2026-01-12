@@ -12,7 +12,26 @@ import TradingViewWidget from '../components/TradingViewWidget';
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
 
+import { useAuth } from '../contexts/AuthContext';
+
+const DebugBanner = ({ profile }) => (
+    <div className="bg-red-900/50 border border-red-500 text-white p-2 text-xs font-mono mb-4 rounded">
+        <strong>DEBUG_MODE:</strong> Tier=[{profile?.tier}] |
+        IsSingularity? {['pro', 'enterprise', 'singularity'].includes((profile?.tier || '').toLowerCase()) ? 'YES' : 'NO'} |
+        Raw: {JSON.stringify(profile)}
+    </div>
+);
+
 export default function PortfolioNexus() {
+    const { userProfile } = useAuth();
+
+    // DEBUG LOGGING
+    useEffect(() => {
+        console.log("[PortfolioNexus] User Profile:", userProfile);
+        console.log("[PortfolioNexus] Current Tier:", userProfile?.tier);
+        console.log("[PortfolioNexus] Is Singularity Included?", ['Pro', 'Enterprise', 'Singularity', 'Visionary', 'Institutional'].includes(userProfile?.tier));
+    }, [userProfile]);
+
     const [nexusCode, setNexusCode] = useState('');
     const [totalValue, setTotalValue] = useState(10000);
     const [loading, setLoading] = useState(false);
@@ -234,7 +253,7 @@ export default function PortfolioNexus() {
                                         {/* Robinhood */}
                                         <div className="relative group">
                                             <div className={`p-3 rounded-lg border border-gray-800 transition-all ${executionOpts.execute_rh ? 'bg-gold/10 border-gold/30' : 'bg-white/5'}`}>
-                                                <TierGate type="overlay" requiredTier="Pro" showLock={!['Pro', 'Enterprise'].includes(localStorage.getItem('mic_tier') || 'Basic')}>
+                                                <TierGate type="overlay" requiredTier="Pro" showLock={!['pro', 'enterprise', 'singularity', 'visionary', 'institutional'].includes((userProfile?.tier || 'Basic').toLowerCase())}>
                                                     <label className="flex items-center gap-2 cursor-pointer mb-2">
                                                         <input type="checkbox" checked={executionOpts.execute_rh} onChange={e => updateExecOpt('execute_rh', e.target.checked)} className="accent-gold" />
                                                         <span className="text-sm">Execute on Robinhood</span>
@@ -819,7 +838,7 @@ const ExecutionModal = ({ isOpen, onClose, onExecute }) => {
                         {isProcessing ? 'Processing...' : 'Confirm Execution'}
                     </button>
                 </div>
-            </motion.div>
-        </div>
+            </motion.div >
+        </div >
     );
 };

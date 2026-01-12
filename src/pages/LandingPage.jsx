@@ -15,6 +15,7 @@ const NewsFeed = React.lazy(() => import('../components/NewsFeed'));
 const IdeaCard = React.lazy(() => import('../components/IdeaCard'));
 const Footer = React.lazy(() => import('../components/Footer'));
 const SubscriptionCard = React.lazy(() => import('../components/SubscriptionCard'));
+const TierLimitsTable = React.lazy(() => import('../components/TierLimitsTable'));
 // WealthCalculator is defined locally
 
 
@@ -1119,6 +1120,7 @@ const LandingPage = () => {
 
             {/* FAQ Section */}
             < ErrorBoundary >
+                <TierLimitsTable />
                 <FAQSection />
             </ErrorBoundary >
 

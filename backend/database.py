@@ -40,6 +40,12 @@ _leaderboard_cache = {
 
 _rank_cache = {}
 
+# --- CHAT CACHE ---
+_chat_cache = {
+    "data": [],
+    "mtime": 0
+}
+
 
 # --- LIMIT LOGIC (NEW) ---
 
@@ -790,11 +796,19 @@ def delete_comment(comment_id):
 
 # --- Chat Helpers ---
 def read_chats():
+    global _chat_cache
     if not os.path.exists(CHATS_FILE):
         return []
+    
     try:
-        with open(CHATS_FILE, 'r') as f:
-            return json.load(f)
+        current_mtime = os.path.getmtime(CHATS_FILE)
+        if current_mtime > _chat_cache["mtime"]:
+             with open(CHATS_FILE, 'r') as f:
+                 data = json.load(f)
+             _chat_cache["data"] = data
+             _chat_cache["mtime"] = current_mtime
+             return data
+        return _chat_cache["data"]
     except:
         return []
 

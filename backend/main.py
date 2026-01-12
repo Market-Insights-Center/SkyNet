@@ -2232,6 +2232,24 @@ async def increment_usage_endpoint(req: UsageIncrementRequest):
 
 
 
+@app.get("/api/user/profile")
+def api_get_user_profile(email: str, uid: str = None, username: str = None):
+    """
+    Called by frontend AuthContext to hydrate user profile with Tier, Points, etc.
+    """
+    try:
+        profile = database.get_user_profile(email)
+        if profile:
+            # ensure tier is capitalized just in case, though DB has it
+            return profile
+            
+        # If user doesn't exist in DB yet (fresh login), return basic structure
+        # User creation happens usually via other flows or signals
+        return {"tier": "Basic", "points": 0, "email": email}
+    except Exception as e:
+        logger.error(f"Error fetching user profile: {e}")
+        return {"tier": "Basic", "error": str(e)}
+
 @app.get("/api/mods")
 def get_mods_endpoint():
     admin_email = os.getenv("SUPER_ADMIN_EMAIL", "")
