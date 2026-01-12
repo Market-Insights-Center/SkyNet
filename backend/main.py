@@ -2119,7 +2119,11 @@ async def execute_sentinel(req: SentinelRequest):
              traceback.print_exc()
              yield json.dumps({"type": "error", "message": f"Server Error: {str(e)}"}, default=str) + "\n"
 
-    return StreamingResponse(event_generator(), media_type="application/x-ndjson")
+    return StreamingResponse(
+        event_generator(), 
+        media_type="application/x-ndjson",
+        headers={"X-Accel-Buffering": "no"}
+    )
 
 # --- AUTOMATION ENDPOINTS ---
 
