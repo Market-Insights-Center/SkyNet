@@ -357,36 +357,52 @@ async def run_sentinel(user_prompt: str, plan_override: Optional[List[Dict[str, 
             exec_task = asyncio.create_task(wrapped_execution())
             
             # Consume updates while task runs
+            # Consume updates while task runs
+            get_future = None
+            
             while True:
                 # Check if task failed immediately
-                if exec_task.done() and queue.empty():
+                if exec_task.done():
+                     # If task is done, we must drain the queue once to ensure we didn't miss anything that happened just before finish
                      break
-                
-                # Wait for message or task completion
-                get_future = asyncio.ensure_future(queue.get())
+
+                if get_future is None:
+                    get_future = asyncio.ensure_future(queue.get())
+
+                # Wait for message or task completion with Heartbeat Timeout
+                # This prevents ERR_INCOMPLETE_CHUNKED_ENCODING on slow steps
                 done_futures, pending = await asyncio.wait(
                     [get_future, exec_task], 
-                    return_when=asyncio.FIRST_COMPLETED
+                    return_when=asyncio.FIRST_COMPLETED,
+                    timeout=5.0 
                 )
+                
+                if not done_futures:
+                    # Timeout reached (Heartbeat), send ping to keep connection alive
+                    yield {"type": "ping"}
+                    continue
                 
                 if get_future in done_futures:
                     try:
                         msg = get_future.result()
+                        get_future = None # Reset for next message
                         if msg is None: break
                         yield {"type": "status", "message": f"Step {step_id}: {msg}"}
                     except Exception:
-                        pass # Queue empty or cancelled
+                        get_future = None
                 
                 if exec_task.done():
-                    # Task finished, drain remaining queue
-                    if not get_future.done(): get_future.cancel()
-                    
-                    while not queue.empty():
-                         try:
-                            msg = queue.get_nowait()
-                            if msg: yield {"type": "status", "message": f"Step {step_id}: {msg}"}
-                         except: break
                     break
+            
+            # Drain remaining queue items if any
+            if get_future and not get_future.done():
+                get_future.cancel()
+            
+            while not queue.empty():
+                try:
+                    msg = queue.get_nowait()
+                    if msg: yield {"type": "status", "message": f"Step {step_id}: {msg}"}
+                except: break
             
             try:
                 result = await exec_task
