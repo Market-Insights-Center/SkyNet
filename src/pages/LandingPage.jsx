@@ -7,6 +7,8 @@ import { useAuth } from '../contexts/AuthContext';
 import TiltCard from '../components/TiltCard';
 import TypewriterText from '../components/TypewriterText';
 import CountUp from '../components/CountUp';
+import GradualBlur from '../components/GradualBlur';
+import BlurText from '../components/BlurText';
 
 // Lazy Load Heavy Components
 const MarketDashboard = React.lazy(() => import('../components/MarketDashboard'));
@@ -340,10 +342,23 @@ const WealthCalculator = () => {
     const savingsValue = calculateFV(initial, monthly, monthlyRateSavings, months);
 
     return (
-        <section className="py-24 px-4 bg-transparent border-t border-white/5 backdrop-blur-sm">
-            <div className="max-w-6xl mx-auto">
+        <motion.section
+            initial={{ opacity: 0, y: 50 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, margin: "-100px" }}
+            transition={{ duration: 0.8 }}
+            className="py-24 px-4 bg-transparent border-t border-white/5 backdrop-blur-sm relative overflow-hidden"
+        >
+            <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-gold/5 rounded-full blur-[150px] pointer-events-none" />
+            <div className="max-w-6xl mx-auto relative z-10">
                 <div className="text-center mb-12">
-                    <h2 className="text-4xl font-bold mb-6">Visualize Your <span className="text-gold">Potential</span></h2>
+                    <div className="flex justify-center mb-6">
+                        <BlurText
+                            text="Visualize Your Potential"
+                            className="text-4xl font-bold text-white text-center"
+                            animateBy="words"
+                        />
+                    </div>
                     <p className="text-gray-400 text-lg mb-8">See how the power of compounding and AI-optimized strategies can transform your financial future.</p>
 
                     {/* Timeframe Selector */}
@@ -456,7 +471,7 @@ const WealthCalculator = () => {
             <AnimatePresence>
                 {showModal && <PerformanceModal isOpen={showModal} onClose={() => setShowModal(false)} timeframeData={{ label: selectedTimeframe, ...config }} />}
             </AnimatePresence>
-        </section>
+        </motion.section>
     );
 };
 
@@ -486,16 +501,28 @@ const FAQSection = () => {
     ];
 
     return (
-        <section className="py-24 px-4 bg-transparent border-t border-white/5">
+        <motion.section
+            initial={{ opacity: 0, y: 50 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.8 }}
+            className="py-24 px-4 bg-transparent border-t border-white/5"
+        >
             <div className="max-w-3xl mx-auto">
-                <h2 className="text-4xl font-bold text-center mb-12">Frequently Asked Questions</h2>
+                <div className="flex justify-center mb-12">
+                    <BlurText
+                        text="Frequently Asked Questions"
+                        className="text-4xl font-bold text-white text-center"
+                        animateBy="words"
+                    />
+                </div>
                 <div className="space-y-4">
                     {faqs.map((faq, index) => (
                         <FAQItem key={index} question={faq.q} answer={faq.a} />
                     ))}
                 </div>
             </div>
-        </section>
+        </motion.section>
     );
 };
 
@@ -707,7 +734,9 @@ const LandingPage = () => {
     };
 
     return (
-        <div className="min-h-screen bg-black text-white font-sans selection:bg-gold selection:text-black overflow-x-hidden">
+        <div className="min-h-screen bg-black text-white font-sans selection:bg-gold selection:text-black overflow-x-hidden relative">
+            <GradualBlur preset="top" zIndex={49} />
+            <GradualBlur preset="bottom" zIndex={49} />
             <ErrorBoundary>
 
                 {/* Banners Section - Clearing Navbar (h-20) */}
@@ -795,12 +824,26 @@ const LandingPage = () => {
                             transition={{ duration: 0.8 }}
                         >
                             {/* UPDATED: Clearer Value Proposition */}
-                            <h1 className="text-6xl md:text-8xl font-bold mb-6 tracking-tight">
-                                M.I.C.
-                            </h1>
-                            <p className="text-xl md:text-2xl text-gray-300 mb-10 max-w-3xl mx-auto leading-relaxed">
-                                Automate your portfolio with data-backed strategies.
-                                <br className="hidden md:block" />
+                            {/* UPDATED: Clearer Value Proposition */}
+                            <div className="mb-6 flex justify-center">
+                                <BlurText
+                                    text="M.I.C."
+                                    className="text-6xl md:text-8xl font-bold tracking-tight text-white"
+                                    animateBy="letters"
+                                    delay={200}
+                                    direction="top"
+                                />
+                            </div>
+                            <div className="mb-10 max-w-3xl mx-auto flex justify-center">
+                                <BlurText
+                                    text="Automate your portfolio with data-backed strategies."
+                                    className="text-xl md:text-2xl text-gray-300 leading-relaxed text-center"
+                                    animateBy="words"
+                                    delay={100}
+                                    direction="bottom"
+                                />
+                            </div>
+                            <p className="text-xl md:text-2xl text-gray-300 mb-10 max-w-3xl mx-auto leading-relaxed hidden">
                                 Sync your brokerage, choose a model, and let our algorithms handle the rest.
                             </p>
                             <div className="flex flex-col md:flex-row gap-6 justify-center">
@@ -818,11 +861,23 @@ const LandingPage = () => {
             </ErrorBoundary>
 
             {/* Engineered to Fit Any Investor (Formerly Features) */}
-            < ErrorBoundary >
-                <section className="py-24 px-4 bg-transparent relative z-10">
+            {/* Engineered to Fit Any Investor (Formerly Features) */}
+            <ErrorBoundary>
+                <motion.section
+                    initial={{ opacity: 0 }}
+                    whileInView={{ opacity: 1 }}
+                    className="py-24 px-4 bg-transparent relative z-10"
+                >
                     <div className="max-w-7xl mx-auto">
                         <div className="text-center mb-16">
-                            <h2 className="text-4xl md:text-5xl font-bold mb-6">Engineered to Fit <span className="text-gold">Any Investor</span></h2>
+                            <div className="flex justify-center mb-6">
+                                <BlurText
+                                    text="Engineered to Fit Any Investor"
+                                    className="text-4xl md:text-5xl font-bold text-white text-center"
+                                    animateBy="words"
+                                    delay={100}
+                                />
+                            </div>
                             <p className="text-xl text-gray-400 max-w-2xl mx-auto">
                                 Whether you're a discretionary trader or a passive investor, our suite of strategies and products scales with your needs.
                             </p>
@@ -867,8 +922,8 @@ const LandingPage = () => {
                             />
                         </div>
                     </div>
-                </section>
-            </ErrorBoundary >
+                </motion.section>
+            </ErrorBoundary>
 
 
 
@@ -1233,7 +1288,7 @@ const UsageTicker = React.memo(() => {
                     <div className="flex flex-col items-center gap-2 min-w-[150px]">
                         <span className="text-xs text-gold/80 uppercase tracking-[0.2em] font-bold glow-gold">ACTIVE USERS</span>
                         <span className="text-4xl font-black font-mono drop-shadow-[0_0_10px_rgba(255,255,255,0.3)]">
-                            <CountUp className="bg-clip-text text-transparent bg-gradient-to-r from-white via-gray-200 to-gray-400" to={stats.total_users || 0} separator="," duration={2.5} />
+                            <CountUp className="bg-clip-text text-transparent bg-gradient-to-r from-purple-400 via-purple-500 to-indigo-500" to={stats.total_users || 0} separator="," duration={2.5} />
                         </span>
                     </div>
 
@@ -1241,7 +1296,7 @@ const UsageTicker = React.memo(() => {
                     <div className="flex flex-col items-center gap-2 min-w-[150px]">
                         <span className="text-xs text-gold/80 uppercase tracking-[0.2em] font-bold glow-gold">TOTAL ACTIONS</span>
                         <span className="text-4xl font-black font-mono drop-shadow-[0_0_10px_rgba(255,255,255,0.3)]">
-                            <CountUp className="bg-clip-text text-transparent bg-gradient-to-r from-gold via-yellow-200 to-yellow-500" to={(stats.total_system_actions || stats.automations_run || 0)} separator="," duration={2.5} />
+                            <CountUp className="bg-clip-text text-transparent bg-gradient-to-r from-purple-400 via-purple-500 to-indigo-500" to={(stats.total_system_actions || stats.automations_run || 0)} separator="," duration={2.5} />
                         </span>
                     </div>
 

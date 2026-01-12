@@ -1,23 +1,18 @@
-import React from 'react';
-import { motion } from 'framer-motion';
-import { Check, X, Shield, Zap, TrendingUp, Activity, Database, Brain, Cpu, Lock, Crown, ArrowRight } from 'lucide-react';
+import React, { useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Check, X, Shield, Zap, TrendingUp, Activity, Database, Brain, Cpu, Lock, Crown, ArrowRight, Star } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 
 const TierLimitsTable = () => {
     const { userProfile } = useAuth();
     const currentTier = userProfile?.tier || 'Basic';
-
-    // Tier Hierarchy for comparison
     const tiers = ['Basic', 'Pro', 'Enterprise', 'Singularity', 'Visionary', 'Institutional'];
     const currentTierIdx = tiers.indexOf(currentTier);
+    const isTierActive = (targetTier) => currentTierIdx >= tiers.indexOf(targetTier);
 
-    const isTierActive = (targetTier) => {
-        const targetIdx = tiers.indexOf(targetTier);
-        return currentTierIdx >= targetIdx;
-    };
+    const [hoveredRow, setHoveredRow] = useState(null);
 
-    // Data from tier_limits.csv
     const features = [
         { name: "Daily AI Investments", basic: "3", pro: "10", ent: "Unlimited", icon: TrendingUp },
         { name: "Cultivate Optimization", basic: "1/week", pro: "3/day", ent: "5/day", icon: Zap },
@@ -32,202 +27,192 @@ const TierLimitsTable = () => {
         { name: "Automation Blocks", basic: "5", pro: "10", ent: "25", icon: Cpu },
     ];
 
-    const RenderValue = ({ val, highlight = false }) => {
-        if (val === "No") return <X size={16} className="mx-auto text-gray-700" />;
-        if (val === "Unlimited") return <span className={`font-bold text-lg ${highlight ? 'text-white' : 'text-blue-400'}`}>∞</span>;
-        return <span className={highlight ? 'text-white font-bold' : 'text-gray-400'}>{val}</span>;
-    };
-
-    const containerVariants = {
-        hidden: { opacity: 0 },
-        visible: {
-            opacity: 1,
-            transition: { staggerChildren: 0.05 }
-        }
-    };
-
-    const rowVariants = {
-        hidden: { opacity: 0, x: -20 },
-        visible: { opacity: 1, x: 0 }
+    const RenderValue = ({ val, highlight = false, dim = false }) => {
+        if (val === "No") return <X size={16} className="mx-auto text-gray-800" />;
+        if (val === "Unlimited") return <span className={`font-bold text-lg ${highlight ? 'text-white drop-shadow-[0_0_5px_rgba(255,255,255,0.5)]' : 'text-blue-400'}`}>∞</span>;
+        return <span className={`${highlight ? 'text-white font-bold' : dim ? 'text-gray-600' : 'text-gray-400'}`}>{val}</span>;
     };
 
     return (
-        <section className="py-24 px-4 bg-black border-t border-white/5 relative overflow-hidden">
-            {/* Background Effects */}
-            <div className="absolute top-0 left-1/4 w-64 h-64 bg-purple-900/10 rounded-full blur-[100px] pointer-events-none" />
-            <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-gold/5 rounded-full blur-[120px] pointer-events-none" />
+        <section className="py-32 px-4 bg-black relative overflow-hidden">
+            {/* Dynamic Background */}
+            <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none">
+                <div className="absolute top-1/4 left-1/4 w-[500px] h-[500px] bg-purple-900/10 rounded-full blur-[120px] mix-blend-screen animate-pulse-slow" />
+                <div className="absolute bottom-1/4 right-1/4 w-[600px] h-[600px] bg-gold/5 rounded-full blur-[150px] mix-blend-screen animate-pulse-slow delay-1000" />
+            </div>
 
             <div className="max-w-7xl mx-auto relative z-10">
                 <motion.div
-                    initial={{ opacity: 0, y: 20 }}
+                    initial={{ opacity: 0, y: 30 }}
                     whileInView={{ opacity: 1, y: 0 }}
                     viewport={{ once: true }}
-                    className="text-center mb-16"
+                    className="text-center mb-20"
                 >
-                    <h2 className="text-4xl md:text-5xl font-bold mb-4 bg-gradient-to-r from-white via-gray-200 to-gray-400 bg-clip-text text-transparent">
-                        Choose Your <span className="text-gold">Power Level</span>
+                    <h2 className="text-5xl md:text-7xl font-bold mb-6 bg-gradient-to-b from-white via-gray-200 to-gray-600 bg-clip-text text-transparent tracking-tight">
+                        Choose Your <span className="text-gold relative inline-block">
+                            Power
+                            <motion.span
+                                className="absolute -top-1 -right-4 text-gold/30"
+                                animate={{ rotate: 360, scale: [1, 1.2, 1] }}
+                                transition={{ duration: 10, repeat: Infinity, ease: "linear" }}
+                            >
+                                <Star size={24} />
+                            </motion.span>
+                        </span>
                     </h2>
-                    <p className="text-gray-400 max-w-2xl mx-auto text-lg">
-                        Scale your capabilities with higher limits and advanced features.
+                    <p className="text-xl text-gray-400 max-w-2xl mx-auto font-light leading-relaxed">
+                        Unlock the full potential of the Machine Intelligence Center.
                     </p>
                 </motion.div>
 
-                <div className="overflow-x-auto custom-scrollbar pb-8 px-2">
-                    <motion.table
-                        initial="hidden"
-                        whileInView="visible"
-                        viewport={{ once: true }}
-                        variants={containerVariants}
-                        className="w-full min-w-[900px] border-collapse"
-                    >
-                        <thead>
-                            <tr>
-                                <th className="p-6 text-left text-gray-500 font-medium w-1/4 uppercase tracking-widest text-xs">Feature</th>
+                {/* Glassmorphism Table Container */}
+                <motion.div
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    whileInView={{ opacity: 1, scale: 1 }}
+                    transition={{ duration: 0.8, ease: "circOut" }}
+                    className="relative rounded-3xl overflow-hidden border border-white/10 bg-gray-900/40 backdrop-blur-2xl shadow-[0_0_50px_rgba(0,0,0,0.5)]"
+                >
+                    {/* Spotlight Effect */}
+                    <div className="absolute inset-0 pointer-events-none bg-gradient-to-b from-white/5 to-transparent opacity-50" />
 
-                                {/* Basic Header */}
-                                <th className="p-6 text-center w-1/4 relative group">
-                                    <div className={`absolute inset-0 bg-white/5 rounded-t-xl transition-opacity ${currentTier === 'Basic' ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`} />
-                                    <div className="relative z-10">
-                                        <div className="text-2xl font-bold text-white mb-1">Basic</div>
-                                        <div className="text-xs text-gray-500 uppercase tracking-widest font-mono">Starter</div>
-                                        {currentTier === 'Basic' && (
-                                            <div className="mt-2 text-xs bg-white/20 text-white px-2 py-0.5 rounded-full inline-block">Current</div>
-                                        )}
-                                    </div>
-                                </th>
+                    <div className="overflow-x-auto custom-scrollbar">
+                        <table className="w-full min-w-[1000px] border-collapse relative">
+                            <thead>
+                                <tr>
+                                    <th className="p-8 text-left w-1/4">
+                                        <div className="text-xs text-gray-500 uppercase tracking-[0.2em] font-bold">Capabilities</div>
+                                    </th>
 
-                                {/* Pro Header */}
-                                <th className="p-6 text-center w-1/4 relative group">
-                                    <div className={`absolute inset-0 bg-gold/10 border-x border-t border-gold/20 rounded-t-xl transition-opacity ${currentTier === 'Pro' ? 'opacity-100' : 'opacity-50 group-hover:opacity-100'}`} />
-                                    {/* Neon Glow */}
-                                    <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-gold to-transparent opacity-70 shadow-[0_0_15px_rgba(255,215,0,0.5)]"></div>
+                                    {/* Column Headers */}
+                                    {[
+                                        { tier: 'Basic', color: 'gray', label: 'Starter' },
+                                        { tier: 'Pro', color: 'gold', label: 'Recommended', icon: Crown },
+                                        { tier: 'Enterprise', color: 'purple', label: 'Power User' }
+                                    ].map((col) => {
+                                        const isCurrent = currentTier === col.tier;
+                                        const isActive = isTierActive(col.tier);
 
-                                    <div className="relative z-10">
-                                        <div className="text-2xl font-bold text-gold mb-1 flex items-center justify-center gap-2">
-                                            Pro <Crown size={16} className="fill-gold" />
-                                        </div>
-                                        <div className="text-xs text-yellow-600 uppercase tracking-widest font-mono">Most Popular</div>
-                                        {currentTier === 'Pro' && (
-                                            <div className="mt-2 text-xs bg-gold text-black font-bold px-2 py-0.5 rounded-full inline-block shadow-[0_0_10px_rgba(255,215,0,0.4)]">Current</div>
-                                        )}
-                                    </div>
-                                </th>
+                                        return (
+                                            <th key={col.tier} className="p-8 text-center w-1/4 relative group align-top">
+                                                {/* Header Gradient */}
+                                                <div className={`absolute inset-x-0 top-0 h-32 bg-gradient-to-b from-${col.color === 'gold' ? 'yellow-500' : col.color === 'purple' ? 'purple-600' : 'white'}/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500`} />
 
-                                {/* Enterprise Header */}
-                                <th className="p-6 text-center w-1/4 relative group">
-                                    <div className={`absolute inset-0 bg-purple-900/10 border-x border-t border-purple-500/20 rounded-t-xl transition-opacity ${currentTier === 'Enterprise' ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`} />
-                                    <div className="relative z-10">
-                                        <div className="text-2xl font-bold text-white mb-1">Enterprise</div>
-                                        <div className="text-xs text-purple-400 uppercase tracking-widest font-mono">Power User</div>
-                                        {isTierActive('Enterprise') && currentTier !== 'Pro' && currentTier !== 'Basic' && (
-                                            <div className="mt-2 text-xs bg-purple-600 text-white font-bold px-2 py-0.5 rounded-full inline-block shadow-[0_0_10px_rgba(168,85,247,0.4)]">
-                                                {currentTier === 'Enterprise' ? 'Current' : 'Included'}
+                                                <div className="relative z-10 flex flex-col items-center gap-2">
+                                                    <div className={`text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-br ${col.color === 'gold' ? 'from-yellow-200 via-gold to-yellow-600' :
+                                                            col.color === 'purple' ? 'from-purple-300 via-purple-500 to-indigo-600' :
+                                                                'from-gray-100 to-gray-500'
+                                                        }`}>
+                                                        {col.tier}
+                                                    </div>
+
+                                                    {col.icon && <col.icon size={16} className={`text-${col.color === 'gold' ? 'yellow-500' : 'purple-400'} animate-bounce-slow`} />}
+
+                                                    <div className={`text-[10px] uppercase tracking-widest font-mono py-1 px-3 rounded-full border ${isCurrent ? 'bg-white text-black border-white' :
+                                                            `border-${col.color === 'gold' ? 'yellow-500/30 text-yellow-500' : col.color === 'purple' ? 'purple-500/30 text-purple-400' : 'white/10 text-gray-500'}`
+                                                        }`}>
+                                                        {isCurrent ? 'Current Plan' : col.label}
+                                                    </div>
+                                                </div>
+                                            </th>
+                                        );
+                                    })}
+                                </tr>
+                            </thead>
+                            <tbody onMouseLeave={() => setHoveredRow(null)}>
+                                {features.map((feat, idx) => (
+                                    <tr
+                                        key={idx}
+                                        onMouseEnter={() => setHoveredRow(idx)}
+                                        className="relative transition-colors duration-300 border-t border-white/5 hover:bg-white/5"
+                                    >
+                                        <td className="p-6 pl-8">
+                                            <div className="flex items-center gap-4">
+                                                <div className={`p-2 rounded-lg transition-colors duration-300 ${hoveredRow === idx ? 'bg-gold/20 text-gold shadow-[0_0_15px_rgba(255,215,0,0.3)]' : 'bg-white/5 text-gray-500'}`}>
+                                                    <feat.icon size={18} />
+                                                </div>
+                                                <span className={`font-medium transition-colors ${hoveredRow === idx ? 'text-white' : 'text-gray-400'}`}>{feat.name}</span>
                                             </div>
-                                        )}
-                                    </div>
-                                </th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-white/5">
-                            {features.map((feat, idx) => (
-                                <motion.tr
-                                    key={idx}
-                                    variants={rowVariants}
-                                    className="group hover:bg-white/5 transition-colors relative"
-                                >
-                                    {/* Feature Name */}
-                                    <td className="p-6 relative">
-                                        <div className="flex items-center gap-4">
-                                            <div className="p-2.5 rounded-lg bg-gray-900 border border-gray-800 text-gray-400 group-hover:text-gold group-hover:border-gold/30 transition-colors shadow-lg">
-                                                <feat.icon size={18} />
-                                            </div>
-                                            <span className="font-medium text-gray-200 group-hover:text-white transition-colors">{feat.name}</span>
-                                        </div>
+                                        </td>
+
+                                        <td className="p-6 text-center font-mono">
+                                            <RenderValue val={feat.basic} dim={true} />
+                                        </td>
+
+                                        <td className="p-6 text-center font-mono relative">
+                                            {/* Pro Highlight Column Background */}
+                                            <div className="absolute inset-y-0 left-0 right-0 bg-gold/5 opacity-50 pointer-events-none" />
+                                            <div className="relative z-10"><RenderValue val={feat.pro} highlight={true} /></div>
+                                        </td>
+
+                                        <td className="p-6 text-center font-mono">
+                                            <RenderValue val={feat.ent} />
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                            <tfoot>
+                                <tr>
+                                    <td className="p-8"></td>
+                                    <td className="p-8 text-center align-bottom h-32">
+                                        <div className="text-gray-500 font-bold text-sm">Always Free</div>
                                     </td>
-
-                                    {/* Basic Value */}
-                                    <td className="p-6 text-center text-gray-400 font-mono relative">
-                                        <div className={`absolute inset-0 bg-white/5 opacity-0 ${currentTier === 'Basic' ? 'opacity-50' : 'group-hover:opacity-30'} transition-opacity`} />
-                                        <div className="relative z-10"><RenderValue val={feat.basic} /></div>
-                                    </td>
-
-                                    {/* Pro Value */}
-                                    <td className="p-6 text-center font-mono relative border-x border-white/5 bg-gold/5">
-                                        <div className={`absolute inset-0 bg-gold/10 opacity-0 ${currentTier === 'Pro' ? 'opacity-100' : 'group-hover:opacity-50'} transition-opacity`} />
-                                        <div className="relative z-10 text-gold"><RenderValue val={feat.pro} highlight={true} /></div>
-                                    </td>
-
-                                    {/* Enterprise Value */}
-                                    <td className="p-6 text-center text-gray-300 font-mono relative">
-                                        <div className={`absolute inset-0 bg-purple-500/5 opacity-0 ${currentTier === 'Enterprise' ? 'opacity-100' : 'group-hover:opacity-30'} transition-opacity`} />
-                                        <div className="relative z-10"><RenderValue val={feat.ent} /></div>
-                                    </td>
-                                </motion.tr>
-                            ))}
-                        </tbody>
-                        <tfoot>
-                            <tr>
-                                <td className="p-6"></td>
-
-                                {/* Basic Footer */}
-                                <td className="p-6 text-center relative">
-                                    <div className={`absolute inset-0 bg-white/5 rounded-b-xl opacity-0 ${currentTier === 'Basic' ? 'opacity-100' : ''}`} />
-                                    <div className="relative z-10">
-                                        <div className="text-sm font-bold text-gray-500">Free Forever</div>
-                                    </div>
-                                </td>
-
-                                {/* Pro Footer */}
-                                <td className="p-6 text-center relative bg-gold/5 border-x border-b border-gold/20 rounded-b-xl">
-                                    <div className="relative z-10">
-                                        {isTierActive('Pro') ? (
-                                            <div className="flex items-center justify-center gap-2 text-green-400 font-bold uppercase tracking-wider text-sm py-2">
-                                                <Check size={18} /> Included
-                                            </div>
-                                        ) : (
-                                            <Link to="/products" className="inline-flex items-center gap-2 px-8 py-3 bg-gold hover:bg-white hover:text-black text-black font-bold rounded-lg transition-all hover:scale-105 shadow-[0_0_20px_rgba(255,215,0,0.3)] text-sm group">
-                                                Upgrade <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" />
+                                    <td className="p-8 text-center align-bottom h-32 relative bg-gold/5">
+                                        {!isTierActive('Pro') ? (
+                                            <Link to="/products" className="group relative block w-full py-4 bg-gold hover:bg-white text-black font-black uppercase tracking-widest text-sm rounded-xl overflow-hidden transition-all hover:scale-105 shadow-[0_0_20px_rgba(255,215,0,0.4)]">
+                                                <span className="relative z-10 flex items-center justify-center gap-2">
+                                                    Upgrade <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" />
+                                                </span>
+                                                <div className="absolute inset-0 bg-white/50 translate-y-full group-hover:translate-y-0 transition-transform duration-300" />
                                             </Link>
-                                        )}
-                                    </div>
-                                </td>
-
-                                {/* Enterprise Footer */}
-                                <td className="p-6 text-center relative border-x border-b border-purple-500/20 rounded-b-xl">
-                                    <div className="relative z-10">
-                                        {isTierActive('Enterprise') ? (
-                                            <div className="flex items-center justify-center gap-2 text-purple-400 font-bold uppercase tracking-wider text-sm py-2">
-                                                <Check size={18} /> Included
-                                            </div>
                                         ) : (
-                                            <Link to="/products" className="inline-block px-8 py-3 border border-white/20 hover:border-purple-500 hover:text-purple-400 hover:bg-purple-500/10 text-gray-300 font-bold rounded-lg transition-colors text-sm">
+                                            <div className="text-green-400 font-bold uppercase tracking-wider flex items-center justify-center gap-2"><Check /> Active</div>
+                                        )}
+                                    </td>
+                                    <td className="p-8 text-center align-bottom h-32">
+                                        {!isTierActive('Enterprise') ? (
+                                            <Link to="/products" className="group block w-full py-4 border border-purple-500/30 hover:border-purple-500 hover:bg-purple-900/20 text-purple-300 hover:text-white font-bold uppercase tracking-widest text-sm rounded-xl transition-all">
                                                 Upgrade
                                             </Link>
+                                        ) : (
+                                            <div className="text-purple-400 font-bold uppercase tracking-wider flex items-center justify-center gap-2"><Check /> Active</div>
                                         )}
-                                    </div>
-                                </td>
-                            </tr>
-                        </tfoot>
-                    </motion.table>
-                </div>
+                                    </td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                </motion.div>
 
+                {/* Singularity Card - Exotic Animation */}
                 {isTierActive('Singularity') && (
                     <motion.div
-                        initial={{ opacity: 0, scale: 0.9 }}
-                        whileInView={{ opacity: 1, scale: 1 }}
-                        className="mt-8 text-center p-6 bg-gradient-to-r from-gray-900 via-gray-800 to-gray-900 border border-white/10 rounded-2xl max-w-3xl mx-auto shadow-2xl"
+                        initial={{ opacity: 0, scale: 0.9, y: 50 }}
+                        whileInView={{ opacity: 1, scale: 1, y: 0 }}
+                        transition={{ type: "spring", stiffness: 100, damping: 20 }}
+                        className="mt-12 mx-auto max-w-4xl relative group"
                     >
-                        <div className="flex flex-col items-center gap-4">
-                            <div className="p-3 bg-black rounded-full border border-gray-700 shadow-lg">
-                                <Crown size={32} className="text-white drop-shadow-[0_0_10px_rgba(255,255,255,0.8)]" />
-                            </div>
-                            <div>
-                                <h3 className="text-2xl font-bold bg-gradient-to-r from-white via-gray-200 to-gray-500 bg-clip-text text-transparent">
-                                    You Have Singularity Access
-                                </h3>
-                                <p className="text-gray-400 mt-2">
-                                    Your tier exceeds all limits shown above. You operate without constraints.
-                                </p>
+                        {/* Animated Border Gradient */}
+                        <div className="absolute inset-[-4px] rounded-2xl bg-gradient-to-r from-red-500 via-purple-500 to-blue-500 opacity-75 blur-lg group-hover:opacity-100 animate-gradient-xy transition-opacity duration-500" />
+
+                        <div className="relative bg-black rounded-2xl p-1 overflow-hidden">
+                            {/* Content */}
+                            <div className="bg-gray-900/90 backdrop-blur-xl rounded-xl p-8 flex flex-col md:flex-row items-center gap-8 relative z-10">
+
+                                <div className="relative">
+                                    <div className="absolute inset-0 bg-white/20 blur-md rounded-full animate-pulse-fast" />
+                                    <Crown size={48} className="text-white relative z-10 drop-shadow-[0_0_15px_rgba(255,255,255,1)]" />
+                                </div>
+
+                                <div className="text-center md:text-left flex-1">
+                                    <h3 className="text-3xl font-black text-white mb-2 tracking-tight">SINGULARITY AUTHORIZED</h3>
+                                    <p className="text-gray-400">
+                                        You are operating beyond standard limits. All features are <span className="text-white font-bold">Unbounded</span>.
+                                    </p>
+                                </div>
+
+                                <div className="px-6 py-2 bg-white/10 rounded-full border border-white/20 text-white font-mono text-sm animate-pulse">
+                                    ACCESS_GRANTED
+                                </div>
                             </div>
                         </div>
                     </motion.div>
