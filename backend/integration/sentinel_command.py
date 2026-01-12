@@ -81,9 +81,9 @@ async def handle_summary_tool(params: Dict[str, Any]) -> str:
     {context_str}
     
     Format Rules:
-    1. Mission Outcome (1 sentence).
+    1. Mission Report Summary (1-2 sentences).
     2. Key Findings (Bullet points).
-    3. Markdown Tables for data.
+    3. Strictly NO Markdown Tables. Use text lists if needed.
     4. NO code blocks.
     """
     

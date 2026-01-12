@@ -317,14 +317,17 @@ async def run_market_analysis(market_type: str, sensitivity: int, progress_callb
         period_map = {1: '5y', 2: '1y', 3: '6mo'}
         period = period_map.get(sensitivity, '1y')
         
-        hist_data = await asyncio.to_thread(
-            yf.download, 
-            tickers=all_chart_tickers, 
-            period=period, 
-            interval='1d', 
-            progress=False, 
-            auto_adjust=True,
-            group_by='ticker'
+        hist_data = await asyncio.wait_for(
+            asyncio.to_thread(
+                yf.download, 
+                tickers=all_chart_tickers, 
+                period=period, 
+                interval='1d', 
+                progress=False, 
+                auto_adjust=True,
+                group_by='ticker'
+            ),
+            timeout=45.0 # Timeout after 45 seconds to prevent hanging
         )
 
         if not hist_data.empty:
@@ -336,6 +339,9 @@ async def run_market_analysis(market_type: str, sensitivity: int, progress_callb
             bot_tickers = [t['ticker'] for t in bottom_10]
 
         chart_data_struct = await asyncio.to_thread(process_market_chart_data, top_tickers, bot_tickers, hist_data)
+    except asyncio.TimeoutError:
+        print("Chart Data Gen: Timed out after 45s.")
+        chart_data_struct = {}
     except Exception as e:
         import traceback
         traceback.print_exc()
