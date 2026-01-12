@@ -124,8 +124,8 @@ class AIService:
             response = await asyncio.to_thread(
                 requests.post, 
                 self.local_url, 
-                json=payload, 
-                timeout=900 # Increased to 15 minutes for slow local hardware
+                json=payload
+                # timeout removed for unlimited processing
             )
             
             # If 404, model likely not found.
@@ -137,7 +137,7 @@ class AIService:
                     payload["model"] = self.model
                     
                     logger.info(f"   [Sentinel AI] Retrying with model: {self.model}")
-                    response = await asyncio.to_thread(requests.post, self.local_url, json=payload, timeout=900)
+                    response = await asyncio.to_thread(requests.post, self.local_url, json=payload)
 
             duration = time.time() - start_time
             logger.info(f"   [Sentinel AI] Response received in {duration:.2f}s. Status: {response.status_code}")
