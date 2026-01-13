@@ -1,8 +1,22 @@
 import React, { useRef } from "react";
 import { motion, useMotionTemplate, useMotionValue, useSpring, useTransform } from "framer-motion";
 
-const TiltCard = ({ children, className = "", ...props }) => {
-    const ref = useRef(null);
+const TiltCard = React.forwardRef(({ children, className = "", ...props }, ref) => {
+    // We need an internal ref for measurements, but also want to expose ref to parent.
+    // Use a merge refs pattern or just use internal ref if parent doesn't need DOm access specifically for measurement.
+    // However, CardSwap uses GSAP on the ref. So we MUST expose the DOM node.
+
+    // Simple solution: use the forwarded ref if provided, else strict local one (or useCallback ref).
+    // For simplicity with Framer Motion, we can pass ref to motion.div.
+    // But we need 'ref.current' for getBoundingClientRect in handleMouseMove.
+
+    // We will use an internal ref and expose it via useImperativeHandle OR just use one ref if we can ensure it's an object ref.
+    // Better: use a local ref and sync it, or use a callback ref.
+
+    // Let's use a local ref for logic, and if ref is passed, we assign it.
+    const internalRef = useRef(null);
+
+    React.useImperativeHandle(ref, () => internalRef.current);
 
     // Mouse position logging
     const x = useMotionValue(0);
@@ -13,9 +27,9 @@ const TiltCard = ({ children, className = "", ...props }) => {
     const mouseY = useSpring(y, { stiffness: 150, damping: 20 });
 
     const handleMouseMove = (e) => {
-        if (!ref.current) return;
+        if (!internalRef.current) return;
 
-        const rect = ref.current.getBoundingClientRect();
+        const rect = internalRef.current.getBoundingClientRect();
         const width = rect.width;
         const height = rect.height;
 
@@ -52,7 +66,7 @@ const TiltCard = ({ children, className = "", ...props }) => {
 
     return (
         <motion.div
-            ref={ref}
+            ref={internalRef}
             onMouseMove={handleMouseMove}
             onMouseLeave={handleMouseLeave}
             style={{
@@ -60,7 +74,7 @@ const TiltCard = ({ children, className = "", ...props }) => {
                 rotateY,
                 transformStyle: "preserve-3d",
             }}
-            className={`relative transition-transform duration-200 ease-linear rounded-2xl ${className}`}
+            className={`relative transition-transform duration-200 ease-linear ${className}`}
             {...props}
         >
             <div
@@ -71,15 +85,15 @@ const TiltCard = ({ children, className = "", ...props }) => {
             </div>
 
             {/* Glass Background Layer */}
-            <div className="absolute inset-0 bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl shadow-[0_8px_32px_0_rgba(0,0,0,0.36)]" />
+            <div className="absolute inset-0 bg-white/5 backdrop-blur-xl border border-white/10 shadow-[0_8px_32px_0_rgba(0,0,0,0.36)]" />
 
             {/* Holographic Sheen Layer */}
             <motion.div
                 style={{ background: sheenGradient }}
-                className="absolute inset-0 rounded-2xl pointer-events-none mix-blend-overlay z-20"
+                className="absolute inset-0 pointer-events-none mix-blend-overlay z-20"
             />
         </motion.div>
     );
-};
+});
 
 export default TiltCard;

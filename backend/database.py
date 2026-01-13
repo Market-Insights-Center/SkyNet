@@ -405,16 +405,16 @@ def create_user_profile(email, uid, username=None):
         doc = doc_ref.get()
         
         if not doc.exists:
-            # If no username provided, generate a temp one
+            # If no username provided, use email prefix
             if not username:
-                username = f"User_{int(time.time())}"
-            else:
-                 # Ensure uniqueness for provided username
-                 original_username = username
-                 count = 1
-                 while check_username_taken(username):
-                      username = f"{original_username} {count}"
-                      count += 1
+                username = email.split('@')[0]
+            
+            # Ensure uniqueness for FINAL username (whether provided or auto-generated)
+            original_username = username
+            count = 1
+            while check_username_taken(username):
+                username = f"{original_username} {count}"
+                count += 1
 
             data = {
                 'email': email,
@@ -482,20 +482,35 @@ def get_all_users_from_db():
             if not email: continue
             
             profile = db_data.get(email, {})
-            # Get display name or fallback to "User"
-            username = user.display_name if user.display_name else "User"
+            # Prioritize Firestore username, then Auth display name, then "User"
+            username = profile.get('username')
+            if not username:
+                username = user.display_name if user.display_name else "User"
             
             final_list.append({
                 'email': email,
-                'username': username, # Added username
+                'username': username,
                 'uid': user.uid,
                 'tier': profile.get('tier', 'Basic'),
-                'subscription_status': profile.get('subscription_status', 'none')
+                'subscription_status': profile.get('subscription_status', 'none'),
+                'last_seen': profile.get('last_seen', None) # Return last_seen
             })
         return final_list
     except Exception as e:
         print(f"Error fetching users: {e}")
         return []
+
+def update_user_heartbeat(email):
+    """Updates the user's last_seen timestamp."""
+    try:
+        db = get_db()
+        db.collection('users').document(email).set({
+            'last_seen': firestore.SERVER_TIMESTAMP
+        }, merge=True)
+        return True
+    except Exception as e:
+        print(f"Error updating heartbeat: {e}")
+        return False
 
 def delete_user_full(email):
     """Deletes user from Auth and Firestore."""
@@ -1255,7 +1270,9 @@ def get_leaderboard(limit=50):
             leaderboard.append({
                 "username": username,
                 "points": d.get('points', 0),
-                "tier": d.get('tier', 'Basic')
+                "tier": d.get('tier', 'Basic'),
+                "joined_at": d.get('created_at'),
+                "highest_rank": d.get('highest_rank')
             })
             
         # Update Cache

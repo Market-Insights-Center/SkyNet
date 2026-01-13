@@ -516,34 +516,7 @@ export default function Profile() {
                     </div>
                 </div>
 
-                {/* QA CONTROLS (MODS ONLY) */}
-                {isMod && (
-                    <div className="mt-8 pt-8 border-t border-purple-500/20">
-                        <h3 className="text-xl font-bold text-purple-400 mb-4 flex items-center gap-2">
-                            <Shield size={20} /> QA Controls
-                        </h3>
-                        <div className="bg-purple-500/5 border border-purple-500/10 rounded-lg p-6">
-                            <h4 className="text-white font-bold mb-3">Test Subscription Tiers</h4>
-                            <p className="text-sm text-gray-400 mb-4">
-                                Temporarily override your local session tier to test UI/UX differences. Resets on refresh.
-                            </p>
-                            <div className="flex flex-wrap gap-3">
-                                {['Basic', 'Pro', 'Enterprise'].map((tier) => (
-                                    <button
-                                        key={tier}
-                                        onClick={() => overrideUserTier(tier)}
-                                        className={`px-4 py-2 rounded-lg font-bold transition-all border ${currentUser?.tier === tier
-                                            ? 'bg-purple-500 text-white border-purple-500 shadow-[0_0_10px_rgba(168,85,247,0.4)]'
-                                            : 'bg-black/50 text-gray-400 border-gray-700 hover:text-white hover:border-gray-500'
-                                            }`}
-                                    >
-                                        Set {tier}
-                                    </button>
-                                ))}
-                            </div>
-                        </div>
-                    </div>
-                )}
+                {/* QA CONTROLS REMOVED */}
             </div>
 
             {/* Questionnaire Modal - Mobile Optimized */}

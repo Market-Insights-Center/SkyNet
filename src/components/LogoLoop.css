@@ -1,0 +1,96 @@
+.logoloop {
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    transform: translateZ(0);
+    /* Hardware acceleration */
+}
+
+.logoloop__track {
+    display: flex;
+    will-change: transform;
+    /* Ensure no blur or weirdness */
+    -webkit-font-smoothing: antialiased;
+}
+
+.logoloop--vertical {
+    flex-direction: column;
+}
+
+.logoloop--vertical .logoloop__track {
+    flex-direction: column;
+}
+
+.logoloop__list {
+    display: flex;
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    flex-shrink: 0;
+    gap: var(--logoloop-gap);
+    /* Ensure gap between the end of one loop and start of next */
+    padding-right: var(--logoloop-gap);
+}
+
+.logoloop--vertical .logoloop__list {
+    flex-direction: column;
+    padding-right: 0;
+    padding-bottom: var(--logoloop-gap);
+}
+
+.logoloop__item {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    /* height: var(--logoloop-logoHeight); Handled in JS or override here */
+}
+
+.logoloop__item img {
+    height: 100%;
+    width: auto;
+    object-fit: contain;
+    display: block;
+    user-select: none;
+    -webkit-user-drag: none;
+}
+
+.logoloop__node {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.logoloop__link {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: inherit;
+    text-decoration: none;
+    transition: opacity 0.2s ease;
+}
+
+.logoloop__link:hover {
+    opacity: 0.8;
+}
+
+/* Fade Effect */
+.logoloop--fade {
+    /* Implement mask for fade out edges if requested */
+    mask-image: linear-gradient(to right, transparent, black 10%, black 90%, transparent);
+    -webkit-mask-image: linear-gradient(to right, transparent, black 10%, black 90%, transparent);
+}
+
+.logoloop--vertical.logoloop--fade {
+    mask-image: linear-gradient(to bottom, transparent, black 10%, black 90%, transparent);
+    -webkit-mask-image: linear-gradient(to bottom, transparent, black 10%, black 90%, transparent);
+}
+
+/* Scale on hover */
+.logoloop--scale-hover .logoloop__item {
+    transition: transform 0.2s ease;
+}
+
+.logoloop--scale-hover .logoloop__item:hover {
+    transform: scale(1.1);
+}

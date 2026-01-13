@@ -1,0 +1,27 @@
+.card-swap-container {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    perspective: 1200px;
+    /* Increased perspective for smoother vertical rotation */
+    transform-style: preserve-3d;
+}
+
+.card {
+    position: absolute;
+    /* Removed top/left 50% to rely on flexbox centering */
+    box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.6);
+    border-radius: 1.25rem;
+    overflow: hidden;
+    background: #0a0a0a;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    pointer-events: auto;
+    cursor: pointer;
+    transform-style: preserve-3d;
+    will-change: transform;
+    backface-visibility: hidden;
+    /* Prevents flickering during 3D flip */
+}

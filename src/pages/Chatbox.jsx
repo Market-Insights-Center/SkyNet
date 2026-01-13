@@ -90,7 +90,11 @@ const Chatbox = () => {
     // --- HELPER: Date Formatting ---
     const formatDisplayDate = (dateString, type = 'sidebar') => {
         if (!dateString) return '';
-        const date = new Date(dateString);
+
+        // Ensure date is treated as UTC if it comes without timezone info
+        const safeDateString = dateString.endsWith('Z') ? dateString : `${dateString}Z`;
+        const date = new Date(safeDateString);
+
         const now = new Date();
         const diffMs = now - date;
         const diffHours = diffMs / (1000 * 60 * 60);

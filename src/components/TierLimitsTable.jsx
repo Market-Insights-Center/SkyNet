@@ -99,8 +99,8 @@ const TierLimitsTable = () => {
 
                                                 <div className="relative z-10 flex flex-col items-center gap-2">
                                                     <div className={`text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-br ${col.color === 'gold' ? 'from-yellow-200 via-gold to-yellow-600' :
-                                                            col.color === 'purple' ? 'from-purple-300 via-purple-500 to-indigo-600' :
-                                                                'from-gray-100 to-gray-500'
+                                                        col.color === 'purple' ? 'from-purple-300 via-purple-500 to-indigo-600' :
+                                                            'from-gray-100 to-gray-500'
                                                         }`}>
                                                         {col.tier}
                                                     </div>
@@ -108,7 +108,7 @@ const TierLimitsTable = () => {
                                                     {col.icon && <col.icon size={16} className={`text-${col.color === 'gold' ? 'yellow-500' : 'purple-400'} animate-bounce-slow`} />}
 
                                                     <div className={`text-[10px] uppercase tracking-widest font-mono py-1 px-3 rounded-full border ${isCurrent ? 'bg-white text-black border-white' :
-                                                            `border-${col.color === 'gold' ? 'yellow-500/30 text-yellow-500' : col.color === 'purple' ? 'purple-500/30 text-purple-400' : 'white/10 text-gray-500'}`
+                                                        `border-${col.color === 'gold' ? 'yellow-500/30 text-yellow-500' : col.color === 'purple' ? 'purple-500/30 text-purple-400' : 'white/10 text-gray-500'}`
                                                         }`}>
                                                         {isCurrent ? 'Current Plan' : col.label}
                                                     </div>
@@ -134,18 +134,20 @@ const TierLimitsTable = () => {
                                             </div>
                                         </td>
 
-                                        <td className="p-6 text-center font-mono">
-                                            <RenderValue val={feat.basic} dim={true} />
+                                        <td className={`p-6 text-center font-mono relative ${currentTier === 'Basic' ? 'bg-white/5 border-l border-r border-white/10' : ''}`}>
+                                            <RenderValue val={feat.basic} dim={true} highlight={currentTier === 'Basic'} />
                                         </td>
 
-                                        <td className="p-6 text-center font-mono relative">
-                                            {/* Pro Highlight Column Background */}
-                                            <div className="absolute inset-y-0 left-0 right-0 bg-gold/5 opacity-50 pointer-events-none" />
-                                            <div className="relative z-10"><RenderValue val={feat.pro} highlight={true} /></div>
+                                        <td className={`p-6 text-center font-mono relative ${currentTier === 'Pro' ? 'bg-gold/5 border-l border-r border-gold/20' : ''}`}>
+                                            {/* Dynamic Highlight Column Background */}
+                                            {currentTier === 'Pro' && (
+                                                <div className="absolute inset-y-0 left-0 right-0 bg-gold/5 opacity-50 pointer-events-none" />
+                                            )}
+                                            <div className="relative z-10"><RenderValue val={feat.pro} highlight={currentTier === 'Pro'} /></div>
                                         </td>
 
-                                        <td className="p-6 text-center font-mono">
-                                            <RenderValue val={feat.ent} />
+                                        <td className={`p-6 text-center font-mono relative ${currentTier === 'Enterprise' ? 'bg-purple-500/5 border-l border-r border-purple-500/20' : ''}`}>
+                                            <RenderValue val={feat.ent} highlight={currentTier === 'Enterprise'} />
                                         </td>
                                     </tr>
                                 ))}

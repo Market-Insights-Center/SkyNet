@@ -67,7 +67,16 @@ export function AuthProvider({ children }) {
     // QA: Allow mods to temporarily override their tier locally
     function overrideUserTier(tier) {
         if (!currentUser) return;
-        const updatedUser = { ...currentUser, tier: tier, isTestingTier: true };
+
+        // Clone with prototype preservation to keep methods like getIdToken()
+        const updatedUser = Object.assign(
+            Object.create(Object.getPrototypeOf(currentUser)),
+            currentUser
+        );
+
+        updatedUser.tier = tier;
+        updatedUser.isTestingTier = true;
+
         setCurrentUser(updatedUser);
     }
 
@@ -80,13 +89,15 @@ export function AuthProvider({ children }) {
             const res = await fetch(`/api/user/profile?email=${user.email}&uid=${user.uid}&username=${displayName}`);
             const profile = await res.json();
 
-            // CRITICAL FIX: Do NOT spread the user object ({...user}).
-            // It destroys Firebase User prototype methods (like getIdToken, delete, etc.).
-            // Instead, attach profile data directly to the user object.
+            // CRITICAL FIX: Preserve prototype chain
             Object.assign(user, profile);
 
-            // Force update with new properties
-            setCurrentUser({ ...user });
+            // Force update with new properties while keeping methods
+            const updatedUser = Object.assign(
+                Object.create(Object.getPrototypeOf(user)),
+                user
+            );
+            setCurrentUser(updatedUser);
         } catch (err) {
             console.error("Failed to fetch user profile", err);
             // Even if fetch fails, set the auth user so app doesn't hang

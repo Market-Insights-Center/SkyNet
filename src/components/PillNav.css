@@ -1,0 +1,162 @@
+.pill-nav-container {
+    font-family: 'Inter', sans-serif;
+    /* Adjust font as needed */
+    position: relative;
+    z-index: 50;
+    width: 100%;
+}
+
+.pill-nav {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem 2rem;
+    background: var(--pill-bg, #060010);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    color: var(--pill-text, #fff);
+}
+
+.pill-logo img {
+    height: 40px;
+    width: auto;
+    display: block;
+}
+
+.pill-nav-items {
+    display: flex;
+    align-items: center;
+}
+
+.pill-list {
+    display: flex;
+    gap: 1.5rem;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.pill {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-decoration: none;
+    color: var(--base, #fff);
+    font-weight: 500;
+    padding: 0.5rem 1rem;
+    overflow: hidden;
+    /* Critical for the circle cut-off */
+    border-radius: 9999px;
+}
+
+.pill.is-active {
+    color: #FFD700;
+    /* Gold */
+}
+
+.hover-circle {
+    position: absolute;
+    background-color: var(--base, #fff);
+    border-radius: 50%;
+    pointer-events: none;
+    z-index: 10;
+    left: 50%;
+}
+
+.label-stack {
+    position: relative;
+    z-index: 20;
+    display: block;
+    height: 1.5em;
+    /* Adjust based on line height */
+    overflow: hidden;
+}
+
+.pill-label {
+    display: block;
+    transition: color 0.3s;
+}
+
+.pill-label-hover {
+    display: block;
+    position: absolute;
+    top: 0;
+    left: 0;
+    color: var(--hover-text, #000);
+    width: 100%;
+    text-align: center;
+}
+
+/* Mobile Styles */
+.mobile-only {
+    display: none;
+}
+
+.desktop-only {
+    display: block;
+}
+
+@media (max-width: 768px) {
+    .mobile-only {
+        display: block;
+    }
+
+    .desktop-only {
+        display: none;
+    }
+
+    .pill-nav {
+        padding: 1rem;
+    }
+
+    .mobile-menu-button {
+        background: none;
+        border: none;
+        cursor: pointer;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        padding: 0.5rem;
+    }
+
+    .hamburger-line {
+        width: 24px;
+        height: 2px;
+        background-color: var(--base, #fff);
+        display: block;
+    }
+
+    .mobile-menu-popover {
+        position: absolute;
+        top: 100%;
+        left: 0;
+        width: 100%;
+        background: var(--pill-bg, #060010);
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        visibility: hidden;
+        /* Managed by GSAP */
+        overflow: hidden;
+    }
+
+    .mobile-menu-list {
+        list-style: none;
+        padding: 1rem;
+        margin: 0;
+    }
+
+    .mobile-menu-link {
+        display: block;
+        padding: 1rem;
+        color: var(--base, #fff);
+        text-decoration: none;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .mobile-menu-link:last-child {
+        border-bottom: none;
+    }
+
+    .mobile-menu-link.is-active {
+        color: #FFD700;
+    }
+}

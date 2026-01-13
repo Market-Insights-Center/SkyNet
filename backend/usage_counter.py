@@ -4,7 +4,11 @@ import os
 import asyncio
 
 # File to store usage statistics
-USAGE_FILE = os.path.join(os.path.dirname(__file__), 'data', 'usage_stats.json')
+# Check if running on Windows (Localhost) or Linux (VPS)
+if os.name == 'nt':
+    USAGE_FILE = os.path.join(os.path.dirname(__file__), 'data', 'usage_stats_local.json')
+else:
+    USAGE_FILE = os.path.join(os.path.dirname(__file__), 'data', 'usage_stats.json')
 _usage_lock = asyncio.Lock()
 
 def _load_usage():

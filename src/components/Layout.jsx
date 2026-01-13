@@ -5,6 +5,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { User, Search, Home, Briefcase, MessageSquare, Users, Command, Shield, Menu, X } from 'lucide-react';
 
 import LiquidBackground from './LiquidBackground';
+import PillNav from './PillNav';
 
 const Layout = ({ children }) => {
     const location = useLocation();
@@ -19,6 +20,8 @@ const Layout = ({ children }) => {
     const [isMod, setIsMod] = useState(false);
 
     // --- SECURITY FIX: Robust Admin Check ---
+    // --- SECURITY FIX: Robust Admin Check ---
+    // --- SECURITY FIX: Robust Admin Check ---
     useEffect(() => {
         if (currentUser && currentUser.email) {
             fetch('/api/mods')
@@ -30,17 +33,25 @@ const Layout = ({ children }) => {
                     if (modsList.includes(userEmail)) {
                         setIsMod(true);
                     } else {
-                        setIsMod(false); // CRITICAL: Reset to false if not a mod
+                        setIsMod(false);
                     }
                 })
                 .catch(err => {
                     console.error("Error checking mods:", err);
-                    setIsMod(false); // Safety fallback
+                    // Maintain previous state on error
                 });
         } else {
-            setIsMod(false); // CRITICAL: Reset to false on logout
+            setIsMod(false);
         }
-    }, [currentUser]);
+    }, [currentUser?.email]); // Update only when EMAIL changes, not other User properties
+
+    // To strictly follow "test tier options should always be visible to admins", 
+    // we can memoize the check or trust the token. But this fetch is fine IF currentUser.email is stable.
+    // The "overrideUserTier" creates a NEW object. This triggers this effect.
+    // If the new object has the SAME email, the fetch happens again. 
+    // If the fetch returns fast, it sets isMod=true again.
+    // If it returns slow, there might be a flicker.
+    // Ideally we shouldn't fetch if email hasn't changed.
 
     // Check for unread messages
     useEffect(() => {
@@ -78,7 +89,25 @@ const Layout = ({ children }) => {
 
     }, [currentUser]);
 
-    const navItems = [
+    // Heartbeat for Active Status
+    useEffect(() => {
+        if (!currentUser?.email) return;
+
+        const sendHeartbeat = () => {
+            if (document.hidden) return; // Don't ping if tab hidden
+            fetch('/api/user/heartbeat', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email: currentUser.email })
+            }).catch(err => console.error("Heartbeat failed", err));
+        };
+
+        sendHeartbeat(); // Immediate
+        const interval = setInterval(sendHeartbeat, 30000); // Every 30s
+        return () => clearInterval(interval);
+    }, [currentUser]);
+
+    const navItems = React.useMemo(() => [
         { name: 'Home', path: '/', icon: Home },
         { name: 'Products', path: '/products', icon: Briefcase },
         { name: 'Forum', path: '/forum', icon: Users },
@@ -86,7 +115,7 @@ const Layout = ({ children }) => {
         { name: 'Profile', path: '/profile', icon: User },
         // Only render Admin tab if explicitly authorized
         ...(isMod ? [{ name: 'Admin', path: '/admin', icon: Shield }] : [])
-    ];
+    ], [hasUnread, isMod]);
 
     const searchableItems = [
         { name: 'Home', path: '/', type: 'Page' },
@@ -133,165 +162,87 @@ const Layout = ({ children }) => {
         setSearchQuery('');
     };
 
+    const pillItems = React.useMemo(() => [
+        { label: 'Home', href: '/' },
+        { label: 'Products', href: '/products' },
+        { label: 'Forum', href: '/forum' },
+        { label: 'Chatbox', href: '/chat' },
+        { label: 'Profile', href: '/profile' },
+        ...(isMod ? [{ label: 'Admin', href: '/admin' }] : []),
+        ...(currentUser ? [] : [
+            { label: 'Log In', href: '/login' },
+            { label: 'Sign Up', href: '/signup' }
+        ])
+    ], [isMod, currentUser]);
+
     return (
         <div className="min-h-screen bg-deep-black text-white font-sans selection:bg-gold selection:text-black">
             {/* Liquid Background - Enhanced Glass Feel */}
             <LiquidBackground />
 
             {/* Navigation Bar */}
-            <nav className="fixed top-0 left-0 right-0 z-50 bg-black/60 backdrop-blur-xl border-b border-white/10 shadow-lg">
-                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                    <div className="flex items-center justify-between h-20">
-                        {/* Logo */}
-                        <div className="flex-shrink-0 flex items-center">
-                            {/* UPDATED: Removed Singularity text */}
-                            <Link to="/" className="text-xl font-bold tracking-wider text-white flex items-center gap-2">
-                                M.I.C.
-                            </Link>
-                        </div>
-
-                        {/* --- DESKTOP MENU --- */}
-                        <div className="hidden md:flex items-center gap-6">
-                            {/* Search Bar */}
-                            <div className="relative group" ref={searchRef}>
-                                <form onSubmit={handleSearch} className="relative">
-                                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                        <Search size={16} className="text-gray-400 group-focus-within:text-gold transition-colors" />
-                                    </div>
-                                    <input
-                                        type="text"
-                                        placeholder="Search..."
-                                        value={searchQuery}
-                                        onChange={(e) => {
-                                            setSearchQuery(e.target.value);
-                                            setShowSuggestions(true);
-                                        }}
-                                        onFocus={() => setShowSuggestions(true)}
-                                        className="bg-white/5 border border-white/10 text-gray-300 text-sm rounded-full focus:ring-1 focus:ring-gold focus:border-gold block w-48 pl-10 p-2.5 transition-all focus:w-64 outline-none"
-                                    />
-                                </form>
-
-                                {/* Autocomplete Dropdown */}
-                                <AnimatePresence>
-                                    {showSuggestions && searchQuery && filteredItems.length > 0 && (
-                                        <motion.div
-                                            initial={{ opacity: 0, y: 10 }}
-                                            animate={{ opacity: 1, y: 0 }}
-                                            exit={{ opacity: 0, y: 10 }}
-                                            className="absolute top-full left-0 right-0 mt-2 bg-[#1a1a1a] border border-white/10 rounded-xl shadow-2xl overflow-hidden z-50"
-                                        >
-                                            {filteredItems.map((item, index) => (
-                                                <div
-                                                    key={index}
-                                                    onClick={() => handleSelect(item.path)}
-                                                    className="px-4 py-3 hover:bg-white/5 cursor-pointer flex items-center gap-3 transition-colors border-b border-white/5 last:border-0"
-                                                >
-                                                    {item.type === 'Command' ? <Command size={14} className="text-gold" /> :
-                                                        item.type === 'Product' ? <Briefcase size={14} className="text-purple-400" /> :
-                                                            <Search size={14} className="text-gray-500" />}
-                                                    <div>
-                                                        <div className="text-sm font-medium text-white">{item.name}</div>
-                                                        <div className="text-xs text-gray-500">{item.type}</div>
-                                                    </div>
-                                                </div>
-                                            ))}
-                                        </motion.div>
-                                    )}
-                                </AnimatePresence>
+            <div className="fixed top-0 left-0 right-0 z-50">
+                <PillNav
+                    logo="/logo.jpg"
+                    logoAlt="M.I.C. Singularity"
+                    items={pillItems}
+                    activeHref={location.pathname}
+                    baseColor="#ccc"
+                    pillColor="#000000CC" // Semi-transparent black
+                    pillTextColor="#fff"
+                    hoveredPillTextColor="#000"
+                    currentUser={currentUser}
+                    isMod={isMod}
+                >
+                    {/* Search Bar - Injected into PillNav */}
+                    <div className="relative group mr-8" ref={searchRef}>
+                        <form onSubmit={handleSearch} className="relative">
+                            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                <Search size={16} className="text-gray-400 group-focus-within:text-gold transition-colors" />
                             </div>
+                            <input
+                                type="text"
+                                placeholder="Search..."
+                                value={searchQuery}
+                                onChange={(e) => {
+                                    setSearchQuery(e.target.value);
+                                    setShowSuggestions(true);
+                                }}
+                                onFocus={() => setShowSuggestions(true)}
+                                className="bg-white/5 border border-white/10 text-gray-300 text-sm rounded-full focus:ring-1 focus:ring-gold focus:border-gold block w-48 pl-10 p-2.5 transition-all focus:w-64 outline-none"
+                            />
+                        </form>
 
-                            {/* Menu Items */}
-                            <div className="flex items-center space-x-1">
-                                {navItems.map((item) => {
-                                    const isActive = location.pathname === item.path;
-                                    return (
-                                        <Link
-                                            key={item.name}
-                                            to={item.path}
-                                            className={`relative px-3 py-2 rounded-md text-sm font-medium transition-colors duration-300 flex items-center gap-2 ${isActive ? 'text-gold' : 'text-gray-300 hover:text-white'
-                                                }`}
+                        {/* Autocomplete Dropdown */}
+                        <AnimatePresence>
+                            {showSuggestions && searchQuery && filteredItems.length > 0 && (
+                                <motion.div
+                                    initial={{ opacity: 0, y: 10 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    exit={{ opacity: 0, y: 10 }}
+                                    className="absolute top-full left-0 right-0 mt-2 bg-[#1a1a1a] border border-white/10 rounded-xl shadow-2xl overflow-hidden z-50 min-w-[200px]"
+                                >
+                                    {filteredItems.map((item, index) => (
+                                        <div
+                                            key={index}
+                                            onClick={() => handleSelect(item.path)}
+                                            className="px-4 py-3 hover:bg-white/5 cursor-pointer flex items-center gap-3 transition-colors border-b border-white/5 last:border-0"
                                         >
-                                            {item.name}
-                                            {item.hasNotification && (
-                                                <div className="absolute top-2 right-1 w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
-                                            )}
-                                            {isActive && (
-                                                <motion.div
-                                                    layoutId="nav-underline"
-                                                    className="absolute bottom-0 left-0 right-0 h-0.5 bg-gold"
-                                                    initial={false}
-                                                    transition={{ type: 'spring', stiffness: 500, damping: 30 }}
-                                                />
-                                            )}
-                                        </Link>
-                                    );
-                                })}
-
-                                <div className="h-6 w-px bg-white/10 mx-2" />
-
-                                {currentUser ? (
-                                    <div className="flex items-center gap-2 text-gray-300">
-                                        <span className="text-sm">{currentUser.displayName || currentUser.email}</span>
-                                    </div>
-                                ) : (
-                                    <div className="flex items-center space-x-2">
-                                        <Link to="/login" className="text-gray-300 hover:text-white text-sm font-medium transition-colors px-3 py-2">Log In</Link>
-                                        <Link to="/signup" className="bg-gold/10 hover:bg-gold/20 text-gold border border-gold/50 px-4 py-2 rounded-full text-sm font-medium transition-all">Sign Up</Link>
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-
-                        {/* --- MOBILE MENU BUTTON --- */}
-                        <div className="md:hidden flex items-center">
-                            <button onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} className="text-gray-300 hover:text-white p-2">
-                                {isMobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
-                            </button>
-                        </div>
+                                            {item.type === 'Command' ? <Command size={14} className="text-gold" /> :
+                                                item.type === 'Product' ? <Briefcase size={14} className="text-purple-400" /> :
+                                                    <Search size={14} className="text-gray-500" />}
+                                            <div>
+                                                <div className="text-sm font-medium text-white">{item.name}</div>
+                                                <div className="text-xs text-gray-500">{item.type}</div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </motion.div>
+                            )}
+                        </AnimatePresence>
                     </div>
-                </div>
-
-                {/* --- MOBILE DROPDOWN --- */}
-                <AnimatePresence>
-                    {isMobileMenuOpen && (
-                        <motion.div
-                            initial={{ opacity: 0, height: 0 }}
-                            animate={{ opacity: 1, height: 'auto' }}
-                            exit={{ opacity: 0, height: 0 }}
-                            className="md:hidden bg-[#1a1a1a] border-b border-white/10 overflow-hidden"
-                        >
-                            <div className="px-4 pt-2 pb-4 space-y-2">
-                                {navItems.map((item) => (
-                                    <Link
-                                        key={item.name}
-                                        to={item.path}
-                                        onClick={() => setIsMobileMenuOpen(false)}
-                                        className={`block px-3 py-3 rounded-md text-base font-medium flex items-center gap-3 relative ${location.pathname === item.path ? 'text-gold bg-white/5' : 'text-gray-300 hover:text-white hover:bg-white/5'}`}
-                                    >
-                                        <item.icon size={18} />
-                                        {item.name}
-                                        {item.hasNotification && (
-                                            <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse ml-auto"></div>
-                                        )}
-                                    </Link>
-                                ))}
-                                <div className="border-t border-white/10 pt-2 mt-2">
-                                    {currentUser ? (
-                                        <div className="px-3 py-2 text-gray-400 text-sm">
-                                            Signed in as: <span className="text-white font-bold">{currentUser.email}</span>
-                                        </div>
-                                    ) : (
-                                        <div className="flex flex-col gap-2 px-3">
-                                            <Link to="/login" onClick={() => setIsMobileMenuOpen(false)} className="text-center text-gray-300 hover:text-white py-2 border border-white/10 rounded">Log In</Link>
-                                            <Link to="/signup" onClick={() => setIsMobileMenuOpen(false)} className="text-center bg-gold text-black font-bold py-2 rounded">Sign Up</Link>
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-                        </motion.div>
-                    )}
-                </AnimatePresence>
-            </nav>
+                </PillNav>
+            </div>
 
             {/* Main Content */}
             <main className="pt-20 min-h-screen relative overflow-x-hidden">

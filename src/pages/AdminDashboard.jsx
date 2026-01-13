@@ -401,10 +401,25 @@ const AdminDashboard = () => {
                                         ) : (
                                             filteredUsers.map(user => (
                                                 <tr key={user.email} className="hover:bg-white/5 transition-colors">
-                                                    <td className="p-4 font-bold text-white">{user.username || 'N/A'}</td>
+                                                    <td className="p-4 font-bold text-white flex items-center gap-2">
+                                                        {/* Flashing Green Dot for Online Users (< 2 mins) */}
+                                                        {user.last_seen && (new Date() - new Date(user.last_seen) < 120000) && (
+                                                            <div className="relative flex h-3 w-3" title="Online now">
+                                                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                                                                <span className="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span>
+                                                            </div>
+                                                        )}
+                                                        {user.username || user.display_name || 'N/A'}
+                                                    </td>
                                                     <td className="p-4 text-gray-300">{user.email}</td>
                                                     <td className="p-4"><span className={`px-2 py-1 rounded text-xs font-bold ${user.tier === 'Singularity' ? 'bg-purple-900 text-purple-200' : user.tier === 'Pro' ? 'bg-gold/20 text-gold' : 'bg-gray-700 text-gray-300'}`}>{user.tier}</span></td>
-                                                    <td className="p-4 text-sm text-gray-400">{user.subscription_status || 'none'}</td>
+                                                    <td className="p-4 text-sm text-gray-400 font-mono">
+                                                        {user.last_seen && (new Date() - new Date(user.last_seen) < 120000) ? (
+                                                            <span className="text-green-400 font-bold">Active</span>
+                                                        ) : (
+                                                            <span className="text-gray-600">Inactive</span>
+                                                        )}
+                                                    </td>
                                                     <td className="p-4 flex gap-2">
                                                         <button onClick={() => { setEditingUser(user); setNewTier(user.tier); }} className="p-2 hover:bg-white/10 rounded-lg text-gold"><Edit2 size={16} /></button>
                                                         <button onClick={() => handleDeleteUser(user.email)} className="p-2 hover:bg-white/10 rounded-lg text-red-500"><Trash2 size={16} /></button>

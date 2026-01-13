@@ -7,10 +7,12 @@ import { useAuth } from '../contexts/AuthContext';
 import TiltCard from '../components/TiltCard';
 import TypewriterText from '../components/TypewriterText';
 import CountUp from '../components/CountUp';
-import GradualBlur from '../components/GradualBlur';
 import BlurText from '../components/BlurText';
+import CardSwap from '../components/CardSwap';
 
 // Lazy Load Heavy Components
+const ElectricBorder = React.lazy(() => import('../components/ElectricBorder'));
+const ArticleCard = React.lazy(() => import('../components/ArticleCard'));
 const MarketDashboard = React.lazy(() => import('../components/MarketDashboard'));
 const Watchlist = React.lazy(() => import('../components/Watchlist'));
 const NewsFeed = React.lazy(() => import('../components/NewsFeed'));
@@ -375,8 +377,8 @@ const WealthCalculator = () => {
                     </div>
                 </div>
 
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
-                    <div>
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 md:gap-16 items-center">
+                    <div className="space-y-8 order-2 lg:order-1">
                         <div className="space-y-8">
                             <div>
                                 <div className="flex justify-between mb-2">
@@ -410,45 +412,57 @@ const WealthCalculator = () => {
                             </div>
                         </div>
                     </div>
-                    <div className="bg-white/5 p-8 rounded-2xl border border-white/10">
+                    <div className="bg-white/5 p-6 md:p-8 rounded-2xl border border-white/10 order-1 lg:order-2">
                         <div className="space-y-6">
                             {/* Singularity Result */}
-                            <div className="p-6 bg-black/40 rounded-xl border border-gold/30 relative">
-                                <div className="relative z-10">
-                                    <div className="flex items-center gap-2 mb-1">
-                                        <p className="text-gray-300 text-sm">With M.I.C. Singularity ({config.singularityGrowth} growth)</p>
-                                        <Tooltip text={`Singularity's performance based on previous ${years} years data`}>
-                                            <HelpCircle size={14} className="text-gray-500 hover:text-gold cursor-help transition-colors" />
-                                        </Tooltip>
+                            <Suspense fallback={<div className="p-6 bg-black/40 rounded-xl border border-gold/30 h-[120px]" />}>
+                                <ElectricBorder color="#FFD700" className="w-full">
+                                    <div className="p-6 bg-black/40 rounded-xl border border-gold/30 relative">
+                                        <div className="relative z-10">
+                                            <div className="flex items-center gap-2 mb-1">
+                                                <p className="text-gray-300 text-sm">With M.I.C. Singularity ({config.singularityGrowth} growth)</p>
+                                                <Tooltip text={`Singularity's performance based on previous ${years} years data`}>
+                                                    <HelpCircle size={14} className="text-gray-500 hover:text-gold cursor-help transition-colors" />
+                                                </Tooltip>
+                                            </div>
+                                            <p className="text-4xl font-bold text-gold">${Math.round(singularityValue).toLocaleString()}</p>
+                                            <button onClick={() => setShowModal(true)} className="text-xs text-gold/70 hover:text-gold mt-2 underline decoration-dotted flex items-center gap-1 transition-colors">
+                                                see more details
+                                            </button>
+                                        </div>
                                     </div>
-                                    <p className="text-4xl font-bold text-gold">${Math.round(singularityValue).toLocaleString()}</p>
-                                    <button onClick={() => setShowModal(true)} className="text-xs text-gold/70 hover:text-gold mt-2 underline decoration-dotted flex items-center gap-1 transition-colors">
-                                        see more details
-                                    </button>
-                                </div>
-                            </div>
+                                </ElectricBorder>
+                            </Suspense>
 
                             {/* SPY Benchmark Result */}
-                            <div className="p-6 bg-black/40 rounded-xl border border-white/10">
-                                <div className="flex items-center gap-2 mb-1">
-                                    <p className="text-gray-400 text-sm">SPY Benchmark ({config.spyGrowth} growth)</p>
-                                    <Tooltip text="SPY benchmark based on historical performance">
-                                        <HelpCircle size={14} className="text-gray-500 hover:text-gold cursor-help transition-colors" />
-                                    </Tooltip>
-                                </div>
-                                <p className="text-2xl font-bold text-gray-200">${Math.round(spyValue).toLocaleString()}</p>
-                            </div>
+                            <Suspense fallback={<div className="p-6 bg-black/40 rounded-xl border border-white/10 h-[100px]" />}>
+                                <ElectricBorder color="#a855f7" className="w-full">
+                                    <div className="p-6 bg-black/40 rounded-xl border border-white/10">
+                                        <div className="flex items-center gap-2 mb-1">
+                                            <p className="text-gray-400 text-sm">SPY Benchmark ({config.spyGrowth} growth)</p>
+                                            <Tooltip text="SPY benchmark based on historical performance">
+                                                <HelpCircle size={14} className="text-gray-500 hover:text-gold cursor-help transition-colors" />
+                                            </Tooltip>
+                                        </div>
+                                        <p className="text-2xl font-bold text-gray-200">${Math.round(spyValue).toLocaleString()}</p>
+                                    </div>
+                                </ElectricBorder>
+                            </Suspense>
 
                             {/* Traditional Savings Result */}
-                            <div className="p-6 bg-black/40 rounded-xl border border-white/10">
-                                <div className="flex items-center gap-2 mb-1">
-                                    <p className="text-gray-400 text-sm">Traditional Savings (4.6% APY)</p>
-                                    <Tooltip text="Based on current high-yield savings rates">
-                                        <HelpCircle size={14} className="text-gray-500 hover:text-gold cursor-help transition-colors" />
-                                    </Tooltip>
-                                </div>
-                                <p className="text-2xl font-bold text-gray-300">${Math.round(savingsValue).toLocaleString()}</p>
-                            </div>
+                            <Suspense fallback={<div className="p-6 bg-black/40 rounded-xl border border-white/10 h-[100px]" />}>
+                                <ElectricBorder color="#3b82f6" className="w-full">
+                                    <div className="p-6 bg-black/40 rounded-xl border border-white/10">
+                                        <div className="flex items-center gap-2 mb-1">
+                                            <p className="text-gray-400 text-sm">Traditional Savings (4.6% APY)</p>
+                                            <Tooltip text="Based on current high-yield savings rates">
+                                                <HelpCircle size={14} className="text-gray-500 hover:text-gold cursor-help transition-colors" />
+                                            </Tooltip>
+                                        </div>
+                                        <p className="text-2xl font-bold text-gray-300">${Math.round(savingsValue).toLocaleString()}</p>
+                                    </div>
+                                </ElectricBorder>
+                            </Suspense>
 
                             {/* Potential Gains Section */}
                             <div className="pt-4 border-t border-white/10 space-y-3">
@@ -612,55 +626,106 @@ const CountdownTimer = ({ targetDate }) => {
     );
 };
 
+const LeaderboardCard = ({ user, idx, isMe }) => {
+    const [isHovered, setIsHovered] = useState(false);
+
+    const formatDate = (val) => {
+        if (!val) return 'Unknown';
+        try {
+            const date = typeof val === 'object' && val.seconds ? new Date(val.seconds * 1000) : new Date(val);
+            return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+        } catch { return 'Unknown'; }
+    };
+
+    return (
+        <div
+            className="relative h-[200px] perspective-1000"
+            onMouseEnter={() => setIsHovered(true)}
+            onMouseLeave={() => setIsHovered(false)}
+        >
+            <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                transition={{ delay: idx * 0.1, duration: 0.5 }}
+                animate={{ rotateY: isHovered ? 180 : 0 }}
+                style={{ transformStyle: 'preserve-3d' }}
+                className="w-full h-full relative transition-all duration-500"
+            >
+                {/* FRONT */}
+                <div
+                    className={`absolute inset-0 backface-hidden p-6 bg-white/5 border rounded-xl overflow-hidden flex flex-col justify-between ${isMe
+                        ? 'border-gold ring-1 ring-gold/50 shadow-[0_0_30px_rgba(255,215,0,0.15)] bg-gold/5'
+                        : 'border-white/10'
+                        }`}
+                    style={{ backfaceVisibility: 'hidden' }}
+                >
+                    <div className="absolute top-4 right-4 text-4xl font-black text-white/5 opacity-20 pointer-events-none">
+                        #{idx + 1}
+                    </div>
+
+                    <div className="flex items-center gap-4">
+                        <div className={`w-12 h-12 rounded-xl flex items-center justify-center font-bold text-xl border shadow-lg ${idx === 0 ? 'bg-gradient-to-br from-yellow-400/20 to-yellow-600/20 text-yellow-400 border-yellow-500/50' :
+                            idx === 1 ? 'bg-gradient-to-br from-gray-300/20 to-gray-500/20 text-gray-300 border-gray-400/50' :
+                                idx === 2 ? 'bg-gradient-to-br from-amber-700/20 to-amber-900/20 text-amber-600 border-amber-700/50' :
+                                    'bg-gradient-to-br from-purple-900/20 to-purple-800/20 text-purple-400 border-purple-500/20'
+                            }`}>
+                            {idx < 3 ? <Trophy size={20} className={idx === 0 ? 'fill-yellow-400 drop-shadow-glow' : ''} /> : idx + 1}
+                        </div>
+                        <div>
+                            <div className="flex items-center gap-2">
+                                <div className={`font-bold text-lg truncate max-w-[150px] ${isMe ? 'text-gold' : 'text-white'}`}>
+                                    {user.username || "Anonymous"}
+                                </div>
+                                {isMe && <span className="text-[10px] bg-gold text-black px-1.5 py-0.5 rounded font-bold">YOU</span>}
+                            </div>
+                            <div className="text-xs text-gray-400 font-mono">{user.tier} Agent</div>
+                        </div>
+                    </div>
+
+                    <div className="flex justify-between items-end border-t border-white/5 pt-4">
+                        <div className="text-xs uppercase tracking-widest text-gray-500">Singularity Score</div>
+                        <div className="text-2xl font-bold text-gold font-mono">{user.points?.toLocaleString()}</div>
+                    </div>
+                </div>
+
+                {/* BACK */}
+                <div
+                    className="absolute inset-0 backface-hidden bg-black/90 border border-gold/30 rounded-xl p-6 flex flex-col justify-center items-center text-center gap-4 shadow-xl"
+                    style={{ transform: 'rotateY(180deg)', backfaceVisibility: 'hidden' }}
+                >
+                    <div>
+                        <p className="text-[10px] text-gold/60 uppercase tracking-[0.2em] mb-1">Agent Identity</p>
+                        <p className="text-lg font-bold text-white">{user.username || "Anonymous"}</p>
+                    </div>
+
+                    <div className="w-full h-px bg-white/10" />
+
+                    <div className="grid grid-cols-2 gap-4 w-full">
+                        <div>
+                            <p className="text-[10px] text-gray-500 uppercase tracking-widest mb-1">Joined</p>
+                            <p className="text-sm text-gray-300 font-mono">{formatDate(user.joined_at)}</p>
+                        </div>
+                        <div>
+                            <p className="text-[10px] text-gray-500 uppercase tracking-widest mb-1">Peak Rank</p>
+                            <p className="text-sm font-bold text-gold font-mono">
+                                #{user.highest_rank || idx + 1}
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </motion.div>
+        </div>
+    );
+};
+
 const LeaderboardDisplay = React.memo(({ currentUser, leaders }) => {
     if (!leaders || leaders.length === 0) return <div className="text-center py-12 text-gray-500 italic">Leaderboard populating...</div>;
 
     return (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {leaders.slice(0, 9).map((user, idx) => {
-                // Approximate match - backend returns username. currentUser has displayName.
-                // For exact match, API should return 'is_me' derived from session or we fetch profile.
-                // We'll trust displayName for now.
                 const isMe = currentUser && (user.username === currentUser.displayName || user.username === currentUser.email?.split('@')[0]);
-
-                return (
-                    <motion.div
-                        key={idx}
-                        initial={{ opacity: 0, y: 20 }}
-                        whileInView={{ opacity: 1, y: 0 }}
-                        transition={{ delay: idx * 0.1 }}
-                        className={`relative p-6 bg-white/5 border rounded-xl overflow-hidden group transition-all ${isMe
-                            ? 'border-gold ring-1 ring-gold/50 shadow-[0_0_30px_rgba(255,215,0,0.15)] bg-gold/5'
-                            : 'border-white/10 hover:border-gold/30'
-                            }`}
-                    >
-                        <div className="absolute top-4 right-4 text-4xl font-black text-white/5 opacity-20 pointer-events-none group-hover:text-gold/10 group-hover:scale-110 transition-all">
-                            #{idx + 1}
-                        </div>
-                        <div className="flex items-center gap-4 mb-4">
-                            <div className={`w-12 h-12 rounded-xl flex items-center justify-center font-bold text-xl border shadow-lg ${idx === 0 ? 'bg-gradient-to-br from-yellow-400/20 to-yellow-600/20 text-yellow-400 border-yellow-500/50' :
-                                idx === 1 ? 'bg-gradient-to-br from-gray-300/20 to-gray-500/20 text-gray-300 border-gray-400/50' :
-                                    idx === 2 ? 'bg-gradient-to-br from-amber-700/20 to-amber-900/20 text-amber-600 border-amber-700/50' :
-                                        'bg-gradient-to-br from-purple-900/20 to-purple-800/20 text-purple-400 border-purple-500/20'
-                                }`}>
-                                {idx < 3 ? <Trophy size={20} className={idx === 0 ? 'fill-yellow-400 drop-shadow-glow' : ''} /> : idx + 1}
-                            </div>
-                            <div>
-                                <div className="flex items-center gap-2">
-                                    <div className={`font-bold text-lg truncate max-w-[150px] ${isMe ? 'text-gold' : 'text-white'}`}>
-                                        {user.username || "Anonymous"}
-                                    </div>
-                                    {isMe && <span className="text-[10px] bg-gold text-black px-1.5 py-0.5 rounded font-bold">YOU</span>}
-                                </div>
-                                <div className="text-xs text-gray-400 font-mono">{user.tier} Agent</div>
-                            </div>
-                        </div>
-                        <div className="flex justify-between items-end border-t border-white/5 pt-4">
-                            <div className="text-xs uppercase tracking-widest text-gray-500">Singularity Score</div>
-                            <div className="text-2xl font-bold text-gold font-mono">{user.points?.toLocaleString()}</div>
-                        </div>
-                    </motion.div>
-                );
+                return <LeaderboardCard key={idx} user={user} idx={idx} isMe={isMe} />;
             })}
         </div>
     );
@@ -735,8 +800,7 @@ const LandingPage = () => {
 
     return (
         <div className="min-h-screen bg-black text-white font-sans selection:bg-gold selection:text-black overflow-x-hidden relative">
-            <GradualBlur preset="top" zIndex={49} />
-            <GradualBlur preset="bottom" zIndex={49} />
+
             <ErrorBoundary>
 
                 {/* Banners Section - Clearing Navbar (h-20) */}
@@ -774,7 +838,11 @@ const LandingPage = () => {
                                         </span>
                                         {banner.countdown_target && (
                                             <div className="scale-90 md:scale-100">
-                                                <CountdownTimer targetDate={banner.countdown_target} />
+                                                <Suspense fallback={null}>
+                                                    <ElectricBorder color={banner.type === 'sale' ? '#4ade80' : banner.type === 'launch' ? '#a855f7' : '#60a5fa'} isActive={true} borderRadius={16}>
+                                                        <CountdownTimer targetDate={banner.countdown_target} />
+                                                    </ElectricBorder>
+                                                </Suspense>
                                             </div>
                                         )}
                                     </div>
@@ -823,8 +891,6 @@ const LandingPage = () => {
                             animate={{ opacity: 1, y: 0 }}
                             transition={{ duration: 0.8 }}
                         >
-                            {/* UPDATED: Clearer Value Proposition */}
-                            {/* UPDATED: Clearer Value Proposition */}
                             <div className="mb-6 flex justify-center">
                                 <BlurText
                                     text="M.I.C."
@@ -843,9 +909,7 @@ const LandingPage = () => {
                                     direction="bottom"
                                 />
                             </div>
-                            <p className="text-xl md:text-2xl text-gray-300 mb-10 max-w-3xl mx-auto leading-relaxed hidden">
-                                Sync your brokerage, choose a model, and let our algorithms handle the rest.
-                            </p>
+
                             <div className="flex flex-col md:flex-row gap-6 justify-center">
                                 <Link to="/portfolio-lab" className="bg-gold text-black px-8 py-4 rounded-full font-bold text-lg hover:bg-yellow-500 transition-all transform hover:scale-105 flex items-center justify-center">
                                     Launch Portfolio Lab <ArrowRight className="ml-2" />
@@ -854,11 +918,10 @@ const LandingPage = () => {
                                     Explore Products
                                 </Link>
                             </div>
-
                         </motion.div>
                     </div>
-                </section>
-            </ErrorBoundary>
+                </section >
+            </ErrorBoundary >
 
             {/* Engineered to Fit Any Investor (Formerly Features) */}
             {/* Engineered to Fit Any Investor (Formerly Features) */}
@@ -1050,57 +1113,97 @@ const LandingPage = () => {
                                     exit={{ opacity: 0, height: 0 }}
                                     className="overflow-hidden"
                                 >
-                                    <div className="pt-8 border-t border-white/5">
-                                        {/* Recent Ideas Header */}
-                                        <div className="flex justify-between items-center mb-8">
-                                            <h2 className="text-3xl font-bold flex items-center gap-2">
-                                                <Lightbulb className="text-gold" size={32} /> Recent <span className="text-gold">Ideas</span>
-                                            </h2>
-                                            <Link to="/ideas" className="text-gold hover:text-white flex items-center gap-2 transition-colors">
-                                                View All <ArrowRight size={16} />
-                                            </Link>
+                                    <div className="pt-8 border-t border-white/5 grid grid-cols-1 lg:grid-cols-2 gap-12">
+
+                                        {/* LEFT COLUMN: Recent Ideas */}
+                                        <div className="flex flex-col">
+                                            <div className="flex justify-between items-center mb-8">
+                                                <h2 className="text-3xl font-bold flex items-center gap-2">
+                                                    <Lightbulb className="text-gold" size={32} /> Recent <span className="text-gold">Ideas</span>
+                                                </h2>
+                                                <Link to="/ideas" className="text-gold hover:text-white flex items-center gap-2 transition-colors">
+                                                    View All <ArrowRight size={16} />
+                                                </Link>
+                                            </div>
+
+                                            {recentIdeas.length > 0 ? (
+                                                <div className="flex justify-center items-center relative z-10 h-[600px]">
+                                                    <Suspense fallback={<div className="text-center text-gray-500 py-10">Loading ideas...</div>}>
+                                                        <CardSwap
+                                                            width={400} // Increased width
+                                                            height={480} // Increased height
+                                                            cardDistance={0}
+                                                            verticalDistance={30} // Slight vertical peek
+                                                            dropDistance={150}
+                                                            delay={4000}
+                                                            pauseOnHover={true}
+                                                            swapAxis="y"
+                                                            centerStack={true}
+                                                            skewAmount={0}
+                                                            depth={50} // Stronger depth
+                                                        >
+                                                            {recentIdeas.slice(0, 6).map(idea => (
+                                                                <IdeaCard
+                                                                    key={idea.id}
+                                                                    idea={idea}
+                                                                    currentUser={currentUser}
+                                                                    className="shadow-2xl bg-[#0a0a0a]"
+                                                                />
+                                                            ))}
+                                                        </CardSwap>
+                                                    </Suspense>
+                                                </div>
+                                            ) : (
+                                                <div className="text-center py-12 bg-white/5 rounded-xl border border-white/10">
+                                                    <p className="text-gray-400">No ideas posted yet.</p>
+                                                </div>
+                                            )}
                                         </div>
 
-                                        {/* Ideas Grid or Empty State */}
-                                        {recentIdeas.length > 0 ? (
-                                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-16">
-                                                <Suspense fallback={<div className="col-span-3 text-center text-gray-500 py-10">Loading ideas...</div>}>
-                                                    {recentIdeas.map(idea => (
-                                                        <div key={idea.id} className="h-[400px]">
-                                                            <IdeaCard
-                                                                idea={idea}
-                                                                currentUser={currentUser}
-                                                            />
-                                                        </div>
-                                                    ))}
-                                                </Suspense>
+                                        {/* RIGHT COLUMN: Recent Articles */}
+                                        <div className="flex flex-col">
+                                            <div className="flex justify-between items-center mb-8">
+                                                <h2 className="text-3xl font-bold flex items-center gap-2">
+                                                    <Globe className="text-gold" size={32} /> Recent <span className="text-gold">Articles</span>
+                                                </h2>
+                                                <Link to="/news" className="text-gold hover:text-white flex items-center gap-2 transition-colors">
+                                                    View All <ArrowRight size={16} />
+                                                </Link>
                                             </div>
-                                        ) : (
-                                            <div className="text-center py-12 bg-white/5 rounded-xl border border-white/10 mb-16">
-                                                <p className="text-gray-400 mb-4">No ideas posted yet.</p>
-                                            </div>
-                                        )}
 
-                                        {/* News/Articles Header (Updated) */}
-                                        <div className="flex justify-between items-center mb-8 mt-16">
-                                            <h2 className="text-3xl font-bold flex items-center gap-2">
-                                                <Globe className="text-gold" size={32} /> Recent <span className="text-gold">Articles</span>
-                                            </h2>
-                                            <Link to="/news" className="text-gold hover:text-white flex items-center gap-2 transition-colors">
-                                                View All <ArrowRight size={16} />
-                                            </Link>
+                                            {recentArticles.length > 0 ? (
+                                                <div className="flex justify-center items-center relative z-10 h-[600px]">
+                                                    <Suspense fallback={<div className="text-center text-gray-500 py-10">Loading articles...</div>}>
+                                                        <CardSwap
+                                                            width={400}
+                                                            height={480}
+                                                            cardDistance={0}
+                                                            verticalDistance={30}
+                                                            dropDistance={150}
+                                                            delay={5000}
+                                                            pauseOnHover={true}
+                                                            swapAxis="y"
+                                                            centerStack={true}
+                                                            skewAmount={0}
+                                                            depth={50}
+                                                        >
+                                                            {recentArticles.slice(0, 6).map(article => (
+                                                                <ArticleCard
+                                                                    key={article.id}
+                                                                    article={article}
+                                                                    className="shadow-2xl bg-[#0a0a0a]"
+                                                                />
+                                                            ))}
+                                                        </CardSwap>
+                                                    </Suspense>
+                                                </div>
+                                            ) : (
+                                                <div className="text-center py-12 bg-white/5 rounded-xl border border-white/10">
+                                                    <p className="text-gray-400">No recent articles.</p>
+                                                </div>
+                                            )}
                                         </div>
 
-                                        {/* News Feed Grid or Empty State */}
-                                        {recentArticles.length > 0 ? (
-                                            <Suspense fallback={<div className="text-center text-gray-500 py-10">Loading articles...</div>}>
-                                                <NewsFeed limit={3} compact={true} articles={recentArticles} />
-                                            </Suspense>
-                                        ) : (
-                                            <div className="text-center py-12 bg-white/5 rounded-xl border border-white/10 mb-16">
-                                                <p className="text-gray-400 mb-4">No recent articles.</p>
-                                            </div>
-                                        )}
                                     </div>
                                 </motion.div>
                             )}
@@ -1110,7 +1213,7 @@ const LandingPage = () => {
             </ErrorBoundary >
 
             {/* LEADERBOARD SECTION */}
-            <ErrorBoundary>
+            < ErrorBoundary >
                 <section className="py-24 px-4 bg-gradient-to-b from-black to-deep-black relative overflow-hidden">
                     {/* Background Elements */}
                     <div className="absolute top-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-purple-500/50 to-transparent" />
@@ -1130,7 +1233,7 @@ const LandingPage = () => {
                         <LeaderboardDisplay currentUser={currentUser} leaders={leaderboard} />
                     </div>
                 </section>
-            </ErrorBoundary>
+            </ErrorBoundary >
 
             {/* Pricing Section */}
             < ErrorBoundary >
@@ -1180,13 +1283,17 @@ const LandingPage = () => {
             </ErrorBoundary >
 
             {/* Footer */}
-            <ErrorBoundary>
+            < ErrorBoundary >
                 <UsageTicker />
                 <Suspense fallback={<div className="h-24 bg-black" />}>
                     <Footer />
                 </Suspense>
-            </ErrorBoundary>
-        </div>
+            </ErrorBoundary >
+
+            {/* 
+            <GradualBlur preset="footer" />
+            */}
+        </div >
     );
 };
 

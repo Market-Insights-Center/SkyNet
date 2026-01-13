@@ -2265,6 +2265,20 @@ def get_user_points_endpoint_post(req: Dict[str, str]):
     except Exception as e:
         print(f"Error fetching points: {e}")
         return {"points": 0, "pending_points": 0}
+class HeartbeatRequest(BaseModel):
+    email: str
+
+@app.post("/api/user/heartbeat")
+async def user_heartbeat(req: HeartbeatRequest):
+    try:
+        if req.email:
+            database.update_user_heartbeat(req.email)
+        return {"status": "ok"}
+    except Exception as e:
+        logger.error(f"Heartbeat error: {e}")
+        # Fail silently to not disrupt frontend
+        return {"status": "error", "detail": str(e)}
+
 if __name__ == "__main__":
     import uvicorn
     # Use 0.0.0.0 to listen on all interfaces, typically on port 8000
