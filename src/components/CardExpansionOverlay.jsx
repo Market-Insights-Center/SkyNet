@@ -16,7 +16,7 @@ const CardExpansionOverlay = () => {
             // If we trigger too early (e.g. 100ms), the browser freezes slightly/redirects 
             // while the animation is flying, causing the "reload" jerk.
             const timer = setTimeout(() => {
-                navigate(`/article/${expandedArticle.id}`);
+                navigate(`/article/${expandedArticle.id}`, { state: { initialArticle: expandedArticle } });
             }, 600);
             return () => clearTimeout(timer);
         }
@@ -31,7 +31,7 @@ const CardExpansionOverlay = () => {
             // Then fade out (reset).
             const timer = setTimeout(() => {
                 reset();
-            }, 300); // 300ms after arrival is enough to cover the repaint
+            }, 800); // Increased to 800ms to cover "mode=wait" transition gap
             return () => clearTimeout(timer);
         }
     }, [location, expandedArticle, reset]);

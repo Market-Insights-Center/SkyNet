@@ -1,23 +1,28 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ThumbsUp, ThumbsDown, MessageCircle, Share2, ArrowRight, Send, X, Copy, Mail, Trash2 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 
 const ArticleView = () => {
     const { id } = useParams();
+    const { state } = useLocation(); // Retrieve initial data passed from Overlay
     const { currentUser } = useAuth();
-    const [article, setArticle] = useState(null);
+
+    // Use initial data if available for instant render
+    const initialArticle = state?.initialArticle;
+
+    const [article, setArticle] = useState(initialArticle || null);
     const [userVote, setUserVote] = useState(null);
-    // FIX: Initialize with 0 to prevent NaN if fetch delays
-    const [likes, setLikes] = useState(0);
-    const [dislikes, setDislikes] = useState(0);
-    const [shares, setShares] = useState(0);
+    const [likes, setLikes] = useState(initialArticle?.likes || 0);
+    const [dislikes, setDislikes] = useState(initialArticle?.dislikes || 0);
+    const [shares, setShares] = useState(initialArticle?.shares || 0);
     const [showComments, setShowComments] = useState(false);
-    const [comments, setComments] = useState([]);
+    const [comments, setComments] = useState(initialArticle?.comments || []);
     const [newComment, setNewComment] = useState('');
     const [showShareMenu, setShowShareMenu] = useState(false);
-    const [loading, setLoading] = useState(true);
+    // If we have initial article, we are NOT loading visually
+    const [loading, setLoading] = useState(!initialArticle);
     const [mods, setMods] = useState([]);
     const [isMod, setIsMod] = useState(false);
 
