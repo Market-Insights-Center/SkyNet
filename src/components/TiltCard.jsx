@@ -85,11 +85,14 @@ const TiltCard = React.forwardRef(({ children, className = "", ...props }, ref) 
             </div>
 
             {/* Glass Background Layer */}
-            <div className="absolute inset-0 bg-white/5 backdrop-blur-xl border border-white/10 shadow-[0_8px_32px_0_rgba(0,0,0,0.36)]" />
+            <div
+                style={{ borderRadius: 'inherit' }}
+                className="absolute inset-0 bg-white/5 backdrop-blur-xl border border-white/10 shadow-[0_8px_32px_0_rgba(0,0,0,0.36)]"
+            />
 
             {/* Holographic Sheen Layer */}
             <motion.div
-                style={{ background: sheenGradient }}
+                style={{ background: sheenGradient, borderRadius: 'inherit' }}
                 className="absolute inset-0 pointer-events-none mix-blend-overlay z-20"
             />
         </motion.div>

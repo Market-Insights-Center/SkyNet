@@ -42,9 +42,9 @@ const FeatureCard = React.memo(({ icon: Icon, title, desc, delay }) => (
         whileInView={{ opacity: 1, y: 0 }}
         viewport={{ once: true }}
         transition={{ duration: 0.5, delay: delay }}
-        className="h-full p-8 flex flex-col group hover:border-gold/50 transition-colors"
+        className="h-full p-8 flex flex-col group hover:border-gold/50 transition-colors rounded-3xl"
     >
-        <div className="w-14 h-14 rounded-xl bg-gold/10 flex items-center justify-center mb-6 group-hover:bg-gold/20 transition-colors">
+        <div className="w-14 h-14 rounded-2xl bg-gold/10 flex items-center justify-center mb-6 group-hover:bg-gold/20 transition-colors">
             <Icon size={32} className="text-gold" />
         </div>
         <h3 className="text-2xl font-bold mb-4 text-white">{title}</h3>
@@ -415,9 +415,9 @@ const WealthCalculator = () => {
                     <div className="bg-white/5 p-6 md:p-8 rounded-2xl border border-white/10 order-1 lg:order-2">
                         <div className="space-y-6">
                             {/* Singularity Result */}
-                            <Suspense fallback={<div className="p-6 bg-black/40 rounded-xl border border-gold/30 h-[120px]" />}>
+                            <Suspense fallback={<div className="p-6 bg-black/40 rounded-2xl border border-gold/30 h-[120px]" />}>
                                 <ElectricBorder color="#FFD700" className="w-full">
-                                    <div className="p-6 bg-black/40 rounded-xl border border-gold/30 relative">
+                                    <div className="p-6 bg-black/40 rounded-2xl border border-gold/30 relative">
                                         <div className="relative z-10">
                                             <div className="flex items-center gap-2 mb-1">
                                                 <p className="text-gray-300 text-sm">With M.I.C. Singularity ({config.singularityGrowth} growth)</p>
@@ -435,9 +435,9 @@ const WealthCalculator = () => {
                             </Suspense>
 
                             {/* SPY Benchmark Result */}
-                            <Suspense fallback={<div className="p-6 bg-black/40 rounded-xl border border-white/10 h-[100px]" />}>
+                            <Suspense fallback={<div className="p-6 bg-black/40 rounded-2xl border border-white/10 h-[100px]" />}>
                                 <ElectricBorder color="#a855f7" className="w-full">
-                                    <div className="p-6 bg-black/40 rounded-xl border border-white/10">
+                                    <div className="p-6 bg-black/40 rounded-2xl border border-white/10">
                                         <div className="flex items-center gap-2 mb-1">
                                             <p className="text-gray-400 text-sm">SPY Benchmark ({config.spyGrowth} growth)</p>
                                             <Tooltip text="SPY benchmark based on historical performance">
@@ -450,9 +450,9 @@ const WealthCalculator = () => {
                             </Suspense>
 
                             {/* Traditional Savings Result */}
-                            <Suspense fallback={<div className="p-6 bg-black/40 rounded-xl border border-white/10 h-[100px]" />}>
+                            <Suspense fallback={<div className="p-6 bg-black/40 rounded-2xl border border-white/10 h-[100px]" />}>
                                 <ElectricBorder color="#3b82f6" className="w-full">
-                                    <div className="p-6 bg-black/40 rounded-xl border border-white/10">
+                                    <div className="p-6 bg-black/40 rounded-2xl border border-white/10">
                                         <div className="flex items-center gap-2 mb-1">
                                             <p className="text-gray-400 text-sm">Traditional Savings (4.6% APY)</p>
                                             <Tooltip text="Based on current high-yield savings rates">

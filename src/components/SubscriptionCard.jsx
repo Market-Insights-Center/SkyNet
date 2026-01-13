@@ -92,7 +92,7 @@ const SubscriptionCard = ({ title, price, period, planId, features, isPopular, d
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
             transition={{ duration: 0.5, delay: delay }}
-            className={`relative p-8 border ${cardStyle} flex flex-col h-full hover:transform hover:-translate-y-2 transition-all duration-300`}
+            className={`relative p-8 border ${cardStyle} flex flex-col h-full hover:transform hover:-translate-y-2 transition-all duration-300 rounded-3xl`}
         >
             {isCurrentPlan && (
                 <div className="absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-green-500 text-black px-4 py-1 rounded-full text-sm font-bold shadow-lg shadow-green-500/20 whitespace-nowrap">

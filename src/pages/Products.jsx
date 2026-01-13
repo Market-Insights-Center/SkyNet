@@ -251,7 +251,7 @@ const Products = () => {
                     {/* Sentinel AI (Singularity Only) */}
                     {(!userProfile || userProfile?.tier === 'Singularity') && (
                         <div onClick={() => navigate('/sentinel-ai')} className="group cursor-pointer block h-full md:col-span-2 lg:col-span-6">
-                            <TiltCard delay={0.05} className="h-full border border-purple-500/50 bg-gradient-to-br from-purple-900/20 to-black relative overflow-hidden shadow-[0_0_30px_rgba(168,85,247,0.2)]">
+                            <TiltCard delay={0.05} className="h-full border border-purple-500/50 bg-gradient-to-br from-purple-900/20 to-black relative overflow-hidden shadow-[0_0_30px_rgba(168,85,247,0.2)] rounded-3xl">
                                 <div className="absolute inset-0 bg-gradient-to-r from-purple-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
                                 <button
                                     onClick={(e) => { e.stopPropagation(); navigate('/help#sentinel-ai'); }}
@@ -287,7 +287,7 @@ const Products = () => {
 
                     {/* Portfolio Nexus Centerpiece */}
                     <div onClick={() => navigate('/portfolio-nexus')} className="group cursor-pointer block h-full md:col-span-1 lg:col-span-3">
-                        <TiltCard delay={0.1} className="h-full border border-purple-500/50 bg-gradient-to-br from-purple-900/20 to-black relative overflow-hidden shadow-[0_0_30px_rgba(168,85,247,0.2)]">
+                        <TiltCard delay={0.1} className="h-full border border-purple-500/50 bg-gradient-to-br from-purple-900/20 to-black relative overflow-hidden shadow-[0_0_30px_rgba(168,85,247,0.2)] rounded-3xl">
                             <div className="absolute inset-0 bg-gradient-to-r from-purple-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
                             <button
                                 onClick={(e) => { e.stopPropagation(); navigate('/help#portfolio-nexus'); }}
@@ -318,7 +318,7 @@ const Products = () => {
 
                     {/* Workflow Automation (New) */}
                     <div onClick={() => navigate('/workflow-automation')} className="group cursor-pointer block h-full md:col-span-1 lg:col-span-3">
-                        <TiltCard delay={0.15} className="h-full border border-purple-500/50 bg-gradient-to-br from-purple-900/20 to-black relative overflow-hidden shadow-[0_0_30px_rgba(168,85,247,0.2)]">
+                        <TiltCard delay={0.15} className="h-full border border-purple-500/50 bg-gradient-to-br from-purple-900/20 to-black relative overflow-hidden shadow-[0_0_30px_rgba(168,85,247,0.2)] rounded-3xl">
                             <div className="absolute inset-0 bg-gradient-to-r from-purple-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
                             <button
                                 onClick={(e) => { e.stopPropagation(); navigate('/help#workflow-automation'); }}
@@ -348,7 +348,7 @@ const Products = () => {
                     </div>
 
                     <div onClick={() => navigate('/portfolio-lab')} className="group cursor-pointer block h-full md:col-span-1 lg:col-span-2">
-                        <TiltCard delay={0.2} className="h-full">
+                        <TiltCard delay={0.2} className="h-full rounded-3xl">
                             <button
                                 onClick={(e) => { e.stopPropagation(); navigate('/help#portfolio-lab'); }}
                                 className="absolute top-4 right-4 z-30 p-2 text-gray-500 hover:text-gold transition-colors"
@@ -376,7 +376,7 @@ const Products = () => {
                         </TiltCard>
                     </div>
                     <div onClick={() => navigate('/asset-evaluator')} className="group cursor-pointer block h-full md:col-span-1 lg:col-span-2">
-                        <TiltCard delay={0.3} className="h-full">
+                        <TiltCard delay={0.3} className="h-full rounded-3xl">
                             <button
                                 onClick={(e) => { e.stopPropagation(); navigate('/help#asset-evaluator'); }}
                                 className="absolute top-4 right-4 z-30 p-2 text-gray-500 hover:text-gold transition-colors"
@@ -404,7 +404,7 @@ const Products = () => {
                         </TiltCard>
                     </div>
                     <div onClick={() => navigate('/products/comparison-matrix')} className="group cursor-pointer block h-full md:col-span-1 lg:col-span-2">
-                        <TiltCard delay={0.4} className="h-full">
+                        <TiltCard delay={0.4} className="h-full rounded-3xl">
                             <button
                                 onClick={(e) => { e.stopPropagation(); navigate('/help#comparison-matrix'); }}
                                 className="absolute top-4 right-4 z-30 p-2 text-gray-500 hover:text-gold transition-colors"
@@ -432,7 +432,7 @@ const Products = () => {
                         </TiltCard>
                     </div>
                     <div onClick={() => navigate('/market-junction')} className="group cursor-pointer block h-full md:col-span-1 lg:col-span-2">
-                        <TiltCard delay={0.5} className="h-full">
+                        <TiltCard delay={0.5} className="h-full rounded-3xl">
                             <button
                                 onClick={(e) => { e.stopPropagation(); navigate('/help#market-junction'); }}
                                 className="absolute top-4 right-4 z-30 p-2 text-gray-500 hover:text-gold transition-colors"
@@ -460,7 +460,7 @@ const Products = () => {
                         </TiltCard>
                     </div>
                     <div onClick={() => navigate('/market-predictions')} className="group cursor-pointer block h-full md:col-span-1 lg:col-span-2">
-                        <TiltCard delay={0.7} className="h-full">
+                        <TiltCard delay={0.7} className="h-full rounded-3xl">
                             <button
                                 onClick={(e) => { e.stopPropagation(); navigate('/help#market-predictions'); }}
                                 className="absolute top-4 right-4 z-30 p-2 text-gray-500 hover:text-gold transition-colors"
@@ -488,7 +488,7 @@ const Products = () => {
                         </TiltCard>
                     </div>
                     <div onClick={() => navigate('/performance-stream')} className="group cursor-pointer block h-full md:col-span-1 lg:col-span-2">
-                        <TiltCard delay={0.6} className="h-full">
+                        <TiltCard delay={0.6} className="h-full rounded-3xl">
                             <button
                                 onClick={(e) => { e.stopPropagation(); navigate('/help#performance-stream'); }}
                                 className="absolute top-4 right-4 z-30 p-2 text-gray-500 hover:text-gold transition-colors"
