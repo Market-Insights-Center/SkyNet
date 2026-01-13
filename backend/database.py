@@ -1267,11 +1267,32 @@ def get_leaderboard(limit=50):
                 email = d.get('email', '')
                 username = email.split('@')[0] if '@' in email else 'Anonymous'
 
+            joined_at = d.get('created_at')
+            
+            # SELF-HEAL: If date joined is missing, fetch from Auth and save permenantly
+            if not joined_at:
+                try:
+                    # doc.id is email in this schema
+                    user_record = auth.get_user_by_email(doc.id)
+                    if user_record.user_metadata and user_record.user_metadata.creation_timestamp:
+                        ts = user_record.user_metadata.creation_timestamp
+                        # Convert ms timestamp to ISO format
+                        dt_obj = datetime.utcfromtimestamp(ts / 1000.0)
+                        joined_at = dt_obj.isoformat()
+                        
+                        # Save to Firestore
+                        db.collection('users').document(doc.id).set({
+                            'created_at': joined_at
+                        }, merge=True)
+                except Exception as e:
+                    # Keep as None/Unknown if auth fetch fails
+                    pass
+
             leaderboard.append({
                 "username": username,
                 "points": d.get('points', 0),
                 "tier": d.get('tier', 'Basic'),
-                "joined_at": d.get('created_at'),
+                "joined_at": joined_at,
                 "highest_rank": d.get('highest_rank')
             })
             

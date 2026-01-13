@@ -69,6 +69,13 @@ export default function Profile() {
 
                         // Calculate Account Age
                         const created = data.created_at?.toDate ? data.created_at.toDate() : new Date(data.created_at || currentUser.metadata.creationTime);
+
+                        // SELF-HEAL: If Firestore missing created_at, update it permenantly
+                        if (!data.created_at && currentUser.metadata.creationTime) {
+                            setDoc(docRef, { created_at: new Date(currentUser.metadata.creationTime) }, { merge: true })
+                                .catch(e => console.error("Auto-healing created_at failed:", e));
+                        }
+
                         if (created) {
                             const diff = Date.now() - created.getTime();
                             const days = Math.floor(diff / (1000 * 60 * 60 * 24));
