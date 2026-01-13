@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import NeonWrapper from '../components/NeonWrapper';
 import TiltCard from '../components/TiltCard';
+import { PinContainer } from '../components/PinContainer';
 import { motion } from 'framer-motion';
 import { Bot, ChevronRight, Search, Scale, Siren, ToggleLeft, ToggleRight, ExternalLink, HelpCircle, X, Hand, Mic, Activity, Loader2, Layers, Network, Maximize2, Cpu, DollarSign, Workflow } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
@@ -347,8 +348,8 @@ const Products = () => {
                         </TiltCard>
                     </div>
 
-                    <div onClick={() => navigate('/portfolio-lab')} className="group cursor-pointer block h-full md:col-span-1 lg:col-span-2">
-                        <TiltCard delay={0.2} className="h-full rounded-3xl">
+                    <div onClick={() => navigate('/portfolio-lab')} className="group cursor-pointer block h-full min-h-[300px] md:col-span-1 lg:col-span-2">
+                        <PinContainer title="Open Portfolio Lab" href="/portfolio-lab" className="h-full bg-white/5 border border-white/10 rounded-3xl backdrop-blur-sm">
                             <button
                                 onClick={(e) => { e.stopPropagation(); navigate('/help#portfolio-lab'); }}
                                 className="absolute top-4 right-4 z-30 p-2 text-gray-500 hover:text-gold transition-colors"
@@ -359,7 +360,7 @@ const Products = () => {
                             <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
                                 <Bot size={120} />
                             </div>
-                            <div className="relative z-10 p-8 flex flex-col h-full justify-between">
+                            <div className="relative z-10 p-8 flex flex-col h-full justify-between w-full">
                                 <div>
                                     <div className="w-12 h-12 bg-gold/20 rounded-lg flex items-center justify-center mb-6 text-gold">
                                         <Bot size={24} />
@@ -373,10 +374,10 @@ const Products = () => {
                                     Launch Application <ChevronRight size={20} className="ml-2 group-hover:translate-x-1 transition-transform" />
                                 </div>
                             </div>
-                        </TiltCard>
+                        </PinContainer>
                     </div>
-                    <div onClick={() => navigate('/asset-evaluator')} className="group cursor-pointer block h-full md:col-span-1 lg:col-span-2">
-                        <TiltCard delay={0.3} className="h-full rounded-3xl">
+                    <div onClick={() => navigate('/asset-evaluator')} className="group cursor-pointer block h-full min-h-[300px] md:col-span-1 lg:col-span-2">
+                        <PinContainer title="Open Asset Evaluator" href="/asset-evaluator" className="h-full bg-white/5 border border-white/10 rounded-3xl backdrop-blur-sm">
                             <button
                                 onClick={(e) => { e.stopPropagation(); navigate('/help#asset-evaluator'); }}
                                 className="absolute top-4 right-4 z-30 p-2 text-gray-500 hover:text-gold transition-colors"
@@ -387,7 +388,7 @@ const Products = () => {
                             <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
                                 <Search size={120} />
                             </div>
-                            <div className="relative z-10 p-8 flex flex-col h-full justify-between">
+                            <div className="relative z-10 p-8 flex flex-col h-full justify-between w-full">
                                 <div>
                                     <div className="w-12 h-12 bg-gold/20 rounded-lg flex items-center justify-center mb-6 text-gold">
                                         <Search size={24} />
@@ -401,10 +402,10 @@ const Products = () => {
                                     Launch Application <ChevronRight size={20} className="ml-2 group-hover:translate-x-1 transition-transform" />
                                 </div>
                             </div>
-                        </TiltCard>
+                        </PinContainer>
                     </div>
-                    <div onClick={() => navigate('/products/comparison-matrix')} className="group cursor-pointer block h-full md:col-span-1 lg:col-span-2">
-                        <TiltCard delay={0.4} className="h-full rounded-3xl">
+                    <div onClick={() => navigate('/products/comparison-matrix')} className="group cursor-pointer block h-full min-h-[300px] md:col-span-1 lg:col-span-2">
+                        <PinContainer title="Open Comparison Matrix" href="/products/comparison-matrix" className="h-full bg-white/5 border border-white/10 rounded-3xl backdrop-blur-sm">
                             <button
                                 onClick={(e) => { e.stopPropagation(); navigate('/help#comparison-matrix'); }}
                                 className="absolute top-4 right-4 z-30 p-2 text-gray-500 hover:text-gold transition-colors"
@@ -415,7 +416,7 @@ const Products = () => {
                             <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
                                 <Scale size={120} />
                             </div>
-                            <div className="relative z-10 p-8 flex flex-col h-full justify-between">
+                            <div className="relative z-10 p-8 flex flex-col h-full justify-between w-full">
                                 <div>
                                     <div className="w-12 h-12 bg-gold/20 rounded-lg flex items-center justify-center mb-6 text-gold">
                                         <Scale size={24} />
@@ -429,10 +430,10 @@ const Products = () => {
                                     Launch Application <ChevronRight size={20} className="ml-2 group-hover:translate-x-1 transition-transform" />
                                 </div>
                             </div>
-                        </TiltCard>
+                        </PinContainer>
                     </div>
-                    <div onClick={() => navigate('/market-junction')} className="group cursor-pointer block h-full md:col-span-1 lg:col-span-2">
-                        <TiltCard delay={0.5} className="h-full rounded-3xl">
+                    <div onClick={() => navigate('/market-junction')} className="group cursor-pointer block h-full min-h-[300px] md:col-span-1 lg:col-span-2">
+                        <PinContainer title="Open Market Junction" href="/market-junction" className="h-full bg-white/5 border border-white/10 rounded-3xl backdrop-blur-sm">
                             <button
                                 onClick={(e) => { e.stopPropagation(); navigate('/help#market-junction'); }}
                                 className="absolute top-4 right-4 z-30 p-2 text-gray-500 hover:text-gold transition-colors"
@@ -443,7 +444,7 @@ const Products = () => {
                             <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
                                 <Siren size={120} />
                             </div>
-                            <div className="relative z-10 p-8 flex flex-col h-full justify-between">
+                            <div className="relative z-10 p-8 flex flex-col h-full justify-between w-full">
                                 <div>
                                     <div className="w-12 h-12 bg-gold/20 rounded-lg flex items-center justify-center mb-6 text-gold">
                                         <Siren size={24} />
@@ -457,10 +458,10 @@ const Products = () => {
                                     Launch Application <ChevronRight size={20} className="ml-2 group-hover:translate-x-1 transition-transform" />
                                 </div>
                             </div>
-                        </TiltCard>
+                        </PinContainer>
                     </div>
-                    <div onClick={() => navigate('/market-predictions')} className="group cursor-pointer block h-full md:col-span-1 lg:col-span-2">
-                        <TiltCard delay={0.7} className="h-full rounded-3xl">
+                    <div onClick={() => navigate('/market-predictions')} className="group cursor-pointer block h-full min-h-[300px] md:col-span-1 lg:col-span-2">
+                        <PinContainer title="Place Bets" href="/market-predictions" className="h-full bg-white/5 border border-white/10 rounded-3xl backdrop-blur-sm">
                             <button
                                 onClick={(e) => { e.stopPropagation(); navigate('/help#market-predictions'); }}
                                 className="absolute top-4 right-4 z-30 p-2 text-gray-500 hover:text-gold transition-colors"
@@ -471,7 +472,7 @@ const Products = () => {
                             <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
                                 <DollarSign size={120} />
                             </div>
-                            <div className="relative z-10 p-8 flex flex-col h-full justify-between">
+                            <div className="relative z-10 p-8 flex flex-col h-full justify-between w-full">
                                 <div>
                                     <div className="w-12 h-12 bg-gold/20 rounded-lg flex items-center justify-center mb-6 text-gold">
                                         <DollarSign size={24} />
@@ -485,10 +486,10 @@ const Products = () => {
                                     Place Bets <ChevronRight size={20} className="ml-2 group-hover:translate-x-1 transition-transform" />
                                 </div>
                             </div>
-                        </TiltCard>
+                        </PinContainer>
                     </div>
-                    <div onClick={() => navigate('/performance-stream')} className="group cursor-pointer block h-full md:col-span-1 lg:col-span-2">
-                        <TiltCard delay={0.6} className="h-full rounded-3xl">
+                    <div onClick={() => navigate('/performance-stream')} className="group cursor-pointer block h-full min-h-[300px] md:col-span-1 lg:col-span-2">
+                        <PinContainer title="View Performance Stream" href="/performance-stream" className="h-full bg-white/5 border border-white/10 rounded-3xl backdrop-blur-sm">
                             <button
                                 onClick={(e) => { e.stopPropagation(); navigate('/help#performance-stream'); }}
                                 className="absolute top-4 right-4 z-30 p-2 text-gray-500 hover:text-gold transition-colors"
@@ -499,7 +500,7 @@ const Products = () => {
                             <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
                                 <Maximize2 size={120} />
                             </div>
-                            <div className="relative z-10 p-8 flex flex-col h-full justify-between">
+                            <div className="relative z-10 p-8 flex flex-col h-full justify-between w-full">
                                 <div>
                                     <div className="w-12 h-12 bg-gold/20 rounded-lg flex items-center justify-center mb-6 text-gold">
                                         <Maximize2 size={24} />
@@ -513,7 +514,7 @@ const Products = () => {
                                     Launch Application <ChevronRight size={20} className="ml-2 group-hover:translate-x-1 transition-transform" />
                                 </div>
                             </div>
-                        </TiltCard>
+                        </PinContainer>
                     </div>
                 </div>
             </div>

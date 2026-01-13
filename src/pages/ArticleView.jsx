@@ -20,7 +20,7 @@ const ArticleView = () => {
     const [loading, setLoading] = useState(true);
     const [mods, setMods] = useState([]);
     const [isMod, setIsMod] = useState(false);
-    
+
     // Email Modal State
     const [showEmailModal, setShowEmailModal] = useState(false);
     const [emailTo, setEmailTo] = useState('');
@@ -106,16 +106,16 @@ const ArticleView = () => {
         if (option === 'copy') {
             navigator.clipboard.writeText(window.location.href);
             alert("Link copied to clipboard!");
-            
+
             // Increment share count for copy
             fetch(`/api/articles/${id}/share`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ platform: 'clipboard' })
             })
-            .then(res => res.json())
-            .then(data => setShares(data.shares || 0))
-            .catch(err => console.error("Error sharing:", err));
+                .then(res => res.json())
+                .then(data => setShares(data.shares || 0))
+                .catch(err => console.error("Error sharing:", err));
 
         } else if (option === 'email') {
             setShowEmailModal(true);
@@ -136,17 +136,17 @@ const ArticleView = () => {
                 article_title: article.title
             })
         })
-        .then(res => res.json())
-        .then(() => {
-            alert(`Email sent to ${emailTo}!`);
-            setShowEmailModal(false);
-            setEmailTo('');
-            setShares(prev => prev + 1); // Optimistic update
-        })
-        .catch(err => {
-            console.error("Error sending email:", err);
-            alert("Failed to send email.");
-        });
+            .then(res => res.json())
+            .then(() => {
+                alert(`Email sent to ${emailTo}!`);
+                setShowEmailModal(false);
+                setEmailTo('');
+                setShares(prev => prev + 1); // Optimistic update
+            })
+            .catch(err => {
+                console.error("Error sending email:", err);
+                alert("Failed to send email.");
+            });
     };
 
     const handleCommentSubmit = (e, parentId = null) => {
@@ -296,14 +296,14 @@ const ArticleView = () => {
     // ... (Remainder of the return statement is unchanged)
     return (
         <div className="min-h-screen bg-deep-black text-white pt-24 px-4 pb-20 relative">
-            
+
             {/* Email Share Modal */}
             <AnimatePresence>
                 {showEmailModal && (
-                    <motion.div 
-                        initial={{ opacity: 0 }} 
-                        animate={{ opacity: 1 }} 
-                        exit={{ opacity: 0 }} 
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
                         className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm px-4"
                     >
                         <div className="bg-[#1a1a1a] p-6 rounded-xl border border-white/10 w-full max-w-md shadow-2xl">
@@ -315,19 +315,19 @@ const ArticleView = () => {
                                     <X size={20} />
                                 </button>
                             </div>
-                            
+
                             <form onSubmit={sendEmail}>
                                 <label className="block text-sm text-gray-400 mb-1">To:</label>
-                                <input 
-                                    type="email" 
-                                    placeholder="recipient@example.com" 
+                                <input
+                                    type="email"
+                                    placeholder="recipient@example.com"
                                     className="w-full bg-black/50 border border-white/10 rounded-lg p-3 mb-6 text-white focus:border-gold outline-none"
                                     value={emailTo}
                                     onChange={e => setEmailTo(e.target.value)}
                                     required
                                     autoFocus
                                 />
-                                
+
                                 <div className="bg-white/5 p-4 rounded-lg border border-white/5 mb-6">
                                     <p className="text-xs text-gray-500 mb-1">Preview:</p>
                                     <p className="text-sm text-white font-bold mb-1">{currentUser ? (currentUser.displayName || currentUser.email) : "A User"} shared this article with you...</p>
@@ -335,15 +335,15 @@ const ArticleView = () => {
                                 </div>
 
                                 <div className="flex justify-end gap-3">
-                                    <button 
-                                        type="button" 
-                                        onClick={() => setShowEmailModal(false)} 
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowEmailModal(false)}
                                         className="px-4 py-2 text-gray-400 hover:text-white font-bold"
                                     >
                                         Cancel
                                     </button>
-                                    <button 
-                                        type="submit" 
+                                    <button
+                                        type="submit"
                                         className="bg-gold text-black font-bold px-6 py-2 rounded-lg hover:bg-yellow-500 transition-colors flex items-center gap-2"
                                     >
                                         Send Email <Send size={14} />
@@ -356,6 +356,14 @@ const ArticleView = () => {
             </AnimatePresence>
 
             <article className="max-w-4xl mx-auto">
+                {/* Hero Image */}
+                {article.cover_image && (
+                    <div className="mb-8 rounded-xl overflow-hidden border border-white/10 shadow-2xl h-[400px] md:h-[500px] relative w-full">
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent z-10" />
+                        <img src={article.cover_image} alt="Cover" className="w-full h-full object-cover" />
+                    </div>
+                )}
+
                 {/* Header */}
                 <div className="mb-8">
                     <Link to="/news" className="text-gold hover:text-white transition-colors mb-6 inline-flex items-center text-sm font-bold">
@@ -454,12 +462,6 @@ const ArticleView = () => {
                 </div>
 
                 {/* Article Content */}
-                {article.cover_image && (
-                    <div className="mb-8 rounded-xl overflow-hidden border border-white/10 shadow-2xl">
-                        <img src={article.cover_image} alt="Cover" className="w-full h-auto object-cover max-h-[500px]" />
-                    </div>
-                )}
-                
                 <div
                     className="prose prose-invert prose-lg max-w-none mb-16 text-gray-300 leading-loose"
                     dangerouslySetInnerHTML={{ __html: article.content }}

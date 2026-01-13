@@ -10,6 +10,8 @@ import { TradingViewWidget } from './components/MarketDashboard';
 import UsernameSetupModal from './components/UsernameSetupModal';
 import BirthdayPopup from './components/BirthdayPopup';
 import { useAuth } from './contexts/AuthContext';
+import { CardExpansionProvider } from './contexts/CardExpansionContext';
+import CardExpansionOverlay from './components/CardExpansionOverlay';
 
 import Layout from './components/Layout';
 import StartupAnimation from './components/StartupAnimation';
@@ -163,6 +165,7 @@ const AppContent = () => {
             <UsernameSetupModal isOpen={showUsernameModal} onClose={() => setShowUsernameModal(false)} />
             <BirthdayPopup isOpen={showBirthdayModal} onClose={handleCloseBirthday} years={accountYears} />
             <OrionOverlay />
+            <CardExpansionOverlay />
             <React.Suspense fallback={
                 <div className="h-screen w-full bg-black flex items-center justify-center">
                     <Loader2 className="animate-spin text-gold" size={48} />
@@ -244,7 +247,9 @@ function App() {
                     <Router>
                         <AuthProvider>
                             <OrionProvider>
-                                <AppContent />
+                                <CardExpansionProvider>
+                                    <AppContent />
+                                </CardExpansionProvider>
                             </OrionProvider>
                         </AuthProvider>
                     </Router>

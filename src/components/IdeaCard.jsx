@@ -161,10 +161,10 @@ const IdeaCard = React.forwardRef(({ idea, currentUser, onVote, style, className
             onClick={onClick}
             onMouseEnter={onMouseEnter}
             onMouseLeave={onMouseLeave}
-            className={`card-wrapper absolute top-1/2 left-1/2 ${className || ''}`}
+            className={`card-wrapper relative w-full h-full ${className || ''}`}
         >
             <TiltCard
-                className="h-full flex flex-col bg-white/5 border border-white/10 overflow-hidden hover:border-gold/50 transition-colors group"
+                className="h-full flex flex-col bg-white/5 border border-white/10 overflow-hidden hover:border-gold/50 transition-colors group rounded-3xl"
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
             >
