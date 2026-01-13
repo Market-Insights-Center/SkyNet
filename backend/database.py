@@ -241,7 +241,11 @@ def get_user_profile(email):
         db = get_db()
         doc = db.collection('users').document(email).get()
         if doc.exists:
-            return doc.to_dict()
+            data = doc.to_dict()
+            # Auto-fix missing username on read
+            if not data.get('username') or not data.get('username').strip():
+                data['username'] = ensure_username(email)
+            return data
         return None
     except Exception as e:
         print(f"Error fetching user profile: {e}")
@@ -460,6 +464,37 @@ def update_user_username(email, new_username):
     except Exception as e:
         return {"success": False, "message": str(e)}
 
+def ensure_username(email, input_username=None):
+    """
+    Ensures a user has a username. 
+    If not, generates one from email, checks uniqueness, and saves it.
+    Returns the final username.
+    """
+    if input_username and input_username.strip():
+        return input_username
+        
+    # Generate from email
+    base_name = email.split('@')[0]
+    username = base_name
+    
+    # Ensure uniqueness
+    if check_username_taken(username):
+        count = 1
+        username = f"{base_name} {count}"
+        while check_username_taken(username):
+             count += 1
+             username = f"{base_name} {count}"
+
+    # Update DB
+    try:
+        db = get_db()
+        db.collection('users').document(email).set({'username': username}, merge=True)
+        print(f"Auto-assigned username '{username}' to {email}")
+    except Exception as e:
+        print(f"Error auto-assigning username: {e}")
+        
+    return username
+
 def get_all_users_from_db():
     """Fetches ALL users from Auth and merges with Firestore Tier data."""
     try:
@@ -482,10 +517,18 @@ def get_all_users_from_db():
             if not email: continue
             
             profile = db_data.get(email, {})
-            # Prioritize Firestore username, then Auth display name, then "User"
+            # Prioritize Firestore username
             username = profile.get('username')
-            if not username:
-                username = user.display_name if user.display_name else "User"
+            
+            # Auto-fix missing username
+            if not username or not username.strip():
+                 # Use Auth display name as fallback seed if no username in DB
+                 # But prompt says "first part of their email"
+                 # Only use display name if it LOOKS like a username (no spaces? or valid?)
+                 # Actually, prompt says: "set their username automatically to whatever the first part of their email is"
+                 # So we prioritize email prefix over potentially random Auth display name "User" or "Jasper P" if it's not in DB.
+                 # Let's stick to email prefix as requested.
+                 username = ensure_username(email, username)
             
             final_list.append({
                 'email': email,
