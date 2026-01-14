@@ -6,7 +6,7 @@ import { PayPalScriptProvider } from "@paypal/react-paypal-js";
 import { AuthProvider } from './contexts/AuthContext';
 import { OrionProvider, useOrion } from './contexts/OrionContext';
 import OrionOverlay from './components/OrionOverlay';
-import { TradingViewWidget } from './components/MarketDashboard';
+import TradingViewWidget from './components/TradingViewWidget';
 import UsernameSetupModal from './components/UsernameSetupModal';
 import BirthdayPopup from './components/BirthdayPopup';
 import { useAuth } from './contexts/AuthContext';

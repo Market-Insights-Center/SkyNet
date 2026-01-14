@@ -20,7 +20,7 @@ import { MoreVertical, Plus, Search, GripVertical, X, ChevronDown, ChevronUp, Ch
 import { useAuth } from '../contexts/AuthContext';
 import { db } from '../firebase';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
-import { TradingViewWidget } from './MarketDashboard';
+import TradingViewWidget from './TradingViewWidget';
 
 const INITIAL_TICKERS = ['AAPL', 'MSFT', 'GOOG', 'AMZN', 'NVDA', 'META', 'TSLA', 'SPY'];
 

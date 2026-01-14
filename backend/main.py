@@ -2296,12 +2296,7 @@ class BetPlaceRequest(BaseModel):
 
 @app.get("/api/predictions/active")
 def get_active_predictions(include_recent: bool = False):
-    preds = load_predictions()
-    # Ensure pool fields exist
-    for p in preds:
-        if 'total_pool_yes' not in p: p['total_pool_yes'] = 0
-        if 'total_pool_no' not in p: p['total_pool_no'] = 0
-    return preds
+    return database.get_active_predictions(include_recent)
 
 @app.post("/api/predictions/create")
 def create_prediction(req: PredictionCreateRequest):
@@ -2310,19 +2305,15 @@ def create_prediction(req: PredictionCreateRequest):
     if req.creator_email.lower() not in mods:
         raise HTTPException(status_code=403, detail="Admins only.")
 
-    preds = load_predictions()
-    new_id = str(uuid.uuid4())
-    new_pred = req.model_dump()
-    new_pred['id'] = new_id
-    new_pred['status'] = 'active'
-    new_pred['created_at'] = datetime.now().isoformat()
-    new_pred['total_pool_yes'] = 0
-    new_pred['total_pool_no'] = 0
+    prediction = database.create_prediction(
+        req.title, req.stock, req.end_date, req.market_condition, 
+        req.wager_logic, req.creator_email, req.category
+    )
     
-    preds.append(new_pred)
-    save_predictions(preds)
-    save_predictions(preds)
-    return {"success": True, "prediction": new_pred}
+    if not prediction:
+         raise HTTPException(status_code=500, detail="Failed to create prediction")
+         
+    return {"success": True, "prediction": prediction}
 
 @app.post("/api/predictions/delete")
 def delete_prediction(req: PredictionDeleteRequest):
@@ -2330,54 +2321,26 @@ def delete_prediction(req: PredictionDeleteRequest):
     if req.email.lower() not in mods:
         raise HTTPException(status_code=403, detail="Admins only.")
         
-    preds = load_predictions()
-    preds = [p for p in preds if p['id'] != req.id]
-    save_predictions(preds)
+    success = database.delete_prediction(req.id)
+    if not success:
+        raise HTTPException(status_code=500, detail="Failed to delete prediction")
+        
     return {"success": True, "status": "deleted"}
 
 @app.get("/api/user/bets")
 def get_user_bets(email: str):
-    all_bets = load_bets_data()
-    user_bets = [b for b in all_bets if b['email'] == email]
-    return user_bets
+    return database.get_user_bets(email)
 
 @app.post("/api/predictions/bet")
 def place_bet(req: BetPlaceRequest):
     if req.amount <= 0: raise HTTPException(status_code=400, detail="Invalid amount")
     
-    # 1. Deduct Points
-    profile = get_user_profile(req.email)
-    current_points = profile.get("points", 0)
-    if current_points < req.amount:
-        raise HTTPException(status_code=400, detail="Insufficient funds")
+    result = database.place_bet(req.email, req.prediction_id, req.choice, req.amount)
     
-    update_user_points(req.email, -req.amount)
-    
-    # 2. Record Bet
-    bets = load_bets_data()
-    new_bet = {
-        "id": str(uuid.uuid4()),
-        "prediction_id": req.prediction_id,
-        "email": req.email,
-        "amount": req.amount,
-        "choice": req.choice,
-        "timestamp": datetime.now().isoformat()
-    }
-    bets.append(new_bet)
-    save_bets_data(bets)
-    
-    # 3. Update Prediction Pool
-    preds = load_predictions()
-    for p in preds:
-        if p['id'] == req.prediction_id:
-            if req.choice == "YES":
-                p['total_pool_yes'] = p.get('total_pool_yes', 0) + req.amount
-            else:
-                 p['total_pool_no'] = p.get('total_pool_no', 0) + req.amount
-            break
-    save_predictions(preds)
-    
-    return {"status": "success", "bet_id": new_bet['id']}
+    if not result['success']:
+        raise HTTPException(status_code=400, detail=result.get('message', 'Bet failed'))
+        
+    return {"status": "success", "bet_id": result.get('bet_id')}
 
 if __name__ == "__main__":
     import uvicorn

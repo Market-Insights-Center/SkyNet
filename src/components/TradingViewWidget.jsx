@@ -1,52 +1,91 @@
 import React, { useEffect, useRef, memo } from 'react';
 
-const TradingViewWidget = ({ ticker, theme = 'dark', autosize = true }) => {
+const TradingViewWidget = ({
+    ticker,
+    symbol,
+    theme = 'dark',
+    autosize = true,
+    interval = "D",
+    timezone = "Etc/UTC",
+    style = "1",
+    locale = "en",
+    toolbar_bg = "#f1f3f6",
+    enable_publishing = false,
+    hide_top_toolbar = false,
+    hide_legend = false,
+    hide_side_toolbar = false,
+    allow_symbol_change = true,
+    save_image = false,
+    width = "100%",
+    height = "100%"
+}) => {
     const containerRef = useRef(null);
+    // Use a stable ID for the container
+    const widgetIdRef = useRef(`tv-widget-${Math.random().toString(36).substr(2, 9)}`);
+    const activeSymbol = symbol || ticker;
 
     useEffect(() => {
-        // Ensure ticker is valid
-        if (!ticker) return;
+        if (!activeSymbol) return;
 
-        // Clean up previous script if any (though React handles unmount, the script appends global variables sometimes)
-        // We'll just clear the container.
-        if (containerRef.current) {
-            containerRef.current.innerHTML = '';
-        }
+        const initWidget = () => {
+            // Clear container first to prevent duplicates
+            if (containerRef.current) {
+                containerRef.current.innerHTML = '';
+            }
 
-        const script = document.createElement('script');
-        script.src = 'https://s3.tradingview.com/tv.js';
-        script.async = true;
-        script.onload = () => {
             if (window.TradingView) {
                 new window.TradingView.widget({
                     "autosize": autosize,
-                    "symbol": ticker,
-                    "interval": "D",
-                    "timezone": "Etc/UTC",
+                    "symbol": activeSymbol,
+                    "interval": interval,
+                    "timezone": timezone,
                     "theme": theme,
-                    "style": "1",
-                    "locale": "en",
-                    "toolbar_bg": "#f1f3f6",
-                    "enable_publishing": false,
-                    "hide_top_toolbar": false,
-                    "hide_legend": false,
-                    "save_image": false,
-                    "container_id": containerRef.current.id
+                    "style": style,
+                    "locale": locale,
+                    "toolbar_bg": toolbar_bg,
+                    "enable_publishing": enable_publishing,
+                    "hide_top_toolbar": hide_top_toolbar,
+                    "hide_legend": hide_legend,
+                    "hide_side_toolbar": hide_side_toolbar,
+                    "allow_symbol_change": allow_symbol_change,
+                    "save_image": save_image,
+                    "container_id": widgetIdRef.current,
+                    "width": width,
+                    "height": height
                 });
             }
         };
 
-        containerRef.current.appendChild(script);
+        if (window.TradingView) {
+            initWidget();
+        } else {
+            let script = document.querySelector('script[src="https://s3.tradingview.com/tv.js"]');
 
-        // Cleanup function not strictly necessary for the script tag itself as it's inside the container which gets cleared,
-        // but good practice.
-    }, [ticker, theme, autosize]);
+            if (!script) {
+                script = document.createElement('script');
+                script.src = 'https://s3.tradingview.com/tv.js';
+                script.async = true;
+                script.onload = initWidget;
+                document.head.appendChild(script);
+            } else {
+                script.addEventListener('load', initWidget);
+            }
+        }
 
-    const containerId = `tv-widget-${ticker}-${Math.random().toString(36).substr(2, 9)}`;
+        return () => {
+            if (containerRef.current) {
+                containerRef.current.innerHTML = '';
+            }
+        };
+    }, [
+        activeSymbol, theme, autosize, interval, timezone, style, locale,
+        toolbar_bg, enable_publishing, hide_top_toolbar, hide_legend,
+        hide_side_toolbar, allow_symbol_change, save_image, width, height
+    ]);
 
     return (
-        <div className="tradingview-widget-container h-full w-full" ref={containerRef} id={containerId}>
-            <div className="tradingview-widget-container__widget h-full w-full"></div>
+        <div className="tradingview-widget-container" id={widgetIdRef.current} ref={containerRef} style={{ height, width }}>
+            <div className="tradingview-widget-container__widget" style={{ height: '100%', width: '100%' }}></div>
         </div>
     );
 };

@@ -1476,7 +1476,7 @@ def trigger_reward(referrer_email):
 
 # --- MARKET PREDICTIONS SYSTEM ---
 
-def create_prediction(title, stock, end_date, market_condition, wager_logic, author_email):
+def create_prediction(title, stock, end_date, market_condition, wager_logic, author_email, category="Stocks"):
     """Creates a new prediction event."""
     try:
         db = get_db()
@@ -1493,11 +1493,12 @@ def create_prediction(title, stock, end_date, market_condition, wager_logic, aut
             "created_by": author_email,
             "created_at": datetime.utcnow().isoformat(),
             "total_pool_yes": 0,
-            "total_pool_no": 0
+            "total_pool_no": 0,
+            "category": category
         }
         
         db.collection('predictions').document(prediction_id).set(data)
-        return True
+        return data
     except Exception as e:
         print(f"Create Prediction Error: {e}")
         return False
@@ -1554,11 +1555,19 @@ def place_bet(email, prediction_id, choice, amount):
             current_pool = p_data.get(pool_key, 0)
             transaction.update(p_ref, {pool_key: current_pool + amount})
             
-            return True
+            return bet_id
 
         transaction = db.transaction()
         val = bet_txn(transaction, user_ref, pred_ref)
-        return {"success": True}
+        # Note: bet_txn returns True, but we need bet_id. 
+        # Actually bet_txn runs inner logic. We can't easily extract bet_id from outside unless we refactor or assign it to a nonlocal.
+        # But wait, transaction.set uses bet_id.
+        
+        # Let's do a trick or refactor slightly.
+        # Ideally bet_txn returns the bet_id.
+        # But transaction functions usually return the result of the callback.
+        # So I will make bet_txn return the bet_id.
+        return {"success": True, "bet_id": val}
         
     except Exception as e:
         return {"success": False, "message": str(e)}
