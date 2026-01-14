@@ -2340,7 +2340,7 @@ def place_bet(req: BetPlaceRequest):
     if not result['success']:
         raise HTTPException(status_code=400, detail=result.get('message', 'Bet failed'))
         
-    return {"status": "success", "bet_id": result.get('bet_id')}
+    return {"success": True, "bet_id": result.get('bet_id')}
 
 if __name__ == "__main__":
     import uvicorn

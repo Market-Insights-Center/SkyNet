@@ -5,7 +5,7 @@ import time
 import random
 import string
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
 from firebase_admin import firestore, auth
 try:
     from backend.firebase_admin_setup import get_db, get_auth
@@ -1551,7 +1551,7 @@ def place_bet(email, prediction_id, choice, amount):
             transaction.set(db.collection('bets').document(bet_id), bet_data)
             
             # Update Pool
-            pool_key = f"total_pool_{choice}"
+            pool_key = f"total_pool_{choice.lower()}"
             current_pool = p_data.get(pool_key, 0)
             transaction.update(p_ref, {pool_key: current_pool + amount})
             
@@ -1570,6 +1570,7 @@ def place_bet(email, prediction_id, choice, amount):
         return {"success": True, "bet_id": val}
         
     except Exception as e:
+        print(f"Place Bet Error: {e}")
         return {"success": False, "message": str(e)}
 
 def get_active_predictions(include_recent=False):
@@ -1619,7 +1620,9 @@ def get_active_predictions(include_recent=False):
                 unique_results.append(r)
                 
         return unique_results
-    except: return []
+    except Exception as e:
+        print(f"Get Active Predictions Error: {e}")
+        return []
 
 def get_user_bets(email):
     try:
