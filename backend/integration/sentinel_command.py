@@ -42,8 +42,29 @@ COMMAND_REGISTRY = {
     # "mlforecast": mlforecast_command.handle_mlforecast_command, # Might need adaptation
     "powerscore": powerscore_command.handle_powerscore_command,
     "quickscore": quickscore_command.handle_quickscore_command,
-    "summary": lambda args, ai_params, is_called_by_ai: handle_summary_tool(ai_params)
+    "summary": lambda args, ai_params, is_called_by_ai: handle_summary_tool(ai_params),
+    "manual_list": lambda args, ai_params, is_called_by_ai: handle_manual_list_tool(ai_params)
 }
+
+async def handle_manual_list_tool(params: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Pass-through for manual ticker input.
+    """
+    tickers_input = params.get("tickers", "")
+    if isinstance(tickers_input, list):
+         tickers = tickers_input
+    elif isinstance(tickers_input, str):
+         # Split by comma or newline
+         tickers = [t.strip().upper() for t in tickers_input.replace('\n', ',').split(',') if t.strip()]
+    else:
+         tickers = []
+         
+    return {
+        "tickers": tickers,
+        "top_10": tickers[:10], # For compatibility with "top_10" chaining
+        "count": len(tickers),
+        "message": f"Processed {len(tickers)} manual tickers."
+    }
 
 async def handle_summary_tool(params: Dict[str, Any]) -> str:
     """

@@ -166,14 +166,14 @@ const Layout = ({ children }) => {
         { label: 'Home', href: '/' },
         { label: 'Products', href: '/products' },
         { label: 'Forum', href: '/forum' },
-        { label: 'Chatbox', href: '/chat' },
+        { label: 'Chatbox', href: '/chat', hasNotification: hasUnread },
         { label: 'Profile', href: '/profile' },
         ...(isMod ? [{ label: 'Admin', href: '/admin' }] : []),
         ...(currentUser ? [] : [
             { label: 'Log In', href: '/login' },
             { label: 'Sign Up', href: '/signup' }
         ])
-    ], [isMod, currentUser]);
+    ], [isMod, currentUser, hasUnread]);
 
     return (
         <div className="min-h-screen bg-deep-black text-white font-sans selection:bg-gold selection:text-black">

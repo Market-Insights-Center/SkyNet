@@ -101,7 +101,9 @@ const UsernameSetupModal = ({ isOpen, onClose }) => {
                     <button
                         type="submit"
                         disabled={loading || isTaken || !username}
-                        className="w-full bg-gold/90 hover:bg-gold text-black font-bold py-3 rounded transition-all transform hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="w-full py-3 rounded font-bold transition-all transform hover:scale-[1.02] disabled:hover:scale-100
+                            bg-gold text-black hover:bg-yellow-400 shadow-lg shadow-gold/20
+                            disabled:bg-gray-800 disabled:text-gray-500 disabled:border disabled:border-white/10 disabled:shadow-none disabled:cursor-not-allowed disabled:opacity-100"
                     >
                         {loading ? "Saving..." : "Set Username & Continue"}
                     </button>

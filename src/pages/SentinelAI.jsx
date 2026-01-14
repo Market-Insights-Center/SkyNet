@@ -1,7 +1,9 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Bot, Terminal, Send, Cpu, Activity, AlertTriangle, CheckCircle, Clock, Layers } from 'lucide-react';
+import {
+    Bot, Terminal, Send, Cpu, Activity, AlertTriangle, Check, X, Play, RotateCcw, Save, Trash2, ChevronDown, Layers, Clock
+} from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import NeonWrapper from '../components/NeonWrapper';
 
@@ -393,25 +395,98 @@ const SentinelAI = () => {
                                                             <div className="bg-purple-900/40 text-purple-300 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold border border-purple-500/30">
                                                                 {idx + 1}
                                                             </div>
-                                                            <select
-                                                                className="bg-transparent text-cyan-400 font-bold uppercase outline-none cursor-pointer hover:text-cyan-300"
-                                                                value={step.tool}
-                                                                onChange={(e) => {
-                                                                    const newPlan = [...executionPlan];
-                                                                    newPlan[idx] = { ...step, tool: e.target.value };
-                                                                    setExecutionPlan(newPlan);
-                                                                }}
-                                                            >
-                                                                <option value="market">MARKET SCAN</option>
-                                                                <option value="sentiment">SENTIMENT ANALYSIS</option>
-                                                                <option value="risk">RISK CHECK</option>
-                                                                <option value="briefing">MARKET BRIEFING</option>
-                                                                <option value="fundamentals">FUNDAMENTALS</option>
-                                                                <option value="powerscore">POWERSCORE</option>
-                                                                <option value="quickscore">QUICKSCORE</option>
-                                                                <option value="summary">SUMMARY GENERATION</option>
-                                                            </select>
+                                                            <div className="flex-1 relative group/select">
+                                                                <div className="absolute inset-y-0 right-0 flex items-center pr-2 pointer-events-none text-cyan-500 group-hover/select:text-cyan-300 transition-colors">
+                                                                    <ChevronDown size={16} />
+                                                                </div>
+                                                                <select
+                                                                    className="w-full bg-black/60 border border-cyan-500/30 text-cyan-400 font-bold uppercase outline-none cursor-pointer hover:border-cyan-400 focus:border-cyan-400 focus:bg-cyan-900/10 rounded px-3 py-1.5 appearance-none pr-8 transition-all shadow-[0_0_10px_rgba(34,211,238,0.1)] hover:shadow-[0_0_15px_rgba(34,211,238,0.2)]"
+                                                                    value={step.tool}
+                                                                    onChange={(e) => {
+                                                                        const newTool = e.target.value;
+                                                                        const newPlan = [...executionPlan];
+
+                                                                        // Reset params & Set Default Description
+                                                                        let defaultParams = {};
+                                                                        let defaultDesc = "";
+
+                                                                        if (newTool === 'market') {
+                                                                            defaultParams = { sensitivity: 2, market_type: "sp500" };
+                                                                            defaultDesc = "Scan market for opportunities.";
+                                                                        } else if (newTool === 'manual_list') {
+                                                                            defaultParams = { tickers: "" };
+                                                                            defaultDesc = "Process manual ticker list.";
+                                                                        } else if (['sentiment', 'fundamentals', 'powerscore', 'quickscore'].includes(newTool)) {
+                                                                            defaultParams = { tickers_source: "", limit: 10 };
+                                                                            const toolLabels = {
+                                                                                sentiment: "Analyze sentiment",
+                                                                                fundamentals: "Check fundamentals",
+                                                                                powerscore: "Calculate PowerScore",
+                                                                                quickscore: "Get QuickScore"
+                                                                            };
+                                                                            defaultDesc = `${toolLabels[newTool]} for top tickers...`;
+                                                                        } else if (newTool === 'summary') {
+                                                                            defaultParams = { data_source: "$CONTEXT" };
+                                                                            defaultDesc = "Generate final mission report.";
+                                                                        }
+
+                                                                        newPlan[idx] = {
+                                                                            ...step,
+                                                                            tool: newTool,
+                                                                            params: defaultParams,
+                                                                            description: defaultDesc
+                                                                        };
+                                                                        setExecutionPlan(newPlan);
+                                                                    }}
+                                                                >
+                                                                    {/* Dynamic Options based on Step Index & Usage */}
+                                                                    {(() => {
+                                                                        // Step 0: Input Sources Only (Market, Manual)
+                                                                        if (idx === 0) {
+                                                                            return (
+                                                                                <>
+                                                                                    <option value="market" className="bg-gray-900 text-white">MARKET SCAN</option>
+                                                                                    <option value="manual_list" className="bg-gray-900 text-white">MANUAL TICKER LIST</option>
+                                                                                </>
+                                                                            );
+                                                                        }
+
+                                                                        // Step > 0: Analysis Tools (Exclude used ones, except self)
+                                                                        const analysisTools = [
+                                                                            { id: 'sentiment', label: 'SENTIMENT ANALYSIS' },
+                                                                            { id: 'fundamentals', label: 'FUNDAMENTALS' },
+                                                                            { id: 'powerscore', label: 'POWERSCORE' },
+                                                                            { id: 'quickscore', label: 'QUICKSCORE' }
+                                                                        ];
+
+                                                                        // Filter out tools used elsewhere in the plan
+                                                                        const usedTools = executionPlan.map(s => s.tool);
+
+                                                                        const options = analysisTools.map(t => (
+                                                                            <option
+                                                                                key={t.id}
+                                                                                value={t.id}
+                                                                                disabled={usedTools.includes(t.id) && step.tool !== t.id}
+                                                                                className={`${usedTools.includes(t.id) && step.tool !== t.id ? 'text-gray-600 bg-gray-900' : 'bg-gray-900 text-white'}`}
+                                                                            >
+                                                                                {t.label} {usedTools.includes(t.id) && step.tool !== t.id ? '(Used)' : ''}
+                                                                            </option>
+                                                                        ));
+
+                                                                        // Always allow Summary as last step
+                                                                        options.push(
+                                                                            <option key="summary" value="summary" className="bg-gray-900 text-gold font-bold">
+                                                                                ⭐ SUMMARY GENERATION
+                                                                            </option>
+                                                                        );
+
+                                                                        return options;
+                                                                    })()}
+                                                                </select>
+                                                            </div>
                                                         </div>
+
+
                                                         <div className="flex items-center gap-1">
                                                             {/* Reordering Controls */}
                                                             <div className="flex flex-col gap-0.5 mr-2">
@@ -476,6 +551,25 @@ const SentinelAI = () => {
                                                             />
                                                         </div>
 
+                                                        {/* MANUAL LIST UI */}
+                                                        {step.tool === 'manual_list' && (
+                                                            <div>
+                                                                <label className="text-[10px] text-purple-400 font-bold uppercase tracking-wider block mb-1">
+                                                                    Tickers (Comma Separated)
+                                                                </label>
+                                                                <textarea
+                                                                    className="w-full h-20 bg-gray-900 border border-gray-700 rounded px-2 py-2 text-xs text-white focus:border-purple-500 outline-none font-mono"
+                                                                    placeholder="AAPL, MSFT, TSLA..."
+                                                                    value={step.params.tickers || ""}
+                                                                    onChange={(e) => {
+                                                                        const newPlan = [...executionPlan];
+                                                                        newPlan[idx].params = { ...newPlan[idx].params, tickers: e.target.value };
+                                                                        setExecutionPlan(newPlan);
+                                                                    }}
+                                                                />
+                                                            </div>
+                                                        )}
+
                                                         {/* Inputs / Dependencies */}
                                                         {['sentiment', 'powerscore', 'fundamentals', 'quickscore'].includes(step.tool) && (
                                                             <div>
@@ -494,10 +588,9 @@ const SentinelAI = () => {
                                                                     <option value="">Select Input Source...</option>
                                                                     {idx > 0 && executionPlan.slice(0, idx).map((prevStep, prevIdx) => (
                                                                         <option key={prevIdx} value={`$step_${prevStep.step_id}_output.top_10`}>
-                                                                            Step {prevStep.step_id} Output (Top 10 Tickers)
+                                                                            Step {prevStep.step_id} ({prevStep.tool.toUpperCase()}) Output
                                                                         </option>
                                                                     ))}
-                                                                    <option value="MANUAL">Manual Ticker List (Coming Soon)</option>
                                                                 </select>
                                                             </div>
                                                         )}
@@ -560,9 +653,11 @@ const SentinelAI = () => {
                                                     </div>
 
                                                     {/* Connector Line Visual */}
-                                                    {idx < executionPlan.length - 1 && (
-                                                        <div className="absolute -bottom-6 left-7 w-0.5 h-6 bg-gray-800 z-0"></div>
-                                                    )}
+                                                    {
+                                                        idx < executionPlan.length - 1 && (
+                                                            <div className="absolute -bottom-6 left-7 w-0.5 h-6 bg-gray-800 z-0"></div>
+                                                        )
+                                                    }
                                                 </div>
                                             ))}
 
@@ -570,15 +665,23 @@ const SentinelAI = () => {
                                                 <button
                                                     onClick={() => {
                                                         const nextId = executionPlan.length + 1;
-                                                        setExecutionPlan([...executionPlan, {
-                                                            step_id: nextId,
-                                                            tool: "sentiment",
-                                                            params: { tickers_source: "", limit: 10 },
-                                                            output_key: `step_${nextId}_output`,
-                                                            description: "Check sentiment for top 10..."
-                                                        }]);
+                                                        // Determine next available tool
+                                                        const usedTools = executionPlan.map(s => s.tool);
+                                                        const allTools = ['sentiment', 'fundamentals', 'powerscore', 'quickscore'];
+                                                        const available = allTools.find(t => !usedTools.includes(t));
+
+                                                        if (available) {
+                                                            setExecutionPlan([...executionPlan, {
+                                                                step_id: nextId,
+                                                                tool: available,
+                                                                params: { tickers_source: "", limit: 10 },
+                                                                output_key: `step_${nextId}_output`,
+                                                                description: `Analyze using ${available}...`
+                                                            }]);
+                                                        }
                                                     }}
-                                                    className="flex-1 py-3 border-2 border-dashed border-gray-800 rounded-lg text-gray-500 hover:text-purple-400 hover:border-purple-500/30 hover:bg-purple-500/5 transition-all flex items-center justify-center gap-2 font-bold text-sm"
+                                                    disabled={executionPlan.length >= 5}
+                                                    className={`flex-1 py-3 border-2 border-dashed border-gray-800 rounded-lg text-gray-500 hover:text-purple-400 hover:border-purple-500/30 hover:bg-purple-500/5 transition-all flex items-center justify-center gap-2 font-bold text-sm ${executionPlan.length >= 5 ? 'opacity-50 cursor-not-allowed' : ''}`}
                                                 >
                                                     <div className="w-5 h-5 bg-gray-800 rounded-full flex items-center justify-center text-xs">+</div>
                                                     ADD STEP
@@ -621,10 +724,8 @@ const SentinelAI = () => {
                                 </motion.div>
                             )}
                         </AnimatePresence>
-
                     </div>
                 </div>
-
             </div>
         </div>
     );

@@ -35,6 +35,44 @@ const AdminDashboard = () => {
 
     const [newModEmail, setNewModEmail] = useState('');
 
+    // --- SMART BUILDER STATE ---
+    const [category, setCategory] = useState('Stocks');
+    const [smartInputs, setSmartInputs] = useState({
+        ticker: '',
+        coin: 'BTC',
+        index: 'SPY',
+        targetPrice: '',
+        direction: 'Above',
+        dateType: 'Specific',
+        customDate: '',
+    });
+
+    // Auto-Generate Title & Condition (Replicated from MarketPredictions)
+    useEffect(() => {
+        if (category === 'Custom') return;
+
+        let symbol = '';
+        if (category === 'Stocks') symbol = smartInputs.ticker.toUpperCase();
+        if (category === 'Crypto') symbol = smartInputs.coin;
+        if (category === 'Indices') symbol = smartInputs.index;
+
+        if (!symbol || !smartInputs.targetPrice) return;
+
+        const dirSymbol = smartInputs.direction === 'Above' ? '>' : '<';
+
+        // Auto Text
+        const title = `${symbol} ${dirSymbol} $${smartInputs.targetPrice}`;
+        const condition = `Price ${dirSymbol} ${smartInputs.targetPrice}`;
+
+        setNewPrediction(prev => ({
+            ...prev,
+            title: title,
+            stock: symbol,
+            market_condition: condition,
+            wager_logic: 'binary_odds'
+        }));
+    }, [category, smartInputs]);
+
     const [loadingUsers, setLoadingUsers] = useState(false);
     const [errorUsers, setErrorUsers] = useState(null);
 
@@ -296,7 +334,11 @@ const AdminDashboard = () => {
             const res = await fetch('/api/predictions/create', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ ...newPrediction, email: currentUser.email })
+                body: JSON.stringify({
+                    ...newPrediction,
+                    creator_email: currentUser.email,
+                    category: category // Include selected category
+                })
             });
             const data = await res.json();
             if (data.success) {
@@ -317,7 +359,7 @@ const AdminDashboard = () => {
             const res = await fetch('/api/predictions/delete', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ id, requester_email: currentUser.email })
+                body: JSON.stringify({ id, email: currentUser.email })
             });
             const data = await res.json();
             if (data.success) {
@@ -560,15 +602,141 @@ const AdminDashboard = () => {
                         {/* CREATE PREDICTION */}
                         <div className="bg-black/40 border border-white/10 rounded-lg p-6">
                             <h3 className="text-xl font-bold mb-4 flex items-center gap-2"><Plus size={20} /> Create Market Prediction</h3>
-                            <form onSubmit={handleCreatePrediction} className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <input placeholder="Title (e.g. NVDA Earnings)" value={newPrediction.title} onChange={e => setNewPrediction({ ...newPrediction, title: e.target.value })} className="bg-black border border-white/10 rounded px-3 py-2 text-white" required />
-                                <input placeholder="Stock Symbol" value={newPrediction.stock} onChange={e => setNewPrediction({ ...newPrediction, stock: e.target.value.toUpperCase() })} className="bg-black border border-white/10 rounded px-3 py-2 text-white" required />
-                                <input placeholder="Market Condition (e.g. Up > 5%)" value={newPrediction.market_condition} onChange={e => setNewPrediction({ ...newPrediction, market_condition: e.target.value })} className="bg-black border border-white/10 rounded px-3 py-2 text-white" required />
-                                <input type="datetime-local" value={newPrediction.end_date} onChange={e => setNewPrediction({ ...newPrediction, end_date: e.target.value })} className="bg-black border border-white/10 rounded px-3 py-2 text-white" required />
-                                <select value={newPrediction.wager_logic} onChange={e => setNewPrediction({ ...newPrediction, wager_logic: e.target.value })} className="bg-black border border-white/10 rounded px-3 py-2 text-white">
-                                    <option value="binary_odds">Binary Odds (Pari-mutuel)</option>
-                                </select>
-                                <button type="submit" className="md:col-span-2 bg-gold text-black font-bold py-2 rounded hover:bg-yellow-500 transition-colors">Post Prediction</button>
+
+                            {/* Category Tabs */}
+                            <div className="flex gap-2 mb-6 border-b border-gray-800 pb-2">
+                                {['Stocks', 'Crypto', 'Indices', 'Custom'].map(cat => (
+                                    <button
+                                        type="button"
+                                        key={cat}
+                                        onClick={() => setCategory(cat)}
+                                        className={`px-4 py-2 text-sm font-bold rounded-t-lg transition-colors ${category === cat ? 'bg-gold/10 text-gold border-b-2 border-gold' : 'text-gray-500 hover:text-gray-300'}`}
+                                    >
+                                        {cat}
+                                    </button>
+                                ))}
+                            </div>
+
+                            <form onSubmit={handleCreatePrediction} className="space-y-4">
+                                {/* CONDITIONAL INPUTS */}
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    {category === 'Stocks' && (
+                                        <div>
+                                            <label className="block text-sm text-gray-400 mb-1">Stock Ticker</label>
+                                            <input
+                                                placeholder="NVDA"
+                                                value={smartInputs.ticker}
+                                                onChange={e => setSmartInputs({ ...smartInputs, ticker: e.target.value })}
+                                                className="w-full bg-black border border-white/10 rounded px-3 py-2 text-white outline-none focus:border-gold"
+                                            />
+                                        </div>
+                                    )}
+
+                                    {category === 'Crypto' && (
+                                        <div>
+                                            <label className="block text-sm text-gray-400 mb-1">Coin</label>
+                                            <select
+                                                value={smartInputs.coin}
+                                                onChange={e => setSmartInputs({ ...smartInputs, coin: e.target.value })}
+                                                className="w-full bg-black border border-white/10 rounded px-3 py-2 text-white outline-none focus:border-gold"
+                                            >
+                                                <option value="BTC">Bitcoin (BTC)</option>
+                                                <option value="ETH">Ethereum (ETH)</option>
+                                                <option value="SOL">Solana (SOL)</option>
+                                                <option value="DOGE">Dogecoin (DOGE)</option>
+                                            </select>
+                                        </div>
+                                    )}
+
+                                    {category === 'Indices' && (
+                                        <div>
+                                            <label className="block text-sm text-gray-400 mb-1">Index ETF</label>
+                                            <select
+                                                value={smartInputs.index}
+                                                onChange={e => setSmartInputs({ ...smartInputs, index: e.target.value })}
+                                                className="w-full bg-black border border-white/10 rounded px-3 py-2 text-white outline-none focus:border-gold"
+                                            >
+                                                <option value="SPY">S&P 500 (SPY)</option>
+                                                <option value="QQQ">Nasdaq 100 (QQQ)</option>
+                                                <option value="DIA">Dow Jones (DIA)</option>
+                                                <option value="IWM">Russell 2000 (IWM)</option>
+                                            </select>
+                                        </div>
+                                    )}
+
+                                    {/* SMART FIELDS */}
+                                    {category !== 'Custom' && (
+                                        <>
+                                            <div>
+                                                <label className="block text-sm text-gray-400 mb-1">Target Price ($)</label>
+                                                <input
+                                                    type="number"
+                                                    placeholder="150.00"
+                                                    value={smartInputs.targetPrice}
+                                                    onChange={e => setSmartInputs({ ...smartInputs, targetPrice: e.target.value })}
+                                                    className="w-full bg-black border border-white/10 rounded px-3 py-2 text-white outline-none focus:border-gold"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-sm text-gray-400 mb-1">Direction</label>
+                                                <select
+                                                    value={smartInputs.direction}
+                                                    onChange={e => setSmartInputs({ ...smartInputs, direction: e.target.value })}
+                                                    className="w-full bg-black border border-white/10 rounded px-3 py-2 text-white outline-none focus:border-gold"
+                                                >
+                                                    <option value="Above">Price Above (&gt;)</option>
+                                                    <option value="Below">Price Below (&lt;)</option>
+                                                </select>
+                                            </div>
+                                        </>
+                                    )}
+                                </div>
+
+                                {/* COMMON: END DATE & PREVIEW */}
+                                <div>
+                                    <label className="block text-sm text-gray-400 mb-1">End Date</label>
+                                    <input
+                                        type="datetime-local"
+                                        value={newPrediction.end_date}
+                                        onChange={e => setNewPrediction({ ...newPrediction, end_date: e.target.value })}
+                                        className="w-full bg-black border border-white/10 rounded px-3 py-2 text-white focus:border-gold outline-none"
+                                        required
+                                    />
+                                </div>
+
+                                <div className="pt-4 border-t border-white/10">
+                                    <label className="block text-xs text-gold font-bold mb-2 uppercase">Prediction Preview (Auto-Generated)</label>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div>
+                                            <label className="block text-xs text-gray-500 mb-1">Title</label>
+                                            <input
+                                                value={newPrediction.title}
+                                                onChange={e => setNewPrediction({ ...newPrediction, title: e.target.value })}
+                                                className="w-full bg-gray-800/50 border border-gray-700 rounded px-3 py-2 text-sm text-white focus:border-gold outline-none"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs text-gray-500 mb-1">Market Condition</label>
+                                            <input
+                                                value={newPrediction.market_condition}
+                                                onChange={e => setNewPrediction({ ...newPrediction, market_condition: e.target.value })}
+                                                className="w-full bg-gray-800/50 border border-gray-700 rounded px-3 py-2 text-sm text-gray-300 font-mono focus:border-gold outline-none"
+                                            />
+                                        </div>
+                                        {category === 'Custom' && (
+                                            <div>
+                                                <label className="block text-xs text-gray-500 mb-1">Related Ticker</label>
+                                                <input
+                                                    value={newPrediction.stock}
+                                                    onChange={e => setNewPrediction({ ...newPrediction, stock: e.target.value.toUpperCase() })}
+                                                    className="w-full bg-gray-800/50 border border-gray-700 rounded px-3 py-2 text-sm text-white focus:border-gold outline-none"
+                                                />
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+
+                                <button type="submit" className="w-full bg-gold text-black font-bold py-3 rounded hover:bg-yellow-500 transition-colors shadow-lg shadow-gold/10">Post Prediction</button>
                             </form>
                         </div>
 

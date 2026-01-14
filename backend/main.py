@@ -1084,38 +1084,7 @@ def api_redeem_referral(req: ReferralRedeemRequest):
     success = process_referral_signup(req.email, req.code)
     return {"success": success}
 
-# --- PREDICTIONS ENDPOINTS ---
-@app.post("/api/predictions/create")
-def api_create_prediction(req: PredictionCreateRequest):
-    mods = get_mod_list()
-    # Basic check, detailed check in function or ensure UI restricts
-    if req.email.lower() not in mods: raise HTTPException(status_code=403, detail="Admins only")
-    
-    success = create_prediction(req.title, req.stock, req.end_date, req.market_condition, req.wager_logic, req.email)
-    return {"success": success}
 
-@app.get("/api/predictions/active")
-def api_get_predictions_endpoint(include_recent: bool = False):
-    return get_active_predictions(include_recent=include_recent)
-
-@app.post("/api/predictions/bet")
-def api_place_bet_endpoint(req: BetRequest):
-    return place_bet(req.email, req.prediction_id, req.choice, req.amount)
-
-@app.get("/api/user/bets")
-def api_get_user_bets_endpoint(email: str):
-    return get_user_bets(email)
-
-class PredictionDeleteRequest(BaseModel):
-    id: str
-    requester_email: str
-
-@app.post("/api/predictions/delete")
-def api_delete_prediction(req: PredictionDeleteRequest):
-    mods = get_mod_list()
-    if req.requester_email.lower() not in mods: raise HTTPException(status_code=403, detail="Admins only")
-    success = delete_prediction(req.id)
-    return {"success": success}
 
 # --- STRATEGY RANKING IMPORT ---
 try:
@@ -2278,6 +2247,137 @@ async def user_heartbeat(req: HeartbeatRequest):
         logger.error(f"Heartbeat error: {e}")
         # Fail silently to not disrupt frontend
         return {"status": "error", "detail": str(e)}
+
+# --- PREDICTIONS ENDPOINTS ---
+
+DATA_DIR = os.path.join(CURRENT_DIR, 'data')
+if not os.path.exists(DATA_DIR):
+    os.makedirs(DATA_DIR, exist_ok=True)
+
+PREDICTIONS_FILE = os.path.join(DATA_DIR, 'predictions.json')
+BETS_FILE = os.path.join(DATA_DIR, 'bets.json')
+
+def load_predictions():
+    if not os.path.exists(PREDICTIONS_FILE): return []
+    try:
+        with open(PREDICTIONS_FILE, 'r') as f: return json.load(f)
+    except: return []
+
+def save_predictions(preds):
+    with open(PREDICTIONS_FILE, 'w') as f: json.dump(preds, f, indent=4)
+
+def load_bets_data():
+    if not os.path.exists(BETS_FILE): return []
+    try:
+        with open(BETS_FILE, 'r') as f: return json.load(f)
+    except: return []
+
+def save_bets_data(bets):
+    with open(BETS_FILE, 'w') as f: json.dump(bets, f, indent=4)
+
+class PredictionCreateRequest(BaseModel):
+    title: str
+    stock: str
+    end_date: str
+    market_condition: str
+    wager_logic: str = "binary_odds"
+    creator_email: str
+    category: str = "Stocks" # Added category support
+
+class PredictionDeleteRequest(BaseModel):
+    id: str
+    email: str
+
+class BetPlaceRequest(BaseModel):
+    prediction_id: str
+    email: str
+    amount: int
+    choice: str # "YES" or "NO"
+
+@app.get("/api/predictions/active")
+def get_active_predictions(include_recent: bool = False):
+    preds = load_predictions()
+    # Ensure pool fields exist
+    for p in preds:
+        if 'total_pool_yes' not in p: p['total_pool_yes'] = 0
+        if 'total_pool_no' not in p: p['total_pool_no'] = 0
+    return preds
+
+@app.post("/api/predictions/create")
+def create_prediction(req: PredictionCreateRequest):
+    # Verify Admin
+    mods = get_mod_list()
+    if req.creator_email.lower() not in mods:
+        raise HTTPException(status_code=403, detail="Admins only.")
+
+    preds = load_predictions()
+    new_id = str(uuid.uuid4())
+    new_pred = req.model_dump()
+    new_pred['id'] = new_id
+    new_pred['status'] = 'active'
+    new_pred['created_at'] = datetime.now().isoformat()
+    new_pred['total_pool_yes'] = 0
+    new_pred['total_pool_no'] = 0
+    
+    preds.append(new_pred)
+    save_predictions(preds)
+    save_predictions(preds)
+    return {"success": True, "prediction": new_pred}
+
+@app.post("/api/predictions/delete")
+def delete_prediction(req: PredictionDeleteRequest):
+    mods = get_mod_list()
+    if req.email.lower() not in mods:
+        raise HTTPException(status_code=403, detail="Admins only.")
+        
+    preds = load_predictions()
+    preds = [p for p in preds if p['id'] != req.id]
+    save_predictions(preds)
+    return {"success": True, "status": "deleted"}
+
+@app.get("/api/user/bets")
+def get_user_bets(email: str):
+    all_bets = load_bets_data()
+    user_bets = [b for b in all_bets if b['email'] == email]
+    return user_bets
+
+@app.post("/api/predictions/bet")
+def place_bet(req: BetPlaceRequest):
+    if req.amount <= 0: raise HTTPException(status_code=400, detail="Invalid amount")
+    
+    # 1. Deduct Points
+    profile = get_user_profile(req.email)
+    current_points = profile.get("points", 0)
+    if current_points < req.amount:
+        raise HTTPException(status_code=400, detail="Insufficient funds")
+    
+    update_user_points(req.email, -req.amount)
+    
+    # 2. Record Bet
+    bets = load_bets_data()
+    new_bet = {
+        "id": str(uuid.uuid4()),
+        "prediction_id": req.prediction_id,
+        "email": req.email,
+        "amount": req.amount,
+        "choice": req.choice,
+        "timestamp": datetime.now().isoformat()
+    }
+    bets.append(new_bet)
+    save_bets_data(bets)
+    
+    # 3. Update Prediction Pool
+    preds = load_predictions()
+    for p in preds:
+        if p['id'] == req.prediction_id:
+            if req.choice == "YES":
+                p['total_pool_yes'] = p.get('total_pool_yes', 0) + req.amount
+            else:
+                 p['total_pool_no'] = p.get('total_pool_no', 0) + req.amount
+            break
+    save_predictions(preds)
+    
+    return {"status": "success", "bet_id": new_bet['id']}
 
 if __name__ == "__main__":
     import uvicorn

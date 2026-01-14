@@ -268,8 +268,8 @@ const MarketPredictions = () => {
                                                 onClick={() => placeBet(pred.id, 'yes')}
                                                 disabled={getPredictionStatus(pred) !== 'ACTIVE'}
                                                 className={`w-full py-2 font-bold rounded transition-colors text-sm ${getPredictionStatus(pred) !== 'ACTIVE'
-                                                        ? 'bg-gray-700 text-gray-400 cursor-not-allowed'
-                                                        : 'bg-green-600 hover:bg-green-500 text-white'
+                                                    ? 'bg-gray-700 text-gray-400 cursor-not-allowed'
+                                                    : 'bg-green-600 hover:bg-green-500 text-white'
                                                     }`}
                                             >
                                                 {getPredictionStatus(pred) === 'ENDED' && pred.winner === 'yes' ? 'WINNER' : 'BET YES'}
@@ -285,8 +285,8 @@ const MarketPredictions = () => {
                                                 onClick={() => placeBet(pred.id, 'no')}
                                                 disabled={getPredictionStatus(pred) !== 'ACTIVE'}
                                                 className={`w-full py-2 font-bold rounded transition-colors text-sm ${getPredictionStatus(pred) !== 'ACTIVE'
-                                                        ? 'bg-gray-700 text-gray-400 cursor-not-allowed'
-                                                        : 'bg-red-600 hover:bg-red-500 text-white'
+                                                    ? 'bg-gray-700 text-gray-400 cursor-not-allowed'
+                                                    : 'bg-red-600 hover:bg-red-500 text-white'
                                                     }`}
                                             >
                                                 {getPredictionStatus(pred) === 'ENDED' && pred.winner === 'no' ? 'WINNER' : 'BET NO'}
@@ -378,154 +378,209 @@ const MarketPredictions = () => {
 };
 
 const CreatePredictionModal = ({ isOpen, onClose, onSubmit, newPrediction, setNewPrediction }) => {
-    const [batchMode, setBatchMode] = useState(false);
-    const [batchSettings, setBatchSettings] = useState({
-        basePrice: '',
-        variations: '5, 10',
-        unit: 'percent', // percent or dollars
-        directions: { above: true, below: true }
+    // Categories: Stocks, Crypto, Indices, Custom
+    const [category, setCategory] = useState('Stocks');
+
+    // Smart inputs
+    const [smartInputs, setSmartInputs] = useState({
+        ticker: '',
+        coin: 'BTC',
+        index: 'SPY',
+        targetPrice: '',
+        direction: 'Above', // Above, Below
+        dateType: 'Specific', // Specific, End of Week, End of Month
+        customDate: '',
     });
+
+    useEffect(() => {
+        if (!isOpen) {
+            // Reset on close? Or keep for ease? 
+            // setSmartInputs({ ticker: '', coin: 'BTC', index: 'SPY', targetPrice: '', direction: 'Above', dateType: 'Specific', customDate: '' });
+        }
+    }, [isOpen]);
+
+    // Auto-Generate Title & Condition
+    useEffect(() => {
+        if (category === 'Custom') return;
+
+        let symbol = '';
+        if (category === 'Stocks') symbol = smartInputs.ticker.toUpperCase();
+        if (category === 'Crypto') symbol = smartInputs.coin;
+        if (category === 'Indices') symbol = smartInputs.index;
+
+        if (!symbol || !smartInputs.targetPrice) return;
+
+        const dirSymbol = smartInputs.direction === 'Above' ? '>' : '<';
+
+        // Auto Text
+        const title = `${symbol} ${dirSymbol} $${smartInputs.targetPrice}`;
+        const condition = `Price ${dirSymbol} ${smartInputs.targetPrice}`;
+
+        // Set to parent state
+        setNewPrediction(prev => ({
+            ...prev,
+            title: title,
+            stock: symbol,
+            market_condition: condition,
+            wager_logic: 'binary_odds' // Enforce default
+        }));
+
+    }, [category, smartInputs, setNewPrediction]);
+
 
     if (!isOpen) return null;
 
-    const handleBatchSubmit = async (e) => {
+    const handleSubmit = (e) => {
         e.preventDefault();
-        if (!batchMode) {
-            onSubmit(e);
-            return;
-        }
-
-        // Generate list
-        const levels = batchSettings.variations.split(',').map(s => parseFloat(s.trim())).filter(n => !isNaN(n));
-        const base = parseFloat(batchSettings.basePrice);
-        if (!base || levels.length === 0) {
-            alert("Invalid base price or variations");
-            return;
-        }
-
-        const variations = [];
-        levels.forEach(lvl => {
-            const val = batchSettings.unit === 'percent' ? (base * (lvl / 100)) : lvl;
-
-            if (batchSettings.directions.above) {
-                const target = (base + val).toFixed(2);
-                variations.push({
-                    title: `${newPrediction.stock} > ${target} (+${lvl}${batchSettings.unit === 'percent' ? '%' : '$'})`,
-                    condition: `Price > ${target}`,
-                    wager_logic: 'binary_odds'
-                });
-            }
-            if (batchSettings.directions.below) {
-                const target = (base - val).toFixed(2);
-                variations.push({
-                    title: `${newPrediction.stock} < ${target} (-${lvl}${batchSettings.unit === 'percent' ? '%' : '$'})`,
-                    condition: `Price < ${target}`,
-                    wager_logic: 'binary_odds'
-                });
-            }
-        });
-
-        // Submit one by one
-        let count = 0;
-        for (const v of variations) {
-            // Mock event structure for existing handler logic or call API directly here?
-            // Let's call a modified submit that takes overrides
-            // Actually, we can just call the API directly loop here, but reusing `onSubmit` logic is cleaner if we can.
-            // But `onSubmit` preventsDefault.
-            // Let's just do the fetch loop here for simplicity of "Batch"
-            try {
-                const payload = {
-                    ...newPrediction,
-                    title: v.title,
-                    market_condition: v.condition,
-                    email: 'ADMIN_BATCH' // The main handler adds email, let's duplicate the fetch logic briefly or refactor.
-                };
-                // To keep it clean, let's assume parent passed a "handleDirectCreate" or we just emulate
-                // We'll trust the user wants speed.
-                await onSubmit({ preventDefault: () => { }, target: null, overridePayload: payload });
-                count++;
-            } catch (err) {
-                console.error(err);
-            }
-        }
-        alert(`Created ${count} predictions successfully.`);
-        onClose();
+        onSubmit(e);
     };
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-            <div className="bg-gray-900 border border-white/10 rounded-xl p-6 w-full max-w-lg shadow-2xl overflow-y-auto max-h-[90vh]">
+            <div className="bg-gray-900 border border-white/10 rounded-xl p-6 w-full max-w-lg shadow-2xl">
                 <div className="flex justify-between items-center mb-6">
-                    <h3 className="text-xl font-bold flex items-center gap-2 text-gold"><Plus size={20} /> Create Prediction</h3>
-                    <div className="flex items-center gap-2">
-                        <label className="text-xs text-gray-400 flex items-center gap-2 cursor-pointer">
-                            <input type="checkbox" checked={batchMode} onChange={e => setBatchMode(e.target.checked)} className="accent-gold" />
-                            Batch Mode
-                        </label>
-                        <button onClick={onClose} className="text-gray-400 hover:text-white"><X size={24} /></button>
-                    </div>
+                    <h3 className="text-xl font-bold flex items-center gap-2 text-gold"><Plus size={20} /> Smart Prediction Builder</h3>
+                    <button onClick={onClose} className="text-gray-400 hover:text-white"><X size={24} /></button>
                 </div>
-                <form onSubmit={handleBatchSubmit} className="space-y-4">
-                    <div className="grid grid-cols-2 gap-4">
-                        <div>
-                            <label className="block text-sm text-gray-400 mb-1">Stock Symbol</label>
-                            <input placeholder="NVDA" value={newPrediction.stock} onChange={e => setNewPrediction({ ...newPrediction, stock: e.target.value.toUpperCase() })} className="w-full bg-black border border-white/10 rounded px-3 py-2 text-white focus:border-gold outline-none" required />
-                        </div>
-                        <div>
-                            <label className="block text-sm text-gray-400 mb-1">End Date</label>
-                            <input type="datetime-local" value={newPrediction.end_date} onChange={e => setNewPrediction({ ...newPrediction, end_date: e.target.value })} className="w-full bg-black border border-white/10 rounded px-3 py-2 text-white focus:border-gold outline-none" required />
-                        </div>
-                    </div>
 
-                    {!batchMode ? (
-                        <>
+                {/* Category Tabs */}
+                <div className="flex gap-2 mb-6 border-b border-gray-800 pb-2">
+                    {['Stocks', 'Crypto', 'Indices', 'Custom'].map(cat => (
+                        <button
+                            key={cat}
+                            onClick={() => setCategory(cat)}
+                            className={`px-4 py-2 text-sm font-bold rounded-t-lg transition-colors ${category === cat ? 'bg-gold/10 text-gold border-b-2 border-gold' : 'text-gray-500 hover:text-gray-300'}`}
+                        >
+                            {cat}
+                        </button>
+                    ))}
+                </div>
+
+                <form onSubmit={handleSubmit} className="space-y-4">
+
+                    {/* CONDITIONAL INPUTS */}
+                    {category === 'Stocks' && (
+                        <div>
+                            <label className="block text-sm text-gray-400 mb-1">Stock Ticker</label>
+                            <input
+                                placeholder="NVDA"
+                                value={smartInputs.ticker}
+                                onChange={e => setSmartInputs({ ...smartInputs, ticker: e.target.value })}
+                                className="w-full bg-black border border-white/10 rounded px-3 py-2 text-white outline-none focus:border-gold"
+                            />
+                        </div>
+                    )}
+
+                    {category === 'Crypto' && (
+                        <div>
+                            <label className="block text-sm text-gray-400 mb-1">Coin</label>
+                            <select
+                                value={smartInputs.coin}
+                                onChange={e => setSmartInputs({ ...smartInputs, coin: e.target.value })}
+                                className="w-full bg-black border border-white/10 rounded px-3 py-2 text-white outline-none focus:border-gold"
+                            >
+                                <option value="BTC">Bitcoin (BTC)</option>
+                                <option value="ETH">Ethereum (ETH)</option>
+                                <option value="SOL">Solana (SOL)</option>
+                                <option value="DOGE">Dogecoin (DOGE)</option>
+                            </select>
+                        </div>
+                    )}
+
+                    {category === 'Indices' && (
+                        <div>
+                            <label className="block text-sm text-gray-400 mb-1">Index ETF</label>
+                            <select
+                                value={smartInputs.index}
+                                onChange={e => setSmartInputs({ ...smartInputs, index: e.target.value })}
+                                className="w-full bg-black border border-white/10 rounded px-3 py-2 text-white outline-none focus:border-gold"
+                            >
+                                <option value="SPY">S&P 500 (SPY)</option>
+                                <option value="QQQ">Nasdaq 100 (QQQ)</option>
+                                <option value="DIA">Dow Jones (DIA)</option>
+                                <option value="IWM">Russell 2000 (IWM)</option>
+                            </select>
+                        </div>
+                    )}
+
+                    {/* SMART FIELDS (Skip for Custom) */}
+                    {category !== 'Custom' && (
+                        <div className="grid grid-cols-2 gap-4">
                             <div>
-                                <label className="block text-sm text-gray-400 mb-1">Title</label>
-                                <input placeholder="e.g. NVDA Earnings Beat" value={newPrediction.title} onChange={e => setNewPrediction({ ...newPrediction, title: e.target.value })} className="w-full bg-black border border-white/10 rounded px-3 py-2 text-white focus:border-gold outline-none" required />
+                                <label className="block text-sm text-gray-400 mb-1">Target Price ($)</label>
+                                <input
+                                    type="number"
+                                    placeholder="150.00"
+                                    value={smartInputs.targetPrice}
+                                    onChange={e => setSmartInputs({ ...smartInputs, targetPrice: e.target.value })}
+                                    className="w-full bg-black border border-white/10 rounded px-3 py-2 text-white outline-none focus:border-gold"
+                                />
                             </div>
                             <div>
-                                <label className="block text-sm text-gray-400 mb-1">Condition</label>
-                                <input placeholder="e.g. Price > $140 at close" value={newPrediction.market_condition} onChange={e => setNewPrediction({ ...newPrediction, market_condition: e.target.value })} className="w-full bg-black border border-white/10 rounded px-3 py-2 text-white focus:border-gold outline-none" required />
-                            </div>
-                        </>
-                    ) : (
-                        <div className="p-4 bg-white/5 rounded-lg border border-white/10 space-y-4">
-                            <div>
-                                <label className="block text-sm text-gold mb-1 font-bold">Batch Settings</label>
-                                <div className="text-xs text-gray-500 mb-2">Create multiple predictions (Spread) based on current price.</div>
-                            </div>
-                            <div>
-                                <label className="block text-xs text-gray-400 mb-1">Current Price / Base</label>
-                                <input type="number" placeholder="100.00" value={batchSettings.basePrice} onChange={e => setBatchSettings({ ...batchSettings, basePrice: e.target.value })} className="w-full bg-black border border-gray-700 rounded px-2 py-1 text-white" />
-                            </div>
-                            <div className="grid grid-cols-2 gap-2">
-                                <div>
-                                    <label className="block text-xs text-gray-400 mb-1">Variations (comma sep)</label>
-                                    <input placeholder="5, 10, 15" value={batchSettings.variations} onChange={e => setBatchSettings({ ...batchSettings, variations: e.target.value })} className="w-full bg-black border border-gray-700 rounded px-2 py-1 text-white" />
-                                </div>
-                                <div>
-                                    <label className="block text-xs text-gray-400 mb-1">Unit</label>
-                                    <select value={batchSettings.unit} onChange={e => setBatchSettings({ ...batchSettings, unit: e.target.value })} className="w-full bg-black border border-gray-700 rounded px-2 py-1 text-white">
-                                        <option value="percent">Percent (%)</option>
-                                        <option value="dollars">Dollars ($)</option>
-                                    </select>
-                                </div>
-                            </div>
-                            <div className="flex gap-4">
-                                <label className="flex items-center gap-2 text-sm text-gray-300">
-                                    <input type="checkbox" checked={batchSettings.directions.above} onChange={e => setBatchSettings({ ...batchSettings, directions: { ...batchSettings.directions, above: e.target.checked } })} className="accent-green-500" />
-                                    Above Targets
-                                </label>
-                                <label className="flex items-center gap-2 text-sm text-gray-300">
-                                    <input type="checkbox" checked={batchSettings.directions.below} onChange={e => setBatchSettings({ ...batchSettings, directions: { ...batchSettings.directions, below: e.target.checked } })} className="accent-red-500" />
-                                    Below Targets
-                                </label>
+                                <label className="block text-sm text-gray-400 mb-1">Direction</label>
+                                <select
+                                    value={smartInputs.direction}
+                                    onChange={e => setSmartInputs({ ...smartInputs, direction: e.target.value })}
+                                    className="w-full bg-black border border-white/10 rounded px-3 py-2 text-white outline-none focus:border-gold"
+                                >
+                                    <option value="Above">Price Above (&gt;)</option>
+                                    <option value="Below">Price Below (&lt;)</option>
+                                </select>
                             </div>
                         </div>
                     )}
 
-                    <button type="submit" className="w-full bg-gold hover:bg-yellow-500 text-black font-bold py-3 rounded-lg transition-colors mt-2">
-                        {batchMode ? "Generate Batch Predictions" : "Post Prediction"}
+                    {/* COMMON: END DATE */}
+                    <div>
+                        <label className="block text-sm text-gray-400 mb-1">End Date</label>
+                        <input
+                            type="datetime-local"
+                            value={newPrediction.end_date}
+                            onChange={e => setNewPrediction({ ...newPrediction, end_date: e.target.value })}
+                            className="w-full bg-black border border-white/10 rounded px-3 py-2 text-white focus:border-gold outline-none"
+                            required
+                        />
+                    </div>
+
+                    {/* PREVIEW / OVERRIDE */}
+                    <div className="pt-4 border-t border-gray-800">
+                        <label className="block text-xs text-gold font-bold mb-2 uppercase">Generated Output (Editable)</label>
+
+                        <div className="space-y-3">
+                            <div>
+                                <label className="block text-xs text-gray-500 mb-1">Title</label>
+                                <input
+                                    value={newPrediction.title}
+                                    onChange={e => setNewPrediction({ ...newPrediction, title: e.target.value })}
+                                    className="w-full bg-gray-800/50 border border-gray-700 rounded px-3 py-2 text-sm text-white focus:border-gold outline-none"
+                                    placeholder="Prediction Title"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-xs text-gray-500 mb-1">Market Condition Logic</label>
+                                <input
+                                    value={newPrediction.market_condition}
+                                    onChange={e => setNewPrediction({ ...newPrediction, market_condition: e.target.value })}
+                                    className="w-full bg-gray-800/50 border border-gray-700 rounded px-3 py-2 text-sm text-gray-300 font-mono focus:border-gold outline-none"
+                                    placeholder="Condition String"
+                                />
+                            </div>
+                            {category === 'Custom' && (
+                                <div>
+                                    <label className="block text-xs text-gray-500 mb-1">Related Ticker</label>
+                                    <input
+                                        value={newPrediction.stock}
+                                        onChange={e => setNewPrediction({ ...newPrediction, stock: e.target.value.toUpperCase() })}
+                                        className="w-full bg-gray-800/50 border border-gray-700 rounded px-3 py-2 text-sm text-white focus:border-gold outline-none"
+                                        placeholder="TICKER"
+                                    />
+                                </div>
+                            )}
+                        </div>
+                    </div>
+
+                    <button type="submit" className="w-full bg-gold hover:bg-yellow-500 text-black font-bold py-3 rounded-lg transition-colors mt-2 shadow-[0_0_15px_rgba(255,215,0,0.3)]">
+                        Post Prediction
                     </button>
                 </form>
             </div>

@@ -282,10 +282,14 @@ const PillNav = ({
                                                 circleRefs.current[i] = el;
                                             }}
                                         />
-                                        <span className="label-stack">
-                                            <span className="pill-label">{item.label}</span>
-                                            <span className="pill-label-hover" aria-hidden="true">
+                                        <span className="label-stack relative">
+                                            <span className={`pill-label flex items-center gap-1 ${item.hasNotification ? 'text-green-500 font-bold' : ''}`}>
                                                 {item.label}
+                                                {item.hasNotification && <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse shadow-[0_0_8px_rgba(34,197,94,0.8)]" />}
+                                            </span>
+                                            <span className="pill-label-hover flex items-center gap-1" aria-hidden="true">
+                                                {item.label}
+                                                {item.hasNotification && <span className="w-1.5 h-1.5 rounded-full bg-green-500" />}
                                             </span>
                                         </span>
                                     </Link>
@@ -305,10 +309,14 @@ const PillNav = ({
                                                 circleRefs.current[i] = el;
                                             }}
                                         />
-                                        <span className="label-stack">
-                                            <span className="pill-label">{item.label}</span>
-                                            <span className="pill-label-hover" aria-hidden="true">
+                                        <span className="label-stack relative">
+                                            <span className={`pill-label flex items-center gap-1 ${item.hasNotification ? 'text-green-500 font-bold' : ''}`}>
                                                 {item.label}
+                                                {item.hasNotification && <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse shadow-[0_0_8px_rgba(34,197,94,0.8)]" />}
+                                            </span>
+                                            <span className="pill-label-hover flex items-center gap-1" aria-hidden="true">
+                                                {item.label}
+                                                {item.hasNotification && <span className="w-1.5 h-1.5 rounded-full bg-green-500" />}
                                             </span>
                                         </span>
                                     </a>
