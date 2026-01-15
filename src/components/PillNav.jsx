@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { Link } from 'react-router-dom';
+import { prefetchRoute } from '../config/routes';
 import { gsap } from 'gsap';
 import './PillNav.css';
 
@@ -133,6 +134,12 @@ const PillNav = ({
             ease,
             overwrite: 'auto'
         });
+
+        // Prefetch the route chunk on hover
+        const item = items[i];
+        if (item && item.href && isRouterLink(item.href)) {
+            prefetchRoute(item.href);
+        }
     };
 
     const handleLeave = i => {

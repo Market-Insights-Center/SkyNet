@@ -34,6 +34,7 @@ const ArticleCard = ({ article, className }) => {
                     layoutId={`image-${article.id}-global`}
                     src={article.cover_image || "https://images.unsplash.com/photo-1611974765270-ca12586343bb?auto=format&fit=crop&q=80&w=1000"}
                     alt={article.title}
+                    loading="lazy"
                     className="w-full h-full object-cover"
                 />
             </motion.div>

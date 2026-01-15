@@ -741,53 +741,25 @@ const LandingPage = () => {
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        const fetchBanners = async () => {
+        const fetchLandingData = async () => {
             try {
-                const bannerRes = await fetch('/api/banners'); // Correct endpoint
-                if (bannerRes.ok) {
-                    const data = await bannerRes.json();
-                    setBanners(data.filter(b => b.active));
+                // Fetch all landing page data in one highly optimized request
+                const res = await fetch('/api/landing/data');
+                if (res.ok) {
+                    const data = await res.json();
+                    setBanners(data.banners || []);
+                    setRecentIdeas(data.ideas || []);
+                    setRecentArticles(data.articles || []);
+                    setLeaderboard(data.leaderboard || []);
                 }
             } catch (error) {
-                console.error("Error fetching banners:", error);
-            }
-        };
-
-        const fetchContent = async () => {
-            try {
-                // Run these in parallel as well
-                const [ideaRes, newsRes, lbRes] = await Promise.all([
-                    fetch('/api/ideas'),
-                    fetch('/api/articles'),
-                    fetch('/api/points/leaderboard')
-                ]);
-
-                if (ideaRes.ok) {
-                    const data = await ideaRes.json();
-                    setRecentIdeas(data.slice(0, 3));
-                }
-
-                if (newsRes.ok) {
-                    const data = await newsRes.json();
-                    setRecentArticles(data.slice(0, 3));
-                }
-
-                if (lbRes.ok) {
-                    const data = await lbRes.json();
-                    if (Array.isArray(data)) {
-                        setLeaderboard(data.slice(0, 10));
-                    }
-                }
-            } catch (error) {
-                console.error("Error fetching content:", error);
+                console.error("Error fetching landing data:", error);
             } finally {
                 setLoading(false);
             }
         };
 
-        // Fire both tasks immediately
-        fetchBanners();
-        fetchContent();
+        fetchLandingData();
     }, []);
 
     const getBannerStyles = (type) => {

@@ -1353,6 +1353,46 @@ def get_public_banners():
     all_banners = get_banners()
     return [b for b in all_banners if b.get('active')]
 
+@app.get("/api/landing/data")
+def get_landing_data():
+    """Composite endpoint for optimized landing page load."""
+    # 1. Banners
+    all_banners = get_banners()
+    active_banners = [b for b in all_banners if b.get('active')]
+
+    # 2. Ideas (Top 3)
+    ideas = read_ideas_from_csv()
+    all_comments = read_comments_from_csv()
+    # comments join logic (simplified for speed, just counting might be enough or full join if needed)
+    # The frontend uses 'comments' array length, so we must start it.
+    # To save bandwidth, we could just send counts, but let's match existing structure for compatibility.
+    for idea in ideas:
+        idea_id = str(idea.get('id'))
+        # Filter comments for this idea
+        idea_comments = [c for c in all_comments if str(c.get('idea_id')) == idea_id]
+        idea['comments'] = idea_comments
+    ideas.sort(key=lambda x: x.get('date', ''), reverse=True)
+    top_ideas = ideas[:3]
+
+    # 3. Articles (Top 3)
+    articles = read_articles_from_csv()
+    for article in articles:
+        article_id = str(article.get('id'))
+        article_comments = [c for c in all_comments if str(c.get('article_id')) == article_id]
+        article['comments'] = article_comments
+    articles.sort(key=lambda x: x.get('date', ''), reverse=True)
+    top_articles = articles[:3]
+
+    # 4. Leaderboard (Top 10)
+    leaderboard = get_leaderboard(limit=10)
+
+    return {
+        "banners": active_banners,
+        "ideas": top_ideas,
+        "articles": top_articles,
+        "leaderboard": leaderboard
+    }
+
 @app.get("/api/admin/banners")
 def get_admin_banners(email: str):
     """Admin endpoint to see all banners including inactive"""

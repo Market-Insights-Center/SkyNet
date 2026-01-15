@@ -46,6 +46,24 @@ _chat_cache = {
     "mtime": 0
 }
 
+# --- CONTENT CACHES ---
+_banners_cache = {
+    "data": [],
+    "mtime": 0
+}
+_articles_cache = {
+    "data": [],
+    "mtime": 0
+}
+_ideas_cache = {
+    "data": [],
+    "mtime": 0
+}
+_comments_cache = {
+    "data": [],
+    "mtime": 0
+}
+
 
 # --- LIMIT LOGIC (NEW) ---
 
@@ -627,12 +645,17 @@ def init_articles_csv():
             writer.writerow(['id', 'title', 'subheading', 'content', 'author', 'date', 'category', 'hashtags', 'cover_image', 'likes', 'dislikes', 'shares', 'liked_by', 'disliked_by'])
 
 def read_articles_from_csv():
-    articles = []
+    global _articles_cache
     if not os.path.exists(ARTICLES_CSV):
         init_articles_csv()
         return []
     
     try:
+        current_mtime = os.path.getmtime(ARTICLES_CSV)
+        if current_mtime <= _articles_cache["mtime"]:
+            return _articles_cache["data"]
+
+        articles = []
         with open(ARTICLES_CSV, 'r', encoding='utf-8') as f:
             reader = csv.DictReader(f)
             for row in reader:
@@ -665,10 +688,14 @@ def read_articles_from_csv():
                 except Exception as e:
                     print(f"Error parsing article row {row.get('id')}: {e}")
                     continue
+        
+        # Update Cache
+        _articles_cache = {"data": articles, "mtime": current_mtime}
+        return articles
+
     except Exception as e:
         print(f"Error reading CSV: {e}")
         return []
-    return articles
 
 def save_articles_to_csv(articles):
     try:
@@ -713,12 +740,17 @@ def init_ideas_csv():
             writer.writerow(['id', 'ticker', 'title', 'description', 'author', 'date', 'hashtags', 'cover_image', 'likes', 'dislikes', 'liked_by', 'disliked_by'])
 
 def read_ideas_from_csv():
-    ideas = []
+    global _ideas_cache
     if not os.path.exists(IDEAS_CSV):
         init_ideas_csv()
         return []
     
     try:
+        current_mtime = os.path.getmtime(IDEAS_CSV)
+        if current_mtime <= _ideas_cache["mtime"]:
+            return _ideas_cache["data"]
+
+        ideas = []
         with open(IDEAS_CSV, 'r', encoding='utf-8') as f:
             reader = csv.DictReader(f)
             for row in reader:
@@ -748,10 +780,14 @@ def read_ideas_from_csv():
                 except Exception as e:
                     print(f"Error parsing idea row {row.get('id')}: {e}")
                     continue
+        
+        # Update Cache
+        _ideas_cache = {"data": ideas, "mtime": current_mtime}
+        return ideas
+
     except Exception as e:
         print(f"Error reading Ideas CSV: {e}")
         return []
-    return ideas
 
 def save_ideas_to_csv(ideas):
     try:
@@ -794,12 +830,17 @@ def init_comments_csv():
             writer.writerow(['id', 'idea_id', 'article_id', 'user_id', 'user', 'email', 'text', 'date', 'isAdmin'])
 
 def read_comments_from_csv():
-    comments = []
+    global _comments_cache
     if not os.path.exists(COMMENTS_CSV):
         init_comments_csv()
         return []
     
     try:
+        current_mtime = os.path.getmtime(COMMENTS_CSV)
+        if current_mtime <= _comments_cache["mtime"]:
+            return _comments_cache["data"]
+
+        comments = []
         with open(COMMENTS_CSV, 'r', encoding='utf-8') as f:
             reader = csv.DictReader(f)
             for row in reader:
@@ -818,10 +859,14 @@ def read_comments_from_csv():
                 except Exception as e:
                     print(f"Error parsing comment row: {e}")
                     continue
+        
+        # Update Cache
+        _comments_cache = {"data": comments, "mtime": current_mtime}
+        return comments
+
     except Exception as e:
         print(f"Error reading Comments CSV: {e}")
         return []
-    return comments
 
 def save_comments_to_csv(comments):
     try:
@@ -885,9 +930,10 @@ BANNERS_DEFAULT_FILE = os.path.join(BASE_DIR, 'banners_default.json')
 
 def get_banners(include_inactive=False):
     """
-    Reads banners from banners.json.
-    If banners.json is missing, it copies from banners_default.json.
+    Reads banners from banners.json using caching.
     """
+    global _banners_cache
+
     # Auto-initialize if missing
     if not os.path.exists(BANNERS_FILE):
         if os.path.exists(BANNERS_DEFAULT_FILE):
@@ -903,11 +949,18 @@ def get_banners(include_inactive=False):
                 f.write('[]')
     
     try:
-        with open(BANNERS_FILE, 'r') as f:
-            banners = json.load(f)
-            if not include_inactive:
-                return [b for b in banners if b.get('active', True)]
-            return banners
+        current_mtime = os.path.getmtime(BANNERS_FILE)
+        banners = []
+        if current_mtime <= _banners_cache["mtime"]:
+            banners = _banners_cache["data"]
+        else:
+            with open(BANNERS_FILE, 'r') as f:
+                banners = json.load(f)
+            _banners_cache = {"data": banners, "mtime": current_mtime}
+        
+        if not include_inactive:
+            return [b for b in banners if b.get('active', True)]
+        return banners
     except Exception as e:
         print(f"Error reading banners.json: {e}")
         return []

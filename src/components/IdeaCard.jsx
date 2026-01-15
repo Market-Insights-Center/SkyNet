@@ -174,6 +174,7 @@ const IdeaCard = React.forwardRef(({ idea, currentUser, onVote, style, className
                         <img
                             src={idea.cover_image}
                             alt={idea.title}
+                            loading="lazy"
                             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                         />
                     ) : (
