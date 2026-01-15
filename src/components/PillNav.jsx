@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { Link } from 'react-router-dom';
-import { prefetchRoute } from '../config/routes';
+import { prefetchRoute } from '../config/routes_new';
 import { gsap } from 'gsap';
 import './PillNav.css';
 

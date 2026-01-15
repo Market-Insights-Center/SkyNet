@@ -18,7 +18,7 @@ import StartupAnimation from './components/StartupAnimation';
 import { Loader2 } from 'lucide-react';
 
 // Lazy Load Pages
-import { LazyRoutes } from './config/routes';
+import { LazyRoutes } from './config/routes_new';
 
 // --- PayPal Configuration (Safety Mode) ---
 const clientId = import.meta.env.VITE_PAYPAL_CLIENT_ID;
