@@ -20,11 +20,29 @@ if command -v fuser &> /dev/null; then
 fi
 
 echo "⬇️  Pulling latest code..."
+
+# BACKUP CRITICAL DATA
+# Check for usage_stats.json and back it up to /tmp or a safe location outside the repo
+if [ -f "backend/data/usage_stats.json" ]; then
+    echo "💾 Backing up usage_stats.json..."
+    cp backend/data/usage_stats.json /tmp/usage_stats.json.bak
+else
+    echo "⚠️  No usage_stats.json found to backup."
+fi
+
 git reset --hard HEAD
 git clean -fd
 git pull
 echo "✅ Code pulled. Current Commit:"
 git log -1 --oneline
+
+# RESTORE CRITICAL DATA
+if [ -f "/tmp/usage_stats.json.bak" ]; then
+    echo "♻️  Restoring usage_stats.json..."
+    cp /tmp/usage_stats.json.bak backend/data/usage_stats.json
+else
+    echo "⚠️  No backup found to restore."
+fi
 
 echo "📦 Re-installing dependencies..."
 # Frontend

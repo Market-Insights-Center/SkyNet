@@ -132,7 +132,7 @@ const CardExpansionOverlay = () => {
                                     className="flex flex-wrap items-center justify-between gap-6 py-6 border-y border-white/10 mb-12"
                                 >
                                     <div className="flex items-center gap-4 text-sm text-gray-400">
-                                        <span className="font-bold text-white">{article.author || "SkyNet Analyst"}</span>
+                                        <span className="font-bold text-white">{article.author || "Orion Analyst"}</span>
                                         <span>•</span>
                                         <span>{formattedDate}</span>
                                     </div>

@@ -90,6 +90,16 @@ const Products = () => {
                     <p className="text-xl text-gray-400 max-w-2xl mx-auto">
                         Explore the suite of advanced financial tools designed to give you the edge in the modern market.
                     </p>
+                    <div className="mt-8 flex justify-center animate-fade-in-up">
+                        <div className="inline-flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/10 transition-colors rounded-full border border-white/10 text-sm text-gray-400">
+                            <div className="flex gap-1">
+                                <span className="bg-white/10 px-2 py-0.5 rounded text-white font-mono text-xs border border-white/5">Ctrl</span>
+                                <span className="text-gray-500">+</span>
+                                <span className="bg-white/10 px-2 py-0.5 rounded text-white font-mono text-xs border border-white/5">K</span>
+                            </div>
+                            <span>to open Command Palette</span>
+                        </div>
+                    </div>
                 </motion.div>
 
                 {/* Only show Orion if on Localhost AND (User is Singularity or not logged in) */}

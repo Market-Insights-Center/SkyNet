@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import { useNavigate, Link } from "react-router-dom";
-import { AlertCircle, CheckCircle, LogOut, User, Lock, ArrowLeft, Loader2, Shield, ArrowRight, Edit3, AlertTriangle } from "lucide-react";
+import { AlertCircle, CheckCircle, LogOut, User, Lock, ArrowLeft, Loader2, Shield, ArrowRight, Edit3, AlertTriangle, Trophy } from "lucide-react";
 import { doc, getDoc, setDoc, deleteDoc } from "firebase/firestore";
 import { db } from "../firebase";
 import { WaveBackground } from "../components/WaveBackground.jsx";
@@ -65,7 +65,7 @@ export default function Profile() {
                             setPendingPoints(totalPending);
                         }
                         if (data.referral_code) setReferralCode(data.referral_code);
-                        if (data.settings?.show_leaderboard) setShowLeaderboard(true);
+                        if (data.settings?.show_leaderboard !== false) setShowLeaderboard(true); // Default to True
 
                         // Calculate Account Age
                         const created = data.created_at?.toDate ? data.created_at.toDate() : new Date(data.created_at || currentUser.metadata.creationTime);
@@ -134,6 +134,8 @@ export default function Profile() {
         }
         checkProfile();
     }, [currentUser]);
+
+
 
     async function handleLogout() {
         setError("");
@@ -445,6 +447,8 @@ export default function Profile() {
                             placeholder="Enter display name"
                         />
                     </div>
+
+
 
                     <div className="pt-4 border-t border-white/10">
                         <h4 className="text-lg font-medium text-gray-200 mb-4">Change Password</h4>

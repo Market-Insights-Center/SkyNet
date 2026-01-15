@@ -346,7 +346,7 @@ const Help = () => {
             title: 'Sentinel AI',
             icon: Cpu,
             color: 'text-cyan-400',
-            description: 'Sentinel AI is the autonomous intelligence layer of the Orion Ecosystem. It functions as an execution planner, capable of understanding natural language requests and chaining multiple SkyNet commands together to perform complex, multi-step financial conceptualizations and analyses.',
+            description: 'Sentinel AI is the autonomous intelligence layer of the Orion Ecosystem. It functions as an execution planner, capable of understanding natural language requests and chaining multiple Orion commands together to perform complex, multi-step financial conceptualizations and analyses.',
             subProducts: [
                 {
                     id: 'sentinel-core',
@@ -366,7 +366,7 @@ const Help = () => {
             title: 'Database Codes',
             icon: Database,
             color: 'text-purple-400',
-            description: 'The Database Lab is the persistent memory of the SkyNet ecosystem. It allows you to save, organize, and reuse your complex portfolio structures and Nexus configurations across different tools like Sentinel AI and the Portfolio Nexus.',
+            description: 'The Database Lab is the persistent memory of the Orion ecosystem. It allows you to save, organize, and reuse your complex portfolio structures and Nexus configurations across different tools like Sentinel AI and the Portfolio Nexus.',
             subProducts: [
                 {
                     id: 'portfolio-codes',

@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
-import { TrendingUp, TrendingDown, DollarSign, Clock, AlertCircle, CheckCircle, Shield, Activity, X, Plus } from 'lucide-react';
+import { TrendingUp, TrendingDown, DollarSign, Clock, AlertCircle, CheckCircle, Shield, Activity, X, Plus, Trophy } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import NeonWrapper from '../components/NeonWrapper';
+import Skeleton from '../components/Skeleton';
 
 const MarketPredictions = () => {
     const { currentUser, userProfile } = useAuth();
@@ -11,6 +12,7 @@ const MarketPredictions = () => {
     const [pendingPoints, setPendingPoints] = useState(0);
     const [predictions, setPredictions] = useState([]);
     const [myBets, setMyBets] = useState([]);
+    const [leaderboard, setLeaderboard] = useState([]);
     const [betAmounts, setBetAmounts] = useState({}); // { predId: amount }
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
@@ -37,21 +39,24 @@ const MarketPredictions = () => {
         if (!currentUser) return;
         setLoading(true);
         try {
-            const [balanceRes, predsRes, betsRes] = await Promise.all([
+            const [balanceRes, predsRes, betsRes, leaderRes] = await Promise.all([
                 fetch('/api/points/user', {
                     method: 'POST', headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ email: currentUser.email })
                 }),
-                fetch('/api/predictions/active?include_recent=true'), // Updated endpoint param
-                fetch(`/api/user/bets?email=${currentUser.email}`)
+                fetch('/api/predictions/active?include_recent=true'),
+                fetch(`/api/user/bets?email=${currentUser.email}`),
+                fetch('/api/predictions/leaderboard') // Fetch Leaderboard
             ]);
 
             const balanceData = await balanceRes.json();
             const predsData = await predsRes.json();
             const betsData = await betsRes.json();
+            const leaderData = await leaderRes.json();
 
             setBalance(balanceData.points || 0);
             setPendingPoints(balanceData.pending_points || 0);
+            setLeaderboard(Array.isArray(leaderData) ? leaderData : []);
 
             // Filter: Active OR (Ended recently)
             const allPreds = Array.isArray(predsData) ? predsData : [];
@@ -172,6 +177,28 @@ const MarketPredictions = () => {
         }
     };
 
+    const handleResolve = async (id, outcome) => {
+        if (!window.confirm(`Are you sure you want to resolve this as ${outcome.toUpperCase()}? This is irreversible.`)) return;
+
+        try {
+            const res = await fetch('/api/predictions/resolve', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id, outcome, email: currentUser.email })
+            });
+            const data = await res.json();
+            if (data.success) {
+                alert("Prediction Resolved!");
+                fetchData();
+            } else {
+                alert("Resolution Failed.");
+            }
+        } catch (e) {
+            console.error(e);
+            alert("Error resolving.");
+        }
+    };
+
     const calculateOdds = (yesPool, noPool, side) => {
         const total = (yesPool || 0) + (noPool || 0);
         if (total === 0) return "1.00x";
@@ -228,10 +255,79 @@ const MarketPredictions = () => {
                             </button>
                         )}
                     </div>
-                    <div className="mt-6 md:mt-0 p-6 bg-gradient-to-r from-gray-900 to-black rounded-xl border border-gold/30 shadow-[0_0_20px_rgba(255,215,0,0.15)] text-center min-w-[250px]">
-                        <div className="text-sm text-gray-400 uppercase tracking-widest mb-1">Your Balance</div>
-                        <BalanceDisplay />
+                    {/* Old balance display removed */}
+                </div>
+
+                {/* LEADERBOARD SECTION */}
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+                    <div className="lg:col-span-2 relative group">
+                        <div className="absolute inset-0 bg-gradient-to-r from-cyan-500/10 to-purple-500/10 rounded-xl blur-xl opacity-50 group-hover:opacity-100 transition-opacity"></div>
+                        <div className="relative h-full bg-black/40 backdrop-blur-md border border-white/5 rounded-xl p-6 overflow-hidden flex flex-col">
+                            <div className="flex items-center justify-between mb-4">
+                                <div className="flex items-center gap-2">
+                                    <Trophy className="text-gold w-5 h-5" />
+                                    <h3 className="text-lg font-bold text-white tracking-wide">Top Forecasters</h3>
+                                </div>
+                                <span className="text-xs text-gray-500 uppercase">Accuracy (Min 10 Bets)</span>
+                            </div>
+
+                            <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar max-h-[250px]">
+                                {loading && leaderboard.length === 0 ? (
+                                    <div className="space-y-3">
+                                        {[1, 2, 3].map(i => <Skeleton key={i} height="40px" className="w-full" />)}
+                                    </div>
+                                ) : leaderboard.length === 0 ? (
+                                    <div className="flex flex-col items-center justify-center h-40 text-gray-500 text-sm italic">
+                                        <TrendingUp className="w-8 h-8 mb-2 opacity-20" />
+                                        No qualified forecasters yet.
+                                    </div>
+                                ) : (
+                                    <table className="w-full text-sm text-left">
+                                        <thead className="text-xs text-gray-500 border-b border-white/5 uppercase">
+                                            <tr>
+                                                <th className="pb-2 font-medium">Rank</th>
+                                                <th className="pb-2 font-medium">User</th>
+                                                <th className="pb-2 font-medium text-right">Accuracy</th>
+                                                <th className="pb-2 font-medium text-right">Bets</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-white/5">
+                                            {leaderboard.map((user, idx) => (
+                                                <tr key={idx} className="group/row hover:bg-white/5 transition-colors">
+                                                    <td className="py-2.5 pl-2 font-mono text-gray-400">#{idx + 1}</td>
+                                                    <td className="py-2.5 font-medium text-white flex items-center gap-2">
+                                                        {idx === 0 && <Trophy className="w-3 h-3 text-yellow-400" />}
+                                                        {user.username}
+                                                    </td>
+                                                    <td className="py-2.5 text-right font-bold text-cyan-400">{user.accuracy}%</td>
+                                                    <td className="py-2.5 text-right text-gray-400">{user.total_bets}</td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                )}
+                            </div>
+                        </div>
                     </div>
+                    <NeonWrapper className="p-8 flex flex-col items-center justify-center bg-black/40 backdrop-blur-md h-full min-h-[220px]">
+                        <h3 className="text-cyan-500/70 text-xs uppercase tracking-[0.2em] mb-4 font-bold">Available Balance</h3>
+                        {loading ? <Skeleton width="180px" height="60px" /> : (
+                            <div className="relative group cursor-default">
+                                <div className="relative px-8 py-4 bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl flex items-baseline gap-3 shadow-[0_8px_32px_rgba(0,0,0,0.5)] hover:border-cyan-500/30 transition-colors">
+                                    <span className="text-6xl font-black text-transparent bg-clip-text bg-gradient-to-b from-white via-cyan-100 to-cyan-400 drop-shadow-[0_0_10px_rgba(34,211,238,0.3)] tracking-tighter">
+                                        {balance.toLocaleString()}
+                                    </span>
+                                    <span className="text-sm font-bold text-cyan-400 tracking-widest uppercase mb-2">PTS</span>
+                                </div>
+                            </div>
+                        )}
+                        {pendingPoints > 0 && (
+                            <div className="mt-4 flex items-center gap-2 px-3 py-1 bg-yellow-500/10 border border-yellow-500/20 rounded-full">
+                                <Clock size={12} className="text-yellow-500 animate-pulse" />
+                                <span className="text-xs font-bold text-yellow-500/90">+{pendingPoints} Pending</span>
+                            </div>
+                        )}
+                    </NeonWrapper>
                 </div>
 
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -339,7 +435,7 @@ const MarketPredictions = () => {
                                         </div>
                                     )}
 
-                                    {/* WAGER INPUT */}
+                                    {/* STATUS / RESOLUTION */}
                                     {getPredictionStatus(pred) === 'ACTIVE' ? (
                                         <div className="mt-4 relative z-10">
                                             <label className="text-xs text-gray-400 mb-1 block">Your Wager (Points)</label>
@@ -358,20 +454,38 @@ const MarketPredictions = () => {
                                             </div>
                                         </div>
                                     ) : (
-                                        <div className="mt-4 relative z-10 p-3 bg-white/5 rounded border border-white/10 text-center">
+                                        <div className="mt-4 relative z-10 p-3 bg-white/5 rounded border border-white/10 text-center flex flex-col gap-2 items-center justify-center">
                                             <div className="text-sm font-bold text-gray-300">
-                                                {getPredictionStatus(pred) === 'ENDED' ? (
+                                                {pred.status === 'resolved' || pred.winner ? (
                                                     <span className="flex items-center justify-center gap-2">
                                                         <CheckCircle size={16} className="text-green-500" />
-                                                        Events Concluded - Winner: {pred.winner?.toUpperCase() || 'Draw'}
+                                                        Winner: {pred.winning_outcome ? pred.winning_outcome.toUpperCase() : (pred.winner ? pred.winner.toUpperCase() : 'DRAW')}
                                                     </span>
                                                 ) : (
                                                     <span className="flex items-center justify-center gap-2 text-gold">
                                                         <Activity size={16} className="animate-pulse" />
-                                                        Awaiting Market Logic Resolution...
+                                                        Awaiting Resolution...
                                                     </span>
                                                 )}
                                             </div>
+
+                                            {/* ADMIN RESOLVE ACTIONS */}
+                                            {isMod && (!pred.winning_outcome && !pred.winner) && (
+                                                <div className="flex gap-2 mt-2 w-full">
+                                                    <button
+                                                        onClick={() => handleResolve(pred.id, 'yes')}
+                                                        className="flex-1 bg-green-900/50 hover:bg-green-800 text-green-200 text-xs py-2 rounded border border-green-700/50"
+                                                    >
+                                                        Force Win: YES
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleResolve(pred.id, 'no')}
+                                                        className="flex-1 bg-red-900/50 hover:bg-red-800 text-red-200 text-xs py-2 rounded border border-red-700/50"
+                                                    >
+                                                        Force Win: NO
+                                                    </button>
+                                                </div>
+                                            )}
                                         </div>
                                     )}
                                     {/* BG Elements */}

@@ -1703,13 +1703,128 @@ def get_user_bets(email):
         return bets
     except: return []
 
-def delete_prediction(pred_id):
-    """Deletes prediction and refunds bets (if active)."""
+    except: return False
+
+def resolve_prediction(pred_id, outcome):
+    """
+    Resolves a prediction.
+    outcome: 'yes' or 'no'
+    Sets status to 'resolved' and records winning outcome.
+    """
     try:
         db = get_db()
-        # Look for bets to refund could be complex, for now just delete prediction doc if no bets or implement refund later
-        # Simple delete for Admin
-        db.collection('predictions').document(pred_id).delete()
+        # Update Prediction
+        db.collection('predictions').document(pred_id).update({
+            "status": "resolved",
+            "winning_outcome": outcome,
+            "resolved_at": datetime.utcnow().isoformat()
+        })
+        
+        # We could also loop through bets and mark them won/lost here for faster querying later,
+        # but for now we can calculate on fly in leaderboard or user profile.
+        # Ideally, we update all bets with 'won': true/false.
+        
+        batch = db.batch()
+        bets_ref = db.collection('bets').where(field_path='prediction_id', op_string='==', value=pred_id).stream()
+        
+        for bet in bets_ref:
+            b_data = bet.to_dict()
+            won = (b_data.get('choice') == outcome)
+            batch.update(bet.reference, {"status": "resolved", "won": won})
+            
+            # Payout? (Optional, if we had a coin system)
+            # if won: ...
+            
+        batch.commit()
         return True
-    except: return False
+    except Exception as e:
+        print(f"Resolve Error: {e}")
+        return False
+
+def get_predictions_leaderboard(limit=50):
+    try:
+        db = get_db()
+        # We need to aggregate bets to calculate accuracy.
+        # Fetch ALL bets that are resolved? That might be heavy.
+        # Optimization: Store user stats in user profile (prediction_stats: { wins: 5, total: 10 })
+        # But since I cannot migrate all data easily, I will support on-the-fly calc for now with limits.
+        # OR: Just query users who have 'prediction_stats' if I add that.
+        
+        # Let's try querying 'bets' where status == 'resolved'.
+        # If dataset is small (<10k bets), this is fine.
+        
+        bets = db.collection('bets').where(field_path='status', op_string='==', value='resolved').stream()
+        
+        user_stats = {} # { email: { wins: 0, total: 0 } }
+        
+        for b in bets:
+            d = b.to_dict()
+            email = d.get('user')
+            won = d.get('won', False)
+            
+            if email not in user_stats:
+                user_stats[email] = { "wins": 0, "total": 0 }
+            
+            user_stats[email]["total"] += 1
+            if won:
+                user_stats[email]["wins"] += 1
+                
+        # Filter and Rank
+        results = []
+        for email, stats in user_stats.items():
+            if stats["total"] < 10: continue
+
+            # Get User Profile for Username/Opt-out
+            # This is N+1 query problem. Optimize by fetching all users or caching.
+            # For now, fetch individually (cached internally by firebase client somewhat? No.)
+            # Better: get all users once.
+            pass # See below
+            
+        # Bulk fetch users (only those in list)
+        qualifiers = [e for e, s in user_stats.items() if s["total"] >= 10]
+        if not qualifiers: return []
+        
+        # Fetch user profiles
+        # chunks of 10 for 'in' query
+        users_map = {}
+        for i in range(0, len(qualifiers), 10):
+            chunk = qualifiers[i:i+10]
+            if not chunk: continue
+            # user doc ID is email
+            u_docs = db.collection('users').where(field_path=firestore.FieldPath.document_id(), op_string='in', value=chunk).stream()
+            for u in u_docs:
+                users_map[u.id] = u.to_dict()
+                
+        leaderboard = []
+        for email in qualifiers:
+            u_data = users_map.get(email)
+            if not u_data: continue
+            
+            # Check Opt-out
+            settings = u_data.get('settings', {})
+            if settings.get('show_leaderboard') is False: # Explicit false check
+                continue
+                
+            stats = user_stats[email]
+            accuracy = (stats["wins"] / stats["total"]) * 100
+            
+            username = u_data.get('username')
+            if not username: username = email.split('@')[0]
+            
+            leaderboard.append({
+                "username": username,
+                "accuracy": round(accuracy, 2),
+                "total_bets": stats["total"],
+                "wins": stats["wins"],
+                "tier": u_data.get('tier', 'Basic')
+            })
+            
+        # Sort: Accuracy Desc, then Total Bets Desc
+        leaderboard.sort(key=lambda x: (x['accuracy'], x['total_bets']), reverse=True)
+        
+        return leaderboard[:limit]
+        
+    except Exception as e:
+        print(f"Predictions Leaderboard Error: {e}")
+        return []
 

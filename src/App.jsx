@@ -15,6 +15,7 @@ import CardExpansionOverlay from './components/CardExpansionOverlay';
 
 import Layout from './components/Layout';
 import StartupAnimation from './components/StartupAnimation';
+import CommandPalette from './components/CommandPalette'; // Import CommandPalette
 import { Loader2 } from 'lucide-react';
 
 // Lazy Load Pages
@@ -135,6 +136,7 @@ const AppContent = () => {
             <BirthdayPopup isOpen={showBirthdayModal} onClose={handleCloseBirthday} years={accountYears} />
             <OrionOverlay />
             <CardExpansionOverlay />
+            <CommandPalette /> {/* Mount Global Command Palette */}
             <React.Suspense fallback={
                 <div className="h-screen w-full bg-black flex items-center justify-center">
                     <Loader2 className="animate-spin text-gold" size={48} />

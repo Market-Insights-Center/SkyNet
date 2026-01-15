@@ -189,7 +189,7 @@ try:
         update_user_username, get_banners, create_banner, update_banner, delete_banner,
         generate_referral_code, process_referral_signup, get_user_points, get_leaderboard, 
         create_prediction, place_bet, get_active_predictions, get_user_bets, delete_prediction, 
-        add_points, check_referral_reward
+        add_points, check_referral_reward, get_predictions_leaderboard, resolve_prediction
     )
 except ImportError:
     from database import (
@@ -202,7 +202,7 @@ except ImportError:
         update_user_username, get_banners, create_banner, update_banner, delete_banner,
         generate_referral_code, process_referral_signup, get_user_points, get_leaderboard, 
         create_prediction, place_bet, get_active_predictions, get_user_bets, delete_prediction, 
-        add_points, check_referral_reward
+        add_points, check_referral_reward, get_predictions_leaderboard, resolve_prediction
     )
 
 try:
@@ -2296,6 +2296,22 @@ if not os.path.exists(DATA_DIR):
 
 PREDICTIONS_FILE = os.path.join(DATA_DIR, 'predictions.json')
 BETS_FILE = os.path.join(DATA_DIR, 'bets.json')
+
+@app.get("/api/predictions/leaderboard")
+def get_predictions_leaderboard_endpoint():
+    return get_predictions_leaderboard()
+
+@app.post("/api/predictions/resolve")
+def resolve_prediction_endpoint(req: Dict[str, str]):
+    # { "id": "...", "outcome": "yes", "email": "..." }
+    # Admin only check
+    email = req.get('email')
+    mods = get_mod_list()
+    if not email or email.lower() not in mods:
+         raise HTTPException(status_code=403, detail="Not authorized")
+         
+    success = resolve_prediction(req.get('id'), req.get('outcome'))
+    return {"success": success}
 
 def load_predictions():
     if not os.path.exists(PREDICTIONS_FILE): return []
