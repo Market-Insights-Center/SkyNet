@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
+import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 import { TrendingUp, TrendingDown, DollarSign, Clock, AlertCircle, CheckCircle, Shield, Activity, X, Plus } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import NeonWrapper from '../components/NeonWrapper';
@@ -172,19 +173,19 @@ const MarketPredictions = () => {
     };
 
     const calculateOdds = (yesPool, noPool, side) => {
-        // Simple Pari-mutuel odds: Total Pool / Side Pool
-        // Add a small vig or floor? User didn't request vig.
-        // If Side Pool is 0, odds are technically infinite or base 1.0 until someone bets.
-        // Let's show theoretical odds assuming a small bet or just raw pool ratio.
-
         const total = (yesPool || 0) + (noPool || 0);
         if (total === 0) return "1.00x";
-
         const sidePool = side === 'yes' ? yesPool : noPool;
-        if (!sidePool || sidePool === 0) return "---"; // First bet gets everything? Or 1.0x?
-
-        // Show decimal odds
+        if (!sidePool || sidePool === 0) return "---";
         return (total / sidePool).toFixed(2) + "x";
+    };
+
+    const calculateChance = (yesPool, noPool, side) => {
+        const total = (yesPool || 0) + (noPool || 0);
+        if (total === 0) return "50.0%";
+        const sidePool = side === 'yes' ? yesPool : noPool;
+        const pct = ((sidePool || 0) / total) * 100;
+        return pct.toFixed(1) + "%";
     };
 
     const isAllowed = userProfile && (['Visionary', 'Institutional', 'Singularity', 'Founder'].includes(userProfile.tier) || userProfile.isAdmin);
@@ -258,18 +259,23 @@ const MarketPredictions = () => {
                                     </div>
 
                                     {/* ODDS & BETTING */}
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-white/5 p-4 rounded-lg border border-white/5 relative z-10">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-white/5 p-4 rounded-lg border border-white/5 relative z-10 transition-all hover:border-white/10">
                                         {/* YES SIDE */}
-                                        <div className={`flex flex-col items-center p-3 rounded border ${getPredictionStatus(pred) === 'ENDED' && pred.winner === 'yes' ? 'bg-green-500/20 border-green-500 shadow-[0_0_15px_rgba(34,197,94,0.3)]' : 'bg-green-900/10 border-green-500/20'}`}>
-                                            <span className="text-green-500 font-bold mb-1">YES / OVER</span>
-                                            <div className="text-2xl font-bold text-white mb-2">{calculateOdds(pred.total_pool_yes, pred.total_pool_no, 'yes')}</div>
-                                            <div className="text-xs text-gray-500 mb-3">{(pred.total_pool_yes || 0).toLocaleString()} pts bet</div>
+                                        <div className={`flex flex-col items-center p-4 rounded-lg border transition-all ${getPredictionStatus(pred) === 'ENDED' && pred.winner === 'yes' ? 'bg-green-500/20 border-green-500 shadow-[0_0_15px_rgba(34,197,94,0.3)]' : 'bg-green-900/10 border-green-500/20 hover:bg-green-900/20'}`}>
+                                            <span className="text-green-500 font-bold mb-1 tracking-wider text-sm">YES / OVER</span>
+                                            <div className="text-3xl font-black text-white mb-1" style={{ textShadow: "0 0 10px rgba(34,197,94,0.5)" }}>
+                                                {calculateOdds(pred.total_pool_yes, pred.total_pool_no, 'yes')}
+                                            </div>
+                                            <div className="text-sm font-bold text-green-400 mb-2">
+                                                {calculateChance(pred.total_pool_yes, pred.total_pool_no, 'yes')} Chance
+                                            </div>
+                                            <div className="text-xs text-gray-500 mb-4 font-mono">{(pred.total_pool_yes || 0).toLocaleString()} pts bet</div>
                                             <button
                                                 onClick={() => placeBet(pred.id, 'yes')}
                                                 disabled={getPredictionStatus(pred) !== 'ACTIVE'}
-                                                className={`w-full py-2 font-bold rounded transition-colors text-sm ${getPredictionStatus(pred) !== 'ACTIVE'
-                                                    ? 'bg-gray-700 text-gray-400 cursor-not-allowed'
-                                                    : 'bg-green-600 hover:bg-green-500 text-white'
+                                                className={`w-full py-3 font-bold rounded-lg transition-all text-sm uppercase tracking-wide shadow-lg ${getPredictionStatus(pred) !== 'ACTIVE'
+                                                    ? 'bg-gray-800 text-gray-500 cursor-not-allowed'
+                                                    : 'bg-gradient-to-r from-green-600 to-green-500 hover:from-green-500 hover:to-green-400 text-white shadow-green-900/20 transform hover:-translate-y-0.5'
                                                     }`}
                                             >
                                                 {getPredictionStatus(pred) === 'ENDED' && pred.winner === 'yes' ? 'WINNER' : 'BET YES'}
@@ -277,22 +283,61 @@ const MarketPredictions = () => {
                                         </div>
 
                                         {/* NO SIDE */}
-                                        <div className={`flex flex-col items-center p-3 rounded border ${getPredictionStatus(pred) === 'ENDED' && pred.winner === 'no' ? 'bg-red-500/20 border-red-500 shadow-[0_0_15px_rgba(239,68,68,0.3)]' : 'bg-red-900/10 border-red-500/20'}`}>
-                                            <span className="text-red-500 font-bold mb-1">NO / UNDER</span>
-                                            <div className="text-2xl font-bold text-white mb-2">{calculateOdds(pred.total_pool_yes, pred.total_pool_no, 'no')}</div>
-                                            <div className="text-xs text-gray-500 mb-3">{(pred.total_pool_no || 0).toLocaleString()} pts bet</div>
+                                        <div className={`flex flex-col items-center p-4 rounded-lg border transition-all ${getPredictionStatus(pred) === 'ENDED' && pred.winner === 'no' ? 'bg-red-500/20 border-red-500 shadow-[0_0_15px_rgba(239,68,68,0.3)]' : 'bg-red-900/10 border-red-500/20 hover:bg-red-900/20'}`}>
+                                            <span className="text-red-500 font-bold mb-1 tracking-wider text-sm">NO / UNDER</span>
+                                            <div className="text-3xl font-black text-white mb-1" style={{ textShadow: "0 0 10px rgba(239,68,68,0.5)" }}>
+                                                {calculateOdds(pred.total_pool_yes, pred.total_pool_no, 'no')}
+                                            </div>
+                                            <div className="text-sm font-bold text-red-400 mb-2">
+                                                {calculateChance(pred.total_pool_yes, pred.total_pool_no, 'no')} Chance
+                                            </div>
+                                            <div className="text-xs text-gray-500 mb-4 font-mono">{(pred.total_pool_no || 0).toLocaleString()} pts bet</div>
                                             <button
                                                 onClick={() => placeBet(pred.id, 'no')}
                                                 disabled={getPredictionStatus(pred) !== 'ACTIVE'}
-                                                className={`w-full py-2 font-bold rounded transition-colors text-sm ${getPredictionStatus(pred) !== 'ACTIVE'
-                                                    ? 'bg-gray-700 text-gray-400 cursor-not-allowed'
-                                                    : 'bg-red-600 hover:bg-red-500 text-white'
+                                                className={`w-full py-3 font-bold rounded-lg transition-all text-sm uppercase tracking-wide shadow-lg ${getPredictionStatus(pred) !== 'ACTIVE'
+                                                    ? 'bg-gray-800 text-gray-500 cursor-not-allowed'
+                                                    : 'bg-gradient-to-r from-red-600 to-red-500 hover:from-red-500 hover:to-red-400 text-white shadow-red-900/20 transform hover:-translate-y-0.5'
                                                     }`}
                                             >
                                                 {getPredictionStatus(pred) === 'ENDED' && pred.winner === 'no' ? 'WINNER' : 'BET NO'}
                                             </button>
                                         </div>
                                     </div>
+
+                                    {/* ODDS HISTORY GRAPH */}
+                                    {pred.history && pred.history.length > 1 && (
+                                        <div className="mt-6 p-4 bg-gray-900/50 rounded-lg border border-white/5 relative z-10">
+                                            <div className="text-xs text-gray-400 mb-2 font-bold uppercase tracking-wider flex items-center gap-2">
+                                                <Activity size={12} className="text-gold" /> Historical Probability Trend
+                                            </div>
+                                            <div className="h-40 w-full">
+                                                <ResponsiveContainer width="100%" height="100%">
+                                                    <LineChart data={pred.history.map(h => {
+                                                        const total = (h.yes || 0) + (h.no || 0);
+                                                        return {
+                                                            time: new Date(h.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                                                            fullDate: new Date(h.timestamp).toLocaleString(),
+                                                            yesChance: total ? ((h.yes / total) * 100).toFixed(1) : 50,
+                                                            noChance: total ? ((h.no / total) * 100).toFixed(1) : 50
+                                                        };
+                                                    })}>
+                                                        <CartesianGrid strokeDasharray="3 3" stroke="#333" />
+                                                        <XAxis dataKey="time" stroke="#666" fontSize={10} tick={{ fill: '#666' }} />
+                                                        <YAxis stroke="#666" fontSize={10} tick={{ fill: '#666' }} domain={[0, 100]} unit="%" />
+                                                        <Tooltip
+                                                            contentStyle={{ backgroundColor: '#000', border: '1px solid #333' }}
+                                                            itemStyle={{ fontSize: '12px' }}
+                                                            labelFormatter={(label, payload) => payload[0]?.payload?.fullDate || label}
+                                                            formatter={(value) => [value + "%"]}
+                                                        />
+                                                        <Line type="monotone" dataKey="yesChance" stroke="#22c55e" strokeWidth={2} dot={false} name="YES Chance" />
+                                                        <Line type="monotone" dataKey="noChance" stroke="#ef4444" strokeWidth={2} dot={false} name="NO Chance" />
+                                                    </LineChart>
+                                                </ResponsiveContainer>
+                                            </div>
+                                        </div>
+                                    )}
 
                                     {/* WAGER INPUT */}
                                     {getPredictionStatus(pred) === 'ACTIVE' ? (
@@ -432,7 +477,25 @@ const CreatePredictionModal = ({ isOpen, onClose, onSubmit, newPrediction, setNe
 
     const handleSubmit = (e) => {
         e.preventDefault();
-        onSubmit(e);
+
+        // Timezone Fix: Convert the datetime-local value (which has no TZ info but implies local)
+        // to a proper full ISO string with timezone or UTC.
+        // The input value is like "2026-06-15T15:30"
+        // new Date("2026-06-15T15:30") creates a date object treating that string as Local Time (browser default)
+        // Then .toISOString() gives us the UTC equivalent.
+        if (!newPrediction.end_date) return;
+
+        const localDate = new Date(newPrediction.end_date);
+        const utcIso = localDate.toISOString();
+
+        // Pass Override
+        onSubmit({
+            preventDefault: () => { },
+            overridePayload: {
+                ...newPrediction,
+                end_date: utcIso
+            }
+        });
     };
 
     return (

@@ -1494,7 +1494,8 @@ def create_prediction(title, stock, end_date, market_condition, wager_logic, aut
             "created_at": datetime.utcnow().isoformat(),
             "total_pool_yes": 0,
             "total_pool_no": 0,
-            "category": category
+            "category": category,
+            "history": [] 
         }
         
         db.collection('predictions').document(prediction_id).set(data)
@@ -1553,7 +1554,22 @@ def place_bet(email, prediction_id, choice, amount):
             # Update Pool
             pool_key = f"total_pool_{choice.lower()}"
             current_pool = p_data.get(pool_key, 0)
-            transaction.update(p_ref, {pool_key: current_pool + amount})
+            new_pool_total = current_pool + amount
+            transaction.update(p_ref, {pool_key: new_pool_total})
+            
+            # Record History (Current state after bet)
+            # We need the OTHER side's pool to be accurate
+            other_side = "no" if choice.lower() == "yes" else "yes"
+            other_pool = p_data.get(f"total_pool_{other_side}", 0)
+            
+            history_entry = {
+                "timestamp": datetime.utcnow().isoformat(),
+                "yes": new_pool_total if choice.lower() == "yes" else other_pool,
+                "no": new_pool_total if choice.lower() == "no" else other_pool
+            }
+            # Append using arrayUnion is cleaner if no race condition on reading full array, 
+            # but Firestore transaction ensures we read latest. 
+            transaction.update(p_ref, {"history": firestore.ArrayUnion([history_entry])})
             
             return bet_id
 

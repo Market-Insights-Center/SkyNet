@@ -78,6 +78,8 @@ const CardSwap = ({
     const intervalRef = useRef();
     const container = useRef(null);
 
+    const isAnimating = useRef(false);
+
     // Initial placement
     useEffect(() => {
         const total = refs.length;
@@ -89,14 +91,30 @@ const CardSwap = ({
     }, [refs, cardDistance, verticalDistance, centerStack, depth, skewAmount]);
 
     // Define swap function at top level
-    const swap = React.useCallback(() => {
+    const swap = React.useCallback((isManual = false) => {
         if (order.current.length < 2) return;
+
+        // "Cycle quickly": only if manual. If automatic and busy, just skip this tick.
+        if (isAnimating.current) {
+            if (isManual && tlRef.current) {
+                tlRef.current.progress(1);
+            } else {
+                return;
+            }
+        }
 
         const [front, ...rest] = order.current;
         const elFront = refs[front]?.current;
         if (!elFront) return;
 
-        const tl = gsap.timeline();
+        isAnimating.current = true;
+
+        const tl = gsap.timeline({
+            onComplete: () => {
+                order.current = [...rest, front];
+                isAnimating.current = false;
+            }
+        });
         tlRef.current = tl;
 
         // Animate based on swapAxis
@@ -148,10 +166,7 @@ const CardSwap = ({
             },
             'return'
         );
-
-        tl.call(() => {
-            order.current = [...rest, front];
-        });
+        // order update moved to onComplete
     }, [swapAxis, dropDistance, config, cardDistance, verticalDistance, centerStack, depth, refs]);
 
     // Interval Effect
@@ -186,7 +201,7 @@ const CardSwap = ({
         e.stopPropagation();
         // Reset interval to avoid double swap
         clearInterval(intervalRef.current);
-        swap();
+        swap(true);
         intervalRef.current = window.setInterval(swap, delay);
     };
 
@@ -211,7 +226,7 @@ const CardSwap = ({
             {/* Manual Swap Control */}
             <button
                 onClick={handleManualSwap}
-                className="absolute bottom-4 left-1/2 -translate-x-1/2 z-50 bg-white/10 hover:bg-gold/80 hover:text-black backdrop-blur-md border border-white/20 text-white p-2 rounded-full transition-all duration-300 opacity-0 group-hover/swap:opacity-100 translate-y-2 group-hover/swap:translate-y-0"
+                className="absolute bottom-4 left-1/2 -translate-x-1/2 z-[100] bg-white/10 hover:bg-gold/80 hover:text-black backdrop-blur-md border border-white/20 text-white p-2 rounded-full transition-all duration-300 shadow-lg hover:shadow-gold/20"
                 title="Next Card"
             >
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

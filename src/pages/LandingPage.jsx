@@ -1133,14 +1133,14 @@ const LandingPage = () => {
                                                             width={400} // Increased width
                                                             height={480} // Increased height
                                                             cardDistance={0}
-                                                            verticalDistance={30} // Slight vertical peek
+                                                            verticalDistance={25} // Visual vertical stack
                                                             dropDistance={150}
                                                             delay={4000}
                                                             pauseOnHover={true}
                                                             swapAxis="y"
                                                             centerStack={true}
                                                             skewAmount={0}
-                                                            depth={50} // Stronger depth
+                                                            depth={50}
                                                         >
                                                             {recentIdeas.slice(0, 6).map(idea => (
                                                                 <IdeaCard
@@ -1148,6 +1148,7 @@ const LandingPage = () => {
                                                                     idea={idea}
                                                                     currentUser={currentUser}
                                                                     className="shadow-2xl bg-[#0a0a0a]"
+                                                                    style={{ position: 'absolute', left: '50%', top: '50%' }}
                                                                 />
                                                             ))}
                                                         </CardSwap>
