@@ -1827,3 +1827,28 @@ def get_predictions_leaderboard(limit=50):
         print(f"Predictions Leaderboard Error: {e}")
         return []
 
+
+def delete_prediction(pred_id):
+    try:
+        db = get_db()
+        # Delete the prediction document
+        db.collection('predictions').document(pred_id).delete()
+        
+        # Cleanup associated bets
+        bets_ref = db.collection('bets').where(field_path='prediction_id', op_string='==', value=pred_id).stream()
+        batch = db.batch()
+        count = 0
+        for bet in bets_ref:
+            batch.delete(bet.reference)
+            count += 1
+            if count >= 400: # Batch limit safety
+                batch.commit()
+                batch = db.batch()
+                count = 0
+        if count > 0:
+            batch.commit()
+            
+        return True
+    except Exception as e:
+        print(f"Delete Prediction Error: {e}")
+        return False
