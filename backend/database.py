@@ -1703,7 +1703,6 @@ def get_user_bets(email):
         return bets
     except: return []
 
-    except: return False
 
 def resolve_prediction(pred_id, outcome):
     """
