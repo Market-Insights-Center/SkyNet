@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Check, X, Shield, Zap, TrendingUp, Activity, Database, Brain, Cpu, Lock, Crown, ArrowRight, Star } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { ContainerScroll } from './ui/ContainerScroll';
 
 const TierLimitsTable = () => {
     const { userProfile } = useAuth();
@@ -42,40 +43,28 @@ const TierLimitsTable = () => {
             </div>
 
             <div className="max-w-7xl mx-auto relative z-10">
-                <motion.div
-                    initial={{ opacity: 0, y: 30 }}
-                    whileInView={{ opacity: 1, y: 0 }}
-                    viewport={{ once: true }}
-                    className="text-center mb-20"
+                <ContainerScroll
+                    titleComponent={
+                        <>
+                            <h2 className="text-5xl md:text-7xl font-bold mb-6 bg-gradient-to-b from-white via-gray-200 to-gray-600 bg-clip-text text-transparent tracking-tight">
+                                Choose Your <span className="text-gold relative inline-block">
+                                    Power
+                                    <motion.span
+                                        className="absolute -top-1 -right-4 text-gold/30"
+                                        animate={{ rotate: 360, scale: [1, 1.2, 1] }}
+                                        transition={{ duration: 10, repeat: Infinity, ease: "linear" }}
+                                    >
+                                        <Star size={24} />
+                                    </motion.span>
+                                </span>
+                            </h2>
+                            <p className="text-xl text-gray-400 max-w-2xl mx-auto font-light leading-relaxed">
+                                Unlock the full potential of the Machine Intelligence Center.
+                            </p>
+                        </>
+                    }
                 >
-                    <h2 className="text-5xl md:text-7xl font-bold mb-6 bg-gradient-to-b from-white via-gray-200 to-gray-600 bg-clip-text text-transparent tracking-tight">
-                        Choose Your <span className="text-gold relative inline-block">
-                            Power
-                            <motion.span
-                                className="absolute -top-1 -right-4 text-gold/30"
-                                animate={{ rotate: 360, scale: [1, 1.2, 1] }}
-                                transition={{ duration: 10, repeat: Infinity, ease: "linear" }}
-                            >
-                                <Star size={24} />
-                            </motion.span>
-                        </span>
-                    </h2>
-                    <p className="text-xl text-gray-400 max-w-2xl mx-auto font-light leading-relaxed">
-                        Unlock the full potential of the Machine Intelligence Center.
-                    </p>
-                </motion.div>
-
-                {/* Glassmorphism Table Container */}
-                <motion.div
-                    initial={{ opacity: 0, scale: 0.95 }}
-                    whileInView={{ opacity: 1, scale: 1 }}
-                    transition={{ duration: 0.8, ease: "circOut" }}
-                    className="relative rounded-3xl overflow-hidden border border-white/10 bg-gray-900/40 backdrop-blur-2xl shadow-[0_0_50px_rgba(0,0,0,0.5)]"
-                >
-                    {/* Spotlight Effect */}
-                    <div className="absolute inset-0 pointer-events-none bg-gradient-to-b from-white/5 to-transparent opacity-50" />
-
-                    <div className="overflow-x-auto custom-scrollbar">
+                    <div className="h-full overflow-y-auto custom-scrollbar">
                         <table className="w-full min-w-[1000px] border-collapse relative">
                             <thead>
                                 <tr>
@@ -183,7 +172,7 @@ const TierLimitsTable = () => {
                             </tfoot>
                         </table>
                     </div>
-                </motion.div>
+                </ContainerScroll>
 
                 {/* Singularity Card - Exotic Animation */}
                 {isTierActive('Singularity') && (

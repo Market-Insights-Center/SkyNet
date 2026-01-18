@@ -12,6 +12,7 @@ import CardSwap from '../components/CardSwap';
 
 // Lazy Load Heavy Components
 const ElectricBorder = React.lazy(() => import('../components/ElectricBorder'));
+const ScrollExpandMedia = React.lazy(() => import('../components/ScrollExpandMedia'));
 const ArticleCard = React.lazy(() => import('../components/ArticleCard'));
 const MarketDashboard = React.lazy(() => import('../components/MarketDashboard'));
 const Watchlist = React.lazy(() => import('../components/Watchlist'));
@@ -839,429 +840,420 @@ const LandingPage = () => {
                 </div>
 
 
-                {/* Hero Section */}
-                <section className="relative h-screen flex items-center justify-center overflow-hidden">
-                    <div className="absolute inset-0 z-0 bg-black">
-                        <video
-                            ref={(el) => {
-                                if (el && !el.src) {
-                                    el.src = "/landingpagestocks.mp4";
-                                }
-                            }}
-                            autoPlay
-                            loop
-                            muted
-                            playsInline
-                            className="w-full h-full object-cover opacity-30 transition-opacity duration-1000"
-                        />
-                        <div className="absolute inset-0 bg-gradient-to-b from-black/20 via-black/50 to-black/80"></div>
-                    </div>
+            </ErrorBoundary>
+            <Suspense fallback={<div className="h-screen w-full bg-black flex items-center justify-center">Loading Experience...</div>}>
+                <ScrollExpandMedia
+                    mediaSrc="/landingpagestocks.mp4"
+                    bgImageSrc="/video-bg.jpg"
+                    overlayContent={
+                        <div className="relative z-10 text-center px-4 max-w-5xl mx-auto">
+                            <motion.div
+                                initial={{ opacity: 0, y: 30 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ duration: 0.8 }}
+                            >
+                                <div className="mb-6 flex justify-center">
+                                    <BlurText
+                                        text="M.I.C."
+                                        className="text-5xl md:text-8xl font-bold tracking-tight text-white drop-shadow-2xl"
+                                        animateBy="letters"
+                                        delay={200}
+                                        direction="top"
+                                    />
+                                </div>
+                                <div className="mb-10 max-w-2xl mx-auto flex justify-center">
+                                    <BlurText
+                                        text="Automate your portfolio with data-backed strategies."
+                                        className="text-lg md:text-2xl text-gray-200 leading-relaxed text-center drop-shadow-lg"
+                                        animateBy="words"
+                                        delay={100}
+                                        direction="bottom"
+                                    />
+                                </div>
 
-                    <div className="relative z-10 text-center px-4 max-w-5xl mx-auto mt-16">
-                        <motion.div
-                            initial={{ opacity: 0, y: 30 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ duration: 0.8 }}
-                        >
-                            <div className="mb-6 flex justify-center">
-                                <BlurText
-                                    text="M.I.C."
-                                    className="text-6xl md:text-8xl font-bold tracking-tight text-white"
-                                    animateBy="letters"
-                                    delay={200}
-                                    direction="top"
-                                />
-                            </div>
-                            <div className="mb-10 max-w-3xl mx-auto flex justify-center">
-                                <BlurText
-                                    text="Automate your portfolio with data-backed strategies."
-                                    className="text-xl md:text-2xl text-gray-300 leading-relaxed text-center"
-                                    animateBy="words"
-                                    delay={100}
-                                    direction="bottom"
-                                />
-                            </div>
-
-                            <div className="flex flex-col md:flex-row gap-6 justify-center">
-                                <Link to="/portfolio-lab" className="bg-gold text-black px-8 py-4 rounded-full font-bold text-lg hover:bg-yellow-500 transition-all transform hover:scale-105 flex items-center justify-center">
-                                    Launch Portfolio Lab <ArrowRight className="ml-2" />
-                                </Link>
-                                <Link to="/products" className="bg-white/10 text-white px-8 py-4 rounded-full font-bold text-lg hover:bg-white/20 transition-all backdrop-blur-sm flex items-center justify-center">
-                                    Explore Products
-                                </Link>
-                            </div>
-                        </motion.div>
-                    </div>
-                </section >
-            </ErrorBoundary >
-
-            {/* Engineered to Fit Any Investor (Formerly Features) */}
-            {/* Engineered to Fit Any Investor (Formerly Features) */}
-            <ErrorBoundary>
-                <motion.section
-                    initial={{ opacity: 0 }}
-                    whileInView={{ opacity: 1 }}
-                    className="py-24 px-4 bg-transparent relative z-10"
+                                <div className="flex flex-col md:flex-row gap-6 justify-center">
+                                    <Link to="/portfolio-lab" className="bg-gold text-black px-8 py-3 md:py-4 rounded-full font-bold text-base md:text-lg hover:bg-yellow-500 transition-all transform hover:scale-105 flex items-center justify-center shadow-[0_0_20px_rgba(255,215,0,0.3)]">
+                                        Launch Portfolio Lab <ArrowRight className="ml-2" />
+                                    </Link>
+                                    <Link to="/products" className="bg-white/10 text-white px-8 py-3 md:py-4 rounded-full font-bold text-base md:text-lg hover:bg-white/20 transition-all backdrop-blur-sm flex items-center justify-center border border-white/10">
+                                        Explore Products
+                                    </Link>
+                                </div>
+                            </motion.div>
+                        </div>
+                    }
                 >
-                    <div className="max-w-7xl mx-auto">
-                        <div className="text-center mb-16">
-                            <div className="flex justify-center mb-6">
-                                <BlurText
-                                    text="Engineered to Fit Any Investor"
-                                    className="text-4xl md:text-5xl font-bold text-white text-center"
-                                    animateBy="words"
-                                    delay={100}
-                                />
-                            </div>
-                            <p className="text-xl text-gray-400 max-w-2xl mx-auto">
-                                Whether you're a discretionary trader or a passive investor, our suite of strategies and products scales with your needs.
-                            </p>
-                        </div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                            <FeatureCard
-                                icon={Cpu}
-                                title="AI-Driven Strategies"
-                                desc="Our proprietary algorithms analyze multi-factor models including momentum, volatility, and sentiment to identify edge cases."
-                                delay={0.1}
-                            />
-                            <FeatureCard
-                                icon={BarChart2}
-                                title="The Portfolio Lab"
-                                desc="Test your hypotheses with institutional-grade backtesting tools on 10+ years of historical data to validate your strategy before risking capital."
-                                delay={0.2}
-                            />
-                            <FeatureCard
-                                icon={Shield}
-                                title="Risk Protocols"
-                                desc="Dynamic position sizing and volatility targeting help protect your capital during market downturns while staying invested during rallies."
-                                delay={0.3}
-                            />
-                            <FeatureCard
-                                icon={Users}
-                                title="Community Intel"
-                                desc="Access crowdsourced trading ideas and sentiment analysis from top-performing user portfolios in the M.I.C. Forum."
-                                delay={0.4}
-                            />
-                            <FeatureCard
-                                icon={Globe}
-                                title="Global Macro Stream"
-                                desc="Real-time news aggregation and NLP analysis filter the noise to find the signal in global markets."
-                                delay={0.5}
-                            />
-                            <FeatureCard
-                                icon={Zap}
-                                title="Automated Execution"
-                                desc="Seamlessly sync with supported brokers for automated rebalancing and trade execution."
-                                delay={0.6}
-                            />
-                        </div>
-                    </div>
-                </motion.section>
-            </ErrorBoundary>
-
-
-
-            {/* Wealth Calculator */}
-            <ErrorBoundary>
-                <WealthCalculator />
-            </ErrorBoundary >
-
-            {/* Market Snapshot (formerly Market Dashboard) */}
-            <ErrorBoundary>
-                <section className="py-12 px-4 bg-transparent relative z-10">
-                    <div className="max-w-7xl mx-auto">
-                        <div className="relative p-1 bg-gradient-to-r from-transparent via-purple-500/50 to-transparent rounded-xl overflow-hidden group">
-                            <div className="absolute inset-0 bg-black/80 backdrop-blur-md rounded-xl" />
-
-                            {/* Futuristic Background Animation */}
-                            <div className="absolute inset-0 overflow-hidden opacity-20 pointer-events-none">
-                                <div className="absolute top-0 right-[15%] w-[1px] h-[200%] bg-gradient-to-b from-transparent via-purple-400 to-transparent animate-data-stream" />
-                                <div className="absolute top-0 left-[25%] w-[1px] h-[200%] bg-gradient-to-b from-transparent via-gold to-transparent animate-data-stream" style={{ animationDelay: '3s' }} />
-                                <div className="absolute inset-0 opacity-5 pointer-events-none" style={{
-                                    backgroundImage: 'linear-gradient(to right, rgba(168, 85, 247, 0.1) 1px, transparent 1px), linear-gradient(to bottom, rgba(168, 85, 247, 0.1) 1px, transparent 1px)',
-                                    backgroundSize: '40px 40px'
-                                }} />
-                            </div>
-
-                            <div className="relative z-10 p-6 rounded-xl bg-black/40 border border-purple-500/20 shadow-[0_0_50px_rgba(168,85,247,0.1)]">
-                                <div className="flex justify-between items-center mb-6 border-b border-purple-500/30 pb-4">
-                                    <div className="flex items-center gap-4">
-                                        <div className="w-2 h-8 bg-purple-500 rounded-sm animate-pulse" />
-                                        <h2 className="text-3xl font-bold font-mono tracking-widest text-purple-100">
-                                            MARKET <span className="text-gold">SNAPSHOT</span>
-                                        </h2>
+                    {/* Engineered to Fit Any Investor (Formerly Features) */}
+                    {/* Engineered to Fit Any Investor (Formerly Features) */}
+                    <ErrorBoundary>
+                        <motion.section
+                            initial={{ opacity: 0 }}
+                            whileInView={{ opacity: 1 }}
+                            className="pt-0 pb-24 px-4 bg-transparent relative z-10"
+                        >
+                            <div className="max-w-7xl mx-auto">
+                                <div className="text-center mb-16">
+                                    <div className="flex justify-center mb-6">
+                                        <BlurText
+                                            text="Engineered to Fit Any Investor"
+                                            className="text-4xl md:text-5xl font-bold text-white text-center"
+                                            animateBy="words"
+                                            delay={100}
+                                        />
                                     </div>
-                                    <div className="flex items-center gap-2 text-xs font-mono text-purple-400">
-                                        <Activity size={14} className="animate-pulse" /> LIVE DATA FEED
-                                    </div>
-                                </div>
-                                <Suspense fallback={<div className="h-[400px] flex items-center justify-center text-purple-500"><Loader2 className="animate-spin" /></div>}>
-                                    <MarketDashboard />
-                                </Suspense>
-                            </div>
-                        </div>
-                    </div>
-                </section>
-            </ErrorBoundary>
-
-            {/* Watchlist & Community Stream Section */}
-            <ErrorBoundary>
-                <section className="py-12 px-4 bg-transparent relative z-10">
-                    <div className="max-w-7xl mx-auto">
-                        <div className="relative p-1 bg-gradient-to-r from-transparent via-purple-500/50 to-transparent rounded-xl overflow-hidden group">
-                            <div className="absolute inset-0 bg-black/80 backdrop-blur-md rounded-xl" />
-
-                            {/* Futuristic Background Animation */}
-                            <div className="absolute inset-0 overflow-hidden opacity-20 pointer-events-none">
-                                <div className="absolute top-0 left-[10%] w-[1px] h-[200%] bg-gradient-to-b from-transparent via-purple-400 to-transparent animate-data-stream" />
-                                <div className="absolute top-0 right-[20%] w-[1px] h-[200%] bg-gradient-to-b from-transparent via-fuchsia-400 to-transparent animate-data-stream" style={{ animationDelay: '2s' }} />
-                                <div className="absolute top-0 left-[40%] w-[1px] h-[200%] bg-gradient-to-b from-transparent via-gold to-transparent animate-data-stream" style={{ animationDelay: '5s' }} />
-                                <div className="absolute inset-0 opacity-10 pointer-events-none" style={{
-                                    backgroundImage: 'linear-gradient(to right, rgba(168, 85, 247, 0.2) 1px, transparent 1px), linear-gradient(to bottom, rgba(168, 85, 247, 0.2) 1px, transparent 1px)',
-                                    backgroundSize: '50px 50px'
-                                }} />
-                            </div>
-
-                            <div className="relative z-10 p-8 rounded-xl bg-black/40 border border-purple-500/20 shadow-[0_0_50px_rgba(168,85,247,0.1)]">
-                                <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 border-b border-purple-500/30 pb-4 gap-4">
-                                    <div className="flex items-center gap-4">
-                                        <div className="w-2 h-10 bg-purple-500 rounded-sm animate-pulse shadow-[0_0_10px_#a855f7]" />
-                                        <div>
-                                            <h2 className="text-3xl font-bold font-mono tracking-widest text-purple-100 flex items-center gap-2">
-                                                MARKET <span className="text-gold">INTELLIGENCE</span>
-                                            </h2>
-                                            <p className="text-xs text-purple-400/70 font-mono tracking-wider mt-1">REAL-TIME GLOBAL INTELLIGENCE</p>
-                                        </div>
-                                    </div>
-
-                                    <div className="flex items-center gap-6">
-                                        {/* Tech Stats */}
-                                        <div className="hidden md:flex items-center gap-4 text-[10px] font-mono text-purple-300/50">
-                                            <div className="px-2 py-1 border border-purple-500/20 rounded bg-purple-500/5">LATENCY: 12ms</div>
-                                            <div className="px-2 py-1 border border-purple-500/20 rounded bg-purple-500/5">ENCRYPTION: AES-256</div>
-                                        </div>
-
-                                        <div className="flex items-center gap-2 text-xs font-mono text-purple-400 bg-purple-900/20 px-3 py-1 rounded-full border border-purple-500/20 shadow-[0_0_15px_rgba(168,85,247,0.2)]">
-                                            <span className="relative flex h-2 w-2">
-                                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-purple-400 opacity-75"></span>
-                                                <span className="relative inline-flex rounded-full h-2 w-2 bg-purple-500"></span>
-                                            </span>
-                                            LIVE DATA FEED
-                                        </div>
-                                    </div>
+                                    <p className="text-xl text-gray-400 max-w-2xl mx-auto">
+                                        Whether you're a discretionary trader or a passive investor, our suite of strategies and products scales with your needs.
+                                    </p>
                                 </div>
 
-                                <Suspense fallback={<div className="h-[200px] flex items-center justify-center text-purple-500"><Loader2 className="animate-spin" /></div>}>
-                                    <Watchlist />
-                                </Suspense>
-
-                                {/* Toggle Button - Futuristic Switch Style */}
-                                <div className="flex justify-center mt-12 mb-8 relative">
-                                    <div className="absolute inset-x-0 top-1/2 h-[1px] bg-purple-500/30 -z-10" />
-                                    <motion.button
-                                        whileHover={{ scale: 1.05 }}
-                                        whileTap={{ scale: 0.95 }}
-                                        onClick={() => setShowCommunityStream(!showCommunityStream)}
-                                        className={`relative overflow-hidden flex items-center gap-3 px-8 py-3 rounded-none font-bold font-mono tracking-widest transition-all clip-path-polygon ${showCommunityStream
-                                            ? "bg-purple-900/50 text-purple-100 border border-purple-400 shadow-[0_0_20px_rgba(168,85,247,0.4)]"
-                                            : "bg-black text-gray-500 border border-gray-700 hover:text-purple-400 hover:border-purple-500"
-                                            }`}
-                                        style={{ clipPath: "polygon(10% 0, 100% 0, 100% 70%, 90% 100%, 0 100%, 0 30%)" }}
-                                    >
-                                        <div className={`w-2 h-2 rounded-full ${showCommunityStream ? 'bg-purple-400 animate-pulse' : 'bg-gray-600'}`} />
-                                        {showCommunityStream ? "TERMINATE STREAM" : "ACTIVATE COMMUNITY FEED"}
-                                    </motion.button>
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                                    <FeatureCard
+                                        icon={Cpu}
+                                        title="AI-Driven Strategies"
+                                        desc="Our proprietary algorithms analyze multi-factor models including momentum, volatility, and sentiment to identify edge cases."
+                                        delay={0.1}
+                                    />
+                                    <FeatureCard
+                                        icon={BarChart2}
+                                        title="The Portfolio Lab"
+                                        desc="Test your hypotheses with institutional-grade backtesting tools on 10+ years of historical data to validate your strategy before risking capital."
+                                        delay={0.2}
+                                    />
+                                    <FeatureCard
+                                        icon={Shield}
+                                        title="Risk Protocols"
+                                        desc="Dynamic position sizing and volatility targeting help protect your capital during market downturns while staying invested during rallies."
+                                        delay={0.3}
+                                    />
+                                    <FeatureCard
+                                        icon={Users}
+                                        title="Community Intel"
+                                        desc="Access crowdsourced trading ideas and sentiment analysis from top-performing user portfolios in the M.I.C. Forum."
+                                        delay={0.4}
+                                    />
+                                    <FeatureCard
+                                        icon={Globe}
+                                        title="Global Macro Stream"
+                                        desc="Real-time news aggregation and NLP analysis filter the noise to find the signal in global markets."
+                                        delay={0.5}
+                                    />
+                                    <FeatureCard
+                                        icon={Zap}
+                                        title="Automated Execution"
+                                        desc="Seamlessly sync with supported brokers for automated rebalancing and trade execution."
+                                        delay={0.6}
+                                    />
                                 </div>
                             </div>
-                        </div>
+                        </motion.section>
+                    </ErrorBoundary>
 
-                        {/* Conditional Community Content */}
-                        <AnimatePresence>
-                            {showCommunityStream && (
-                                <motion.div
-                                    initial={{ opacity: 0, height: 0 }}
-                                    animate={{ opacity: 1, height: 'auto' }}
-                                    exit={{ opacity: 0, height: 0 }}
-                                    className="overflow-hidden"
-                                >
-                                    <div className="pt-8 border-t border-white/5 grid grid-cols-1 lg:grid-cols-2 gap-12">
 
-                                        {/* LEFT COLUMN: Recent Ideas */}
-                                        <div className="flex flex-col">
-                                            <div className="flex justify-between items-center mb-8">
-                                                <h2 className="text-3xl font-bold flex items-center gap-2">
-                                                    <Lightbulb className="text-gold" size={32} /> Recent <span className="text-gold">Ideas</span>
+
+                    {/* Wealth Calculator */}
+                    <ErrorBoundary>
+                        <WealthCalculator />
+                    </ErrorBoundary >
+
+                    {/* Market Snapshot (formerly Market Dashboard) */}
+                    <ErrorBoundary>
+                        <section className="py-12 px-4 bg-transparent relative z-10">
+                            <div className="max-w-7xl mx-auto">
+                                <div className="relative p-1 bg-gradient-to-r from-transparent via-purple-500/50 to-transparent rounded-xl overflow-hidden group">
+                                    <div className="absolute inset-0 bg-black/80 backdrop-blur-md rounded-xl" />
+
+                                    {/* Futuristic Background Animation */}
+                                    <div className="absolute inset-0 overflow-hidden opacity-20 pointer-events-none">
+                                        <div className="absolute top-0 right-[15%] w-[1px] h-[200%] bg-gradient-to-b from-transparent via-purple-400 to-transparent animate-data-stream" />
+                                        <div className="absolute top-0 left-[25%] w-[1px] h-[200%] bg-gradient-to-b from-transparent via-gold to-transparent animate-data-stream" style={{ animationDelay: '3s' }} />
+                                        <div className="absolute inset-0 opacity-5 pointer-events-none" style={{
+                                            backgroundImage: 'linear-gradient(to right, rgba(168, 85, 247, 0.1) 1px, transparent 1px), linear-gradient(to bottom, rgba(168, 85, 247, 0.1) 1px, transparent 1px)',
+                                            backgroundSize: '40px 40px'
+                                        }} />
+                                    </div>
+
+                                    <div className="relative z-10 p-6 rounded-xl bg-black/40 border border-purple-500/20 shadow-[0_0_50px_rgba(168,85,247,0.1)]">
+                                        <div className="flex justify-between items-center mb-6 border-b border-purple-500/30 pb-4">
+                                            <div className="flex items-center gap-4">
+                                                <div className="w-2 h-8 bg-purple-500 rounded-sm animate-pulse" />
+                                                <h2 className="text-3xl font-bold font-mono tracking-widest text-purple-100">
+                                                    MARKET <span className="text-gold">SNAPSHOT</span>
                                                 </h2>
-                                                <Link to="/ideas" className="text-gold hover:text-white flex items-center gap-2 transition-colors">
-                                                    View All <ArrowRight size={16} />
-                                                </Link>
+                                            </div>
+                                            <div className="flex items-center gap-2 text-xs font-mono text-purple-400">
+                                                <Activity size={14} className="animate-pulse" /> LIVE DATA FEED
+                                            </div>
+                                        </div>
+                                        <Suspense fallback={<div className="h-[400px] flex items-center justify-center text-purple-500"><Loader2 className="animate-spin" /></div>}>
+                                            <MarketDashboard />
+                                        </Suspense>
+                                    </div>
+                                </div>
+                            </div>
+                        </section>
+                    </ErrorBoundary>
+
+                    {/* Watchlist & Community Stream Section */}
+                    <ErrorBoundary>
+                        <section className="py-12 px-4 bg-transparent relative z-10">
+                            <div className="max-w-7xl mx-auto">
+                                <div className="relative p-1 bg-gradient-to-r from-transparent via-purple-500/50 to-transparent rounded-xl overflow-hidden group">
+                                    <div className="absolute inset-0 bg-black/80 backdrop-blur-md rounded-xl" />
+
+                                    {/* Futuristic Background Animation */}
+                                    <div className="absolute inset-0 overflow-hidden opacity-20 pointer-events-none">
+                                        <div className="absolute top-0 left-[10%] w-[1px] h-[200%] bg-gradient-to-b from-transparent via-purple-400 to-transparent animate-data-stream" />
+                                        <div className="absolute top-0 right-[20%] w-[1px] h-[200%] bg-gradient-to-b from-transparent via-fuchsia-400 to-transparent animate-data-stream" style={{ animationDelay: '2s' }} />
+                                        <div className="absolute top-0 left-[40%] w-[1px] h-[200%] bg-gradient-to-b from-transparent via-gold to-transparent animate-data-stream" style={{ animationDelay: '5s' }} />
+                                        <div className="absolute inset-0 opacity-10 pointer-events-none" style={{
+                                            backgroundImage: 'linear-gradient(to right, rgba(168, 85, 247, 0.2) 1px, transparent 1px), linear-gradient(to bottom, rgba(168, 85, 247, 0.2) 1px, transparent 1px)',
+                                            backgroundSize: '50px 50px'
+                                        }} />
+                                    </div>
+
+                                    <div className="relative z-10 p-8 rounded-xl bg-black/40 border border-purple-500/20 shadow-[0_0_50px_rgba(168,85,247,0.1)]">
+                                        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 border-b border-purple-500/30 pb-4 gap-4">
+                                            <div className="flex items-center gap-4">
+                                                <div className="w-2 h-10 bg-purple-500 rounded-sm animate-pulse shadow-[0_0_10px_#a855f7]" />
+                                                <div>
+                                                    <h2 className="text-3xl font-bold font-mono tracking-widest text-purple-100 flex items-center gap-2">
+                                                        MARKET <span className="text-gold">INTELLIGENCE</span>
+                                                    </h2>
+                                                    <p className="text-xs text-purple-400/70 font-mono tracking-wider mt-1">REAL-TIME GLOBAL INTELLIGENCE</p>
+                                                </div>
                                             </div>
 
-                                            {recentIdeas.length > 0 ? (
-                                                <div className="flex justify-center items-center relative z-10 h-[600px]">
-                                                    <Suspense fallback={<div className="text-center text-gray-500 py-10">Loading ideas...</div>}>
-                                                        <CardSwap
-                                                            width={400} // Increased width
-                                                            height={480} // Increased height
-                                                            cardDistance={0}
-                                                            verticalDistance={25} // Visual vertical stack
-                                                            dropDistance={150}
-                                                            delay={4000}
-                                                            pauseOnHover={true}
-                                                            swapAxis="y"
-                                                            centerStack={true}
-                                                            skewAmount={0}
-                                                            depth={50}
-                                                        >
-                                                            {recentIdeas.slice(0, 6).map(idea => (
-                                                                <IdeaCard
-                                                                    key={idea.id}
-                                                                    idea={idea}
-                                                                    currentUser={currentUser}
-                                                                    className="shadow-2xl bg-[#0a0a0a]"
-                                                                    style={{ position: 'absolute', left: '50%', top: '50%' }}
-                                                                />
-                                                            ))}
-                                                        </CardSwap>
-                                                    </Suspense>
+                                            <div className="flex items-center gap-6">
+                                                {/* Tech Stats */}
+                                                <div className="hidden md:flex items-center gap-4 text-[10px] font-mono text-purple-300/50">
+                                                    <div className="px-2 py-1 border border-purple-500/20 rounded bg-purple-500/5">LATENCY: 12ms</div>
+                                                    <div className="px-2 py-1 border border-purple-500/20 rounded bg-purple-500/5">ENCRYPTION: AES-256</div>
                                                 </div>
-                                            ) : (
-                                                <div className="text-center py-12 bg-white/5 rounded-xl border border-white/10">
-                                                    <p className="text-gray-400">No ideas posted yet.</p>
-                                                </div>
-                                            )}
-                                        </div>
 
-                                        {/* RIGHT COLUMN: Recent Articles */}
-                                        <div className="flex flex-col">
-                                            <div className="flex justify-between items-center mb-8">
-                                                <h2 className="text-3xl font-bold flex items-center gap-2">
-                                                    <Globe className="text-gold" size={32} /> Recent <span className="text-gold">Articles</span>
-                                                </h2>
-                                                <Link to="/news" className="text-gold hover:text-white flex items-center gap-2 transition-colors">
-                                                    View All <ArrowRight size={16} />
-                                                </Link>
+                                                <div className="flex items-center gap-2 text-xs font-mono text-purple-400 bg-purple-900/20 px-3 py-1 rounded-full border border-purple-500/20 shadow-[0_0_15px_rgba(168,85,247,0.2)]">
+                                                    <span className="relative flex h-2 w-2">
+                                                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-purple-400 opacity-75"></span>
+                                                        <span className="relative inline-flex rounded-full h-2 w-2 bg-purple-500"></span>
+                                                    </span>
+                                                    LIVE DATA FEED
+                                                </div>
                                             </div>
-
-                                            {recentArticles.length > 0 ? (
-                                                <div className="flex justify-center items-center relative z-10 h-[600px]">
-                                                    <Suspense fallback={<div className="text-center text-gray-500 py-10">Loading articles...</div>}>
-                                                        <CardSwap
-                                                            width={400}
-                                                            height={480}
-                                                            cardDistance={0}
-                                                            verticalDistance={30}
-                                                            dropDistance={150}
-                                                            delay={5000}
-                                                            pauseOnHover={true}
-                                                            swapAxis="y"
-                                                            centerStack={true}
-                                                            skewAmount={0}
-                                                            depth={50}
-                                                        >
-                                                            {recentArticles.slice(0, 6).map(article => (
-                                                                <ArticleCard
-                                                                    key={article.id}
-                                                                    article={article}
-                                                                    className="shadow-2xl bg-[#0a0a0a]"
-                                                                />
-                                                            ))}
-                                                        </CardSwap>
-                                                    </Suspense>
-                                                </div>
-                                            ) : (
-                                                <div className="text-center py-12 bg-white/5 rounded-xl border border-white/10">
-                                                    <p className="text-gray-400">No recent articles.</p>
-                                                </div>
-                                            )}
                                         </div>
 
+                                        <Suspense fallback={<div className="h-[200px] flex items-center justify-center text-purple-500"><Loader2 className="animate-spin" /></div>}>
+                                            <Watchlist />
+                                        </Suspense>
+
+                                        {/* Toggle Button - Futuristic Switch Style */}
+                                        <div className="flex justify-center mt-12 mb-8 relative">
+                                            <div className="absolute inset-x-0 top-1/2 h-[1px] bg-purple-500/30 -z-10" />
+                                            <motion.button
+                                                whileHover={{ scale: 1.05 }}
+                                                whileTap={{ scale: 0.95 }}
+                                                onClick={() => setShowCommunityStream(!showCommunityStream)}
+                                                className={`relative overflow-hidden flex items-center gap-3 px-8 py-3 rounded-none font-bold font-mono tracking-widest transition-all clip-path-polygon ${showCommunityStream
+                                                    ? "bg-purple-900/50 text-purple-100 border border-purple-400 shadow-[0_0_20px_rgba(168,85,247,0.4)]"
+                                                    : "bg-black text-gray-500 border border-gray-700 hover:text-purple-400 hover:border-purple-500"
+                                                    }`}
+                                                style={{ clipPath: "polygon(10% 0, 100% 0, 100% 70%, 90% 100%, 0 100%, 0 30%)" }}
+                                            >
+                                                <div className={`w-2 h-2 rounded-full ${showCommunityStream ? 'bg-purple-400 animate-pulse' : 'bg-gray-600'}`} />
+                                                {showCommunityStream ? "TERMINATE STREAM" : "ACTIVATE COMMUNITY FEED"}
+                                            </motion.button>
+                                        </div>
                                     </div>
-                                </motion.div>
-                            )}
-                        </AnimatePresence>
-                    </div>
-                </section>
-            </ErrorBoundary >
+                                </div>
 
-            {/* LEADERBOARD SECTION */}
-            < ErrorBoundary >
-                <section className="py-24 px-4 bg-gradient-to-b from-black to-deep-black relative overflow-hidden">
-                    {/* Background Elements */}
-                    <div className="absolute top-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-purple-500/50 to-transparent" />
-                    <div className="absolute inset-0 bg-[url('/grid.svg')] opacity-5 pointer-events-none" />
+                                {/* Conditional Community Content */}
+                                <AnimatePresence>
+                                    {showCommunityStream && (
+                                        <motion.div
+                                            initial={{ opacity: 0, height: 0 }}
+                                            animate={{ opacity: 1, height: 'auto' }}
+                                            exit={{ opacity: 0, height: 0 }}
+                                            className="overflow-hidden"
+                                        >
+                                            <div className="pt-8 border-t border-white/5 grid grid-cols-1 lg:grid-cols-2 gap-12">
 
-                    <div className="max-w-7xl mx-auto relative z-10">
-                        <div className="text-center mb-16">
-                            <h2 className="text-4xl md:text-5xl font-bold mb-6 flex items-center justify-center gap-4">
-                                <Trophy className="text-gold stroke-[3]" size={48} />
-                                <span className="text-gold drop-shadow-[0_0_15px_rgba(255,215,0,0.3)] tracking-wide">
-                                    ELITE TRADERS
-                                </span>
-                            </h2>
-                            <p className="text-xl text-gray-400 font-mono tracking-wider">Top performers in the Singularity ecosystem.</p>
-                        </div>
+                                                {/* LEFT COLUMN: Recent Ideas */}
+                                                <div className="flex flex-col">
+                                                    <div className="flex justify-between items-center mb-8">
+                                                        <h2 className="text-3xl font-bold flex items-center gap-2">
+                                                            <Lightbulb className="text-gold" size={32} /> Recent <span className="text-gold">Ideas</span>
+                                                        </h2>
+                                                        <Link to="/ideas" className="text-gold hover:text-white flex items-center gap-2 transition-colors">
+                                                            View All <ArrowRight size={16} />
+                                                        </Link>
+                                                    </div>
 
-                        <LeaderboardDisplay currentUser={currentUser} leaders={leaderboard} />
-                    </div>
-                </section>
-            </ErrorBoundary >
+                                                    {recentIdeas.length > 0 ? (
+                                                        <div className="flex justify-center items-center relative z-10 h-[600px]">
+                                                            <Suspense fallback={<div className="text-center text-gray-500 py-10">Loading ideas...</div>}>
+                                                                <CardSwap
+                                                                    width={400} // Increased width
+                                                                    height={480} // Increased height
+                                                                    cardDistance={0}
+                                                                    verticalDistance={25} // Visual vertical stack
+                                                                    dropDistance={150}
+                                                                    delay={4000}
+                                                                    pauseOnHover={true}
+                                                                    swapAxis="y"
+                                                                    centerStack={true}
+                                                                    skewAmount={0}
+                                                                    depth={50}
+                                                                >
+                                                                    {recentIdeas.slice(0, 6).map(idea => (
+                                                                        <IdeaCard
+                                                                            key={idea.id}
+                                                                            idea={idea}
+                                                                            currentUser={currentUser}
+                                                                            className="shadow-2xl bg-[#0a0a0a]"
+                                                                            style={{ position: 'absolute', left: '50%', top: '50%' }}
+                                                                        />
+                                                                    ))}
+                                                                </CardSwap>
+                                                            </Suspense>
+                                                        </div>
+                                                    ) : (
+                                                        <div className="text-center py-12 bg-white/5 rounded-xl border border-white/10">
+                                                            <p className="text-gray-400">No ideas posted yet.</p>
+                                                        </div>
+                                                    )}
+                                                </div>
 
-            {/* Pricing Section */}
-            < ErrorBoundary >
-                <section className="py-24 px-4 bg-deep-black">
-                    <div className="max-w-7xl mx-auto">
-                        <div className="text-center mb-16">
-                            <h2 className="text-4xl font-bold mb-6">Choose Your <span className="text-gold">Subscription</span></h2>
-                            <p className="text-xl text-gray-400">Unlock the full potential of M.I.C. Singularity.</p>
-                        </div>
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                            <Suspense fallback={<div className="col-span-3 md:col-span-3 h-[400px] flex items-center justify-center text-gold"><Loader2 className="animate-spin" /></div>}>
-                                <SubscriptionCard
-                                    title="Basic"
-                                    price="$0"
-                                    period="/month"
-                                    planId="FREE_TIER"
-                                    features={["Limited product usage", "Community access"]}
-                                    delay={0.1}
-                                />
-                                <SubscriptionCard
-                                    title="Pro"
-                                    price="$19"
-                                    period="/month"
-                                    planId={import.meta.env.VITE_PAYPAL_VISIONARY_PLAN_ID}
-                                    features={["Priority support", "Higher product usage limits", "Community access"]}
-                                    isPopular={true}
-                                    delay={0.2}
-                                />
-                                <SubscriptionCard
-                                    title="Enterprise"
-                                    price="$49"
-                                    period="/month"
-                                    planId={import.meta.env.VITE_PAYPAL_INSTITUTIONAL_PLAN_ID}
-                                    features={["High product usage limits", "Community access", "Priority support", "Early access to new features"]}
-                                    delay={0.3}
-                                />
-                            </Suspense>
-                        </div>
-                    </div>
-                </section>
-            </ErrorBoundary >
+                                                {/* RIGHT COLUMN: Recent Articles */}
+                                                <div className="flex flex-col">
+                                                    <div className="flex justify-between items-center mb-8">
+                                                        <h2 className="text-3xl font-bold flex items-center gap-2">
+                                                            <Globe className="text-gold" size={32} /> Recent <span className="text-gold">Articles</span>
+                                                        </h2>
+                                                        <Link to="/news" className="text-gold hover:text-white flex items-center gap-2 transition-colors">
+                                                            View All <ArrowRight size={16} />
+                                                        </Link>
+                                                    </div>
 
-            {/* FAQ Section */}
-            < ErrorBoundary >
-                <TierLimitsTable />
-                <FAQSection />
-            </ErrorBoundary >
+                                                    {recentArticles.length > 0 ? (
+                                                        <div className="flex justify-center items-center relative z-10 h-[600px]">
+                                                            <Suspense fallback={<div className="text-center text-gray-500 py-10">Loading articles...</div>}>
+                                                                <CardSwap
+                                                                    width={400}
+                                                                    height={480}
+                                                                    cardDistance={0}
+                                                                    verticalDistance={30}
+                                                                    dropDistance={150}
+                                                                    delay={5000}
+                                                                    pauseOnHover={true}
+                                                                    swapAxis="y"
+                                                                    centerStack={true}
+                                                                    skewAmount={0}
+                                                                    depth={50}
+                                                                >
+                                                                    {recentArticles.slice(0, 6).map(article => (
+                                                                        <ArticleCard
+                                                                            key={article.id}
+                                                                            article={article}
+                                                                            className="shadow-2xl bg-[#0a0a0a]"
+                                                                        />
+                                                                    ))}
+                                                                </CardSwap>
+                                                            </Suspense>
+                                                        </div>
+                                                    ) : (
+                                                        <div className="text-center py-12 bg-white/5 rounded-xl border border-white/10">
+                                                            <p className="text-gray-400">No recent articles.</p>
+                                                        </div>
+                                                    )}
+                                                </div>
 
-            {/* Footer */}
-            < ErrorBoundary >
-                <UsageTicker />
-                <Suspense fallback={<div className="h-24 bg-black" />}>
-                    <Footer />
-                </Suspense>
-            </ErrorBoundary >
+                                            </div>
+                                        </motion.div>
+                                    )}
+                                </AnimatePresence>
+                            </div>
+                        </section>
+                    </ErrorBoundary >
+
+                    {/* LEADERBOARD SECTION */}
+                    < ErrorBoundary >
+                        <section className="py-24 px-4 bg-gradient-to-b from-black to-deep-black relative overflow-hidden">
+                            {/* Background Elements */}
+                            <div className="absolute top-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-purple-500/50 to-transparent" />
+                            <div className="absolute inset-0 bg-[url('/grid.svg')] opacity-5 pointer-events-none" />
+
+                            <div className="max-w-7xl mx-auto relative z-10">
+                                <div className="text-center mb-16">
+                                    <h2 className="text-4xl md:text-5xl font-bold mb-6 flex items-center justify-center gap-4">
+                                        <Trophy className="text-gold stroke-[3]" size={48} />
+                                        <span className="text-gold drop-shadow-[0_0_15px_rgba(255,215,0,0.3)] tracking-wide">
+                                            ELITE TRADERS
+                                        </span>
+                                    </h2>
+                                    <p className="text-xl text-gray-400 font-mono tracking-wider">Top performers in the Singularity ecosystem.</p>
+                                </div>
+
+                                <LeaderboardDisplay currentUser={currentUser} leaders={leaderboard} />
+                            </div>
+                        </section>
+                    </ErrorBoundary >
+
+                    {/* Pricing Section */}
+                    < ErrorBoundary >
+                        <section className="py-24 px-4 bg-deep-black">
+                            <div className="max-w-7xl mx-auto">
+                                <div className="text-center mb-16">
+                                    <h2 className="text-4xl font-bold mb-6">Choose Your <span className="text-gold">Subscription</span></h2>
+                                    <p className="text-xl text-gray-400">Unlock the full potential of M.I.C. Singularity.</p>
+                                </div>
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                                    <Suspense fallback={<div className="col-span-3 md:col-span-3 h-[400px] flex items-center justify-center text-gold"><Loader2 className="animate-spin" /></div>}>
+                                        <SubscriptionCard
+                                            title="Basic"
+                                            price="$0"
+                                            period="/month"
+                                            planId="FREE_TIER"
+                                            features={["Limited product usage", "Community access"]}
+                                            delay={0.1}
+                                        />
+                                        <SubscriptionCard
+                                            title="Pro"
+                                            price="$19"
+                                            period="/month"
+                                            planId={import.meta.env.VITE_PAYPAL_VISIONARY_PLAN_ID}
+                                            features={["Priority support", "Higher product usage limits", "Community access"]}
+                                            isPopular={true}
+                                            delay={0.2}
+                                        />
+                                        <SubscriptionCard
+                                            title="Enterprise"
+                                            price="$49"
+                                            period="/month"
+                                            planId={import.meta.env.VITE_PAYPAL_INSTITUTIONAL_PLAN_ID}
+                                            features={["High product usage limits", "Community access", "Priority support", "Early access to new features"]}
+                                            delay={0.3}
+                                        />
+                                    </Suspense>
+                                </div>
+                            </div>
+                        </section>
+                    </ErrorBoundary >
+
+                    {/* FAQ Section */}
+                    < ErrorBoundary >
+                        <TierLimitsTable />
+                        <FAQSection />
+                    </ErrorBoundary >
+
+                    {/* Footer */}
+                    < ErrorBoundary >
+                        <UsageTicker />
+                        <Suspense fallback={<div className="h-24 bg-black" />}>
+                            <Footer />
+                        </Suspense>
+                    </ErrorBoundary >
+
+                </ScrollExpandMedia>
+            </Suspense>
 
             {/* 
             <GradualBlur preset="footer" />
@@ -1320,7 +1312,7 @@ const UsageTicker = React.memo(() => {
         { key: 'fundamentals', label: 'FUNDAMENTALS PREVIEW' }, // Placeholder/Mock if needed, or real
         { key: 'total_users', label: 'ACTIVE USERS' },
         { key: 'total_system_actions', label: 'TOTAL ACTIONS' },
-        { key: 'cultivate', label: 'CULTIVATE' } // Keeping structure balanced if desired, or just 2? 
+        { key: 'cultivate', label: 'CULTIVATE' } // Keeping structure balanced if desired, or just 2?
         // User asked for Active Users and Total Actions specifically outside.
         // Let's make the Top Row strictly the "High Level" stats.
     ];
