@@ -56,8 +56,6 @@ const OrionOverlay = () => {
         </div>
       </div>
 
-      {/* 2. SIDEBAR REMOVED - NOW DETACHED WINDOW */}
-
       {/* 3. CONTROLS WINDOW (Toggled by Left Hand Open Palm) */}
       {showControls && (
         <div className="pointer-events-auto fixed inset-0 z-[2147483647] flex items-center justify-center bg-black/60 backdrop-blur-md p-4">
@@ -115,6 +113,41 @@ const OrionOverlay = () => {
                   <li><strong className="text-green-400">"Go to [Page]"</strong><br /><span className="text-gray-500">e.g. "Go to News"</span></li>
                   <li><strong className="text-green-400">"Sarah Connor"</strong><br /><span className="text-gray-500">System Shutdown</span></li>
                 </ul>
+              </div>
+
+              {/* VISION & EARS TOGGLE */}
+              <div className="col-span-full border-t border-cyan-500/30 pt-4 grid grid-cols-1 md:grid-cols-2 gap-6">
+
+                {/* Ears Controls */}
+                <div className="flex items-center justify-between">
+                  <div className="text-xs text-gray-400">
+                    <strong className="text-green-400">Orion Ears:</strong> Voice Commands.
+                  </div>
+                  <div className="flex gap-2">
+                    <button onClick={() => window.dispatchEvent(new CustomEvent("ORION_SEND", { detail: { action: "START_EARS" } }))} className="px-3 py-1 bg-green-500/20 text-green-400 border border-green-500 rounded hover:bg-green-500/30 font-bold text-[10px] uppercase">
+                      ENABLE
+                    </button>
+                    <button onClick={() => window.dispatchEvent(new CustomEvent("ORION_SEND", { detail: { action: "STOP_EARS" } }))} className="px-3 py-1 bg-red-500/20 text-red-400 border border-red-500 rounded hover:bg-red-500/30 font-bold text-[10px] uppercase">
+                      DISABLE
+                    </button>
+                  </div>
+                </div>
+
+                {/* Vision Controls */}
+                <div className="flex items-center justify-between">
+                  <div className="text-xs text-gray-400">
+                    <strong className="text-cyan-400">Orion Vision:</strong> Hand Tracking.
+                  </div>
+                  <div className="flex gap-2">
+                    <button onClick={() => window.dispatchEvent(new CustomEvent("ORION_SEND", { detail: { action: "START_VISION" } }))} className="px-3 py-1 bg-green-500/20 text-green-400 border border-green-500 rounded hover:bg-green-500/30 font-bold text-[10px] uppercase">
+                      ENABLE
+                    </button>
+                    <button onClick={() => window.dispatchEvent(new CustomEvent("ORION_SEND", { detail: { action: "STOP_VISION" } }))} className="px-3 py-1 bg-red-500/20 text-red-400 border border-red-500 rounded hover:bg-red-500/30 font-bold text-[10px] uppercase">
+                      DISABLE
+                    </button>
+                  </div>
+                </div>
+
               </div>
             </div>
 

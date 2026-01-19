@@ -64,9 +64,8 @@ async def fetch_bulk_market_data(tickers: List[str]):
             
             data = await asyncio.to_thread(download_chunk)
             
-            print(f"DEBUG: Chunk {chunk[0]}... returned data shape: {data.shape if hasattr(data, 'shape') else 'No Attributes'}")
+            # Debug logs removed
             if data.empty: 
-                print(f"DEBUG: Chunk empty for {chunk[0]}...")
                 continue
 
             # If only one ticker, yf structure is different (no top level ticker index)
@@ -88,7 +87,6 @@ async def fetch_bulk_market_data(tickers: List[str]):
                         hist = data['Close'].dropna()
                         
                     if hist.empty: 
-                        print(f"DEBUG: {ticker} history empty")
                         continue
                     
                     # Calculate Changes
@@ -112,13 +110,12 @@ async def fetch_bulk_market_data(tickers: List[str]):
                     }
                     # print(f"DEBUG: Processed {ticker}: {current_price}, {change_d}")
                 except Exception as e:
-                     print(f"DEBUG: Error processing {ticker}: {e}")
                      continue
         except Exception as e:
             logger.error(f"Chunk download error: {e}")
-            print(f"DEBUG: Chunk download error: {e}")
+        except Exception as e:
+            logger.error(f"Chunk download error: {e}")
             
-    print(f"DEBUG: fetch_bulk_market_data finished. Collected {len(all_data)} tickers.")
     return all_data
 
 async def fetch_ticker_meta(ticker):
@@ -136,22 +133,16 @@ async def fetch_ticker_meta(ticker):
 
 async def update_heatmap_cache():
     """Background job to update market data."""
-    logger.info("Starting Heatmap Update... (DEBUG MODE)")
-    print("DEBUG: Starting Heatmap Update...")
+    logger.info("Starting Heatmap Update...")
     
     tickers, sector_map = get_sp500_list()
     if not tickers:
         logger.error("No tickers found.")
-        print("DEBUG: No tickers found from Wikipedia.")
         return []
 
-    print(f"DEBUG: Found {len(tickers)} tickers.")
-
     # 1. Bulk Price Data
-    print(f"DEBUG: Fetching bulk market data for {len(tickers)} tickers...")
     try:
         market_data = await fetch_bulk_market_data(tickers)
-        print(f"DEBUG: fetch_bulk_market_data returned {len(market_data)} entries")
     except Exception as e:
         logger.error(f"Failed to fetch bulk data: {e}")
         print(f"DEBUG: Failed to fetch bulk data: {e}")
@@ -159,8 +150,6 @@ async def update_heatmap_cache():
 
     # 2. Build Tree Structure (Combine Sector + Price + Meta)
     tree_structure = {} # { Sector: [ {name, size, change, ...} ] }
-
-    print("DEBUG: Fetching Metadata (Market Caps) and building tree...")
     
     # Check for legacy cache to speed up/fallback?
     # For now, simplistic approach: Fetch clean.
@@ -212,8 +201,6 @@ async def update_heatmap_cache():
         tree_structure[sec].append(data_node)
         processed_count += 1
 
-    print(f"DEBUG: Processed {processed_count} tickers into {len(tree_structure)} sectors")
-
     final_output = []
     for sector, children in tree_structure.items():
         children.sort(key=lambda x: x['size'], reverse=True)
@@ -222,30 +209,20 @@ async def update_heatmap_cache():
             "children": children
         })
         
-    print(f"DEBUG: Final output has {len(final_output)} sectors")
-    
     # Detailed count
     total_stocks = sum(len(x['children']) for x in final_output)
-    print(f"DEBUG: Total stocks in tree: {total_stocks}")
 
     # Save to Cache
     try:
         with open(HEATMAP_CACHE_FILE, 'w') as f:
             json.dump(final_output, f)
         logger.info(f"Heatmap Cache Updated. {len(final_output)} sectors found.")
-        print(f"DEBUG: Heatmap cache saved to {HEATMAP_CACHE_FILE}")
-        
-        # Verify file size
-        stat = os.stat(HEATMAP_CACHE_FILE)
-        print(f"DEBUG: Cache file size: {stat.st_size} bytes")
         
     except Exception as e:
         logger.error(f"Failed to save cache: {e}")
-        print(f"DEBUG: Failed to save cache: {e}")
 
     if not final_output:
         logger.warning("Heatmap update produced EMPTY output!")
-        print("DEBUG: WARNING - Output is empty!")
 
     return final_output
 

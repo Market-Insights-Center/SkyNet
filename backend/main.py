@@ -54,12 +54,20 @@ async def lifespan(app: FastAPI):
 
     # Initialize Firebase
 
+    # Initialize Firebase - Auto-initialized on import by routers
+    # (backend.firebase_admin_setup runs init logic at module level)
+    logger.info("Firebase initialization handled by module imports.")
+
+    # Start Orion Core (Background Service)
     try:
-        from backend.firebase_admin_setup import initialize_firebase
-        initialize_firebase()
-        logger.info("Firebase initialized.")
+        orion_script = os.path.join(current_dir, "orion_v2.py")
+        if os.path.exists(orion_script):
+            success, msg = OrionManager.start(orion_script)
+            logger.info(f"Orion Core Startup: {success} - {msg}")
+        else:
+            logger.warning(f"Orion Core script not found at {orion_script}")
     except Exception as e:
-        logger.warning(f"Firebase Init Warning: {e}")
+        logger.error(f"Failed to start Orion Core: {e}")
 
     # Schedule Market/Risk jobs if possible (Replicating main.py logic concisely)
     # Since we removed the local scheduler function, we might want to simply assume 

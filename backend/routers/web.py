@@ -157,8 +157,8 @@ def get_server_logs(email: str, file: str = "server"):
         raise HTTPException(status_code=403, detail="Not authorized")
 
     log_map = {
-        "server": "server.log",
-        "error": "server_error.log",
+        "server": "backend_log.txt", # Default log
+        "error": "startup_error.log", # Mapped to specific startup error log
         "risk": "risk_calculations.log",
         "startup": "startup_error.log"
     }
@@ -178,9 +178,7 @@ def get_server_logs(email: str, file: str = "server"):
     try:
         # Read last 2000 lines or so to avoid huge payload
         with open(filepath, "r", encoding="utf-8", errors="replace") as f:
-            lines = f.readlines()
-            # Return last 1000 lines
-            content = "".join(lines[-1000:])
+            content = f.read()
             return {"content": content, "path": filepath}
     except Exception as e:
         return {"content": f"Failed to read log: {str(e)}"}

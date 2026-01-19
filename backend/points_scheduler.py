@@ -111,7 +111,7 @@ def process_singularity_refill():
         # Query Singularity Users
         # Fix: Use positional args for where() to avoid warnings
         try:
-            users = db.collection('users').where('tier', '==', 'Singularity').stream()
+            users = db.collection('users').where(field_path='tier', op_string='==', value='Singularity').stream()
         except:
             # Fallback if index missing
              users = db.collection('users').stream()
@@ -184,7 +184,7 @@ def process_expiring_predictions():
         db = get_db()
         # Get all Active Predictions
         # Fix: Positional args for where()
-        docs = db.collection('predictions').where('status', '==', 'active').stream()
+        docs = db.collection('predictions').where(field_path='status', op_string='==', value='active').stream()
         
         now = datetime.utcnow()
         
@@ -253,8 +253,8 @@ def process_expiring_predictions():
                 winning_pool = pool_yes if winner == 'yes' else pool_no
                 
                 # Fix: Positional args for where()
-                bets = db.collection('bets').where('prediction_id', '==', pid)\
-                         .where('status', '==', 'pending').stream()
+                bets = db.collection('bets').where(field_path='prediction_id', op_string='==', value=pid)\
+                         .where(field_path='status', op_string='==', value='pending').stream()
                 
                 batch = db.batch()
                 payout_count = 0

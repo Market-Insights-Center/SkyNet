@@ -29,12 +29,12 @@ except ImportError:
 
 # --- Imports ---
 try:
-    from backend.integration.invest_command import calculate_ema_invest, screen_custom_market_stocks
+    from backend.integration.invest_command import calculate_ema_invest
 except ImportError:
     try:
-        from integration.invest_command import calculate_ema_invest, screen_custom_market_stocks
+        from integration.invest_command import calculate_ema_invest
     except ImportError:
-         print("CRITICAL: invest_command not found for market_command.")
+         pass # Fail silently, we have local fallbacks
 
 # --- Helper Functions ---
 def safe_score(val):

@@ -329,6 +329,22 @@ export const OrionProvider = ({ children }) => {
         ws.current = socket;
     };
 
+    const sendCommand = (action, payload = {}) => {
+        if (ws.current && ws.current.readyState === WebSocket.OPEN) {
+            ws.current.send(JSON.stringify({ action, ...payload }));
+        }
+    };
+
+    // Listen for Frontend Events to Send to Backend
+    useEffect(() => {
+        const handleSend = (e) => {
+            const { action, payload } = e.detail;
+            sendCommand(action, payload);
+        };
+        window.addEventListener('ORION_SEND', handleSend);
+        return () => window.removeEventListener('ORION_SEND', handleSend);
+    }, []);
+
     const disconnect = () => {
         // Clear retries
         reconnectAttempts.current = 0;
@@ -389,7 +405,7 @@ export const OrionProvider = ({ children }) => {
 
     return (
         <OrionContext.Provider value={{
-            connect, disconnect, shutdownSystem, isConnected, connectionError, logs, cursorPos, cursorState,
+            connect, disconnect, shutdownSystem, sendCommand, isConnected, connectionError, logs, cursorPos, cursorState,
             chartTicker, setChartTicker, chartInterval
         }}>
             {children}

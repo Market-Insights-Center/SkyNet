@@ -14,6 +14,8 @@ const ScrollExpandMedia = ({
     const [mediaFullyExpanded, setMediaFullyExpanded] = useState(false);
     const [touchStartY, setTouchStartY] = useState(0);
     const [isMobileState, setIsMobileState] = useState(false);
+    const [isAutoExpanding, setIsAutoExpanding] = useState(false);
+    const [isAutoCollapsing, setIsAutoCollapsing] = useState(false);
 
     const sectionRef = useRef(null);
 
@@ -22,36 +24,78 @@ const ScrollExpandMedia = ({
         setScrollProgress(0);
         setShowContent(false);
         setMediaFullyExpanded(false);
+        setIsAutoExpanding(false);
+        setIsAutoCollapsing(false);
         window.scrollTo(0, 0);
     }, []);
 
     useEffect(() => {
+        let animationFrame;
+
+        const animate = () => {
+            setScrollProgress((prev) => {
+                if (isAutoExpanding) {
+                    const next = prev + 0.04; // Slightly faster expand
+                    if (next >= 1) {
+                        setMediaFullyExpanded(true);
+                        setShowContent(true);
+                        setIsAutoExpanding(false);
+                        return 1;
+                    }
+                    return next;
+                }
+                if (isAutoCollapsing) {
+                    const next = prev - 0.04; // Collapse speed
+                    if (next <= 0) {
+                        setMediaFullyExpanded(false);
+                        setShowContent(false);
+                        setIsAutoCollapsing(false);
+                        return 0;
+                    }
+                    return next;
+                }
+                return prev;
+            });
+
+            if (isAutoExpanding || isAutoCollapsing) {
+                animationFrame = requestAnimationFrame(animate);
+            }
+        };
+
+        if (isAutoExpanding || isAutoCollapsing) {
+            animationFrame = requestAnimationFrame(animate);
+        }
+
+        return () => cancelAnimationFrame(animationFrame);
+    }, [isAutoExpanding, isAutoCollapsing]);
+
+    useEffect(() => {
         const handleWheel = (e) => {
-            // If we are fully expanded and scrolling UP at the very top of the window, collapse back
-            if (mediaFullyExpanded && e.deltaY < 0 && window.scrollY <= 10) {
-                // Prevent default only if we are taking action to collapse
-                // But users might just want to scroll up the page content. 
-                // Logic: If window.scrollY is 0, we can collapse.
-                if (window.scrollY === 0) {
+            // Prevent fighting with animation
+            if (isAutoExpanding || isAutoCollapsing) {
+                e.preventDefault();
+                return;
+            }
+
+            if (mediaFullyExpanded) {
+                // If at top and scrolling up, collapse
+                if (window.scrollY === 0 && e.deltaY < 0) {
                     setMediaFullyExpanded(false);
+                    setShowContent(false);
+                    setIsAutoCollapsing(true);
                     e.preventDefault();
                 }
+                return;
             }
-            // If NOT fully expanded, hijack scroll to control progress
-            else if (!mediaFullyExpanded) {
-                e.preventDefault();
-                const scrollDelta = e.deltaY * 0.0009;
-                const newProgress = Math.min(Math.max(scrollProgress + scrollDelta, 0), 1);
-                setScrollProgress(newProgress);
 
-                if (newProgress >= 1) {
-                    setMediaFullyExpanded(true);
-                    setShowContent(true);
-                    // Allow document scroll again
-                } else if (newProgress < 0.9) {
-                    setShowContent(false);
-                    setMediaFullyExpanded(false);
-                }
+            // If expanding or not fully expanded, hijack scroll
+            e.preventDefault();
+
+            if (!isAutoExpanding && e.deltaY > 0) {
+                setIsAutoExpanding(true);
+            } else if (!isAutoCollapsing && e.deltaY < 0) {
+                // Already at 0 or mid-way, if they verify-scroll up, collapse
+                if (scrollProgress > 0) setIsAutoCollapsing(true);
             }
         };
 
@@ -61,43 +105,50 @@ const ScrollExpandMedia = ({
 
         const handleTouchMove = (e) => {
             if (!touchStartY) return;
-
             const touchY = e.touches[0].clientY;
-            const deltaY = touchStartY - touchY; // positive = scroll down
+            const deltaY = touchStartY - touchY;
 
-            if (mediaFullyExpanded && deltaY < -20 && window.scrollY <= 5) {
-                setMediaFullyExpanded(false);
-                // e.preventDefault(); // Optional: prevent pull-to-refresh
-            } else if (!mediaFullyExpanded) {
+            if (isAutoExpanding || isAutoCollapsing) {
                 e.preventDefault();
-                const scrollFactor = deltaY < 0 ? 0.008 : 0.005;
-                const scrollDelta = deltaY * scrollFactor;
-                const newProgress = Math.min(Math.max(scrollProgress + scrollDelta, 0), 1);
-                setScrollProgress(newProgress);
-
-                if (newProgress >= 1) {
-                    setMediaFullyExpanded(true);
-                    setShowContent(true);
-                } else if (newProgress < 0.9) {
-                    // Keep it collapsed
-                }
-
-                setTouchStartY(touchY);
+                return;
             }
+
+            if (mediaFullyExpanded) {
+                if (window.scrollY <= 0 && deltaY < -20) {
+                    setMediaFullyExpanded(false);
+                    setShowContent(false);
+                    setIsAutoCollapsing(true);
+                }
+                return;
+            }
+
+            e.preventDefault();
+
+            if (Math.abs(deltaY) < 5) return; // Ignore small jitters
+
+            if (deltaY > 10) { // Swipe Up (Scroll Down)
+                if (!isAutoExpanding) setIsAutoExpanding(true);
+            } else if (deltaY < -10) { // Swipe Down (Scroll Up)
+                if (scrollProgress > 0 && !isAutoCollapsing) setIsAutoCollapsing(true);
+            }
+
+            setTouchStartY(touchY);
         };
 
         const handleTouchEnd = () => {
             setTouchStartY(0);
         };
 
-        // Lock scroll position to top if not fully expanded
         const handleScroll = () => {
             if (!mediaFullyExpanded && window.scrollY > 0) {
+                // Keep locked to top until expanded
                 window.scrollTo(0, 0);
             }
         };
 
         window.addEventListener('wheel', handleWheel, { passive: false });
+        // Only bind specific scroll blocker if expanded state matters? 
+        // We added a check inside handleScroll
         window.addEventListener('scroll', handleScroll);
         window.addEventListener('touchstart', handleTouchStart, { passive: false });
         window.addEventListener('touchmove', handleTouchMove, { passive: false });
@@ -110,7 +161,7 @@ const ScrollExpandMedia = ({
             window.removeEventListener('touchmove', handleTouchMove);
             window.removeEventListener('touchend', handleTouchEnd);
         };
-    }, [scrollProgress, mediaFullyExpanded, touchStartY]);
+    }, [scrollProgress, mediaFullyExpanded, isAutoExpanding, isAutoCollapsing, touchStartY]);
 
     useEffect(() => {
         const checkIfMobile = () => {

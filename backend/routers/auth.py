@@ -2,8 +2,9 @@ from fastapi import APIRouter, HTTPException
 from typing import Optional
 from backend.schemas import (
     UsernameCheckRequest, UsernameUpdateRequest, UserUpdateRequest, 
-    UserDeleteRequest, HeartbeatRequest, ModRequest
+    UserDeleteRequest, HeartbeatRequest
 )
+from backend.schemas import ModRequest
 from backend.config import get_mod_list, SUPER_ADMIN_EMAIL
 from backend.database import (
     get_all_users_from_db, update_user_username, check_username_taken,

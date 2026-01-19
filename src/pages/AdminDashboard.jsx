@@ -631,6 +631,16 @@ const AdminDashboard = () => {
                                 <button onClick={() => fetchLogs(logFile)} className="bg-white/10 p-2 rounded hover:bg-white/20 ml-2" title="Refresh">
                                     <Activity size={16} />
                                 </button>
+                                <button
+                                    onClick={() => {
+                                        navigator.clipboard.writeText(logs);
+                                        alert("Logs copied to clipboard!");
+                                    }}
+                                    className="bg-white/10 p-2 rounded hover:bg-white/20 ml-2"
+                                    title="Copy Logs"
+                                >
+                                    <FileText size={16} />
+                                </button>
                             </div>
                         </div>
                         <div className="flex-1 bg-black border border-white/10 rounded-lg p-4 overflow-auto font-mono text-xs shadow-inner">

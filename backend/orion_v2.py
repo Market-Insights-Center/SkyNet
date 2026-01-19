@@ -104,6 +104,10 @@ class OrionV2Controller:
         self.recognizer.dynamic_energy_threshold = True
         self.recognizer.pause_threshold = 0.8
         
+        self.mic = None
+        self.ears_active = False
+
+    def initialize_microphone(self):
         # --- AUTO-SELECT MICROPHONE ---
         mic_index = None
         try:
@@ -386,13 +390,24 @@ class OrionV2Controller:
 
     # --- VOICE LOGIC ---
     def listen_loop(self):
-        print("[EARS] Active")
+        print("[EARS] Loop Started (Waiting for activation)")
         while self.is_running:
+            if not self.ears_active:
+                time.sleep(1)
+                continue
+
+            if not self.mic:
+                self.initialize_microphone()
+                print("[EARS] Active")
+
             try:
                 # Use shorter timeout/phrase limits to prevent blocking
                 with self.mic as source:
                     # Listening...
-                    audio = self.recognizer.listen(source, timeout=2, phrase_time_limit=4)
+                    try:
+                        audio = self.recognizer.listen(source, timeout=2, phrase_time_limit=4)
+                    except sr.WaitTimeoutError:
+                        continue # Just loop back
                 
                 try:
                     text = self.recognizer.recognize_google(audio).lower()
@@ -532,9 +547,11 @@ class OrionV2Controller:
     async def main_async(self):
         self.loop = asyncio.get_running_loop()
         t_ears = threading.Thread(target=self.listen_loop, daemon=True)
-        t_eyes = threading.Thread(target=self.start_camera_and_processing, daemon=True)
+        # Vision is now started on demand
+        # t_eyes = threading.Thread(target=self.start_camera_and_processing, daemon=True)
+        
         t_ears.start()
-        t_eyes.start()
+        # t_eyes.start()
 
         print(f"\n=== ORION V2 LISTENING ON {WS_PORT} ===")
         async with websockets.serve(self.ws_handler, "0.0.0.0", WS_PORT):
@@ -547,8 +564,26 @@ class OrionV2Controller:
             async for message in websocket: 
                 try:
                     data = json.loads(message)
-                    if data.get("action") == "STOP":
+                    action = data.get("action")
+                    
+                    if action == "STOP":
                         self.initiate_shutdown("Frontend Button")
+                    elif action == "START_VISION":
+                        if not hasattr(self, 'vision_thread') or not self.vision_thread.is_alive():
+                            self.vision_active = True
+                            self.vision_thread = threading.Thread(target=self.start_camera_and_processing, daemon=True)
+                            self.vision_thread.start()
+                            self.speak("Vision System Online")
+                    elif action == "STOP_VISION":
+                        self.vision_active = False 
+                        self.speak("Vision System Offline")
+                    elif action == "START_EARS":
+                        self.ears_active = True
+                        self.speak("Ears Active")
+                    elif action == "STOP_EARS":
+                        self.ears_active = False
+                        self.speak("Ears Sleeping")
+                        
                 except: pass
         except: pass
         finally: self.connected_clients.remove(websocket)
