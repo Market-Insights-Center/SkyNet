@@ -334,6 +334,18 @@ const AdminDashboard = () => {
         setShowBannerModal(true);
     };
 
+    const isUserOnline = (lastSeen) => {
+        if (!lastSeen) return false;
+        try {
+            const last = new Date(lastSeen).getTime();
+            const now = new Date().getTime();
+            // Allow 5 minutes (300000ms) to account for heartbeat delays or clock skew
+            return (now - last) < 300000;
+        } catch (e) {
+            return false;
+        }
+    };
+
     // Filter Logic for Users Tab
     const filteredUsers = users.filter(u =>
         u.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -488,8 +500,8 @@ const AdminDashboard = () => {
                                             filteredUsers.map(user => (
                                                 <tr key={user.email} className="hover:bg-white/5 transition-colors">
                                                     <td className="p-4 font-bold text-white flex items-center gap-2">
-                                                        {/* Flashing Green Dot for Online Users (< 2 mins) */}
-                                                        {user.last_seen && (new Date() - new Date(user.last_seen) < 120000) && (
+                                                        {/* Flashing Green Dot for Online Users (< 5 mins) */}
+                                                        {isUserOnline(user.last_seen) && (
                                                             <div className="relative flex h-3 w-3" title="Online now">
                                                                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
                                                                 <span className="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span>
@@ -500,7 +512,7 @@ const AdminDashboard = () => {
                                                     <td className="p-4 text-gray-300">{user.email}</td>
                                                     <td className="p-4"><span className={`px-2 py-1 rounded text-xs font-bold ${user.tier === 'Singularity' ? 'bg-purple-900 text-purple-200' : user.tier === 'Pro' ? 'bg-gold/20 text-gold' : 'bg-gray-700 text-gray-300'}`}>{user.tier}</span></td>
                                                     <td className="p-4 text-sm text-gray-400 font-mono">
-                                                        {user.last_seen && (new Date() - new Date(user.last_seen) < 120000) ? (
+                                                        {isUserOnline(user.last_seen) ? (
                                                             <span className="text-green-400 font-bold">Active</span>
                                                         ) : (
                                                             <span className="text-gray-600">Inactive</span>
