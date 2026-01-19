@@ -283,7 +283,12 @@ export const OrionProvider = ({ children }) => {
         // Clear any pending retry
         if (reconnectTimeout.current) clearTimeout(reconnectTimeout.current);
 
-        const socketUrl = 'ws://127.0.0.1:8001';
+        // Dynamically determine host (localhost or valid domain/IP)
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        // Note: Direct port 8001 access often requires ws:// even on https sites if no SSL cert on that specific port 
+        // unless reverse proxied. For now, assuming direct port access match hostname.
+        // If SSL is strict, user needs Nginx proxy. We'll defaults to ws:// for port 8001.
+        const socketUrl = `ws://${window.location.hostname}:8001`;
         const socket = new WebSocket(socketUrl);
 
         socket.onopen = () => {
