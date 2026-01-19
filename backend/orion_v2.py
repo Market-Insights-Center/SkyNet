@@ -19,8 +19,8 @@ import os
 try:
     import pyautogui
     pyautogui.FAILSAFE = False
-except (ImportError, OSError):
-    print("Warning: PyAutoGUI missing or no display. Running in Headless Mode.")
+except Exception as e:
+    print(f"Warning: PyAutoGUI initialization failed ({e}). Running in Headless Mode.")
     class DummyPyAutoGUI:
         def size(self): return 1920, 1080
         def scroll(self, *args): pass
@@ -36,14 +36,14 @@ except (ImportError, OSError):
 
 try:
     import mediapipe as mp
-except (ImportError, OSError):
-    print("Warning: MediaPipe missing (protobuf/dependency error). Vision disabled.")
+except Exception as e:
+    print(f"Warning: MediaPipe missing ({e}). Vision disabled.")
     mp = None
 
 try:
     import cv2
-except (ImportError, OSError):
-    print("Warning: OpenCV missing. Vision disabled.")
+except Exception as e:
+    print(f"Warning: OpenCV missing ({e}). Vision disabled.")
     cv2 = None
 
 
