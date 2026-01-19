@@ -173,6 +173,14 @@ def get_server_logs(email: str, file: str = "server"):
         filepath = os.path.join(os.path.dirname(CURRENT_DIR), filename)
     
     if not os.path.exists(filepath):
+        # Fallback for 'error'/'startup' to main log if specific file missing (common in some redirect setups)
+        if file in ['error', 'startup']:
+            fallback = log_map.get("server")
+            filepath = os.path.join(CURRENT_DIR, fallback)
+            if not os.path.exists(filepath):
+                filepath = os.path.join(os.path.dirname(CURRENT_DIR), fallback)
+        
+    if not os.path.exists(filepath):
         return {"content": f"Log file '{filename}' not found."}
 
     try:
