@@ -167,7 +167,7 @@ const ScrollExpandMedia = ({
                             maxWidth: '100vw',
                             maxHeight: '100vh',
                             borderRadius: `${borderRadius}px`,
-                            pointerEvents: mediaFullyExpanded ? 'auto' : 'none'
+                            pointerEvents: 'auto'
                             // When expanded, allow clicks. When shrinking, maybe not?
                         }}
                     >
