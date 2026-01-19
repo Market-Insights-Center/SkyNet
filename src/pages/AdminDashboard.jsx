@@ -396,31 +396,49 @@ const AdminDashboard = () => {
 
 
 
-    const TabButton = ({ id, label, icon: Icon }) => (
-        <button onClick={() => { setActiveTab(id); setSearchTerm(''); }} className={`px-4 py-2 rounded-lg font-bold flex items-center gap-2 ${activeTab === id ? 'bg-gold text-black' : 'bg-white/10 text-gray-300'}`}>
-            <Icon size={16} /> {label}
-        </button>
-    );
+    // --- NAVIGATION CONFIG ---
+    const navItems = [
+        { id: 'overview', label: 'Overview', icon: Activity },
+        { id: 'users', label: 'Users', icon: Users },
+        { id: 'coupons', label: 'Coupons', icon: Tag },
+        { id: 'articles', label: 'Articles', icon: FileText },
+        { id: 'ideas', label: 'Ideas', icon: Zap },
+        { id: 'banners', label: 'Banners', icon: Megaphone },
+        { id: 'predictions', label: 'Predictions', icon: TrendingUp },
+        { id: 'mods', label: 'Moderators', icon: Shield },
+        { id: 'logs', label: 'System Logs', icon: FileText },
+    ];
 
     return (
         <div className="min-h-screen bg-black text-white p-8 pt-24">
             <div className="max-w-7xl mx-auto">
-                <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
-                    <div>
-                        <h1 className="text-3xl font-bold text-gold mb-2">Admin Command Center</h1>
-                        <p className="text-gray-400">Manage users, subscriptions, and platform content.</p>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                        <TabButton id="overview" label="Overview" icon={Activity} />
-                        <TabButton id="users" label="Users" icon={Users} />
-                        <TabButton id="coupons" label="Coupons" icon={Tag} />
-                        <TabButton id="articles" label="Articles" icon={FileText} />
-                        <TabButton id="ideas" label="Ideas" icon={Zap} />
-                        <TabButton id="banners" label="Banners" icon={Megaphone} />
-                        <TabButton id="predictions" label="Predictions" icon={TrendingUp} />
+                <div className="mb-12">
+                    <h1 className="text-4xl font-bold text-gold mb-2">Admin Command Center</h1>
+                    <p className="text-gray-400 mb-8">Manage users, subscriptions, and platform content.</p>
 
-                        <TabButton id="mods" label="Moderators" icon={Shield} />
-                        <TabButton id="logs" label="System Logs" icon={FileText} />
+                    {/* MAIN NAVIGATION */}
+                    <div className="flex flex-wrap gap-2 p-1 bg-white/5 rounded-2xl w-fit">
+                        {navItems.map((item) => {
+                            const isActive = activeTab === item.id;
+                            const Icon = item.icon;
+                            return (
+                                <button
+                                    key={item.id}
+                                    onClick={() => { setActiveTab(item.id); setSearchTerm(''); }}
+                                    className={`relative px-4 py-2.5 rounded-xl font-medium text-sm flex items-center gap-2 transition-colors z-10 ${isActive ? 'text-black font-bold' : 'text-gray-400 hover:text-white'}`}
+                                >
+                                    {isActive && (
+                                        <motion.div
+                                            layoutId="activeTab"
+                                            className="absolute inset-0 bg-gold rounded-xl -z-10 shadow-gold"
+                                            transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
+                                        />
+                                    )}
+                                    <Icon size={16} className={isActive ? "text-black" : ""} />
+                                    {item.label}
+                                </button>
+                            );
+                        })}
                     </div>
                 </div>
 
@@ -627,16 +645,28 @@ const AdminDashboard = () => {
                     <div className="bg-white/5 rounded-xl border border-white/10 p-6 flex flex-col h-[70vh]">
                         <div className="flex justify-between items-center mb-4">
                             <h2 className="text-xl font-bold flex items-center gap-2"><FileText size={20} /> System Logs</h2>
-                            <div className="flex gap-2">
-                                {['server', 'error', 'risk', 'startup', 'auth', 'orion', 'market', 'automation'].map(f => (
-                                    <button
-                                        key={f}
-                                        onClick={() => fetchLogs(f)}
-                                        className={`px-3 py-1 text-sm rounded ${logFile === f ? 'bg-gold text-black font-bold' : 'bg-white/10 text-gray-400 hover:bg-white/20'}`}
-                                    >
-                                        {f.toUpperCase()}
-                                    </button>
-                                ))}
+                            <div className="flex items-center gap-2">
+                                <div className="flex bg-black/40 p-1 rounded-lg gap-1 border border-white/10">
+                                    {['server', 'error', 'risk', 'startup', 'auth', 'orion', 'market', 'automation'].map(f => {
+                                        const isActive = logFile === f;
+                                        return (
+                                            <button
+                                                key={f}
+                                                onClick={() => fetchLogs(f)}
+                                                className={`relative px-3 py-1.5 text-xs font-bold rounded-md transition-colors z-10 ${isActive ? 'text-black' : 'text-gray-400 hover:text-white'}`}
+                                            >
+                                                {isActive && (
+                                                    <motion.div
+                                                        layoutId="activeLogFile"
+                                                        className="absolute inset-0 bg-gold rounded-md -z-10"
+                                                        transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
+                                                    />
+                                                )}
+                                                {f.toUpperCase()}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
                                 <button onClick={() => fetchLogs(logFile)} className="bg-white/10 p-2 rounded hover:bg-white/20 ml-2" title="Refresh">
                                     <Activity size={16} />
                                 </button>
@@ -935,7 +965,7 @@ const AdminDashboard = () => {
                 onIdeaCreated={() => fetchIdeas()}
                 user={currentUser}
             />
-        </div>
+        </div >
     );
 };
 
