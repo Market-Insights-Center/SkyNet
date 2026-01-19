@@ -185,9 +185,24 @@ def get_server_logs(email: str, file: str = "server"):
 
     try:
         # Read last 2000 lines or so to avoid huge payload
-        with open(filepath, "r", encoding="utf-8", errors="replace") as f:
-            content = f.read()
-            return {"content": content, "path": filepath}
+        # Robust reading for PowerShell (UTF-16) vs Bash (UTF-8) logs
+        with open(filepath, "rb") as f:
+            raw = f.read()
+        
+        content = ""
+        # Check for UTF-16 LE/BE BOM
+        if raw.startswith(b'\xff\xfe') or raw.startswith(b'\xfe\xff'):
+            try:
+                content = raw.decode('utf-16')
+            except:
+                content = raw.decode('utf-16', errors='replace')
+        else:
+            try:
+                content = raw.decode('utf-8')
+            except:
+                content = raw.decode('latin-1', errors='replace') # Fallback
+                
+        return {"content": content, "path": filepath}
     except Exception as e:
         return {"content": f"Failed to read log: {str(e)}"}
 
