@@ -20,10 +20,36 @@ if current_dir not in sys.path:
 # --- IMPORTS ---
 from backend.services.orion_manager import OrionManager
 from backend.routers import auth, chat, content, market, automation, ai, web
-
 # --- LOGGING ---
-logging.basicConfig(level=logging.INFO)
+# Ensure logs are overwritten on each startup for a clean state
+log_filename = "backend_log.txt"
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    handlers=[
+        logging.FileHandler(log_filename, mode='w', encoding='utf-8'), # 'w' = Overwrite old logs
+        logging.StreamHandler(sys.stdout)
+    ]
+)
 logger = logging.getLogger("uvicorn")
+
+def setup_domain_logger(name, filename):
+    """Sets up a specific logger with a file handler."""
+    l = logging.getLogger(name)
+    l.setLevel(logging.INFO)
+    # Prevent propagation to avoid duplicate logs in main log if desired, 
+    # but keeping it True allows 'Master' log to see everything. 
+    # Let's keep propagation default (True).
+    handler = logging.FileHandler(filename, mode='w', encoding='utf-8')
+    handler.setFormatter(logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s"))
+    l.addHandler(handler)
+    return l
+
+# Configure Domain Loggers
+setup_domain_logger("backend.orion", "orion.log")
+setup_domain_logger("backend.auth", "auth.log")
+setup_domain_logger("backend.market", "market_data.log")
+setup_domain_logger("backend.automation", "automation.log")
 
 # --- LIFESPAN ---
 @asynccontextmanager

@@ -160,7 +160,11 @@ def get_server_logs(email: str, file: str = "server"):
         "server": "backend_log.txt", # Default log
         "error": "startup_error.log", # Mapped to specific startup error log
         "risk": "risk_calculations.log",
-        "startup": "startup_error.log"
+        "startup": "startup_error.log",
+        "auth": "auth.log",
+        "market": "market_data.log",
+        "orion": "orion.log",
+        "automation": "automation.log"
     }
     
     filename = log_map.get(file, "server.log")

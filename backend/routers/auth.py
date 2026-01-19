@@ -12,7 +12,7 @@ from backend.database import (
 import logging
 
 router = APIRouter()
-logger = logging.getLogger("uvicorn")
+logger = logging.getLogger("backend.auth")
 
 # --- AUTH & USER CHECK ENDPOINTS ---
 

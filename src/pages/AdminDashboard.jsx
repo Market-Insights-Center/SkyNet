@@ -628,7 +628,7 @@ const AdminDashboard = () => {
                         <div className="flex justify-between items-center mb-4">
                             <h2 className="text-xl font-bold flex items-center gap-2"><FileText size={20} /> System Logs</h2>
                             <div className="flex gap-2">
-                                {['server', 'error', 'risk', 'startup'].map(f => (
+                                {['server', 'error', 'risk', 'startup', 'auth', 'orion', 'market', 'automation'].map(f => (
                                     <button
                                         key={f}
                                         onClick={() => fetchLogs(f)}

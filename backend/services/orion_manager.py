@@ -3,7 +3,7 @@ import logging
 import sys
 import os
 
-logger = logging.getLogger("uvicorn")
+logger = logging.getLogger("backend.orion")
 
 class OrionManager:
     _process = None
