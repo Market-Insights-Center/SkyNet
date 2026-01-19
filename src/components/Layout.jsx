@@ -6,6 +6,7 @@ import { User, Search, Home, Briefcase, MessageSquare, Users, Command, Shield, M
 
 import LiquidBackground from './LiquidBackground';
 import PillNav from './PillNav';
+import HealthStatus from './HealthStatus';
 
 const Layout = ({ children }) => {
     const location = useLocation();
@@ -250,6 +251,8 @@ const Layout = ({ children }) => {
                     {children}
                 </div>
             </main>
+
+            <HealthStatus />
         </div>
     );
 };

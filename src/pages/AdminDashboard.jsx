@@ -90,6 +90,22 @@ const AdminDashboard = () => {
     const [showCreateArticleModal, setShowCreateArticleModal] = useState(false);
     const [showCreateIdeaModal, setShowCreateIdeaModal] = useState(false);
 
+    // --- LOGS STATE ---
+    const [logs, setLogs] = useState('');
+    const [logFile, setLogFile] = useState('server');
+    const [loadingLogs, setLoadingLogs] = useState(false);
+
+    const fetchLogs = (file = 'server') => {
+        setLoadingLogs(true);
+        setLogFile(file);
+        if (!currentUser) return;
+        fetch(`/api/admin/logs?email=${currentUser.email}&file=${file}`)
+            .then(res => res.json())
+            .then(data => setLogs(data.content || 'No content or log file not found.'))
+            .catch(err => setLogs(`Error fetching logs: ${err.message}`))
+            .finally(() => setLoadingLogs(false));
+    };
+
     // --- SECURITY CHECK ---
     useEffect(() => {
         if (!currentUser) { navigate('/'); return; }
@@ -395,6 +411,7 @@ const AdminDashboard = () => {
                         <TabButton id="predictions" label="Predictions" icon={TrendingUp} />
 
                         <TabButton id="mods" label="Moderators" icon={Shield} />
+                        <TabButton id="logs" label="System Logs" icon={FileText} />
                     </div>
                 </div>
 
@@ -593,6 +610,37 @@ const AdminDashboard = () => {
                                     )}
                                 </div>
                             ))}
+                        </div>
+                    </div>
+                )}
+
+                {activeTab === 'logs' && (
+                    <div className="bg-white/5 rounded-xl border border-white/10 p-6 flex flex-col h-[70vh]">
+                        <div className="flex justify-between items-center mb-4">
+                            <h2 className="text-xl font-bold flex items-center gap-2"><FileText size={20} /> System Logs</h2>
+                            <div className="flex gap-2">
+                                {['server', 'error', 'risk', 'startup'].map(f => (
+                                    <button
+                                        key={f}
+                                        onClick={() => fetchLogs(f)}
+                                        className={`px-3 py-1 text-sm rounded ${logFile === f ? 'bg-gold text-black font-bold' : 'bg-white/10 text-gray-400 hover:bg-white/20'}`}
+                                    >
+                                        {f.toUpperCase()}
+                                    </button>
+                                ))}
+                                <button onClick={() => fetchLogs(logFile)} className="bg-white/10 p-2 rounded hover:bg-white/20 ml-2" title="Refresh">
+                                    <Activity size={16} />
+                                </button>
+                            </div>
+                        </div>
+                        <div className="flex-1 bg-black border border-white/10 rounded-lg p-4 overflow-auto font-mono text-xs shadow-inner">
+                            {loadingLogs ? (
+                                <div className="text-gold animate-pulse">Accessing mainframe logs...</div>
+                            ) : (
+                                <pre className="whitespace-pre-wrap text-green-400">
+                                    {logs || "Select a log file to view content."}
+                                </pre>
+                            )}
                         </div>
                     </div>
                 )}

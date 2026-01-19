@@ -42,6 +42,7 @@ if not risk_logger.hasHandlers():
     risk_formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(module)s - %(funcName)s - %(message)s')
     risk_file_handler.setFormatter(risk_formatter)
     risk_logger.addHandler(risk_file_handler)
+    risk_logger.propagate = False # Prevent output to console
 
 # --- NEW: Download Helper with Timeout and Retry Logic ---
 async def _download_with_retry(tickers: List[str], timeout: int, **kwargs) -> pd.DataFrame:
@@ -57,13 +58,13 @@ async def _download_with_retry(tickers: List[str], timeout: int, **kwargs) -> pd
             return data # Success
             
         except asyncio.TimeoutError:
-            print(f"[RISK_DEBUG]     ! Download for {len(tickers)} tickers timed out (attempt {attempt + 1}/{max_retries})...")
+            risk_logger.info(f"[RISK_DEBUG]     ! Download for {len(tickers)} tickers timed out (attempt {attempt + 1}/{max_retries})...")
             if attempt < max_retries - 1:
                 await asyncio.sleep(2 * (attempt + 1)) # Exponential backoff (2s, 4s)
             else:
-                print(f"[RISK_DEBUG]     ! All retry attempts failed for this batch.")
+                risk_logger.info(f"[RISK_DEBUG]     ! All retry attempts failed for this batch.")
         except Exception as e:
-            print(f"[RISK_DEBUG]     ! An unexpected download error occurred: {e}")
+            risk_logger.info(f"[RISK_DEBUG]     ! An unexpected download error occurred: {e}")
             break # Do not retry on other errors
     
     return pd.DataFrame() # Return empty DataFrame on failure
@@ -81,7 +82,7 @@ def get_sp500_symbols_singularity() -> List[str]:
         symbols = [str(s).replace('.', '-') for s in df['Symbol'].tolist() if isinstance(s, str)]
         return sorted(list(set(symbols)))
     except Exception as e:
-        print(f"[RISK_DEBUG] FAILED to fetch S&P 500 symbols: {e}")
+        risk_logger.info(f"[RISK_DEBUG] FAILED to fetch S&P 500 symbols: {e}")
         return []
 
 def get_sp100_symbols_risk() -> list:
@@ -94,7 +95,7 @@ def get_sp100_symbols_risk() -> list:
         symbols = df['Symbol'].tolist()
         return [s.replace('.', '-') for s in symbols if isinstance(s, str)]
     except Exception as e:
-        print(f"[RISK_DEBUG] FAILED to fetch S&P 100 symbols: {e}")
+        risk_logger.info(f"[RISK_DEBUG] FAILED to fetch S&P 100 symbols: {e}")
         return []
 
 async def fetch_and_cache_data(symbols: List[str], cache_filename: str, period: str):
@@ -111,7 +112,7 @@ async def fetch_and_cache_data(symbols: List[str], cache_filename: str, period: 
     symbols_to_download = [s for s in symbols if s not in cached_tickers]
     
     if symbols_to_download:
-        print(f"[RISK_DEBUG] Cache incomplete. Needing to download {len(symbols_to_download)} tickers...")
+        risk_logger.info(f"[RISK_DEBUG] Cache incomplete. Needing to download {len(symbols_to_download)} tickers...")
         chunk_size = 50
         for i in range(0, len(symbols_to_download), chunk_size):
             chunk = symbols_to_download[i:i + chunk_size]
@@ -119,7 +120,7 @@ async def fetch_and_cache_data(symbols: List[str], cache_filename: str, period: 
             chunk_data = await _download_with_retry(tickers=chunk, timeout=60, period=period)
             
             if chunk_data.empty:
-                print(f"[RISK_DEBUG]     Chunk failed after all retries. Moving to next chunk.")
+                risk_logger.info(f"[RISK_DEBUG]     Chunk failed after all retries. Moving to next chunk.")
                 continue
 
             if os.path.exists(cache_filename):
@@ -138,7 +139,7 @@ async def fetch_and_cache_data(symbols: List[str], cache_filename: str, period: 
 
 def _calculate_ma_percentage_from_data(symbols: List[str], data: pd.DataFrame, ma_window: int) -> float:
     if not symbols or data.empty:
-        print("[RISK_DEBUG] MA% calculation skipped: No symbols or data.")
+        risk_logger.info("[RISK_DEBUG] MA% calculation skipped: No symbols or data.")
         return 0.0
     
     above_ma_count, valid_stocks_count = 0, 0
@@ -150,7 +151,7 @@ def _calculate_ma_percentage_from_data(symbols: List[str], data: pd.DataFrame, m
         # Drop the top-level column name ('Close') to get columns with just ticker names
         close_prices_df.columns = close_prices_df.columns.droplevel(0)
     except KeyError:
-        print("[RISK_DEBUG]   ! 'Close' column not found in downloaded data. Cannot calculate MA%.")
+        risk_logger.info("[RISK_DEBUG]   ! 'Close' column not found in downloaded data. Cannot calculate MA%.")
         return 0.0
     # --- END: Robust Data Extraction Logic ---
 
@@ -172,7 +173,7 @@ async def get_live_price_and_ma_risk(ticker: str, ma_windows: List[int], is_call
         period = '2y' if max(ma_windows, default=0) >= 200 else '1y'
         hist = await asyncio.to_thread(yf.Ticker(ticker).history, period=period)
         if hist.empty:
-            print(f"[RISK_DEBUG] FAILED for {ticker}: No history returned.")
+            risk_logger.info(f"[RISK_DEBUG] FAILED for {ticker}: No history returned.")
             return None, ma_values
         
         price = hist['Close'].iloc[-1]
@@ -181,7 +182,7 @@ async def get_live_price_and_ma_risk(ticker: str, ma_windows: List[int], is_call
                 ma_values[window] = hist['Close'].rolling(window=window).mean().iloc[-1]
         return price, ma_values
     except Exception as e:
-        print(f"[RISK_DEBUG] FAILED for {ticker}: {e}")
+        risk_logger.info(f"[RISK_DEBUG] FAILED for {ticker}: {e}")
         return None, ma_values
 
 def calculate_ema_score_risk(ticker: str ="SPY", is_called_by_ai: bool = False) -> Optional[float]:
@@ -195,7 +196,7 @@ def calculate_ema_score_risk(ticker: str ="SPY", is_called_by_ai: bool = False) 
         score = (((ema_8 - ema_55) / ema_55) * 5 + 0.5) * 100
         return float(np.clip(score, 0, 100))
     except Exception as e:
-        print(f"[RISK_DEBUG] FAILED EMA score calculation for {ticker}: {e}")
+        risk_logger.info(f"[RISK_DEBUG] FAILED EMA score calculation for {ticker}: {e}")
         return None
 
 async def calculate_risk_scores_singularity(is_called_by_ai: bool = False) -> tuple:
@@ -220,7 +221,7 @@ async def calculate_risk_scores_singularity(is_called_by_ai: bool = False) -> tu
     
     critical_data_map = {'SPY Price': spy_live_price, 'VIX Price': vix_live_price}
     if any(v is None for v in critical_data_map.values()):
-        print("[RISK_DEBUG] FAILED: Critical data (SPY or VIX price) is missing.")
+        risk_logger.info("[RISK_DEBUG] FAILED: Critical data (SPY or VIX price) is missing.")
         return None, None, None, None, spy_live_price, vix_live_price
         
     try:
@@ -236,7 +237,7 @@ async def calculate_risk_scores_singularity(is_called_by_ai: bool = False) -> tu
         s1fd_score = np.clip(((s1fd_val - 60) + 50), 0, 100)
         s1tw_score = np.clip(((s1tw_val - 70) + 50), 0, 100)
     except (TypeError, KeyError):
-        print("[RISK_DEBUG] FAILED: Type or Key error during component score calculation.")
+        risk_logger.info("[RISK_DEBUG] FAILED: Type or Key error during component score calculation.")
         return None, None, None, None, spy_live_price, vix_live_price
         
     ema_score_val_risk = await asyncio.to_thread(calculate_ema_score_risk, "SPY", is_called_by_ai=True)
@@ -448,8 +449,8 @@ async def handle_risk_command(args: List[str], ai_params: Optional[Dict] = None,
         return results
 
     if results:
-        print("\n--- R.I.S.K. Assessment ---")
+        risk_logger.info("\n--- R.I.S.K. Assessment ---")
         table_data = [[key.replace('_', ' ').title(), val] for key, val in results.items()]
-        print(tabulate.tabulate(table_data, headers=["Metric", "Value"], tablefmt="heavy_outline", stralign="center"))
+        risk_logger.info(tabulate.tabulate(table_data, headers=["Metric", "Value"], tablefmt="heavy_outline", stralign="center"))
     else:
-        print("\n[RISK] Failed to calculate risk assessment scores.")
+        risk_logger.info("\n[RISK] Failed to calculate risk assessment scores.")
