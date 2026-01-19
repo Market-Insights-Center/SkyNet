@@ -8,14 +8,55 @@ import pyttsx3
 import asyncio
 import websockets
 import json
-import pyautogui
 import numpy as np
 from collections import deque
 from ctypes import cast, POINTER
-from comtypes import CLSCTX_ALL
-from pycaw.pycaw import AudioUtilities, IAudioEndpointVolume
 import webbrowser
 import sys
+import os
+
+# --- DEFENSIVE IMPORTS ---
+try:
+    import pyautogui
+    pyautogui.FAILSAFE = False
+except (ImportError, OSError):
+    print("Warning: PyAutoGUI missing or no display. Running in Headless Mode.")
+    class DummyPyAutoGUI:
+        def size(self): return 1920, 1080
+        def scroll(self, *args): pass
+        def moveTo(self, *args, **kwargs): pass
+        def click(self, *args, **kwargs): pass
+        def rightClick(self, *args, **kwargs): pass
+        def doubleClick(self, *args, **kwargs): pass
+        def mouseDown(self, *args, **kwargs): pass
+        def mouseUp(self, *args, **kwargs): pass
+        def write(self, *args, **kwargs): pass
+        def hotkey(self, *args, **kwargs): pass
+    pyautogui = DummyPyAutoGUI()
+
+try:
+    import mediapipe as mp
+except (ImportError, OSError):
+    print("Warning: MediaPipe missing (protobuf/dependency error). Vision disabled.")
+    mp = None
+
+try:
+    import cv2
+except (ImportError, OSError):
+    print("Warning: OpenCV missing. Vision disabled.")
+    cv2 = None
+
+
+# --- OS COMPATIBILITY FIX ---
+try:
+    from comtypes import CLSCTX_ALL
+    from pycaw.pycaw import AudioUtilities, IAudioEndpointVolume
+except (ImportError, OSError):
+    # Dummy classes for Linux/Non-Windows
+    CLSCTX_ALL = None
+    AudioUtilities = None
+    IAudioEndpointVolume = None
+
 
 # --- CONFIGURATION ---
 PINCH_THRESHOLD = 0.04
@@ -38,6 +79,8 @@ class OrionV2Controller:
         try:
             self.screen_w, self.screen_h = pyautogui.size()
         except:
+            print("Warning: Failed to get screen size (Headless/Linux?). Defaulting to 1920x1080.")
+            self.screen_w, self.screen_h = 1920, 1080
             self.screen_w = 1920
             self.screen_h = 1080
             
@@ -83,13 +126,21 @@ class OrionV2Controller:
         self.nav_cooldown = 1.0
 
         # MediaPipe
-        self.mp_hands = mp.solutions.hands
-        self.hands = self.mp_hands.Hands(
-            max_num_hands=2,
-            min_detection_confidence=0.7,
-            min_tracking_confidence=0.7
-        )
-        self.mp_draw = mp.solutions.drawing_utils
+        self.hands = None
+        self.mp_draw = None
+        
+        if mp:
+            try:
+                self.mp_hands = mp.solutions.hands
+                self.hands = self.mp_hands.Hands(
+                    max_num_hands=2,
+                    min_detection_confidence=0.7,
+                    min_tracking_confidence=0.7
+                )
+                self.mp_draw = mp.solutions.drawing_utils
+            except Exception as e:
+                print(f"MediaPipe Init Error: {e}. Vision disabled.")
+
 
         # Audio / TTS
         try:
@@ -510,39 +561,53 @@ class OrionV2Controller:
         self.is_running = False
 
     def start_camera_and_processing(self):
-        print("Opening Camera...")
-        cap = cv2.VideoCapture(0, cv2.CAP_DSHOW)
-        if not cap.isOpened(): cap = cv2.VideoCapture(1, cv2.CAP_DSHOW)
+        """Standard Webcam Loop (Eyes)"""
+        if not cv2 or not self.hands:
+            print("Vision dependencies missing. Loop aborted.")
+            return
 
-        window_name = "Orion Vision"
-        cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
-        cv2.setWindowProperty(window_name, cv2.WND_PROP_TOPMOST, 1)
+        print("Starting Vision Loop...")
+        # Guard against CAP_DSHOW on Linux
+        try:
+             cap = cv2.VideoCapture(0, cv2.CAP_DSHOW) if sys.platform == 'win32' else cv2.VideoCapture(0)
+        except:
+             return
+             
+        if not cap.isOpened():
+             print("Camera not found.")
+             return
 
-        while cap.isOpened() and self.is_running:
-            success, image = cap.read()
-            if not success:
-                time.sleep(0.1)
-                continue
+        # No NamedWindow on Headless
+        
+        try:
+            with self.mp_hands.Hands(
+                max_num_hands=1,
+                model_complexity=0,
+                min_detection_confidence=0.7,
+                min_tracking_confidence=0.7) as hands:
+                
+                while self.is_running and self.eyes_active and cap.isOpened():
+                    success, image = cap.read()
+                    if not success:
+                        time.sleep(0.1)
+                        continue
 
-            image = cv2.flip(image, 1)
-            image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-            
-            results = self.hands.process(image_rgb)
-            
-            if results.multi_hand_landmarks:
-                for hand_landmarks in results.multi_hand_landmarks:
-                    self.mp_draw.draw_landmarks(
-                        image, hand_landmarks, self.mp_hands.HAND_CONNECTIONS)
-                self.process_hands(results)
+                    # Process for gestures
+                    image = cv2.flip(image, 1)
+                    image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+                    results = hands.process(image_rgb)
+                    
+                    if results.multi_hand_landmarks:
+                        self.process_hands(results)
+                    
+                    # No imshow() on headless
+                    time.sleep(0.01) # Yield slightly
 
-            cv2.imshow(window_name, image)
-            
-            if cv2.waitKey(1) & 0xFF == ord('q'):
-                self.initiate_shutdown("Manual Keypress")
-                break
+        except Exception as e:
+            print(f"Vision Loop Error: {e}")
+        finally:
+            cap.release()
 
-        cap.release()
-        cv2.destroyAllWindows()
 
     async def main_async(self):
         self.loop = asyncio.get_running_loop()
