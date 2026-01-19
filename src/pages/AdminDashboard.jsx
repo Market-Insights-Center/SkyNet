@@ -100,7 +100,16 @@ const AdminDashboard = () => {
         setLogFile(file);
         if (!currentUser) return;
         fetch(`/api/admin/logs?email=${currentUser.email}&file=${file}`)
-            .then(res => res.json())
+            .then(async res => {
+                const text = await res.text();
+                try {
+                    return JSON.parse(text);
+                } catch {
+                    // If parsing fails, maybe it returned raw text or error page
+                    if (!res.ok) throw new Error(text || res.statusText);
+                    throw new Error("Invalid JSON response");
+                }
+            })
             .then(data => setLogs(data.content || 'No content or log file not found.'))
             .catch(err => setLogs(`Error fetching logs: ${err.message}`))
             .finally(() => setLoadingLogs(false));

@@ -61,11 +61,12 @@ async def lifespan(app: FastAPI):
     # Start Orion Core (Background Service)
     try:
         orion_script = os.path.join(current_dir, "orion_v2.py")
+        logger.info(f"Attempting to start Orion from: {orion_script}")
         if os.path.exists(orion_script):
             success, msg = OrionManager.start(orion_script)
-            logger.info(f"Orion Core Startup: {success} - {msg}")
+            logger.info(f"Orion Core Startup Result: Success={success}, Msg={msg}")
         else:
-            logger.warning(f"Orion Core script not found at {orion_script}")
+            logger.error(f"Orion Core script MISSING at {orion_script}")
     except Exception as e:
         logger.error(f"Failed to start Orion Core: {e}")
 
