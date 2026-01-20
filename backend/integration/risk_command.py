@@ -385,7 +385,7 @@ def calculate_iv_and_ivr_risk(is_called_by_ai: bool = False) -> tuple[Optional[f
     
 # --- Replace the existing perform_risk_calculations_singularity function in risk_command.py ---
 async def perform_risk_calculations_singularity(is_eod_save: bool = False, is_called_by_ai: bool = False):
-    risk_logger.info(f"--- Singularity: Performing R.I.S.K. calculations cycle (EOD Save: {is_eod_save}) ---")
+    # risk_logger.info(f"--- Singularity: Performing R.I.S.K. calculations cycle (EOD Save: {is_eod_save}) ---")
     
     general, large_cap, ema, combined, spy_p, vix_p = await calculate_risk_scores_singularity(is_called_by_ai=True)
     
@@ -449,8 +449,8 @@ async def handle_risk_command(args: List[str], ai_params: Optional[Dict] = None,
         return results
 
     if results:
-        risk_logger.info("\n--- R.I.S.K. Assessment ---")
+        # risk_logger.info("\n--- R.I.S.K. Assessment ---")
         table_data = [[key.replace('_', ' ').title(), val] for key, val in results.items()]
-        risk_logger.info(tabulate.tabulate(table_data, headers=["Metric", "Value"], tablefmt="heavy_outline", stralign="center"))
+        # risk_logger.info(tabulate.tabulate(table_data, headers=["Metric", "Value"], tablefmt="heavy_outline", stralign="center"))
     else:
         risk_logger.info("\n[RISK] Failed to calculate risk assessment scores.")

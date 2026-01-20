@@ -309,25 +309,37 @@ const MarketPredictions = () => {
                             </div>
                         </div>
                     </div>
-                    <NeonWrapper className="p-8 flex flex-col items-center justify-center bg-black/40 backdrop-blur-md h-full min-h-[220px]">
-                        <h3 className="text-cyan-500/70 text-xs uppercase tracking-[0.2em] mb-4 font-bold">Available Balance</h3>
-                        {loading ? <Skeleton width="180px" height="60px" /> : (
-                            <div className="relative group cursor-default">
-                                <div className="relative px-8 py-4 bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl flex items-baseline gap-3 shadow-[0_8px_32px_rgba(0,0,0,0.5)] hover:border-cyan-500/30 transition-colors">
-                                    <span className="text-6xl font-black text-transparent bg-clip-text bg-gradient-to-b from-white via-cyan-100 to-cyan-400 drop-shadow-[0_0_10px_rgba(34,211,238,0.3)] tracking-tighter">
-                                        {balance.toLocaleString()}
-                                    </span>
-                                    <span className="text-sm font-bold text-cyan-400 tracking-widest uppercase mb-2">PTS</span>
+
+                    {/* AVAILABLE BALANCE - Refactored Style */}
+                    <div className="relative group">
+                        <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/5 to-blue-600/5 rounded-xl blur-xl opacity-50 group-hover:opacity-100 transition-opacity"></div>
+                        <div className="relative h-full bg-black/40 backdrop-blur-md border border-white/5 rounded-xl p-6 flex flex-col">
+                            <div className="flex items-center justify-between mb-6">
+                                <div className="flex items-center gap-2">
+                                    <DollarSign className="text-cyan-400 w-5 h-5" />
+                                    <h3 className="text-lg font-bold text-white tracking-wide">Available Balance</h3>
                                 </div>
                             </div>
-                        )}
-                        {pendingPoints > 0 && (
-                            <div className="mt-4 flex items-center gap-2 px-3 py-1 bg-yellow-500/10 border border-yellow-500/20 rounded-full">
-                                <Clock size={12} className="text-yellow-500 animate-pulse" />
-                                <span className="text-xs font-bold text-yellow-500/90">+{pendingPoints} Pending</span>
+
+                            <div className="flex-1 flex flex-col items-center justify-center py-4">
+                                {loading ? <Skeleton width="180px" height="60px" /> : (
+                                    <div className="text-center">
+                                        <div className="text-5xl font-black text-transparent bg-clip-text bg-gradient-to-b from-white via-cyan-100 to-cyan-500 drop-shadow-[0_0_15px_rgba(34,211,238,0.2)] tracking-tighter mb-2">
+                                            {balance.toLocaleString()}
+                                        </div>
+                                        <div className="text-sm font-bold text-cyan-400/80 tracking-[0.2em] uppercase">Singularity Points</div>
+                                    </div>
+                                )}
+
+                                {pendingPoints > 0 && (
+                                    <div className="mt-6 w-full bg-yellow-500/5 border border-yellow-500/10 rounded-lg p-3 flex items-center justify-center gap-2">
+                                        <Clock size={14} className="text-yellow-500 animate-pulse" />
+                                        <span className="text-sm font-medium text-yellow-500">+{pendingPoints.toLocaleString()} Pending</span>
+                                    </div>
+                                )}
                             </div>
-                        )}
-                    </NeonWrapper>
+                        </div>
+                    </div>
                 </div>
 
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -572,8 +584,17 @@ const CreatePredictionModal = ({ isOpen, onClose, onSubmit, newPrediction, setNe
         const dirSymbol = smartInputs.direction === 'Above' ? '>' : '<';
 
         // Auto Text
-        const title = `${symbol} ${dirSymbol} $${smartInputs.targetPrice}`;
+        let title = `${symbol} ${dirSymbol} $${smartInputs.targetPrice}`;
         const condition = `Price ${dirSymbol} ${smartInputs.targetPrice}`;
+
+        // Append Date if available
+        if (newPrediction.end_date) {
+            const d = new Date(newPrediction.end_date);
+            // Format: by MM/DD/YYYY at HH:MM AM/PM
+            const dateStr = d.toLocaleDateString();
+            const timeStr = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            title += ` by ${dateStr} at ${timeStr}`;
+        }
 
         // Set to parent state
         setNewPrediction(prev => ({
@@ -584,7 +605,7 @@ const CreatePredictionModal = ({ isOpen, onClose, onSubmit, newPrediction, setNe
             wager_logic: 'binary_odds' // Enforce default
         }));
 
-    }, [category, smartInputs, setNewPrediction]);
+    }, [category, smartInputs, newPrediction.end_date, setNewPrediction]);
 
 
     if (!isOpen) return null;

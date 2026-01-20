@@ -7,7 +7,7 @@
             "type": "nexus",
             "interval": "1/d",
             "submission_date": "2025-12-16T08:39:24.777416",
-            "last_run": "2026-01-19T04:15:00.232871",
+            "last_run": "2026-01-20T04:30:00.026666",
             "pnl_all_time": 0.0,
             "last_stats": {},
             "status": "active",
@@ -23,7 +23,7 @@
             "type": "custom",
             "interval": "1/d",
             "submission_date": "2025-12-16T08:51:07.690799",
-            "last_run": "2026-01-19T04:16:38.846288",
+            "last_run": "2026-01-20T04:30:46.770621",
             "pnl_all_time": -9999.65004562378,
             "last_stats": {},
             "status": "active",
@@ -32,24 +32,24 @@
                 {
                     "ticker": "NVDA",
                     "live_price": 186.22999572753906,
-                    "raw_invest_score": 53.20751788733604,
-                    "amplified_score_adjusted": 619.6410197881361,
+                    "raw_invest_score": 53.20751784019513,
+                    "amplified_score_adjusted": 619.6410192983037,
                     "sub_portfolio_id": "Sub-Portfolio 1 > Sub-Portfolio 1",
                     "path": [
                         "NVDA"
                     ],
-                    "combined_percent_allocation": 0.6196410197881361
+                    "combined_percent_allocation": 0.6196410192983036
                 },
                 {
                     "ticker": "ASML",
                     "live_price": 1358.5699462890625,
-                    "raw_invest_score": 111.18030110032846,
-                    "amplified_score_adjusted": 1294.7770895841124,
+                    "raw_invest_score": 111.1803011012607,
+                    "amplified_score_adjusted": 1294.777089718584,
                     "sub_portfolio_id": "Sub-Portfolio 1 > Sub-Portfolio 1",
                     "path": [
                         "ASML"
                     ],
-                    "combined_percent_allocation": 1.2947770895841126
+                    "combined_percent_allocation": 1.294777089718584
                 },
                 {
                     "ticker": "NOW",
@@ -65,189 +65,189 @@
                 {
                     "ticker": "TSM",
                     "live_price": 342.3999938964844,
-                    "raw_invest_score": 88.58364941317659,
-                    "amplified_score_adjusted": 1031.622316514785,
+                    "raw_invest_score": 88.58364941098394,
+                    "amplified_score_adjusted": 1031.6223165877411,
                     "sub_portfolio_id": "Sub-Portfolio 1 > Sub-Portfolio 1",
                     "path": [
                         "TSM"
                     ],
-                    "combined_percent_allocation": 1.0316223165147853
+                    "combined_percent_allocation": 1.031622316587741
                 },
                 {
                     "ticker": "GOOG",
                     "live_price": 330.3399963378906,
-                    "raw_invest_score": 83.36317717615303,
-                    "amplified_score_adjusted": 970.8260443117765,
+                    "raw_invest_score": 83.36317731459879,
+                    "amplified_score_adjusted": 970.8260460167667,
                     "sub_portfolio_id": "Sub-Portfolio 1 > Sub-Portfolio 1",
                     "path": [
                         "GOOG"
                     ],
-                    "combined_percent_allocation": 0.9708260443117767
+                    "combined_percent_allocation": 0.9708260460167666
                 },
                 {
                     "ticker": "MRVL",
                     "live_price": 80.45999908447266,
-                    "raw_invest_score": 36.93503809215702,
-                    "amplified_score_adjusted": 430.13592022463155,
+                    "raw_invest_score": 36.93503794930527,
+                    "amplified_score_adjusted": 430.1359186020828,
                     "sub_portfolio_id": "Sub-Portfolio 1 > Sub-Portfolio 1",
                     "path": [
                         "MRVL"
                     ],
-                    "combined_percent_allocation": 0.43013592022463165
+                    "combined_percent_allocation": 0.4301359186020827
                 },
                 {
                     "ticker": "META",
                     "live_price": 620.25,
-                    "raw_invest_score": 35.47971915740439,
-                    "amplified_score_adjusted": 413.18765154657433,
+                    "raw_invest_score": 35.4797191523926,
+                    "amplified_score_adjusted": 413.1876515276562,
                     "sub_portfolio_id": "Sub-Portfolio 1 > Sub-Portfolio 1",
                     "path": [
                         "META"
                     ],
-                    "combined_percent_allocation": 0.41318765154657433
+                    "combined_percent_allocation": 0.41318765152765613
                 },
                 {
                     "ticker": "AVGO",
                     "live_price": 351.7099914550781,
                     "raw_invest_score": 44.50641297602304,
-                    "amplified_score_adjusted": 518.3101978553055,
+                    "amplified_score_adjusted": 518.3101979047897,
                     "sub_portfolio_id": "Sub-Portfolio 1 > Sub-Portfolio 1",
                     "path": [
                         "AVGO"
                     ],
-                    "combined_percent_allocation": 0.5183101978553056
+                    "combined_percent_allocation": 0.5183101979047896
                 },
                 {
                     "ticker": "SAP",
                     "live_price": 233.58999633789062,
                     "raw_invest_score": 37.60453796404315,
-                    "amplified_score_adjusted": 437.9327429263026,
+                    "amplified_score_adjusted": 437.9327429681129,
                     "sub_portfolio_id": "Sub-Portfolio 1 > Sub-Portfolio 1",
                     "path": [
                         "SAP"
                     ],
-                    "combined_percent_allocation": 0.4379327429263027
+                    "combined_percent_allocation": 0.4379327429681128
                 },
                 {
                     "ticker": "ORCL",
                     "live_price": 191.08999633789062,
-                    "raw_invest_score": 17.583375109600407,
-                    "amplified_score_adjusted": 204.77144803673212,
+                    "raw_invest_score": 17.583375114839022,
+                    "amplified_score_adjusted": 204.77144811728962,
                     "sub_portfolio_id": "Sub-Portfolio 1 > Sub-Portfolio 1",
                     "path": [
                         "ORCL"
                     ],
-                    "combined_percent_allocation": 0.20477144803673214
+                    "combined_percent_allocation": 0.2047714481172896
                 },
                 {
                     "ticker": "AAPL",
                     "live_price": 255.52999877929688,
-                    "raw_invest_score": 41.113359186446694,
-                    "amplified_score_adjusted": 478.7955692116435,
+                    "raw_invest_score": 41.113359186559805,
+                    "amplified_score_adjusted": 478.7955692586724,
                     "sub_portfolio_id": "Sub-Portfolio 1 > Sub-Portfolio 1",
                     "path": [
                         "AAPL"
                     ],
-                    "combined_percent_allocation": 0.4787955692116436
+                    "combined_percent_allocation": 0.47879556925867234
                 },
                 {
                     "ticker": "VRT",
                     "live_price": 176.92999267578125,
-                    "raw_invest_score": 56.92032051403969,
-                    "amplified_score_adjusted": 2700.9737255574414,
+                    "raw_invest_score": 56.92032051725568,
+                    "amplified_score_adjusted": 2700.973727657165,
                     "sub_portfolio_id": "Sub-Portfolio 1 > Sub-Portfolio 2",
                     "path": [
                         "VRT"
                     ],
-                    "combined_percent_allocation": 2.700973725557442
+                    "combined_percent_allocation": 2.7009737276571646
                 },
                 {
                     "ticker": "DELL",
                     "live_price": 120.52999877929688,
-                    "raw_invest_score": 21.558029864573363,
-                    "amplified_score_adjusted": 1022.9681019563682,
+                    "raw_invest_score": 21.558029847053373,
+                    "amplified_score_adjusted": 1022.9681018624651,
                     "sub_portfolio_id": "Sub-Portfolio 1 > Sub-Portfolio 2",
                     "path": [
                         "DELL"
                     ],
-                    "combined_percent_allocation": 1.0229681019563683
+                    "combined_percent_allocation": 1.022968101862465
                 },
                 {
                     "ticker": "MSFT",
                     "live_price": 459.8599853515625,
-                    "raw_invest_score": 35.044101276981074,
-                    "amplified_score_adjusted": 1662.9069536169104,
+                    "raw_invest_score": 35.044101189541756,
+                    "amplified_score_adjusted": 1662.9069506665357,
                     "sub_portfolio_id": "Sub-Portfolio 1 > Sub-Portfolio 2",
                     "path": [
                         "MSFT"
                     ],
-                    "combined_percent_allocation": 1.6629069536169105
+                    "combined_percent_allocation": 1.6629069506665355
                 },
                 {
                     "ticker": "CRWV",
                     "live_price": 101.2300033569336,
                     "raw_invest_score": 53.522378944103885,
-                    "amplified_score_adjusted": 2539.7351587592752,
+                    "amplified_score_adjusted": 2539.7351605901586,
                     "sub_portfolio_id": "Sub-Portfolio 1 > Sub-Portfolio 2",
                     "path": [
                         "CRWV"
                     ],
-                    "combined_percent_allocation": 2.539735158759276
+                    "combined_percent_allocation": 2.539735160590158
                 },
                 {
                     "ticker": "HPE",
                     "live_price": 21.440000534057617,
-                    "raw_invest_score": 35.265570188078954,
-                    "amplified_score_adjusted": 1673.416060110006,
+                    "raw_invest_score": 35.265570143977676,
+                    "amplified_score_adjusted": 1673.4160592236772,
                     "sub_portfolio_id": "Sub-Portfolio 1 > Sub-Portfolio 2",
                     "path": [
                         "HPE"
                     ],
-                    "combined_percent_allocation": 1.673416060110006
+                    "combined_percent_allocation": 1.6734160592236769
                 },
                 {
                     "ticker": "GEV",
                     "live_price": 681.5499877929688,
-                    "raw_invest_score": 63.62648549656381,
-                    "amplified_score_adjusted": 1063.604248989762,
+                    "raw_invest_score": 63.62648533670529,
+                    "amplified_score_adjusted": 1063.6042473587738,
                     "sub_portfolio_id": "Sub-Portfolio 1 > Sub-Portfolio 3",
                     "path": [
                         "GEV"
                     ],
-                    "combined_percent_allocation": 1.0636042489897624
+                    "combined_percent_allocation": 1.0636042473587737
                 },
                 {
                     "ticker": "CCJ",
                     "live_price": 116.44000244140625,
                     "raw_invest_score": 110.16431639047343,
-                    "amplified_score_adjusted": 1841.5481239536311,
+                    "amplified_score_adjusted": 1841.5481257565043,
                     "sub_portfolio_id": "Sub-Portfolio 1 > Sub-Portfolio 3",
                     "path": [
                         "CCJ"
                     ],
-                    "combined_percent_allocation": 1.8415481239536315
+                    "combined_percent_allocation": 1.841548125756504
                 },
                 {
                     "ticker": "CEG",
                     "live_price": 307.7099914550781,
-                    "raw_invest_score": 29.860171064350695,
-                    "amplified_score_adjusted": 499.15384405947947,
+                    "raw_invest_score": 29.860171064335695,
+                    "amplified_score_adjusted": 499.15384454789955,
                     "sub_portfolio_id": "Sub-Portfolio 1 > Sub-Portfolio 3",
                     "path": [
                         "CEG"
                     ],
-                    "combined_percent_allocation": 0.49915384405947955
+                    "combined_percent_allocation": 0.4991538445478995
                 },
                 {
                     "ticker": "VST",
                     "live_price": 166.60000610351562,
-                    "raw_invest_score": 40.989762863124554,
-                    "amplified_score_adjusted": 685.20028422215,
+                    "raw_invest_score": 40.98976273815368,
+                    "amplified_score_adjusted": 685.2002828039,
                     "sub_portfolio_id": "Sub-Portfolio 1 > Sub-Portfolio 3",
                     "path": [
                         "VST"
                     ],
-                    "combined_percent_allocation": 0.6852002842221501
+                    "combined_percent_allocation": 0.6852002828038999
                 },
                 {
                     "ticker": "SMR",
@@ -263,156 +263,156 @@
                 {
                     "ticker": "ETN",
                     "live_price": 343.75,
-                    "raw_invest_score": 42.50284289306567,
-                    "amplified_score_adjusted": 710.4934987749771,
+                    "raw_invest_score": 42.50284289679692,
+                    "amplified_score_adjusted": 710.4934995329222,
                     "sub_portfolio_id": "Sub-Portfolio 1 > Sub-Portfolio 3",
                     "path": [
                         "ETN"
                     ],
-                    "combined_percent_allocation": 0.7104934987749773
+                    "combined_percent_allocation": 0.7104934995329221
                 },
                 {
                     "ticker": "CPER",
                     "live_price": 35.939998626708984,
                     "raw_invest_score": 81.77814361646696,
-                    "amplified_score_adjusted": 1070.3343215966097,
+                    "amplified_score_adjusted": 1070.3343216169121,
                     "sub_portfolio_id": "Sub-Portfolio 1 > Sub-Portfolio 4",
                     "path": [
                         "CPER"
                     ],
-                    "combined_percent_allocation": 1.07033432159661
+                    "combined_percent_allocation": 1.0703343216169119
                 },
                 {
                     "ticker": "LIT",
                     "live_price": 69.66000366210938,
-                    "raw_invest_score": 83.96340820145372,
-                    "amplified_score_adjusted": 1098.9356517765957,
+                    "raw_invest_score": 83.96340819681606,
+                    "amplified_score_adjusted": 1098.935651736742,
                     "sub_portfolio_id": "Sub-Portfolio 1 > Sub-Portfolio 4",
                     "path": [
                         "LIT"
                     ],
-                    "combined_percent_allocation": 1.0989356517765958
+                    "combined_percent_allocation": 1.0989356517367421
                 },
                 {
                     "ticker": "MP",
                     "live_price": 68.9800033569336,
                     "raw_invest_score": 78.75220521897708,
-                    "amplified_score_adjusted": 1030.7300266267946,
+                    "amplified_score_adjusted": 1030.7300266463458,
                     "sub_portfolio_id": "Sub-Portfolio 1 > Sub-Portfolio 4",
                     "path": [
                         "MP"
                     ],
-                    "combined_percent_allocation": 1.0307300266267947
+                    "combined_percent_allocation": 1.0307300266463455
                 },
                 {
                     "ticker": "GE",
                     "live_price": 325.1199951171875,
-                    "raw_invest_score": 69.74525133541628,
-                    "amplified_score_adjusted": 849.4720197255409,
+                    "raw_invest_score": 69.74525152925224,
+                    "amplified_score_adjusted": 849.4720219107791,
                     "sub_portfolio_id": "Sub-Portfolio 1 > Sub-Portfolio 5",
                     "path": [
                         "GE"
                     ],
-                    "combined_percent_allocation": 0.8494720197255411
+                    "combined_percent_allocation": 0.849472021910779
                 },
                 {
                     "ticker": "BYDDY",
                     "live_price": 12.699999809265137,
                     "raw_invest_score": 46.10386219421404,
-                    "amplified_score_adjusted": 561.5284221562445,
+                    "amplified_score_adjusted": 561.528422040158,
                     "sub_portfolio_id": "Sub-Portfolio 1 > Sub-Portfolio 5",
                     "path": [
                         "BYDDY"
                     ],
-                    "combined_percent_allocation": 0.5615284221562445
+                    "combined_percent_allocation": 0.561528422040158
                 },
                 {
                     "ticker": "CRWD",
                     "live_price": 453.8800048828125,
                     "raw_invest_score": 30.128740655699303,
-                    "amplified_score_adjusted": 366.9572004766387,
+                    "amplified_score_adjusted": 366.9572004007765,
                     "sub_portfolio_id": "Sub-Portfolio 1 > Sub-Portfolio 5",
                     "path": [
                         "CRWD"
                     ],
-                    "combined_percent_allocation": 0.36695720047663877
+                    "combined_percent_allocation": 0.36695720040077645
                 },
                 {
                     "ticker": "HWM",
                     "live_price": 224.88999938964844,
-                    "raw_invest_score": 78.16254176432594,
-                    "amplified_score_adjusted": 951.991582912368,
+                    "raw_invest_score": 78.16254178241965,
+                    "amplified_score_adjusted": 951.9915829359348,
                     "sub_portfolio_id": "Sub-Portfolio 1 > Sub-Portfolio 5",
                     "path": [
                         "HWM"
                     ],
-                    "combined_percent_allocation": 0.9519915829123682
+                    "combined_percent_allocation": 0.9519915829359347
                 },
                 {
                     "ticker": "PH",
                     "live_price": 944.27001953125,
-                    "raw_invest_score": 79.22051790175239,
-                    "amplified_score_adjusted": 964.8773508904484,
+                    "raw_invest_score": 79.22051777129623,
+                    "amplified_score_adjusted": 964.8773491020673,
                     "sub_portfolio_id": "Sub-Portfolio 1 > Sub-Portfolio 5",
                     "path": [
                         "PH"
                     ],
-                    "combined_percent_allocation": 0.9648773508904486
+                    "combined_percent_allocation": 0.9648773491020671
                 },
                 {
                     "ticker": "CDNS",
                     "live_price": 317.45001220703125,
                     "raw_invest_score": 45.9128926448022,
-                    "amplified_score_adjusted": 559.202481884486,
+                    "amplified_score_adjusted": 559.2024817688805,
                     "sub_portfolio_id": "Sub-Portfolio 1 > Sub-Portfolio 5",
                     "path": [
                         "CDNS"
                     ],
-                    "combined_percent_allocation": 0.5592024818844861
+                    "combined_percent_allocation": 0.5592024817688804
                 },
                 {
                     "ticker": "SE",
                     "live_price": 121.41999816894531,
                     "raw_invest_score": 21.196274006077786,
-                    "amplified_score_adjusted": 258.1629766305782,
+                    "amplified_score_adjusted": 258.1629765772074,
                     "sub_portfolio_id": "Sub-Portfolio 1 > Sub-Portfolio 5",
                     "path": [
                         "SE"
                     ],
-                    "combined_percent_allocation": 0.25816297663057824
+                    "combined_percent_allocation": 0.2581629765772074
                 },
                 {
                     "ticker": "SNOW",
                     "live_price": 210.3800048828125,
                     "raw_invest_score": 23.630253159275895,
-                    "amplified_score_adjusted": 287.8079653236958,
+                    "amplified_score_adjusted": 287.8079652641964,
                     "sub_portfolio_id": "Sub-Portfolio 1 > Sub-Portfolio 5",
                     "path": [
                         "SNOW"
                     ],
-                    "combined_percent_allocation": 0.28780796532369585
+                    "combined_percent_allocation": 0.2878079652641964
                 },
                 {
                     "ticker": "QTUM",
                     "live_price": 118.43000030517578,
-                    "raw_invest_score": 70.51579916309328,
-                    "amplified_score_adjusted": 894.409446502513,
+                    "raw_invest_score": 70.51579932514869,
+                    "amplified_score_adjusted": 894.4094469452807,
                     "sub_portfolio_id": "Sub-Portfolio 1 > Sub-Portfolio 6",
                     "path": [
                         "QTUM"
                     ],
-                    "combined_percent_allocation": 0.8944094465025131
+                    "combined_percent_allocation": 0.8944094469452806
                 },
                 {
                     "ticker": "IBM",
                     "live_price": 305.6700134277344,
-                    "raw_invest_score": 55.629199754505066,
-                    "amplified_score_adjusted": 705.5905534974869,
+                    "raw_invest_score": 55.62919981990224,
+                    "amplified_score_adjusted": 705.5905530547193,
                     "sub_portfolio_id": "Sub-Portfolio 1 > Sub-Portfolio 6",
                     "path": [
                         "IBM"
                     ],
-                    "combined_percent_allocation": 0.705590553497487
+                    "combined_percent_allocation": 0.7055905530547192
                 },
                 {
                     "ticker": "COIN",
@@ -423,7 +423,7 @@
                     "path": [
                         "COIN"
                     ],
-                    "combined_percent_allocation": 1.6000000000000003
+                    "combined_percent_allocation": 1.5999999999999996
                 },
                 {
                     "ticker": "MSTR",
@@ -439,46 +439,46 @@
                 {
                     "ticker": "SPY",
                     "live_price": 691.6599731445312,
-                    "raw_invest_score": 56.85516048917422,
-                    "amplified_score_adjusted": 6021.320976046769,
+                    "raw_invest_score": 56.85516054593946,
+                    "amplified_score_adjusted": 6021.320901857529,
                     "sub_portfolio_id": "Sub-Portfolio 1 > Sub-Portfolio 8",
                     "path": [
                         "SPY"
                     ],
-                    "combined_percent_allocation": 6.02132097604677
+                    "combined_percent_allocation": 6.021320901857528
                 },
                 {
                     "ticker": "QQQ",
                     "live_price": 621.260009765625,
-                    "raw_invest_score": 54.89032228531898,
-                    "amplified_score_adjusted": 5813.232187102723,
+                    "raw_invest_score": 54.890322566129726,
+                    "amplified_score_adjusted": 5813.2321394129585,
                     "sub_portfolio_id": "Sub-Portfolio 1 > Sub-Portfolio 8",
                     "path": [
                         "QQQ"
                     ],
-                    "combined_percent_allocation": 5.813232187102725
+                    "combined_percent_allocation": 5.813232139412958
                 },
                 {
                     "ticker": "OEF",
                     "live_price": 343.1000061035156,
-                    "raw_invest_score": 54.232400059026766,
-                    "amplified_score_adjusted": 5743.554063468986,
+                    "raw_invest_score": 54.23240006006138,
+                    "amplified_score_adjusted": 5743.553987077238,
                     "sub_portfolio_id": "Sub-Portfolio 1 > Sub-Portfolio 8",
                     "path": [
                         "OEF"
                     ],
-                    "combined_percent_allocation": 5.743554063468987
+                    "combined_percent_allocation": 5.743553987077237
                 },
                 {
                     "ticker": "DIA",
                     "live_price": 493.4200134277344,
-                    "raw_invest_score": 60.63748232777127,
-                    "amplified_score_adjusted": 6421.892773381519,
+                    "raw_invest_score": 60.637485007566106,
+                    "amplified_score_adjusted": 6421.892971652274,
                     "sub_portfolio_id": "Sub-Portfolio 1 > Sub-Portfolio 8",
                     "path": [
                         "DIA"
                     ],
-                    "combined_percent_allocation": 6.421892773381519
+                    "combined_percent_allocation": 6.421892971652274
                 },
                 {
                     "ticker": "GLD",
@@ -489,7 +489,7 @@
                     "path": [
                         "GLD"
                     ],
-                    "combined_percent_allocation": 7.464117483223907
+                    "combined_percent_allocation": 7.464117483223906
                 },
                 {
                     "ticker": "SLV",
@@ -500,161 +500,161 @@
                     "path": [
                         "SLV"
                     ],
-                    "combined_percent_allocation": 16.5358825167761
+                    "combined_percent_allocation": 16.535882516776095
                 },
                 {
                     "ticker": "USAR",
                     "live_price": 17.690000534057617,
                     "raw_invest_score": 66.5534046018401,
-                    "amplified_score_adjusted": 1437.7616853368193,
+                    "amplified_score_adjusted": 1437.7616854841428,
                     "sub_portfolio_id": "Sub-Portfolio 2 > Sub-Portfolio 1",
                     "path": [
                         "USAR"
                     ],
-                    "combined_percent_allocation": 1.4377616853368196
+                    "combined_percent_allocation": 1.4377616854841426
                 },
                 {
                     "ticker": "RGTI",
                     "live_price": 25.6200008392334,
                     "raw_invest_score": 27.808096806545922,
-                    "amplified_score_adjusted": 97.16108790252099,
+                    "amplified_score_adjusted": 97.16108791247682,
                     "sub_portfolio_id": "Sub-Portfolio 2 > Sub-Portfolio 1",
                     "path": [
                         "RGTI"
                     ],
-                    "combined_percent_allocation": 0.09716108790252101
+                    "combined_percent_allocation": 0.0971610879124768
                 },
                 {
                     "ticker": "REMX",
                     "live_price": 89.18000030517578,
                     "raw_invest_score": 114.5030793177734,
-                    "amplified_score_adjusted": 3096.8364540954703,
+                    "amplified_score_adjusted": 3096.836454412795,
                     "sub_portfolio_id": "Sub-Portfolio 2 > Sub-Portfolio 1",
                     "path": [
                         "REMX"
                     ],
-                    "combined_percent_allocation": 3.0968364540954707
+                    "combined_percent_allocation": 3.0968364544127946
                 },
                 {
                     "ticker": "NNE",
                     "live_price": 35.66999816894531,
                     "raw_invest_score": 42.44662867921145,
-                    "amplified_score_adjusted": 603.6591825296055,
+                    "amplified_score_adjusted": 603.6591825914608,
                     "sub_portfolio_id": "Sub-Portfolio 2 > Sub-Portfolio 1",
                     "path": [
                         "NNE"
                     ],
-                    "combined_percent_allocation": 0.6036591825296056
+                    "combined_percent_allocation": 0.6036591825914607
                 },
                 {
                     "ticker": "IONQ",
                     "live_price": 50.79999923706055,
                     "raw_invest_score": 40.09128122957175,
-                    "amplified_score_adjusted": 522.1633736736015,
+                    "amplified_score_adjusted": 522.1633737271062,
                     "sub_portfolio_id": "Sub-Portfolio 2 > Sub-Portfolio 1",
                     "path": [
                         "IONQ"
                     ],
-                    "combined_percent_allocation": 0.5221633736736015
+                    "combined_percent_allocation": 0.5221633737271061
                 },
                 {
                     "ticker": "RDDT",
                     "live_price": 231.00999450683594,
                     "raw_invest_score": 75.82980050810906,
-                    "amplified_score_adjusted": 1758.728083634258,
+                    "amplified_score_adjusted": 1758.7280838144702,
                     "sub_portfolio_id": "Sub-Portfolio 2 > Sub-Portfolio 1",
                     "path": [
                         "RDDT"
                     ],
-                    "combined_percent_allocation": 1.7587280836342583
+                    "combined_percent_allocation": 1.7587280838144699
                 },
                 {
                     "ticker": "MU",
                     "live_price": 362.75,
-                    "raw_invest_score": 154.6365977912613,
-                    "amplified_score_adjusted": 4485.469604900714,
+                    "raw_invest_score": 154.63659772468625,
+                    "amplified_score_adjusted": 4485.469603056809,
                     "sub_portfolio_id": "Sub-Portfolio 2 > Sub-Portfolio 1",
                     "path": [
                         "MU"
                     ],
-                    "combined_percent_allocation": 4.4854696049007154
+                    "combined_percent_allocation": 4.485469603056809
                 },
                 {
                     "ticker": "HOOD",
                     "live_price": 108.73999786376953,
                     "raw_invest_score": 28.738297169035356,
-                    "amplified_score_adjusted": 129.34633129445484,
+                    "amplified_score_adjusted": 129.3463313077086,
                     "sub_portfolio_id": "Sub-Portfolio 2 > Sub-Portfolio 1",
                     "path": [
                         "HOOD"
                     ],
-                    "combined_percent_allocation": 0.12934633129445486
+                    "combined_percent_allocation": 0.1293463313077086
                 },
                 {
                     "ticker": "GLW",
                     "live_price": 94.19999694824219,
-                    "raw_invest_score": 69.21628881529462,
-                    "amplified_score_adjusted": 1529.898368991945,
+                    "raw_invest_score": 69.21628882264076,
+                    "amplified_score_adjusted": 1529.8983694028886,
                     "sub_portfolio_id": "Sub-Portfolio 2 > Sub-Portfolio 1",
                     "path": [
                         "GLW"
                     ],
-                    "combined_percent_allocation": 1.5298983689919454
+                    "combined_percent_allocation": 1.5298983694028885
                 },
                 {
                     "ticker": "APP",
                     "live_price": 568.760009765625,
                     "raw_invest_score": 41.77692066631176,
-                    "amplified_score_adjusted": 580.4870614835338,
+                    "amplified_score_adjusted": 580.4870615430148,
                     "sub_portfolio_id": "Sub-Portfolio 2 > Sub-Portfolio 1",
                     "path": [
                         "APP"
                     ],
-                    "combined_percent_allocation": 0.5804870614835339
+                    "combined_percent_allocation": 0.5804870615430147
                 },
                 {
                     "ticker": "INTC",
                     "live_price": 46.959999084472656,
                     "raw_invest_score": 115.62356489776202,
-                    "amplified_score_adjusted": 3135.605629601458,
+                    "amplified_score_adjusted": 3135.6056299227553,
                     "sub_portfolio_id": "Sub-Portfolio 2 > Sub-Portfolio 1",
                     "path": [
                         "INTC"
                     ],
-                    "combined_percent_allocation": 3.135605629601459
+                    "combined_percent_allocation": 3.1356056299227544
                 },
                 {
                     "ticker": "OKLO",
                     "live_price": 94.94999694824219,
                     "raw_invest_score": 45.25741083646479,
-                    "amplified_score_adjusted": 700.9131844639805,
+                    "amplified_score_adjusted": 700.9131845358012,
                     "sub_portfolio_id": "Sub-Portfolio 2 > Sub-Portfolio 1",
                     "path": [
                         "OKLO"
                     ],
-                    "combined_percent_allocation": 0.7009131844639807
+                    "combined_percent_allocation": 0.7009131845358011
                 },
                 {
                     "ticker": "PLTR",
                     "live_price": 170.9600067138672,
                     "raw_invest_score": 45.63524914029568,
-                    "amplified_score_adjusted": 713.9865160406822,
+                    "amplified_score_adjusted": 713.9865161138425,
                     "sub_portfolio_id": "Sub-Portfolio 2 > Sub-Portfolio 1",
                     "path": [
                         "PLTR"
                     ],
-                    "combined_percent_allocation": 0.7139865160406823
+                    "combined_percent_allocation": 0.7139865161138425
                 },
                 {
                     "ticker": "AMD",
                     "live_price": 231.8300018310547,
                     "raw_invest_score": 59.91247887774052,
-                    "amplified_score_adjusted": 1207.9834360509537,
+                    "amplified_score_adjusted": 1207.9834361747323,
                     "sub_portfolio_id": "Sub-Portfolio 2 > Sub-Portfolio 1",
                     "path": [
                         "AMD"
                     ],
-                    "combined_percent_allocation": 1.207983436050954
+                    "combined_percent_allocation": 1.2079834361747321
                 }
             ],
             "virtual_cash": 0.3499543762191024,
