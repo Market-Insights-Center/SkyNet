@@ -8,6 +8,7 @@ import TiltCard from '../components/TiltCard';
 const Hero = () => {
     return (
         <section className="relative h-[40vh] flex items-center justify-center overflow-hidden bg-transparent">
+            <WaveBackground />
             {/* Content */}
             <div className="relative z-10 text-center px-4 mt-10">
                 <motion.h1

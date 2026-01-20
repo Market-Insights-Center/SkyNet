@@ -14,13 +14,13 @@ except ImportError:
          def increment_usage(*args): pass # Dummy fallback
 
 # --- CONSTANTS ---
+# --- CONSTANTS ---
 # Robust path finding
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-if 'backend' not in str(BASE_DIR) and 'integration' not in str(BASE_DIR):
-     # Fallback if structure is flat
-     BASE_DIR = os.getcwd()
-
-NEXUS_DB_FILE = os.path.join(BASE_DIR, 'backend', 'nexus_portfolios.csv')
+# This file is in backend/integration/
+# We want to reach backend/nexus_portfolios.csv
+CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
+BACKEND_DIR = os.path.dirname(CURRENT_DIR) # Go up one level to backend/
+NEXUS_DB_FILE = os.path.join(BACKEND_DIR, 'nexus_portfolios.csv')
 
 # --- IMPORTS ---
 try:
