@@ -1,0 +1,5 @@
+Testing streaming endpoint: http://127.0.0.1:8000/api/nexus
+Response Code: 200
+Reading stream...
+[WARNING] Missing 'type' field. Keys: ['status', 'message', 'nexus_code', 'total_value', 'equity', 'table', 'summary', 'cash', 'trades', 'requires_execution_confirmation']
+[OLD RESPONSE DETECTED] Status: success Msg: Nexus Portfolio Calculated.

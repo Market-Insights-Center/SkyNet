@@ -1,0 +1,21 @@
+--- Testing Execution Logic (Dry Run) ---
+Input Trades: [
+  {
+    "ticker": "AAPL",
+    "side": "buy",
+    "quantity": 1.5
+  },
+  {
+    "ticker": "MSFT",
+    "side": "sell",
+    "quantity": 0.5
+  },
+  {
+    "ticker": "GOOGL",
+    "side": "buy",
+    "quantity": 0.0
+  }
+]
+
+[SUCCESS] Execution Logic handled Dry Run correctly.
+Returned 3 trades.
