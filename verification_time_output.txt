@@ -1,0 +1,8 @@
+--- Testing Time Interval Logic ---
+Test A: Target 12:45 (Future) vs Now 11:45
+   Result: False (Expected: False)
+Test B: Target 10:45 (Past) vs Now 11:45
+   Result: True (Expected: True)
+   last_run updated to: 2026-01-20T11:45:17.486318
+Test C: Re-run immediately (Last Run: 2026-01-20T11:45:17.486318)
+   Result: False (Expected: False due to interval)

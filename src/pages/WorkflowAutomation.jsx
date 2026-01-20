@@ -757,7 +757,7 @@ const WorkflowAutomation = () => {
                 </div>
 
                 {/* Floating Toolbar (Tools & Zoom) */}
-                <div className="absolute bottom-6 right-6 flex flex-col gap-4 z-50">
+                <div className="absolute bottom-32 right-6 flex flex-col gap-4 z-50">
                     {/* Tool Switcher */}
                     <div className="flex flex-col bg-[#111] border border-gray-800 rounded-xl p-1 shadow-2xl">
                         <button

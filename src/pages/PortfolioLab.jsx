@@ -2,13 +2,14 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
 import { Layers, Zap, Sprout, Activity, ArrowRight, Database, Trophy } from 'lucide-react';
-import { WaveBackground } from '../components/WaveBackground.jsx';
 import TiltCard from '../components/TiltCard';
 
 const Hero = () => {
     return (
         <section className="relative h-[40vh] flex items-center justify-center overflow-hidden bg-transparent">
-            <WaveBackground />
+            {/* Simple Gradient to replace Particle Beam */}
+            <div className="absolute inset-0 bg-gradient-to-b from-purple-900/20 to-transparent pointer-events-none" />
+
             {/* Content */}
             <div className="relative z-10 text-center px-4 mt-10">
                 <motion.h1
@@ -40,7 +41,7 @@ const CommandCard = ({ title, desc, icon: Icon, path, delay }) => {
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
                 transition={{ duration: 0.6, delay: delay }}
-                className="h-full p-6 text-left group-hover:border-gold group-hover:shadow-[0_0_20px_rgba(212,175,55,0.6)]"
+                className="h-full p-6 text-left rounded-3xl overflow-hidden group-hover:border-gold group-hover:shadow-[0_0_20px_rgba(212,175,55,0.6)]"
             >
                 {/* Slight internal gold glow layer */}
                 <div className="absolute inset-0 bg-gold/0 group-hover:bg-gold/5 transition-colors duration-300 z-0 rounded-2xl" />
@@ -113,7 +114,7 @@ const PortfolioLab = () => {
         <div className="pb-20">
             <Hero />
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 -mt-10 relative z-20">
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 auto-rows-fr">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 auto-rows-fr">
                     {cards.map((card, index) => (
                         <CommandCard key={index} {...card} />
                     ))}

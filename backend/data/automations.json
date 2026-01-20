@@ -55,7 +55,7 @@
                     "y": 22
                 },
                 "data": {
-                    "email": "marketinsightscenter@gmail.com",
+                    "email": "mada.vicol@gmail.com",
                     "password": "Verzogerung25"
                 }
             },
@@ -116,6 +116,7 @@
                 "targetHandle": "left"
             }
         ],
-        "user_email": "marketinsightscenter@gmail.com"
+        "user_email": "marketinsightscenter@gmail.com",
+        "description": ""
     }
 ]
