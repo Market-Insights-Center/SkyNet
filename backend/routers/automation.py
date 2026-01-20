@@ -49,7 +49,9 @@ async def run_nexus(req: NexusRequest):
     except Exception as e:
         print(f"Warning: Limit check failed: {e}")
 
-    await increment_usage("nexus")
+    # Not awaiting increment_usage here, will be done inside command or here? 
+    # nexus_command.handle_nexus_command does increment_usage('nexus').
+    # But we want to ensure it's logged. It is inside handle_nexus_command.
 
     ai_params = {
         "nexus_code": req.nexus_code, "create_new": req.create_new,
@@ -60,17 +62,47 @@ async def run_nexus(req: NexusRequest):
         "email_to": req.email_to, "overwrite": req.overwrite
     }
 
-    try:
-        result = await nexus_command.handle_nexus_command([], ai_params=ai_params, is_called_by_ai=True)
-        if result is None:
-            return {"status": "error", "message": "Backend returned no data.", "nexus_code": req.nexus_code}
-        if result.get("status") == "error":
-             raise HTTPException(status_code=400, detail=result.get("message"))
-        return result
-    except HTTPException: raise
-    except Exception as e:
-        traceback.print_exc()
-        raise HTTPException(status_code=500, detail=f"Internal Server Error: {str(e)}")
+    from fastapi.responses import StreamingResponse
+    import json
+
+    async def event_generator():
+        q = asyncio.Queue()
+
+        async def progress_callback(msg):
+            await q.put({"type": "progress", "message": msg})
+
+        async def runner():
+            try:
+                # We must accept the new progress_callback arg
+                # Note: handle_nexus_command signature was updated to accept progress_callback
+                result = await nexus_command.handle_nexus_command(
+                    [], 
+                    ai_params=ai_params, 
+                    is_called_by_ai=True,
+                    progress_callback=progress_callback
+                )
+                
+                if result is None:
+                    await q.put({"type": "error", "message": "Backend returned no data."})
+                elif result.get("status") == "error":
+                    await q.put({"type": "error", "message": result.get("message")})
+                else:
+                    await q.put({"type": "result", "payload": result})
+            except Exception as e:
+                traceback.print_exc()
+                await q.put({"type": "error", "message": f"Internal Error: {str(e)}"})
+            finally:
+                await q.put(None) # Sentinel
+
+        # Start background task
+        asyncio.create_task(runner())
+
+        while True:
+            data = await q.get()
+            if data is None: break
+            yield json.dumps(data) + "\n"
+
+    return StreamingResponse(event_generator(), media_type="application/x-ndjson")
 
 @router.post("/api/execute-trades")
 async def execute_trades_endpoint(req: ExecuteTradesRequest):

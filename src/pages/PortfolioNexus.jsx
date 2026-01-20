@@ -20,6 +20,7 @@ export default function PortfolioNexus() {
     const [nexusCode, setNexusCode] = useState('');
     const [totalValue, setTotalValue] = useState(10000);
     const [loading, setLoading] = useState(false);
+    const [progressMsg, setProgressMsg] = useState('');
     const [result, setResult] = useState(null);
     const [error, setError] = useState(null);
     const [showCreateModal, setShowCreateModal] = useState(false);
@@ -54,6 +55,7 @@ export default function PortfolioNexus() {
     const runNexus = async () => {
         if (!nexusCode) return;
         setLoading(true);
+        setProgressMsg('Initializing...');
         setError(null);
         setResult(null);
 
@@ -67,57 +69,56 @@ export default function PortfolioNexus() {
                 ...executionOpts
             };
 
-            console.log("SENDING NEXUS REQUEST:", body);
-
             const response = await fetch(`/api/nexus`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(body)
             });
 
-            const textData = await response.text();
-            console.log("RAW RESPONSE:", textData);
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let accumulatedData = "";
 
-            let data;
-            try {
-                data = textData ? JSON.parse(textData) : null;
-            } catch (e) {
-                throw new Error(`Server returned invalid JSON (${response.status}): ${textData.substring(0, 100)}...`);
-            }
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
 
-            if (!data) {
-                // If we get here, the server returned 200 OK but null body. 
-                // This means the backend fix (nexus_command.py) hasn't applied yet.
-                throw new Error("Backend returned empty data. Please check server logs.");
-            }
+                const chunk = decoder.decode(value, { stream: true });
+                accumulatedData += chunk;
 
-            if (data.status === 'not_found') {
-                if (confirm(`Nexus Code "${nexusCode}" not found. Create it?`)) {
-                    setShowCreateModal(true);
+                // Split by newline
+                const lines = accumulatedData.split('\n');
+                accumulatedData = lines.pop(); // Keep last incomplete line
+
+                for (const line of lines) {
+                    if (!line.trim()) continue;
+                    try {
+                        const event = JSON.parse(line);
+
+                        if (event.type === 'progress') {
+                            setProgressMsg(event.message);
+                            console.log("Progress:", event.message);
+                        } else if (event.type === 'result') {
+                            setResult(event.payload);
+                        } else if (event.type === 'error') {
+                            throw new Error(event.message);
+                        }
+                    } catch (e) {
+                        console.error("Parse error", e);
+                    }
                 }
-                setLoading(false);
-                return;
             }
 
-            if (data.status === 'error') {
-                throw new Error(data.message || 'Unknown error occurred in Nexus execution');
-            }
+            // Check if we got a result
+            // if (!result) throw new Error("Stream ended without result"); 
+            // result state update is async, so we rely on the loop event.
 
-            if (!response.ok) {
-                if (response.status === 403) {
-                    setShowUpgradeModal(true);
-                    setLoading(false);
-                    return;
-                }
-                throw new Error(data.detail || data.message || `Failed to run Nexus (Status ${response.status})`);
-            }
-
-            setResult(data);
         } catch (err) {
             console.error("Nexus Execution Error:", err);
             setError(err.message);
         } finally {
             setLoading(false);
+            setProgressMsg('');
         }
     };
 
@@ -291,7 +292,7 @@ export default function PortfolioNexus() {
                                                     : 'bg-purple-600 hover:bg-purple-500 text-white shadow-lg shadow-purple-900/20 hover:shadow-purple-900/40'}`}
                                         >
                                             {loading ? <RefreshCw className="animate-spin" size={18} /> : <Play size={18} />}
-                                            {loading ? 'Processing...' : 'Execute Run'}
+                                            {loading ? (progressMsg || 'Processing...') : 'Execute Run'}
                                         </button>
 
                                         <button

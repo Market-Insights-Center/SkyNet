@@ -332,7 +332,8 @@ async def _resolve_nexus_component(comp_type: str, comp_value: str, allocated_va
     print(f"[DEBUG NEXUS] Component {comp_value} returned {len(holdings)} holdings")
     return holdings
 
-async def process_nexus_portfolio(nexus_config, total_value, nexus_code, ai_params=None):
+async def process_nexus_portfolio(nexus_config, total_value, nexus_code, ai_params=None, progress_callback=None):
+    if progress_callback: await progress_callback(f"Processing Portfolio {nexus_code}...")
     print(f"[DEBUG NEXUS] Processing Portfolio {nexus_code} Value=${total_value}")
     all_holdings = []
     num_components = int(nexus_config.get('num_components', 0))
@@ -405,6 +406,7 @@ async def process_nexus_portfolio(nexus_config, total_value, nexus_code, ai_para
         print(f"[DEBUG NEXUS] Warning: Total Weight is 0. Auto-balancing to {auto_weight:.2f}% each.")
 
     for i in range(1, num_components + 1):
+        if progress_callback: await progress_callback(f"Resolving Component {i}/{num_components}...")
         c_type = nexus_config.get(f'component_{i}_type')
         c_value = nexus_config.get(f'component_{i}_value')
         c_weight = float(nexus_config.get(f'component_{i}_weight', 0))
@@ -428,6 +430,7 @@ async def process_nexus_portfolio(nexus_config, total_value, nexus_code, ai_para
         if res: all_holdings.extend(res)
 
     # Aggregation
+    if progress_callback: await progress_callback("Aggregating Holdings & Optimizing...")
     agg_map = defaultdict(lambda: {'ticker': '', 'shares': 0.0, 'value': 0.0, 'live_price': 0.0, 'paths': set()})
     
     for h in all_holdings:
@@ -493,7 +496,7 @@ async def process_nexus_portfolio(nexus_config, total_value, nexus_code, ai_para
         
     return final, final_cash
 
-async def handle_nexus_command(args: List[str], ai_params: Optional[Dict] = None, is_called_by_ai: bool = False):
+async def handle_nexus_command(args: List[str], ai_params: Optional[Dict] = None, is_called_by_ai: bool = False, progress_callback=None):
     await increment_usage('nexus')
     print(f"\n[DEBUG NEXUS] handle_nexus_command Called. Args={args}, AI Params={ai_params}")
     """
@@ -520,6 +523,7 @@ async def handle_nexus_command(args: List[str], ai_params: Optional[Dict] = None
             await _save_nexus_config(cfg)
 
         # Load
+        if progress_callback: await progress_callback(f"Loading Configuration for {nexus_code}...")
         config = await _load_nexus_config(nexus_code)
         if not config:
             print(f"[DEBUG NEXUS] Config Not Found: {nexus_code}")
@@ -546,7 +550,7 @@ async def handle_nexus_command(args: List[str], ai_params: Optional[Dict] = None
              total_value = math.floor(rh_equity * 0.98)
 
         # Process Target
-        new_holdings, new_cash_unadjusted = await process_nexus_portfolio(config, total_value, nexus_code, ai_params)
+        new_holdings, new_cash_unadjusted = await process_nexus_portfolio(config, total_value, nexus_code, ai_params, progress_callback)
         new_cash = new_cash_unadjusted # Will be updated by sweep
 
 
@@ -607,6 +611,7 @@ async def handle_nexus_command(args: List[str], ai_params: Optional[Dict] = None
 
         # --- CASH SWEEP (For Integer Rounding Mode) ---
         # If we have excess cash (e.g. > $500) due to integer rounding, try to buy more shares.
+        if progress_callback: await progress_callback("Calculating Cash Sweep & Optimizations...")
         current_spent = sum(h['actual_money_allocation'] for h in new_holdings)
         current_cash = total_value - current_spent
         
@@ -643,6 +648,7 @@ async def handle_nexus_command(args: List[str], ai_params: Optional[Dict] = None
             new_cash = current_cash
 
         # Calculate Trades
+        if progress_callback: await progress_callback("Generating Trade Recommendations...")
         trades = []
         for h in new_holdings:
             t = h['ticker']
@@ -658,6 +664,7 @@ async def handle_nexus_command(args: List[str], ai_params: Optional[Dict] = None
                 trades.append({'ticker': t, 'action': 'Sell', 'diff': s})
 
         # Save
+        if progress_callback: await progress_callback("Saving Run Data...")
         save_data = []
         for h in new_holdings:
             hc = h.copy()
