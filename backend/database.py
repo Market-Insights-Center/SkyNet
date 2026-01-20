@@ -1687,6 +1687,9 @@ def get_active_predictions(include_recent=False):
             if r['id'] not in seen:
                 seen.add(r['id'])
                 unique_results.append(r)
+        
+        # Sort by Creation Date (Newest First)
+        unique_results.sort(key=lambda x: x.get('created_at', ''), reverse=True)
                 
         return unique_results
     except Exception as e:
@@ -1756,17 +1759,40 @@ def get_predictions_leaderboard(limit=50):
         
         user_stats = {} # { email: { wins: 0, total: 0 } }
         
+        # Group bets by User -> Prediction -> List of Bets
+        user_bets_map = {} # { email: { pred_id: [bet_data] } }
+        
         for b in bets:
             d = b.to_dict()
             email = d.get('user')
-            won = d.get('won', False)
+            pred_id = d.get('prediction_id')
             
-            if email not in user_stats:
-                user_stats[email] = { "wins": 0, "total": 0 }
+            if not email or not pred_id: continue
+
+            if email not in user_bets_map: user_bets_map[email] = {}
+            if pred_id not in user_bets_map[email]: user_bets_map[email][pred_id] = []
             
-            user_stats[email]["total"] += 1
-            if won:
-                user_stats[email]["wins"] += 1
+            user_bets_map[email][pred_id].append(d)
+        
+        user_stats = {} # { email: { wins: 0, total: 0 } }
+        
+        # Calculate Stats based on FIRST bet only
+        for email, preds in user_bets_map.items():
+            wins = 0
+            total = 0
+            
+            for pred_id, bet_list in preds.items():
+                # Sort by timestamp ascending (Oldest first)
+                bet_list.sort(key=lambda x: x.get('timestamp', ''))
+                
+                # Take the first bet
+                first_bet = bet_list[0]
+                
+                total += 1
+                if first_bet.get('won', False):
+                    wins += 1
+            
+            user_stats[email] = { "wins": wins, "total": total }
                 
         # Filter and Rank
         results = []

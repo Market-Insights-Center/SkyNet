@@ -1,6 +1,6 @@
 import time
 import threading
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from backend.firebase_admin_setup import get_db
 from firebase_admin import firestore
 import yfinance as yf # Added for predictions
@@ -47,7 +47,8 @@ def process_pending_points():
             
             updated_pending = []
             points_to_release = 0
-            now_ts = datetime.utcnow().timestamp()
+            # Use UTC timestamp (float) which is timezone independent (always UTC)
+            now_ts = datetime.now(timezone.utc).timestamp()
             
             changed = False
             for txn in pending:
@@ -91,7 +92,7 @@ def process_pending_points():
                 # Fetch new balance for logging (approx)
                 print(f"\n[POINTS DEBUG] Released Pending Points for {user.id}")
                 print(f" > Amount Released: {points_to_release}")
-                print(f" > Time: {datetime.utcnow()}")
+                print(f" > Time: {datetime.now(timezone.utc)}")
                 print(f" > Points are now available in main balance.\n")
 
     except Exception as e:
@@ -116,7 +117,7 @@ def process_singularity_refill():
             # Fallback if index missing
              users = db.collection('users').stream()
         
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         
         for user in users:
             data = user.to_dict()
@@ -127,7 +128,10 @@ def process_singularity_refill():
             refill_due_str = data.get('singularity_refill_due') # ISO string
             refill_due = None
             if refill_due_str:
-                refill_due = datetime.fromisoformat(refill_due_str)
+                try:
+                    refill_due = datetime.fromisoformat(refill_due_str)
+                    if refill_due.tzinfo is None: refill_due = refill_due.replace(tzinfo=timezone.utc)
+                except: pass
             
             user_ref = db.collection('users').document(user.id)
             
@@ -186,7 +190,7 @@ def process_expiring_predictions():
         # Fix: Positional args for where()
         docs = db.collection('predictions').where(field_path='status', op_string='==', value='active').stream()
         
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         
         for doc in docs:
             data = doc.to_dict()
@@ -194,7 +198,14 @@ def process_expiring_predictions():
             end_date_str = data.get('end_date')
             if not end_date_str: continue
             
-            end_date = datetime.fromisoformat(end_date_str)
+            try:
+                end_date = datetime.fromisoformat(end_date_str)
+                # Ensure end_date is aware (assume UTC if missing)
+                if end_date.tzinfo is None:
+                    end_date = end_date.replace(tzinfo=timezone.utc)
+            except ValueError:
+                print(f"Invalid date format for prediction {pid}: {end_date_str}")
+                continue
             
             if now > end_date:
                 print(f"Resolving prediction {pid}: {data.get('title')}")
