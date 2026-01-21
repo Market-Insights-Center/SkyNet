@@ -10,6 +10,7 @@ import SentimentTool from '../components/SentimentTool';
 import PowerScoreTool from '../components/PowerScoreTool';
 import { useLocation } from 'react-router-dom';
 import MagneticButton from '../components/MagneticButton';
+import QuickscoreChart from '../components/QuickscoreChart';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '';
 
@@ -258,34 +259,35 @@ const AssetEvaluator = () => {
                                         </div>
                                     </div>
 
-                                    {/* Charts Grid */}
-                                    <div>
-                                        <h3 className="text-xl font-bold mb-4 flex items-center gap-2 text-gold">
-                                            <BarChart2 size={24} /> Technical Charts
-                                        </h3>
-                                        <div className="grid grid-cols-1 gap-6">
-                                            {result.graphs && result.graphs.map((graphStr, index) => {
-                                                const parts = graphStr.split(': data:image');
-                                                const label = parts[0];
-                                                const imgSrc = 'data:image' + parts[1];
+                                    {/* Charts Section */}
+                                    <div className="mt-8">
+                                        {result.chart_data ? (
+                                            <QuickscoreChart data={result.chart_data} ticker={result.ticker} />
+                                        ) : (
+                                            <div className="grid grid-cols-1 gap-6">
+                                                {result.graphs && result.graphs.map((graphStr, index) => {
+                                                    const parts = graphStr.split(': data:image');
+                                                    const label = parts[0];
+                                                    const imgSrc = 'data:image' + parts[1];
 
-                                                return (
-                                                    <div key={index} className="relative bg-black/40 border border-gold/20 rounded-2xl p-4 overflow-hidden shadow-[0_0_15px_rgba(212,175,55,0.1)] hover:shadow-[0_0_30px_rgba(212,175,55,0.3)] hover:border-gold/50 transition-all duration-500 group">
-                                                        <div className="absolute inset-0 bg-gradient-to-b from-transparent via-gold/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700 pointer-events-none" />
-                                                        <div className="text-gold font-bold mb-2 ml-1 flex items-center gap-2">
-                                                            <Activity size={16} /> {label}
+                                                    return (
+                                                        <div key={index} className="relative bg-black/40 border border-gold/20 rounded-2xl p-4 overflow-hidden shadow-[0_0_15px_rgba(212,175,55,0.1)] hover:shadow-[0_0_30px_rgba(212,175,55,0.3)] hover:border-gold/50 transition-all duration-500 group">
+                                                            <div className="absolute inset-0 bg-gradient-to-b from-transparent via-gold/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700 pointer-events-none" />
+                                                            <div className="text-gold font-bold mb-2 ml-1 flex items-center gap-2">
+                                                                <Activity size={16} /> {label}
+                                                            </div>
+                                                            <div className="w-full flex justify-center bg-black/60 rounded-lg p-2 border border-white/5 backdrop-blur-sm relative z-10">
+                                                                <img
+                                                                    src={imgSrc}
+                                                                    alt={label}
+                                                                    className="max-h-[300px] w-auto object-contain rounded"
+                                                                />
+                                                            </div>
                                                         </div>
-                                                        <div className="w-full flex justify-center bg-black/60 rounded-lg p-2 border border-white/5 backdrop-blur-sm relative z-10">
-                                                            <img
-                                                                src={imgSrc}
-                                                                alt={label}
-                                                                className="max-h-[300px] w-auto object-contain rounded"
-                                                            />
-                                                        </div>
-                                                    </div>
-                                                );
-                                            })}
-                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        )}
                                     </div>
                                 </motion.div>
                             )}

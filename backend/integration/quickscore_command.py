@@ -88,6 +88,55 @@ def plot_ticker_graph(ticker: str, ema_interval: int, is_called_by_ai: bool = Fa
         if 'fig' in locals() and plt.fignum_exists(fig.number): plt.close(fig)
         return None
 
+async def get_chart_data(ticker: str, ema_interval: int) -> List[Dict]:
+    """Generates JSON data for frontend charts."""
+    ticker_yf_format = ticker.replace('.', '-')
+    stock = yf.Ticker(ticker_yf_format)
+    interval_map = {1: "1wk", 2: "1d", 3: "1h"}
+    # Match plot_ticker_graph periods
+    period_map = {1: "5y", 2: "1y", 3: "6mo"} 
+    interval_str = interval_map.get(ema_interval, "1h")
+    period_str = period_map.get(ema_interval, "1y")
+    
+    try:
+        # Run in thread since yfinance is blocking
+        data = await asyncio.to_thread(stock.history, period=period_str, interval=interval_str)
+        if data.empty or 'Close' not in data.columns: return []
+        
+        data['EMA_55'] = data['Close'].ewm(span=55, adjust=False).mean()
+        data['EMA_8'] = data['Close'].ewm(span=8, adjust=False).mean()
+        
+        # Reset index to make separate Date column if it's the index
+        data = data.reset_index()
+        
+        # Identify Date column
+        date_col = 'Date'
+        if 'Date' not in data.columns and 'Datetime' in data.columns:
+            date_col = 'Datetime'
+        elif 'Date' not in data.columns:
+             # Fallback: maybe the index reset gave it a default name or it's the first column
+             date_col = data.columns[0] 
+        
+        results = []
+        for _, row in data.iterrows():
+            # Format date based on interval
+            d_val = row[date_col]
+            # If datetime, ISO format.
+            date_str = d_val.isoformat() if hasattr(d_val, 'isoformat') else str(d_val)
+            
+            results.append({
+                "date": date_str,
+                "price": float(row['Close']),
+                "ema_8": float(row['EMA_8']) if not pd.isna(row['EMA_8']) else None,
+                "ema_55": float(row['EMA_55']) if not pd.isna(row['EMA_55']) else None
+            })
+        if not results:
+             print(f"[Quickscore] Warning: No results parsed for {ticker} {ema_interval}")
+        return results
+    except Exception as e:
+        print(f"[Quickscore] Error getting chart data for {ticker} (interval {ema_interval}): {e}")
+        return []
+
 # --- Main Command Handler ---
 async def handle_quickscore_command(args: List[str], ai_params: Optional[Dict]=None, is_called_by_ai: bool = False):
     """Handles the /quickscore command for CLI and AI."""
@@ -104,6 +153,7 @@ async def handle_quickscore_command(args: List[str], ai_params: Optional[Dict]=N
 
     if not is_called_by_ai: print(f"Processing /quickscore for {ticker_qs}...")
     scores_qs, graphs_qs_files, live_price_qs_display = {}, [], "N/A"
+    chart_data = {}
     sensitivity_map = {1: 'Weekly (5Y)', 2: 'Daily (1Y)', 3: 'Hourly (6M)'}
 
     for sens_key, sens_name in sensitivity_map.items():
@@ -113,6 +163,10 @@ async def handle_quickscore_command(args: List[str], ai_params: Optional[Dict]=N
         
         graph_file = await asyncio.to_thread(plot_ticker_graph, ticker_qs, sens_key, is_called_by_ai=is_called_by_ai)
         graphs_qs_files.append(f"{sens_name}: {graph_file if graph_file else 'Failed'}")
+        
+        # Get raw data for frontend charts
+        chart_data_points = await get_chart_data(ticker_qs, sens_key)
+        chart_data[sens_key] = chart_data_points
 
     if not is_called_by_ai: # Print results for CLI
         print("\n--- /quickscore Results ---")
@@ -136,6 +190,7 @@ async def handle_quickscore_command(args: List[str], ai_params: Optional[Dict]=N
             "live_price": live_price_qs_display,
             "scores": scores_qs,
             "graphs": graphs_qs_files,
+            "chart_data": chart_data,
             "summary": summary
         }
     

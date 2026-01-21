@@ -3,6 +3,8 @@ import { Search, Activity, AlertTriangle, TrendingUp, ImageIcon } from 'lucide-r
 import { useAuth } from '../contexts/AuthContext';
 import UpgradePopup from './UpgradePopup';
 
+import MLForecastChart from './MLForecastChart';
+
 const API_BASE_URL = import.meta.env.VITE_API_URL || '';
 
 const MLForecastTool = () => {
@@ -41,7 +43,7 @@ const MLForecastTool = () => {
                 throw new Error(data.detail || 'Analysis failed');
             }
 
-            // data.results should contain { table: [...], graph: filename }
+            // data.results should contain { table: [...], graph: filename, chart_data: {...} }
             setResult(data.results);
             // Track Usage
             import('../services/usageService').then(({ trackUsage }) => trackUsage('ml_forecast'));
@@ -129,51 +131,33 @@ const MLForecastTool = () => {
                         </div>
                     )}
 
-                    {/* Forecast Graph */}
-                    {result.graph && (
-                        <div className="bg-white/5 border border-white/10 rounded-2xl p-6">
-                            <h3 className="text-xl font-bold mb-4 text-blue-300 flex items-center gap-2">
-                                <ImageIcon size={20} /> Advanced Forecast Visualization
-                            </h3>
-                            <div className="w-full flex justify-center bg-black/50 rounded-lg p-2 border border-blue-900/30">
-                                {/* Assuming the backend serves the image via static or we need to fetch it. 
-                                    Since it's saved to disk in backend, we need the backend to serve it via static URL.
-                                    The filename is unique. Typically we serve STATIC_DIR.
-                                    The graph is saved in the CWD of the backend, which might not be STATIC_DIR. 
-                                    However, the standard in this app seems to be creating files in CWD.
-                                    We might need to implement a way to serve this file or ensure it's saved to static.
-                                    For now, let's assume valid URL construction if we knew the path.
-                                    Wait, the backend logic saves to `filename`. 
-                                    We need to ensure `filename` is accessible.
-                                    I should probably update `mlforecast_command.py` to save to `static` or have an endpoint to serve it.
-                                    Given constraints, let's assume we can fetch it via a generic 'images' endpoint or similar if it existed.
-                                    BUT, there isn't one. 
-                                    
-                                    FIX: I will modify MLForecast endpoint to read the file and return base64 string, 
-                                    OR update mlforecast_command to save to `backend/static`.
-                                    
-                                    Let's try to pass the filename to a helper that converts to base64 in the main endpoint?
-                                    No, `mlforecast_command` saves it.
-                                    I will assume I can update `mlforecast_command` to save to `backend/static` and return the relative path.
-                                    
-                                    Let's update `mlforecast_command` again in the NEXT step after this write.
-                                */}
-                                <img
-                                    src={`${API_BASE_URL}/static/${result.graph}`}
-                                    alt="ML Forecast Graph"
-                                    className="max-h-[500px] w-auto object-contain rounded"
-                                    onError={(e) => {
-                                        e.target.onerror = null;
-                                        e.target.src = "https://via.placeholder.com/800x400?text=Graph+Not+Found+(Check+Backend+Storage)";
-                                    }}
-                                />
+                    {/* Interactive Forecast Chart */}
+                    {result.chart_data ? (
+                        <MLForecastChart
+                            historicalData={result.chart_data.historical}
+                            forecastData={result.chart_data.forecast}
+                            anchors={result.chart_data.anchors}
+                        />
+                    ) : (
+                        // Fallback to static image if chart_data is missing (legacy)
+                        result.graph && (
+                            <div className="bg-white/5 border border-white/10 rounded-2xl p-6">
+                                <h3 className="text-xl font-bold mb-4 text-blue-300 flex items-center gap-2">
+                                    <ImageIcon size={20} /> Advanced Forecast Visualization (Static)
+                                </h3>
+                                <div className="w-full flex justify-center bg-black/50 rounded-lg p-2 border border-blue-900/30">
+                                    <img
+                                        src={`${API_BASE_URL}/static/${result.graph}`}
+                                        alt="ML Forecast Graph"
+                                        className="max-h-[500px] w-auto object-contain rounded"
+                                    />
+                                </div>
                             </div>
-                        </div>
+                        )
                     )}
                 </div>
             )}
         </div>
     );
 };
-
 export default MLForecastTool;

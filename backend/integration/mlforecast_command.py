@@ -305,58 +305,80 @@ async def handle_mlforecast_command(args: List[str] = None, ai_params: dict = No
             pass # Continue to step 3 instead of returning early
 
 
-        # 3. Generate the "Raw" Weekly Forecast Path (CLI Only)
-        print("\n-> Generating raw 52-week forecast path (this may take a moment)...")
-        weekly_data_base = data_weekly.copy()
+        # 3. Generate Detailed Weekly Forecast Path with Realistic Variation
+        # Use daily interpolation with volatility-based noise for a more natural look
+        print("\n-> Generating detailed forecast path...")
         
-        # --- FIX: Call indicator function with correct frequency ---
-        weekly_data_base = calculate_technical_indicators(weekly_data_base, freq='W')
-        # --- END FIX ---
+        # Calculate historical daily volatility for realistic noise
+        daily_returns = data_daily['Close'].pct_change().dropna()
+        hist_volatility = daily_returns.std()  # Daily volatility
         
-        features_w = ['RSI', 'MACD', 'MACD_Signal', 'SMA_Diff', 'Volatility']
-        
-        if all(f in weekly_data_base.columns and not weekly_data_base[f].isnull().all() for f in features_w):
-            last_features_w = weekly_data_base[features_w].iloc[-1:]
-            for week_horizon in range(1, 53):
-                data_temp = weekly_data_base.copy()
-                data_temp['Future_Close'] = data_temp['Close'].shift(-week_horizon)
-                data_temp['Pct_Change'] = (data_temp['Future_Close'] - data_temp['Close']) / data_temp['Close']
-                data_temp.dropna(subset=features_w + ['Pct_Change'], inplace=True)
-                
-                if len(data_temp) < 50:
-                    print(f"\n   -> Stopping weekly forecast at week {week_horizon-1} due to insufficient data.")
-                    break
-                
-                X_w, y_magnitude_w = data_temp[features_w], data_temp['Pct_Change']
-                weekly_reg = RandomForestRegressor(n_estimators=50, random_state=42, n_jobs=-1, max_depth=10).fit(X_w, y_magnitude_w)
-                predicted_pct_change = weekly_reg.predict(last_features_w)[0]
-                forecast_price = last_price * (1 + predicted_pct_change)
-                forecast_date = true_last_date + pd.Timedelta(weeks=week_horizon)
-                weekly_forecast_points_raw.append({'date': forecast_date, 'price': forecast_price})
-                if week_horizon % 5 == 0: print(f"   ...week {week_horizon}/52 calculated.")
-        
-        # 4. Adjust the Raw Weekly Path
-        adjusted_weekly_path = []
-        if weekly_forecast_points_raw and forecast_points:
-            print("\n-> Adjusting weekly path to align with key forecasts...")
-            anchor_points = [{'date': true_last_date, 'price': last_price}] + sorted(forecast_points, key=lambda x: x['date'])
+        # Collect all key points: [Start] + [Anchors sorted by date]
+        key_points = {true_last_date: last_price}
+        for pt in forecast_points:
+            key_points[pt['date']] = pt['price']
             
-            for i in range(len(anchor_points) - 1):
-                start_anchor, end_anchor = anchor_points[i], anchor_points[i+1]
-                raw_segment = [p for p in weekly_forecast_points_raw if start_anchor['date'] < p['date'] <= end_anchor['date']]
+        sorted_dates = sorted(key_points.keys())
+        adjusted_weekly_path = []
+        
+        # Use a seeded random generator for reproducibility
+        rng = np.random.default_rng(seed=42)
+        
+        # Interpolate between each segment with daily resolution
+        for i in range(len(sorted_dates) - 1):
+            start_date = sorted_dates[i]
+            end_date = sorted_dates[i+1]
+            start_price = key_points[start_date]
+            end_price = key_points[end_date]
+            
+            days_diff = (end_date - start_date).days
+            if days_diff <= 0: continue
+            
+            # Calculate daily log return for this segment
+            if start_price <= 0 or end_price <= 0:
+                growth_rate = 0
+            else:
+                growth_rate = np.log(end_price / start_price) / days_diff
+            
+            # Generate daily points with controlled noise
+            # Noise should sum to zero over the segment to hit the target exactly
+            segment_noise = rng.normal(0, hist_volatility * 0.3, days_diff)  # Damped volatility
+            # Adjust noise to ensure we hit the end target (drift correction)
+            cumulative_noise = np.cumsum(segment_noise)
+            if len(cumulative_noise) > 0:
+                correction = cumulative_noise[-1] / days_diff
+                segment_noise = segment_noise - correction
+            
+            current_sim_date = start_date
+            day_idx = 0
+            cumulative_noise_effect = 0
+            
+            while current_sim_date < end_date:
+                dt = (current_sim_date - start_date).days
                 
-                if not raw_segment: continue
+                # Base interpolated price
+                base_price = start_price * np.exp(growth_rate * dt)
                 
-                raw_segment_start_price = weekly_forecast_points_raw[weekly_forecast_points_raw.index(raw_segment[0]) -1]['price'] if raw_segment[0] != weekly_forecast_points_raw[0] else last_price
-                raw_segment_end_price = raw_segment[-1]['price']
-                raw_delta = raw_segment_end_price - raw_segment_start_price
-                target_delta = end_anchor['price'] - start_anchor['price']
+                # Add accumulated noise effect (makes the path wavy but still reaches target)
+                if day_idx < len(segment_noise):
+                    cumulative_noise_effect += segment_noise[day_idx]
                 
-                for point in raw_segment:
-                    scaling_factor = (point['price'] - raw_segment_start_price) / raw_delta if raw_delta != 0 else 0
-                    adjusted_price = start_anchor['price'] + (scaling_factor * target_delta)
-                    adjusted_weekly_path.append({'date': point['date'], 'price': adjusted_price})
-            print("   -> Path adjustment complete.")
+                noisy_price = base_price * (1 + cumulative_noise_effect)
+                
+                # Add point (skip start to avoid dupes)
+                if current_sim_date > start_date:
+                    adjusted_weekly_path.append({
+                        'date': current_sim_date, 
+                        'price': max(noisy_price, 0.01)  # Ensure positive price
+                    })
+                
+                # Daily resolution
+                current_sim_date += pd.Timedelta(days=1)
+                day_idx += 1
+                
+        # Add final point exactly
+        adjusted_weekly_path.append({'date': sorted_dates[-1], 'price': key_points[sorted_dates[-1]]})
+        print(f"   -> Generated {len(adjusted_weekly_path)} forecast points.")
 
         # 5. Output Final Results
         print("\n" + "="*80)
@@ -368,7 +390,42 @@ async def handle_mlforecast_command(args: List[str] = None, ai_params: dict = No
             graph_filename = plot_advanced_forecast_graph(ticker, data_daily, forecast_points, adjusted_weekly_path)
             
             if is_called_by_ai:
-                return {"table": results, "graph": graph_filename}
+                # Prepare Chart Data
+                # Historical (Last 1 Year)
+                hist_context = data_daily.iloc[-365:].copy().reset_index()
+                # Handle unknown column names for Date
+                d_col = 'Date' if 'Date' in hist_context.columns else hist_context.columns[0]
+                
+                chart_data_hist = []
+                for _, row in hist_context.iterrows():
+                    d_val = row[d_col]
+                    d_str = d_val.isoformat() if hasattr(d_val, 'isoformat') else str(d_val)
+                    chart_data_hist.append({"date": d_str, "price": float(row['Close'])})
+                
+                chart_data_forecast = []
+                for pt in adjusted_weekly_path:
+                    d_str = pt['date'].isoformat()
+                    chart_data_forecast.append({"date": d_str, "price": float(pt['price'])})
+                    
+                chart_anchors = []
+                # Map periods to labels roughly based on duration or just pass index
+                # Simpler: just pass the point, frontend can show price/date
+                for idx, pt in enumerate(forecast_points):
+                    chart_anchors.append({
+                        "date": pt['date'].isoformat(),
+                        "price": float(pt['price']),
+                        "label": f"Target {idx+1}" # Simple label
+                    })
+
+                return {
+                    "table": results, 
+                    "graph": graph_filename,
+                    "chart_data": {
+                        "historical": chart_data_hist,
+                        "forecast": chart_data_forecast,
+                        "anchors": chart_anchors
+                    }
+                }
         else:
             if not is_called_by_ai: print("Could not generate any forecasts due to insufficient data across all time horizons.")
             if is_called_by_ai: return {"error": "Insufficient data"}
