@@ -36,25 +36,52 @@ const CommandPalette = () => {
     }, [isOpen]);
 
     const actions = [
+        // --- Core Navigation ---
         { id: 'dashboard', label: 'Dashboard / Home', icon: Monitor, path: '/' },
-        { id: 'market', label: 'All Products', icon: Globe, path: '/products' },
-        { id: 'predictions', label: 'Orion Market Predictions', icon: Activity, path: '/market-predictions' },
-        { id: 'sentinel', label: 'Sentinel AI', icon: Shield, path: '/sentinel-ai' },
-        { id: 'nexus', label: 'Portfolio Nexus', icon: TrendingUp, path: '/portfolio-nexus' },
-        { id: 'performance', label: 'Performance Stream', icon: Activity, path: '/performance-stream' },
-        { id: 'matrix', label: 'Comparison Matrix', icon: Activity, path: '/products/comparison-matrix' },
-        { id: 'market-junction', label: 'Market Junction', icon: Globe, path: '/market-junction' },
-        { id: 'portfolio-lab', label: 'Portfolio Lab', icon: Monitor, path: '/portfolio-lab' },
-        { id: 'database-lab', label: 'Database Lab', icon: Monitor, path: '/database-lab' },
-        { id: 'strategy', label: 'Strategy Ranking', icon: TrendingUp, path: '/strategy-ranking' },
-        { id: 'news', label: 'News Feed', icon: Globe, path: '/news' },
-        { id: 'knowledge', label: 'Knowledge Stream', icon: Globe, path: '/knowledge-stream' },
-        { id: 'ideas', label: 'Trade Ideas', icon: TrendingUp, path: '/ideas' },
-        { id: 'social', label: 'Community Forum', icon: User, path: '/forum' },
+        { id: 'products', label: 'All Products', icon: Globe, path: '/products' },
         { id: 'profile', label: 'User Profile', icon: User, path: '/profile' },
-        { id: 'automation', label: 'Workflow Automation', icon: Monitor, path: '/workflow-automation' },
         { id: 'help', label: 'Help & Documentation', icon: Shield, path: '/help' },
         { id: 'about', label: 'About Orion', icon: Shield, path: '/about' },
+
+        // --- AI & Analysis Tools ---
+        { id: 'sentinel', label: 'Sentinel AI', icon: Shield, path: '/sentinel-ai' },
+        { id: 'asset-evaluator', label: 'Asset Evaluator', icon: TrendingUp, path: '/asset-evaluator' },
+        { id: 'quickscore', label: 'Quickscore', icon: Activity, path: '/asset-evaluator' },
+        { id: 'ml-forecast', label: 'ML Forecast', icon: TrendingUp, path: '/asset-evaluator' },
+        { id: 'breakout', label: 'Breakout Analysis', icon: Activity, path: '/asset-evaluator' },
+        { id: 'risk', label: 'Risk Analysis', icon: Shield, path: '/asset-evaluator' },
+        { id: 'sentiment', label: 'Sentiment Analysis', icon: Activity, path: '/asset-evaluator' },
+        { id: 'powerscore', label: 'Powerscore', icon: TrendingUp, path: '/asset-evaluator' },
+
+        // --- Market Intelligence ---
+        { id: 'market-junction', label: 'Market Junction', icon: Globe, path: '/market-junction' },
+        { id: 'briefing', label: 'Market Briefing', icon: Activity, path: '/briefing' },
+        { id: 'predictions', label: 'Orion Market Predictions', icon: Activity, path: '/market-predictions' },
+        { id: 'news', label: 'News Feed', icon: Globe, path: '/news' },
+
+        // --- Portfolio Management ---
+        { id: 'portfolio-lab', label: 'Portfolio Lab', icon: Monitor, path: '/portfolio-lab' },
+        { id: 'nexus', label: 'Portfolio Nexus', icon: TrendingUp, path: '/portfolio-nexus' },
+        { id: 'performance', label: 'Performance Stream', icon: Activity, path: '/performance-stream' },
+        { id: 'cultivate', label: 'Cultivate / Allocate', icon: TrendingUp, path: '/cultivate' },
+        { id: 'tracking', label: 'Tracking / Research', icon: Activity, path: '/tracking' },
+
+        // --- Strategy & Comparison ---
+        { id: 'strategy', label: 'Strategy Ranking', icon: TrendingUp, path: '/strategy-ranking' },
+        { id: 'matrix', label: 'Comparison Matrix', icon: Activity, path: '/products/comparison-matrix' },
+
+        // --- Knowledge & Learning ---
+        { id: 'knowledge', label: 'Knowledge Stream', icon: Globe, path: '/knowledge-stream' },
+        { id: 'custom', label: 'Custom Knowledge', icon: Monitor, path: '/custom' },
+        { id: 'invest', label: 'Investment Research', icon: TrendingUp, path: '/invest' },
+
+        // --- Community & Social ---
+        { id: 'social', label: 'Community Forum', icon: User, path: '/forum' },
+        { id: 'ideas', label: 'Trade Ideas', icon: TrendingUp, path: '/ideas' },
+
+        // --- Data & Automation ---
+        { id: 'database-lab', label: 'Database Lab', icon: Monitor, path: '/database-lab' },
+        { id: 'automation', label: 'Workflow Automation (Medulla)', icon: Monitor, path: '/workflow-automation' },
     ];
 
     const filteredActions = actions.filter(action =>
