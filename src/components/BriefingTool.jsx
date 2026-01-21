@@ -73,6 +73,8 @@ const BriefingTool = ({ email }) => {
     const vix = data.market_snapshot?.vix || {};
     const oil = data.market_snapshot?.oil || {};
     const gold = data.market_snapshot?.gold || {};
+    const silver = data.market_snapshot?.silver || {};
+    const breakouts = data.breakouts || {};
 
     return (
         <div className="space-y-8 animate-fade-in">
@@ -83,11 +85,12 @@ const BriefingTool = ({ email }) => {
             </div>
 
             {/* Core Market Snapshot */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
                 <PriceCard title="S&P 500" value={`$${spy.live_price?.toFixed(2)}`} change={spy.change_pct} />
                 <PriceCard title="VIX" value={vix.live_price?.toFixed(2)} change={vix.change_pct} />
                 <PriceCard title="Crude Oil" value={`$${oil.live_price?.toFixed(2)}`} change={oil.change_pct} />
                 <PriceCard title="Gold" value={gold.live_price ? `$${gold.live_price.toFixed(2)}` : 'N/A'} change={gold.change_pct || 0} />
+                <PriceCard title="Silver" value={silver.live_price ? `$${silver.live_price.toFixed(2)}` : 'N/A'} change={silver.change_pct || 0} />
             </div>
 
             {/* Yields & Risk */}
@@ -151,6 +154,41 @@ const BriefingTool = ({ email }) => {
                         ))}
                     </div>
                 </div>
+            </div>
+
+            {/* Breakouts Section */}
+            <div className="bg-cyan-500/10 border border-cyan-500/20 rounded-2xl p-6">
+                <h3 className="text-xl font-bold text-cyan-400 mb-4 flex items-center gap-2">
+                    <TrendingUp size={20} /> Breakout Stocks
+                </h3>
+                {breakouts.stocks && breakouts.stocks.length > 0 ? (
+                    <div className="space-y-3">
+                        {breakouts.stocks.map((stock, i) => {
+                            const perf = breakouts.performance?.[stock.Ticker] || {};
+                            return (
+                                <div key={i} className="flex justify-between items-center border-b border-white/5 pb-2 last:border-0">
+                                    <div className="flex items-center gap-3">
+                                        <span className="font-bold text-white">{stock.Ticker}</span>
+                                        <span className="text-xs text-gray-400">Score: {stock['Invest Score']}</span>
+                                    </div>
+                                    <div className="flex gap-4 text-xs font-mono">
+                                        <span className={perf['1D'] >= 0 ? 'text-green-400' : 'text-red-400'}>
+                                            1D: {perf['1D'] != null ? `${perf['1D'] >= 0 ? '+' : ''}${perf['1D'].toFixed(2)}%` : 'N/A'}
+                                        </span>
+                                        <span className={perf['1W'] >= 0 ? 'text-green-400' : 'text-red-400'}>
+                                            1W: {perf['1W'] != null ? `${perf['1W'] >= 0 ? '+' : ''}${perf['1W'].toFixed(2)}%` : 'N/A'}
+                                        </span>
+                                        <span className={perf['1M'] >= 0 ? 'text-green-400' : 'text-red-400'}>
+                                            1M: {perf['1M'] != null ? `${perf['1M'] >= 0 ? '+' : ''}${perf['1M'].toFixed(2)}%` : 'N/A'}
+                                        </span>
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                ) : (
+                    <p className="text-gray-400 text-sm italic">No current breakout stocks detected.</p>
+                )}
             </div>
 
             {/* Economic Data */}

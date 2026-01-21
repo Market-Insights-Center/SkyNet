@@ -249,6 +249,33 @@ async def get_major_futures_data() -> Dict[str, Dict[str, Any]]:
     except Exception as e:
         print(f"  [BRIEFING_DEBUG] Failed to fetch Gold data: {e}")
 
+    # --- Part 1.6: Get Silver data (Robust Logic) ---
+    try:
+        silver_url = 'https://www.cnbc.com/quotes/@SI.1'
+        silver_scraped = await _scrape_cnbc_quote(silver_url)
+        silver_hist = await asyncio.to_thread(yf.download, tickers=['SI=F'], period="5d", progress=False)
+
+        if not silver_hist.empty and 'Close' in silver_hist:
+            close_data = silver_hist['Close']
+            series = None
+            if isinstance(close_data, pd.DataFrame):
+                if 'SI=F' in close_data.columns:
+                     series = close_data['SI=F'].dropna()
+            elif isinstance(close_data, pd.Series):
+                series = close_data.dropna()
+
+            if series is not None and len(series) > 1:
+                yf_price = series.iloc[-1]
+                prev_close = series.iloc[-2]
+                final_price = silver_scraped if silver_scraped is not None else yf_price
+                change_pct = ((final_price - prev_close) / prev_close) * 100
+                results['SI=F'] = {'live_price': final_price, 'change_pct': change_pct}
+            elif silver_scraped is not None:
+                 results['SI=F'] = {'live_price': silver_scraped}
+                 
+    except Exception as e:
+        print(f"  [BRIEFING_DEBUG] Failed to fetch Silver data: {e}")
+
     # --- Part 2: Fetch other futures using the standard method ---
     # Removed Gold from here as it is now handled explicitly above
     other_tickers = {'Nasdaq': 'NQ=F', 'Bitcoin': 'BTC-USD'}
@@ -439,7 +466,8 @@ async def handle_briefing_command(args: List[str], ai_params: Optional[Dict] = N
             "spy": spy_data,
             "vix": vix_data,
             "oil": futures_results.get('CL=F', {}),
-            "gold": futures_results.get('GC=F', {})
+            "gold": futures_results.get('GC=F', {}),
+            "silver": futures_results.get('SI=F', {})
         },
         "yields": yield_results,
         "risk_scores": risk_results,
