@@ -122,6 +122,30 @@ const WorkflowAutomation = () => {
         }
     };
 
+    const handleCommunityDelete = async (auto) => {
+        const username = userProfile?.username;
+        if (!username || auto.creator !== username) return;
+        if (!confirm(`Remove "${auto.name}" from the Community? This cannot be undone.`)) return;
+
+        try {
+            const res = await fetch('/api/automations/community/delete', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id: auto.id, username })
+            });
+            const d = await res.json();
+            if (res.ok) {
+                alert("Removed from community.");
+                fetchCommunity(); // Refresh
+            } else {
+                alert(d.detail || "Failed to remove.");
+            }
+        } catch (e) {
+            console.error(e);
+            alert("Error: " + e.message);
+        }
+    };
+
     const handleCopy = async (sharedAuto) => {
         if (!confirm(`Import "${sharedAuto.name}" to your automations?`)) return;
 
@@ -481,8 +505,8 @@ const WorkflowAutomation = () => {
         if (type === 'sentiment_trigger') initialData = { ticker: 'NVDA', op: '>', value: 75 };
         if (type === 'logic_gate') initialData = { operation: 'AND' };
         if (type === 'if_gate') initialData = { conditions: [{ id: 'c1', outputId: 'out1' }], elseOutputId: 'out_else' };
-        if (type === 'tracking') initialData = { code: '', value: 1000, fractional: false, actions: [] };
-        if (type === 'nexus') initialData = { code: '', value: 5000, fractional: true, actions: [] };
+        if (type === 'tracking') initialData = { code: '', value: '', fractional: false, actions: [] };
+        if (type === 'nexus') initialData = { code: '', value: '', fractional: true, actions: [] };
         if (type === 'email_info') initialData = { email: '' };
         if (type === 'rh_info') initialData = { email: '', password: '' };
         if (type === 'send_email') initialData = { subject: 'Automation Alert' };
@@ -586,6 +610,7 @@ const WorkflowAutomation = () => {
                                     </p>
                                     <div className="flex items-center justify-between text-xs text-gray-500">
                                         <span>Click to Edit</span>
+                                        {auto.last_run && <span className="text-[10px] text-gray-600 block mt-1">Last Run: {new Date(auto.last_run).toLocaleString()}</span>}
                                         {auto.active && <span className="text-green-400 flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" /> Active</span>}
                                     </div>
                                 </div>
@@ -724,21 +749,22 @@ const WorkflowAutomation = () => {
                                 <BlockButton label="Nexus" icon={Layers} onClick={() => addNode('nexus')} color="text-purple-400" />
                                 <BlockButton label="Send Email" icon={Mail} onClick={() => addNode('send_email')} color="text-blue-400" />
 
-                                {/* Enterprise Only: Webhooks */}
+                                {/* Enterprise/Singularity: Webhooks */}
                                 <div className="relative group">
                                     <BlockButton
                                         label="Webhook"
                                         icon={Globe}
                                         onClick={() => {
-                                            if (currentUser?.tier === 'Enterprise') addNode('webhook');
+                                            const tier = currentUser?.tier;
+                                            if (tier === 'Enterprise' || tier === 'Singularity') addNode('webhook');
                                             else {
                                                 setUpgradeFeature("Webhooks");
                                                 setShowUpgradeModal(true);
                                             }
                                         }}
-                                        color={currentUser?.tier === 'Enterprise' ? "text-indigo-400" : "text-gray-600"}
+                                        color={(currentUser?.tier === 'Enterprise' || currentUser?.tier === 'Singularity') ? "text-indigo-400" : "text-gray-600"}
                                     />
-                                    {currentUser?.tier !== 'Enterprise' && (
+                                    {(currentUser?.tier !== 'Enterprise' && currentUser?.tier !== 'Singularity') && (
                                         <div className="absolute right-3 top-1/2 -translate-y-1/2 text-gold">
                                             <Lock size={14} />
                                         </div>
@@ -1243,8 +1269,19 @@ const NodeComponent = ({ node, onDelete, updateData, onDotClick, connecting }) =
 
                         <div className="flex items-center gap-2 mt-2">
                             <span className="text-gray-400">$</span>
-                            <input type="number" className="flex-1 bg-black/40 rounded px-2 py-1 border border-white/10" placeholder="Value" value={node.data.value} onChange={e => updateData({ value: e.target.value })} />
+                            <input
+                                type="number"
+                                className="flex-1 bg-black/40 rounded px-2 py-1 border border-white/10"
+                                placeholder={node.data.actions?.includes('robinhood') ? "Auto (Uses RH Equity)" : "Value"}
+                                value={node.data.value}
+                                onChange={e => updateData({ value: e.target.value })}
+                            />
                         </div>
+                        {node.data.actions?.includes('robinhood') && (
+                            <div className="text-[10px] text-gray-500 mb-1">
+                                *Leave empty for Auto
+                            </div>
+                        )}
                         <div className="space-y-1 pt-1">
                             <div className="flex items-center gap-2">
                                 <input

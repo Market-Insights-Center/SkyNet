@@ -37,7 +37,7 @@ def _save_usage(data):
     except Exception as e:
         print(f"Error saving usage stats: {e}")
 
-async def increment_usage(product_key: str):
+async def increment_usage(product_key: str, user_email: str = None):
     """
     Increments the counter for a specific product/feature.
     """
@@ -53,6 +53,12 @@ async def increment_usage(product_key: str):
         stats['total_system_actions'] = stats.get('total_system_actions', 0) + 1
         
         _save_usage(stats)
+        
+        # Log Recent Action
+        if user_email:
+            # Run in thread to avoid blocking lock
+            await asyncio.to_thread(log_recent_action, key, user_email)
+            
         return stats.get(key)
 
 def get_all_usage():
@@ -81,3 +87,62 @@ def get_all_usage():
         stats["active_strategies"] = 0
         
     return stats
+
+# --- RECENT ACTIONS LOGGING ---
+if os.name == 'nt':
+    RECENT_ACTIONS_FILE = os.path.join(os.path.dirname(__file__), 'data', 'recent_actions.json')
+else:
+    RECENT_ACTIONS_FILE = os.path.join(os.path.dirname(__file__), 'data', 'recent_actions.json')
+
+def log_recent_action(action: str, user_email: str):
+    """Logs a user action to the recent actions list, keeping only the last 100."""
+    try:
+        from datetime import datetime
+        
+        actions = []
+        if os.path.exists(RECENT_ACTIONS_FILE):
+             try:
+                 with open(RECENT_ACTIONS_FILE, 'r') as f:
+                     actions = json.load(f)
+             except: actions = []
+             
+        new_entry = {
+            "action": action,
+            "user": user_email,
+            "timestamp": datetime.now().isoformat()
+        }
+        
+        # Prepend
+        actions.insert(0, new_entry)
+        
+        # Keep last 1000
+        actions = actions[:1000]
+        
+        # Ensure dir
+        data_dir = os.path.dirname(RECENT_ACTIONS_FILE)
+        if not os.path.exists(data_dir):
+            os.makedirs(data_dir)
+            
+        with open(RECENT_ACTIONS_FILE, 'w') as f:
+            json.dump(actions, f, indent=4)
+            
+    except Exception as e:
+        print(f"Error logging recent action: {e}")
+
+def get_recent_actions(limit: int = 50, user_filter: str = None):
+    """Returns the list of recent actions, optionally filtered."""
+    if not os.path.exists(RECENT_ACTIONS_FILE):
+        return []
+    try:
+        with open(RECENT_ACTIONS_FILE, 'r') as f:
+            actions = json.load(f)
+            
+        # Filter by user if provided
+        if user_filter:
+            user_filter = user_filter.lower()
+            actions = [a for a in actions if user_filter in a.get('user', '').lower()]
+            
+        # Apply limit
+        return actions[:limit]
+    except:
+        return []

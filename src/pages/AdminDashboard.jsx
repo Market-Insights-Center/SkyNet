@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     Users, TrendingUp, Shield, Activity, Search, Edit2,
-    Save, X, Check, Trash2, Tag, Plus, FileText, Lightbulb, Megaphone, Zap
+    Save, X, Check, Trash2, Tag, Plus, FileText, Lightbulb, Megaphone, Zap, Clock
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
@@ -23,6 +23,9 @@ const AdminDashboard = () => {
     const [ideas, setIdeas] = useState([]);
     const [mods, setMods] = useState([]);
     const [banners, setBanners] = useState([]);
+    const [recentActions, setRecentActions] = useState([]);
+    const [actionLimit, setActionLimit] = useState(50);
+    const [actionUserFilter, setActionUserFilter] = useState('');
 
     const [stats, setStats] = useState({ totalUsers: 0, proUsers: 0, activeTrials: 0 });
 
@@ -168,6 +171,18 @@ const AdminDashboard = () => {
         }
     };
 
+    const fetchMods = () => {
+        fetch('/api/mods').then(res => res.json()).then(data => setMods(Array.isArray(data.mods) ? data.mods : [])).catch(() => setMods([]));
+    };
+
+    const fetchRecentActions = () => {
+        if (!currentUser) return;
+        fetch(`/api/admin/recent_actions?email=${currentUser.email}&limit=${actionLimit}&user_filter=${actionUserFilter}`)
+            .then(res => res.json())
+            .then(data => setRecentActions(Array.isArray(data) ? data : []))
+            .catch(err => console.error("Error fetching actions:", err));
+    };
+
     useEffect(() => {
         if (!currentUser) return;
 
@@ -178,12 +193,23 @@ const AdminDashboard = () => {
             fetch(`/api/admin/coupons?email=${currentUser.email}`).then(res => res.json()).then(data => setCoupons(Array.isArray(data) ? data : [])).catch(() => setCoupons([]));
             fetchArticles();
             fetchIdeas();
-            fetch('/api/mods').then(res => res.json()).then(data => setMods(Array.isArray(data.mods) ? data.mods : [])).catch(() => setMods([]));
-            fetchBanners();
             fetchPredictions();
-            setCacheLoaded(true); // Mark as loaded so we don't refetch on tab switch/remount during same session unless desired
+            setCacheLoaded(true);
         }
-    }, [currentUser, cacheLoaded]);
+
+        fetchMods();
+        fetchBanners();
+        fetchRecentActions();
+
+        let interval;
+        if (activeTab === 'recent_actions') {
+            interval = setInterval(fetchRecentActions, 3000);
+        }
+
+        return () => {
+            if (interval) clearInterval(interval);
+        }
+    }, [currentUser, cacheLoaded, activeTab, actionLimit, actionUserFilter]);
 
     const fetchPredictions = async () => {
         try {
@@ -419,6 +445,7 @@ const AdminDashboard = () => {
         { id: 'predictions', label: 'Predictions', icon: TrendingUp },
         { id: 'mods', label: 'Moderators', icon: Shield },
         { id: 'logs', label: 'System Logs', icon: FileText },
+        { id: 'recent_actions', label: 'Recent Actions', icon: Clock },
     ];
 
     return (
@@ -702,6 +729,108 @@ const AdminDashboard = () => {
                                     {logs || "Select a log file to view content."}
                                 </pre>
                             )}
+                        </div>
+                    </div>
+                )}
+
+                {activeTab === 'recent_actions' && (
+                    <div className="bg-white/5 rounded-xl border border-white/10 p-6">
+                        <div className="flex justify-between items-center mb-6">
+                            <h2 className="text-xl font-bold flex items-center gap-2">
+                                <Clock className="text-gold" size={24} />
+                                Live Activity Feed
+                            </h2>
+                            <div className="flex items-center gap-2">
+                                <span className="relative flex h-3 w-3">
+                                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                                    <span className="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span>
+                                </span>
+                                <span className="text-xs text-green-400 font-mono">LIVE UPDATING</span>
+                            </div>
+                        </div>
+
+                        {/* Filters */}
+                        <div className="flex flex-wrap gap-4 mb-6 bg-black/40 p-4 rounded-lg border border-white/5">
+                            {/* Limit Selector */}
+                            <div className="flex items-center gap-2">
+                                <span className="text-xs text-gray-400 uppercase font-bold">Show:</span>
+                                <select
+                                    className="bg-gray-900 border border-gray-700 rounded px-2 py-1 text-sm text-white focus:border-gold outline-none"
+                                    value={actionLimit}
+                                    onChange={(e) => setActionLimit(Number(e.target.value))}
+                                >
+                                    <option value={10}>10</option>
+                                    <option value={25}>25</option>
+                                    <option value={50}>50</option>
+                                    <option value={100}>100</option>
+                                    <option value={500}>500</option>
+                                    <option value={1000}>All (1000)</option>
+                                </select>
+                            </div>
+
+                            {/* User Search */}
+                            <div className="flex-1 flex items-center gap-2">
+                                <span className="text-xs text-gray-400 uppercase font-bold">Filter User:</span>
+                                <div className="relative flex-1 max-w-md">
+                                    <input
+                                        type="text"
+                                        placeholder="Search by username or email..."
+                                        className="w-full bg-gray-900 border border-gray-700 rounded px-3 py-1 text-sm text-white focus:border-gold outline-none pl-8"
+                                        value={actionUserFilter}
+                                        onChange={(e) => setActionUserFilter(e.target.value)}
+                                    />
+                                    <div className="absolute left-2 top-1.5 text-gray-500">
+                                        <div className="w-4 h-4 rounded-full border border-current"></div>
+                                    </div>
+                                    {actionUserFilter && (
+                                        <button
+                                            onClick={() => setActionUserFilter('')}
+                                            className="absolute right-2 top-1.5 text-gray-500 hover:text-white"
+                                        >
+                                            ✕
+                                        </button>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="overflow-hidden rounded-lg border border-white/10">
+                            <table className="w-full text-left">
+                                <thead className="bg-black text-gray-400 text-xs uppercase tracking-wider">
+                                    <tr>
+                                        <th className="p-4">Action / Product</th>
+                                        <th className="p-4">User</th>
+                                        <th className="p-4">Time</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-white/5">
+                                    {recentActions.length === 0 ? (
+                                        <tr><td colSpan="3" className="p-8 text-center text-gray-500">No recent activity recorded.</td></tr>
+                                    ) : (
+                                        recentActions.map((log, idx) => (
+                                            <tr key={idx} className="hover:bg-white/5 transition-colors">
+                                                <td className="p-4">
+                                                    <span className="font-mono text-gold font-bold">{log.action.toUpperCase()}</span>
+                                                </td>
+                                                <td className="p-4 text-gray-300">
+                                                    <div className="flex items-center gap-2">
+                                                        <div className="w-6 h-6 rounded-full bg-gradient-to-br from-gold/50 to-transparent flex items-center justify-center text-xs font-bold text-white">
+                                                            {log.user.slice(0, 1).toUpperCase()}
+                                                        </div>
+                                                        {log.user}
+                                                    </div>
+                                                </td>
+                                                <td className="p-4 text-sm text-gray-400 font-mono">
+                                                    {new Date(log.timestamp).toLocaleTimeString()}
+                                                    <span className="text-xs text-gray-600 ml-2">
+                                                        {new Date(log.timestamp).toLocaleDateString()}
+                                                    </span>
+                                                </td>
+                                            </tr>
+                                        ))
+                                    )}
+                                </tbody>
+                            </table>
                         </div>
                     </div>
                 )}

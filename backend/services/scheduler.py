@@ -61,7 +61,7 @@ def start_scheduler():
             except Exception as e:
                 logger.error(f"Scheduler Error (Automation): {e}")
 
-        SCHEDULER.add_job(run_automation_job, CronTrigger(minute='*/15'))
+        SCHEDULER.add_job(run_automation_job, CronTrigger(minute='*')) # Run every minute for responsiveness
 
         # 4. Strategy Ranking Job
         def run_strategy_ranking_job():

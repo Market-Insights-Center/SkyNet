@@ -142,16 +142,79 @@ class AIService:
             duration = time.time() - start_time
             logger.info(f"   [Sentinel AI] Response received in {duration:.2f}s. Status: {response.status_code}")
             
+            # Check for OOM / 500 Errors
+            if response.status_code == 500:
+                error_msg = response.text
+                if "more system memory" in error_msg or "out of memory" in error_msg.lower():
+                    logger.warning(f"   [Sentinel AI] OOM Detected with {self.model}. Attempting to find lighter model...")
+                    
+                    # Attempt switch
+                    if await self._switch_to_smaller_model():
+                        payload["model"] = self.model
+                        logger.info(f"   [Sentinel AI] Retrying with lighter model: {self.model}")
+                        response = await asyncio.to_thread(requests.post, self.local_url, json=payload)
+                        
+                        # Re-check status after retry
+                        if response.status_code == 200:
+                             data = response.json()
+                             return data.get("response", "")
+
             if response.status_code != 200:
                 logger.error(f"   [Sentinel AI] Error Response: {response.text}")
-                response.raise_for_status()
+                # Don't raise for status immediately if we want to digest it, but here we failed.
+                return f"Error: AI Generation failed ({response.status_code}). {response.text}"
             
             data = response.json()
             return data.get("response", "")
             
         except Exception as e:
             logger.error(f"   [Sentinel AI] Generation Failed: {e}")
-            return ""
+            return f"Error: {str(e)}"
+
+    async def _switch_to_smaller_model(self):
+        """Attempts to switch to a known smaller model."""
+        try:
+            tags_url = self.local_url.replace("/generate", "/tags")
+            resp = await asyncio.to_thread(requests.get, tags_url, timeout=2)
+            if resp.status_code != 200: return False
+            
+            data = resp.json()
+            models = data.get('models', [])
+            
+            # Sort by size (ascending)
+            # 'size' matches the memory footprint roughly
+            models.sort(key=lambda x: x.get('size', 999999999999))
+            
+            current_model_info = next((m for m in models if m['name'] == self.model), None)
+            current_size = current_model_info['size'] if current_model_info else 999999999999
+            
+            # Preference list for very small models
+            tiny_whitelist = ["tinyllama", "gemma:2b", "phi:latest", "qwen:0.5b", "qwen:1.8b"]
+            
+            # Strategy 1: Find any whitelist model that is installed
+            for candidate in models:
+                 name = candidate['name']
+                 # Check if name contains any whitelist string
+                 if any(w in name for w in tiny_whitelist):
+                     if name != self.model:
+                         logger.info(f"   [Sentinel AI] Switching from {self.model} to lightweight {name} ({candidate['size']/1e9:.2f} GB)")
+                         self.model = name
+                         return True
+            
+            # Strategy 2: just pick the smallest one if it's smaller than current
+            if models:
+                smallest = models[0]
+                if smallest['name'] != self.model and smallest['size'] < current_size:
+                     logger.info(f"   [Sentinel AI] Switching from {self.model} to smallest available {smallest['name']} ({smallest['size']/1e9:.2f} GB)")
+                     self.model = smallest['name']
+                     return True
+                     
+            logger.warning("   [Sentinel AI] No smaller model found to switch to.")
+            return False
+            
+        except Exception as e:
+            logger.error(f"   [Sentinel AI] Model Switch Error: {e}")
+            return False
 
 # Singleton Instance
 ai = AIService()

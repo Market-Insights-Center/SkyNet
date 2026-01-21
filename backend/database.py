@@ -327,6 +327,26 @@ def increment_copy_count(shared_id):
         return True
     except: return False
 
+def delete_community_automation(shared_id, username):
+    """Deletes a shared automation if the username matches the creator."""
+    try:
+        db = get_db()
+        ref = db.collection('community_automations').document(shared_id)
+        doc = ref.get()
+        if not doc.exists: return {"success": False, "message": "Not found"}
+        
+        data = doc.to_dict()
+        if data.get('creator') != username:
+             # Check for super admin override? 
+             # For now, strict ownership.
+             return {"success": False, "message": "Unauthorized"}
+             
+        ref.delete()
+        return {"success": True}
+    except Exception as e:
+        print(f"Error deleting community automation: {e}")
+        return {"success": False, "message": str(e)}
+
 # --- SHARED PORTFOLIOS (COMMUNITY) ---
 
 def share_portfolio(data, username):
@@ -379,6 +399,24 @@ def increment_portfolio_copy(shared_id):
         ref.update({"copy_count": firestore.Increment(1)})
         return True
     except: return False
+
+def delete_community_portfolio(shared_id, username):
+    """Deletes a shared portfolio if the username matches the creator."""
+    try:
+        db = get_db()
+        ref = db.collection('community_portfolios').document(shared_id)
+        doc = ref.get()
+        if not doc.exists: return {"success": False, "message": "Not found"}
+        
+        data = doc.to_dict()
+        if data.get('creator') != username:
+             return {"success": False, "message": "Unauthorized"}
+             
+        ref.delete()
+        return {"success": True}
+    except Exception as e:
+        print(f"Error deleting community portfolio: {e}")
+        return {"success": False, "message": str(e)}
 
 
 

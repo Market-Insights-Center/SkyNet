@@ -327,7 +327,30 @@ async def handle_tracking_command(args: List[str], ai_params: Optional[Dict] = N
         except: 
             rh_equity = 0.0
 
-    suggested_value = math.floor(rh_equity * 0.98) if rh_equity > 0 else 10000.0
+    # Logic: If execute_rh is True and we have equity, use it.
+    # If a manual value was passed (in args/ai_params), it overrides this?
+    # tracking_command args handling is a bit specific. Usually it doesn't take 'total_value' in args[0].
+    # It takes portfolio_code in args[0].
+    # But ai_params might have 'total_value'? The user didn't mention adding total_value param to tracking, just "execution logic".
+    # Assuming the "suggested_value" IS the total_value used for "process_custom_portfolio".
+    
+    suggested_value = 0.0
+    manual_val = float(ai_params.get('total_value') or 0) if ai_params else 0.0
+    
+    if manual_val > 0:
+        suggested_value = manual_val
+    elif execute_rh and rh_equity > 0:
+        print(f"[DEBUG TRACKING] No manual value. Using RH Equity: ${rh_equity}")
+        suggested_value = math.floor(rh_equity * 0.98)
+    else:
+        # If we are NOT executing, maybe 10k default is fine for display?
+        # User said "when execution is enabled... fail gracefully".
+        # If execute_rh is FALSE, we can probably default to 10k for view-only?
+        # Or should we be consistent? Let's assume view-only needs a base.
+        if execute_rh:
+             return {"status": "error", "message": "No portfolio value provided and unable to fetch Robinhood equity. Execution aborted."}
+        else:
+             suggested_value = 10000.0 # View-only default
             
     # Load Previous Run Data
     old_run_data = await _load_portfolio_run(portfolio_code)

@@ -22,12 +22,12 @@
                 "id": "1765952583742",
                 "type": "nexus",
                 "position": {
-                    "x": 966,
-                    "y": 239
+                    "x": 1047,
+                    "y": 271
                 },
                 "data": {
                     "code": "skynet",
-                    "value": "3300",
+                    "value": "",
                     "fractional": true,
                     "actions": [
                         "overwrite",

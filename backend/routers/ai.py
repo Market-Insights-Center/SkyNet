@@ -254,7 +254,7 @@ async def api_mlforecast_command(req: MLForecastRequest):
 # --- SENTINEL ---
 @router.post("/api/sentinel/plan")
 async def plan_sentinel(req: SentinelRequest):
-    plan = await sentinel_command.plan_execution(req.user_prompt)
+    plan = await sentinel_command.plan_execution(req.user_prompt, execution_mode=req.execution_mode or "auto")
     return {"plan": plan}
 
 @router.post("/api/sentinel/execute")
@@ -266,7 +266,7 @@ async def execute_sentinel(req: SentinelRequest):
 
     async def event_generator():
         try:
-             async for update in sentinel_command.run_sentinel(req.user_prompt, plan_override=req.plan):
+             async for update in sentinel_command.run_sentinel(req.user_prompt, plan_override=req.plan, execution_mode=req.execution_mode or "auto"):
                   yield json.dumps(update, default=str) + "\n"
         except Exception as e:
              traceback.print_exc()

@@ -225,6 +225,7 @@ class SentinelRequest(BaseModel):
     user_prompt: str
     email: str
     plan: Optional[List[Dict[str, Any]]] = None
+    execution_mode: Optional[str] = "auto" # "plan_and_review", "quick_execute", "auto"
 
 # --- Predictions ---
 class PredictionCreateRequest(BaseModel):

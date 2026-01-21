@@ -223,9 +223,8 @@ const WizardInputs = ({ toolType, onChange, values }) => {
             </InputGroup>
             <InputGroup label="Portfolio Value ($)">
                 <TextInput
-                    placeholder="10000"
-                    defaultValue="10000"
-                    onChange={(val) => handleChange('capital', parseFloat(val) || 0)}
+                    placeholder={values?.execute_rh ? "Auto (Uses RH Equity)" : "Enter Value"}
+                    onChange={(val) => handleChange('capital', val === '' ? 0 : parseFloat(val))}
                 />
             </InputGroup>
             <div className="mt-4">
@@ -318,9 +317,8 @@ const WizardInputs = ({ toolType, onChange, values }) => {
 
                     <InputGroup label="Investment Capital ($)" tooltip="Total amount you wish to allocate.">
                         <TextInput
-                            placeholder="10000"
-                            defaultValue="10000"
-                            onChange={(val) => handleChange('capital', parseFloat(val) || 0)}
+                            placeholder="Enter Value"
+                            onChange={(val) => handleChange('capital', val === '' ? 0 : parseFloat(val))}
                         />
                     </InputGroup>
                     <InputGroup label="EMA Sensitivity">
@@ -357,8 +355,8 @@ const WizardInputs = ({ toolType, onChange, values }) => {
                     </InputGroup>
                     <InputGroup label="Total Portfolio Value ($)">
                         <TextInput
-                            placeholder="10000" defaultValue="10000"
-                            onChange={(val) => handleChange('capital', parseFloat(val) || 0)}
+                            placeholder="Enter Value"
+                            onChange={(val) => handleChange('capital', val === '' ? 0 : parseFloat(val))}
                         />
                     </InputGroup>
                     <div className="mt-4">

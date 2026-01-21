@@ -18,7 +18,7 @@ export default function PortfolioNexus() {
     const { userProfile } = useAuth();
 
     const [nexusCode, setNexusCode] = useState('');
-    const [totalValue, setTotalValue] = useState(10000);
+    const [totalValue, setTotalValue] = useState('');
     const [loading, setLoading] = useState(false);
     const [progressMsg, setProgressMsg] = useState('');
     const [result, setResult] = useState(null);
@@ -203,6 +203,7 @@ export default function PortfolioNexus() {
                                             type="number"
                                             value={totalValue}
                                             onChange={(e) => setTotalValue(e.target.value)}
+                                            placeholder={executionOpts.execute_rh ? "Auto (Uses RH Equity)" : "Enter Amount"}
                                             className="w-full bg-black/50 border border-gray-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 transition-all font-mono"
                                         />
                                     </div>

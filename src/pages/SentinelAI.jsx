@@ -418,6 +418,7 @@ const SentinelAI = () => {
                                                                             defaultDesc = "Process manual ticker list.";
                                                                         } else if (['sentiment', 'fundamentals', 'powerscore', 'quickscore'].includes(newTool)) {
                                                                             defaultParams = { tickers_source: "", limit: 10 };
+                                                                            if (newTool === 'powerscore') defaultParams.sensitivity = 2;
                                                                             const toolLabels = {
                                                                                 sentiment: "Analyze sentiment",
                                                                                 fundamentals: "Check fundamentals",
@@ -597,41 +598,42 @@ const SentinelAI = () => {
 
                                                         {/* Tool Specific Params */}
                                                         <div className="grid grid-cols-2 gap-2">
+                                                            {(step.tool === 'market' || step.tool === 'powerscore') && (
+                                                                <div>
+                                                                    <label className="text-[10px] text-gray-500 font-bold uppercase tracking-wider block mb-1">Sensitivity</label>
+                                                                    <select
+                                                                        className="w-full bg-gray-900 border border-gray-700 rounded px-2 py-1 text-xs text-white outline-none"
+                                                                        value={step.params.sensitivity || 2}
+                                                                        onChange={(e) => {
+                                                                            const newPlan = [...executionPlan];
+                                                                            newPlan[idx].params = { ...newPlan[idx].params, sensitivity: parseInt(e.target.value) };
+                                                                            setExecutionPlan(newPlan);
+                                                                        }}
+                                                                    >
+                                                                        <option value="1">1 (Weekly)</option>
+                                                                        <option value="2">2 (Daily)</option>
+                                                                        <option value="3">3 (Hourly)</option>
+                                                                    </select>
+                                                                </div>
+                                                            )}
+
                                                             {step.tool === 'market' && (
-                                                                <>
-                                                                    <div>
-                                                                        <label className="text-[10px] text-gray-500 font-bold uppercase tracking-wider block mb-1">Sensitivity</label>
-                                                                        <select
-                                                                            className="w-full bg-gray-900 border border-gray-700 rounded px-2 py-1 text-xs text-white outline-none"
-                                                                            value={step.params.sensitivity || 2}
-                                                                            onChange={(e) => {
-                                                                                const newPlan = [...executionPlan];
-                                                                                newPlan[idx].params = { ...newPlan[idx].params, sensitivity: parseInt(e.target.value) };
-                                                                                setExecutionPlan(newPlan);
-                                                                            }}
-                                                                        >
-                                                                            <option value="1">1 (Weekly)</option>
-                                                                            <option value="2">2 (Daily)</option>
-                                                                            <option value="3">3 (Hourly)</option>
-                                                                        </select>
-                                                                    </div>
-                                                                    <div>
-                                                                        <label className="text-[10px] text-gray-500 font-bold uppercase tracking-wider block mb-1">Market Type</label>
-                                                                        <select
-                                                                            className="w-full bg-gray-900 border border-gray-700 rounded px-2 py-1 text-xs text-white outline-none"
-                                                                            value={step.params.market_type || "sp500"}
-                                                                            onChange={(e) => {
-                                                                                const newPlan = [...executionPlan];
-                                                                                newPlan[idx].params = { ...newPlan[idx].params, market_type: e.target.value };
-                                                                                setExecutionPlan(newPlan);
-                                                                            }}
-                                                                        >
-                                                                            <option value="sp500">S&P 500</option>
-                                                                            <option value="plus">Large Cap &gt;50B</option>
-                                                                            <option value="plusplus">Mid Cap &gt;10B</option>
-                                                                        </select>
-                                                                    </div>
-                                                                </>
+                                                                <div>
+                                                                    <label className="text-[10px] text-gray-500 font-bold uppercase tracking-wider block mb-1">Market Type</label>
+                                                                    <select
+                                                                        className="w-full bg-gray-900 border border-gray-700 rounded px-2 py-1 text-xs text-white outline-none"
+                                                                        value={step.params.market_type || "sp500"}
+                                                                        onChange={(e) => {
+                                                                            const newPlan = [...executionPlan];
+                                                                            newPlan[idx].params = { ...newPlan[idx].params, market_type: e.target.value };
+                                                                            setExecutionPlan(newPlan);
+                                                                        }}
+                                                                    >
+                                                                        <option value="sp500">S&P 500</option>
+                                                                        <option value="plus">Large Cap &gt;50B</option>
+                                                                        <option value="plusplus">Mid Cap &gt;10B</option>
+                                                                    </select>
+                                                                </div>
                                                             )}
 
                                                             {['sentiment', 'powerscore', 'fundamentals', 'quickscore'].includes(step.tool) && (

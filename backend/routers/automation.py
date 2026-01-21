@@ -5,8 +5,8 @@ from backend.schemas import (
     AutomationToggleRequest, AutomationDeleteRequest
 )
 from backend.database import (
-    verify_storage_limit, share_portfolio, get_community_portfolios, increment_portfolio_copy,
-    share_automation, get_community_automations, increment_copy_count, verify_access_and_limits
+    share_automation, get_community_automations, increment_copy_count, verify_access_and_limits,
+    delete_community_automation, delete_community_portfolio
 )
 from backend.integration.database_manager import (
     read_nexus_codes, read_portfolio_codes, save_nexus_code, save_portfolio_code, delete_code
@@ -196,7 +196,28 @@ async def api_inc_portfolio_copy(req: CopyAutomationRequest):
     increment_portfolio_copy(req.shared_id)
     return {"status": "success"}
 
-# --- AUTOMATIONS ---
+@router.post("/api/database/community/delete")
+async def api_delete_community_portfolio(req: ShareAutomationRequest):
+    # Reusing ShareAutomationRequest since it has 'username' (and 'automation' which can hold id for hack or we make a new schema)
+    # Actually ShareAutomationRequest has request.automation (dict) and username.
+    # We need the ID.
+    # Let's use a Generic Dict or specific schema.
+    # Schema: AutomationDeleteRequest only has ID.
+    # We need ID and Username.
+    # Let's use ShareAutomationRequest but pass {id: "..."} as automation?
+    # Or just use Body.
+    # Let's verify ShareAutomationRequest schema.
+    # It imports from backend.schemas.
+    pass
+
+@router.post("/api/database/community/delete-item") 
+async def api_delete_community_portfolio_real(req: dict):
+    # Using dict to avoid schema issues for now, or check schemas.
+    # Expected: { "id": "...", "username": "..." }
+    res = delete_community_portfolio(req.get('id'), req.get('username'))
+    if res['success']: return {"status": "success"}
+    raise HTTPException(status_code=403, detail=res['message'])
+
 @router.get("/api/automations")
 def get_automations_endpoint():
     return load_automations()
@@ -240,3 +261,10 @@ def api_get_community_automations(sort: str = "recent"):
 def api_inc_copy_count(req: CopyAutomationRequest):
     increment_copy_count(req.shared_id)
     return {"status": "success"}
+
+@router.post("/api/automations/community/delete")
+def api_delete_community_automation(req: dict):
+    # Expected: { "id": "...", "username": "..." }
+    res = delete_community_automation(req.get('id'), req.get('username'))
+    if res['success']: return {"status": "success"}
+    raise HTTPException(status_code=403, detail=res['message'])

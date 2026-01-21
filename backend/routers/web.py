@@ -16,7 +16,7 @@ from backend.database import (
     create_prediction, delete_prediction, get_user_bets, place_bet, update_user_heartbeat
 )
 from backend.services.orion_manager import OrionManager
-from backend.usage_counter import increment_usage, get_all_usage
+from backend.usage_counter import increment_usage, get_all_usage, get_recent_actions
 from backend.database import get_all_users_from_db
 from backend.automation_storage import load_automations
 import os
@@ -257,10 +257,16 @@ def get_usage_stats_endpoint():
 @router.post("/api/usage/increment")
 async def increment_usage_endpoint(req: UsageIncrementRequest):
     try:
-        new_val = await increment_usage(req.key)
+        new_val = await increment_usage(req.key, req.email)
         return {"status": "success", "new_value": new_val}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/api/admin/recent_actions")
+def get_recent_actions_endpoint(email: str, limit: int = 50, user_filter: str = None):
+    mods = get_mod_list()
+    if email.lower() not in mods: raise HTTPException(status_code=403, detail="Not authorized")
+    return get_recent_actions(limit, user_filter)
 
 # --- UPLOADS ---
 @router.post("/api/upload")

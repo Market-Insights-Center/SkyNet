@@ -133,19 +133,11 @@ Rules:
 2. **Context Chaining**: 
     - For commands like `sentiment`, `powerscore` use `tickers_source`.
     - If the user implies using the result of a previous step, set `tickers_source` to `"$step_N_output.top_10"`.
-3. **Final Summary**: ALWAYS end the plan with a "summary" step using "data_source": "$CONTEXT".
-4. **Format**: Return ONLY valid JSON. The JSON must be a list of steps.
-
-Example 1: "Run market scan sens 2 then sentiment on top 3"
-[
-Rules:
-1. **Break it down**: If the user asks for "market and then sentiment", that is TWO steps.
-2. **Context Chaining**: 
-    - For commands like `sentiment`, `powerscore` use `tickers_source`.
-    - If the user implies using the result of a previous step, set `tickers_source` to `"$step_N_output.top_10"`.
 3. **Defaults**: Unless specified otherwise, set `limit` to 10.
 4. **Final Summary**: ALWAYS end the plan with a "summary" step using "data_source": "$CONTEXT".
 5. **Format**: Return ONLY valid JSON. The JSON must be a list of steps.
+
+{mode_instructions}
 
 Example 1: "Run market scan sens 2 then sentiment"
 [
@@ -171,24 +163,38 @@ Example 1: "Run market scan sens 2 then sentiment"
         "description": "Summarize all findings."
     }
 ]
-
-Example 2: "Get market risk and then a briefing"
-[
-    { "step_id": 1, "tool": "risk", "params": {}, "output_key": "step_1_output", "description": "Check market risk." },
-    { "step_id": 2, "tool": "briefing", "params": {}, "output_key": "step_2_output", "description": "Get market briefing." }
-]
 """
 
-async def plan_execution(user_prompt: str) -> List[Dict[str, Any]]:
+async def plan_execution(user_prompt: str, execution_mode: str = "auto") -> List[Dict[str, Any]]:
     """
     Uses the AI Service to generate a JSON execution plan from the user prompt.
     """
-    logger.info(f"Planning execution for: {user_prompt}")
+    logger.info(f"Planning execution for: {user_prompt} (Mode: {execution_mode})")
+    
+    mode_instructions = ""
+    if execution_mode == "plan_and_review":
+        mode_instructions = """
+        MODE: PLAN AND REVIEW
+        - Be COMPREHENSIVE and DETAILED.
+        - Add extra verification steps if applicable.
+        - Break down complex tasks into granular steps.
+        - Prioritize depth of analysis over speed.
+        """
+    elif execution_mode == "quick_execute":
+        mode_instructions = """
+        MODE: QUICK EXECUTE
+        - Be CONCISE and EFFICIENT.
+        - Merge steps where possible appropriately.
+        - Focus on speed and direct results.
+        - Do not add unnecessary exploratory steps unless explicitly asked.
+        """
+    
+    formatted_system_prompt = SYSTEM_PROMPT_PLANNER.replace("{mode_instructions}", mode_instructions)
     
     try:
         response_text = await ai.generate_content(
             prompt=f"User Request: {user_prompt}",
-            system_instruction=SYSTEM_PROMPT_PLANNER,
+            system_instruction=formatted_system_prompt,
             json_mode=True
         )
         
@@ -310,7 +316,10 @@ async def execute_step(step: Dict[str, Any], context: Dict[str, Any], progress_c
              # args[0] is usually ticker
              
              # Call handler
-             res = await handler(args=[t], ai_params={"ticker": t}, is_called_by_ai=True)
+             # Merge current ticker with existing params
+             step_params = params.copy()
+             step_params["ticker"] = t
+             res = await handler(args=[t], ai_params=step_params, is_called_by_ai=True)
              results.append(res)
         
         return results
@@ -332,7 +341,7 @@ async def execute_step(step: Dict[str, Any], context: Dict[str, Any], progress_c
         logger.error(f"Step Execution Error: {e}")
         return {"error": str(e)}
 
-async def run_sentinel(user_prompt: str, plan_override: Optional[List[Dict[str, Any]]] = None) -> AsyncGenerator[Dict[str, Any], None]:
+async def run_sentinel(user_prompt: str, plan_override: Optional[List[Dict[str, Any]]] = None, execution_mode: str = "auto") -> AsyncGenerator[Dict[str, Any], None]:
     """
     Main entry point for Sentinel AI.
     1. Plan (or use override)
@@ -341,14 +350,14 @@ async def run_sentinel(user_prompt: str, plan_override: Optional[List[Dict[str, 
     """
     try:
         await increment_usage('sentinel')
-        yield {"type": "status", "message": "Analyzing request..."}
+        yield {"type": "status", "message": f"Analyzing request... (Mode: {execution_mode})"}
         
         plan = []
         if plan_override:
             plan = plan_override
             yield {"type": "status", "message": "Using provided execution plan..."}
         else:
-            plan = await plan_execution(user_prompt)
+            plan = await plan_execution(user_prompt, execution_mode=execution_mode)
             yield {"type": "plan", "plan": plan}
         
         if not plan:
@@ -445,23 +454,33 @@ async def run_sentinel(user_prompt: str, plan_override: Optional[List[Dict[str, 
                  else:
                      yield {"type": "step_result", "step_id": step_id, "result": result}
             
-        yield {"type": "status", "message": "Finalizing..."}
-        logger.info("Sentinel: Finalizing... Yielding context.")
-        
-        # Safe Context Yielding (Prevent huge payloads)
-        safe_context = {}
-        for k, v in context.items():
-            try:
-                 # Basic check using str representation length
-                 if len(str(v)) > 500000: # 500KB limit per item
-                     safe_context[k] = "Data too large for full display. Check specific step outputs."
-                     logger.warning(f"Truncated context key {k} due to size.")
-                 else:
-                     safe_context[k] = v
-            except:
-                 safe_context[k] = v
 
-        yield {"type": "final", "context": safe_context}
+            
+        # Only run finalizing step if a summary was requested
+        has_summary_step = any(s.get("tool") == "summary" for s in plan)
+        
+        if has_summary_step:
+            yield {"type": "status", "message": "Finalizing..."}
+            logger.info("Sentinel: Finalizing... Yielding context.")
+            
+            # Safe Context Yielding (Prevent huge payloads)
+            safe_context = {}
+            for k, v in context.items():
+                try:
+                     # Basic check using str representation length
+                     if len(str(v)) > 500000: # 500KB limit per item
+                         safe_context[k] = "Data too large for full display. Check specific step outputs."
+                         logger.warning(f"Truncated context key {k} due to size.")
+                     else:
+                         safe_context[k] = v
+                except:
+                     safe_context[k] = v
+
+            yield {"type": "final", "context": safe_context}
+        else:
+            logger.info("Sentinel: No summary step, skipping finalization.")
+            # Even without Final context, we should ensure frontend knows we are done.
+            # The generator exit handles that naturally.
         
     except Exception as e:
         logger.error(f"Sentinel Global Crash: {e}")

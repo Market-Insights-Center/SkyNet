@@ -81,7 +81,7 @@ const ListView = ({ codes, startNew, startEditing, handleDelete, handleShare }) 
     </div >
 );
 
-const CommunityView = ({ communityCodes, sort, setSort, handleImport }) => (
+const CommunityView = ({ communityCodes, sort, setSort, handleImport, userProfile, handleDeleteCommunity }) => (
     <div className="space-y-6 animate-in fade-in duration-500">
         <div className="flex justify-between items-center border-b border-gray-800 pb-4">
             <h2 className="text-3xl font-bold text-white flex items-center gap-3">
@@ -113,6 +113,14 @@ const CommunityView = ({ communityCodes, sort, setSort, handleImport }) => (
                     >
                         <Plus size={16} /> Import to My Database
                     </button>
+                    {userProfile?.username === code.creator && (
+                        <button
+                            onClick={() => handleDeleteCommunity(code)}
+                            className="w-full mt-2 py-2 bg-red-900/20 hover:bg-red-500 hover:text-white text-red-500 rounded-lg transition-colors font-bold text-sm flex items-center justify-center gap-2"
+                        >
+                            <Trash2 size={16} /> Delete from Community
+                        </button>
+                    )}
                 </div>
             ))}
             {communityCodes.length === 0 && (
@@ -343,6 +351,32 @@ const DatabaseNodes = () => {
         }
     };
 
+
+
+    const handleDeleteCommunity = async (code) => {
+        const username = userProfile?.username;
+        if (!username || code.creator !== username) return;
+        if (!confirm(`Delete "${code.code}" from Community?`)) return;
+
+        try {
+            const res = await fetch('/api/database/community/delete-item', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id: code.id, username })
+            });
+            if (res.ok) {
+                alert("Deleted successfully.");
+                fetchCommunity();
+            } else {
+                const d = await res.json();
+                alert(d.detail || "Failed to delete.");
+            }
+        } catch (e) {
+            console.error(e);
+            alert("Error deleting.");
+        }
+    };
+
     const handleImport = async (sharedCode) => {
         // Increment count
         fetch('/api/database/copy-count', {
@@ -508,6 +542,8 @@ const DatabaseNodes = () => {
                     sort={communitySort}
                     setSort={setCommunitySort}
                     handleImport={handleImport}
+                    userProfile={userProfile}
+                    handleDeleteCommunity={handleDeleteCommunity}
                 />
             )}
             {viewMode === 'editor' && (

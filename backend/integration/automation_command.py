@@ -179,6 +179,7 @@ async def process_automation(auto):
             
     processed_nodes = set() # To prevent loops or double execution of Actions
     node_map = {n['id']: n for n in nodes}
+    actions_executed = False # Track if any action action actually fired
 
     while queue:
         item = queue.pop(0)
@@ -253,8 +254,23 @@ async def process_automation(auto):
             if signal:
                 if target_id not in processed_nodes:
                     processed_nodes.add(target_id)
-                    await increment_usage('automations_run') # Increment usage when an action is triggered
-                    await execute_action(target_node, nodes, edges, auto.get('user_email'))
+                    try:
+                        await increment_usage('automations_run') # Increment usage when an action is triggered
+                        await execute_action(target_node, nodes, edges, auto.get('user_email'))
+                        actions_executed = True
+                    except Exception as e:
+                        print(f"   [AUTOMATION] Action Failed: {e}")
+
+    
+    # 3. Save State if Actions Executed
+    if actions_executed:
+        auto['last_run'] = datetime.now().isoformat()
+        try:
+            from backend.automation_storage import save_automation
+            save_automation(auto)
+            print(f"   [AUTOMATION] Saved timestamp for {auto.get('name')}")
+        except Exception as e:
+            print(f"   [AUTOMATION] Failed to save timestamp: {e}")
 
 
 async def evaluate_condition(node):
@@ -270,11 +286,41 @@ async def evaluate_condition(node):
 
         # --- RISK ---
         if c_type == 'risk':
-            metric = data.get('metric', 'general')
-            # For now, placeholder or fetch from cache
-            # If we want to support 'market' vs 'general', we need real data.
-            # Assuming 50 neutral for now to prevent crashes.
-            current_val = 50 
+            metric = data.get('metric', 'market') # Default to 'market' (Market Invest Score) as per user graph
+            
+            # Fetch real scores
+            # Using tuple unpacking from calculate_risk_scores_singularity:
+            # general_score, large_cap_score, ema_score_val_risk, combined_score, spy_live_price, vix_live_price
+            
+            try:
+                scores = await risk_command.calculate_risk_scores_singularity(is_called_by_ai=True)
+                if not scores or scores[0] is None:
+                    print("[EVAL] Risk calculation returned None")
+                    return False
+                
+                general, large, ema, combined, spy, vix = scores
+                
+                # Fetch advanced metrics if needed (Recession/Market Invest Score)
+                # For basic metrics, we have them. For Market Invest Score (MIS), we need extra steps.
+                current_val = 0
+                
+                if metric == 'general': current_val = general
+                elif metric == 'large_cap': current_val = large
+                elif metric == 'ema': current_val = ema
+                elif metric == 'combined': current_val = combined
+                elif metric == 'market':
+                     # Need MIS
+                     l_ema = await asyncio.to_thread(risk_command.calculate_recession_likelihood_ema_risk, is_called_by_ai=True)
+                     l_vix = risk_command.calculate_recession_likelihood_vix_risk(vix, is_called_by_ai=True)
+                     _, capped_mis, _ = risk_command.calculate_market_invest_score_risk(l_vix, l_ema, is_called_by_ai=True)
+                     current_val = capped_mis if capped_mis is not None else 0
+                
+                print(f"   [EVAL] Risk Metric '{metric}' = {current_val:.2f}")
+
+            except Exception as e:
+                print(f"   [EVAL ERROR] Risk fetch failed: {e}")
+                traceback.print_exc()
+                current_val = 0 
 
         # --- PRICE ---
         elif c_type == 'price':

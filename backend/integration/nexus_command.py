@@ -545,9 +545,15 @@ async def handle_nexus_command(args: List[str], ai_params: Optional[Dict] = None
             try: rh_equity = await asyncio.to_thread(get_robinhood_equity)
             except: pass
             
-        total_value = float(ai_params.get("total_value") or 10000)
-        if rh_equity > 0 and (not ai_params.get("total_value")):
-             total_value = math.floor(rh_equity * 0.98)
+        total_value = float(ai_params.get("total_value") or 0)
+        
+        # If executing on RH and no manual value provided, use RH Equity
+        if execute_rh and total_value <= 0 and rh_equity > 0:
+             print(f"[DEBUG NEXUS] No manual total_value provided. Using RH Equity: ${rh_equity}")
+             total_value = math.floor(rh_equity * 0.98) # Safety buffer
+        elif total_value <= 0:
+             # Fail gracefully if no value could be determined
+             return {"status": "error", "message": "No portfolio value provided and unable to fetch Robinhood equity. Execution aborted."}
 
         # Process Target
         new_holdings, new_cash_unadjusted = await process_nexus_portfolio(config, total_value, nexus_code, ai_params, progress_callback)
