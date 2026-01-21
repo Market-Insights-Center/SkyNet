@@ -113,7 +113,7 @@ const CommunityView = ({ communityCodes, sort, setSort, handleImport, userProfil
                     >
                         <Plus size={16} /> Import to My Database
                     </button>
-                    {userProfile?.username === code.creator && (
+                    {((userProfile?.username || '').toLowerCase() === (code.creator || '').toLowerCase()) && (
                         <button
                             onClick={() => handleDeleteCommunity(code)}
                             className="w-full mt-2 py-2 bg-red-900/20 hover:bg-red-500 hover:text-white text-red-500 rounded-lg transition-colors font-bold text-sm flex items-center justify-center gap-2"

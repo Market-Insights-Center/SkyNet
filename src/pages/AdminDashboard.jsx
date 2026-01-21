@@ -813,12 +813,21 @@ const AdminDashboard = () => {
                                                     <span className="font-mono text-gold font-bold">{log.action.toUpperCase()}</span>
                                                 </td>
                                                 <td className="p-4 text-gray-300">
-                                                    <div className="flex items-center gap-2">
-                                                        <div className="w-6 h-6 rounded-full bg-gradient-to-br from-gold/50 to-transparent flex items-center justify-center text-xs font-bold text-white">
-                                                            {log.user.slice(0, 1).toUpperCase()}
-                                                        </div>
-                                                        {log.user}
-                                                    </div>
+                                                    {(() => {
+                                                        const userEntry = users.find(u => u.email === log.user);
+                                                        const username = userEntry?.username || 'Unknown';
+                                                        return (
+                                                            <div className="flex items-center gap-3">
+                                                                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-gold/20 to-gold/5 flex items-center justify-center text-xs font-bold text-gold border border-gold/20">
+                                                                    {(username !== 'Unknown' ? username : log.user).slice(0, 2).toUpperCase()}
+                                                                </div>
+                                                                <div>
+                                                                    <div className="font-bold text-white text-sm">{username !== 'Unknown' ? username : 'Guest/System'}</div>
+                                                                    <div className="text-xs text-gray-500">{log.user}</div>
+                                                                </div>
+                                                            </div>
+                                                        );
+                                                    })()}
                                                 </td>
                                                 <td className="p-4 text-sm text-gray-400 font-mono">
                                                     {new Date(log.timestamp).toLocaleTimeString()}

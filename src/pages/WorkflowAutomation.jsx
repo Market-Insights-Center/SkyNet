@@ -638,8 +638,23 @@ const WorkflowAutomation = () => {
                                             <div className="p-3 bg-blue-500/10 rounded-lg text-blue-400">
                                                 <Globe size={24} />
                                             </div>
-                                            <div className="flex items-center gap-1 bg-gray-800 px-2 py-1 rounded text-xs text-gray-400">
-                                                <Layers size={12} /> {auto.copy_count || 0} Copies
+                                            <div className="flex items-start gap-2">
+                                                {/* Creator Actions: Delete from Community */
+                                                    ((userProfile?.username || '').toLowerCase() === (auto.creator || '').toLowerCase()) && (
+                                                        <button
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                handleCommunityDelete(auto);
+                                                            }}
+                                                            className="p-1.5 text-red-500 hover:text-white hover:bg-red-500 rounded transition-colors"
+                                                            title="Remove from Community"
+                                                        >
+                                                            <Trash2 size={16} />
+                                                        </button>
+                                                    )}
+                                                <div className="flex items-center gap-1 bg-gray-800 px-2 py-1 rounded text-xs text-gray-400 h-fit">
+                                                    <Layers size={12} /> {auto.copy_count || 0} Copies
+                                                </div>
                                             </div>
                                         </div>
                                         <h3 className="text-xl font-bold mb-1">{auto.name}</h3>
@@ -671,7 +686,7 @@ const WorkflowAutomation = () => {
                     onClose={() => setShowUpgradeModal(false)}
                     featureName={upgradeFeature}
                 />
-            </div>
+            </div >
         );
     }
 

@@ -129,8 +129,8 @@ def log_recent_action(action: str, user_email: str):
     except Exception as e:
         print(f"Error logging recent action: {e}")
 
-def get_recent_actions(limit: int = 50, user_filter: str = None):
-    """Returns the list of recent actions, optionally filtered."""
+def get_recent_actions(limit: int = 50, user_filter = None):
+    """Returns the list of recent actions, optionally filtered. user_filter can be str or list."""
     if not os.path.exists(RECENT_ACTIONS_FILE):
         return []
     try:
@@ -139,8 +139,12 @@ def get_recent_actions(limit: int = 50, user_filter: str = None):
             
         # Filter by user if provided
         if user_filter:
-            user_filter = user_filter.lower()
-            actions = [a for a in actions if user_filter in a.get('user', '').lower()]
+            if isinstance(user_filter, list):
+                filters = [f.lower() for f in user_filter]
+                actions = [a for a in actions if any(f in a.get('user', '').lower() for f in filters)]
+            else:
+                f_str = str(user_filter).lower()
+                actions = [a for a in actions if f_str in a.get('user', '').lower()]
             
         # Apply limit
         return actions[:limit]

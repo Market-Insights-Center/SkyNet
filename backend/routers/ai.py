@@ -45,7 +45,7 @@ async def api_invest(request: Request):
             if not limit_check["allowed"]:
                 raise HTTPException(status_code=403, detail=limit_check["message"])
         result = await invest_command.handle_invest_command([], ai_params=data, is_called_by_ai=True)
-        await increment_usage("invest")
+        await increment_usage("invest", email)
         return result
     except HTTPException: raise
     except Exception as e:
@@ -62,7 +62,7 @@ async def api_cultivate(request: Request):
              if not limit_check["allowed"]:
                  raise HTTPException(status_code=403, detail=limit_check["message"])
         result = await cultivate_command.handle_cultivate_command([], ai_params=data, is_called_by_ai=True)
-        await increment_usage("cultivate")
+        await increment_usage("cultivate", email)
         return result
     except HTTPException: raise
     except Exception as e:
@@ -74,7 +74,7 @@ async def api_custom(request: Request):
     try:
         data = await request.json()
         result = await custom_command.handle_custom_command([], ai_params=data, is_called_by_ai=True)
-        await increment_usage("custom")
+        await increment_usage("custom", data.get('email'))
         return result
     except HTTPException: raise
     except Exception as e:
@@ -91,7 +91,7 @@ async def api_tracking(request: Request):
              if not limit_check["allowed"]:
                  raise HTTPException(status_code=403, detail=limit_check["message"])
         result = await tracking_command.handle_tracking_command([], ai_params=data, is_called_by_ai=True)
-        await increment_usage("tracking")
+        await increment_usage("tracking", email)
         return result
     except HTTPException: raise
     except Exception as e:
@@ -104,7 +104,7 @@ async def api_risk(email: str = "guest"):
         limit_check = verify_access_and_limits(email, "risk")
     try:
         result, _ = await risk_command.perform_risk_calculations_singularity(is_eod_save=False, is_called_by_ai=True)
-        await increment_usage("risk")
+        await increment_usage("risk", email)
         return result
     except HTTPException: raise
     except Exception as e:
@@ -117,7 +117,7 @@ async def api_history(email: str = "guest"):
         limit_check = verify_access_and_limits(email, "history")
     try:
         result = await history_command.handle_history_command([], is_called_by_ai=True)
-        await increment_usage("history")
+        await increment_usage("history", email)
         return result
     except HTTPException: raise
     except Exception as e:
@@ -131,7 +131,7 @@ async def api_quickscore(req: QuickscoreRequest):
         if not limit_check["allowed"]:
             raise HTTPException(status_code=403, detail=limit_check["message"])
     result = await quickscore_command.handle_quickscore_command([], ai_params={"ticker": req.ticker}, is_called_by_ai=True)
-    await increment_usage("quickscore")
+    await increment_usage("quickscore", req.email)
     return result
 
 @router.post("/api/market")
@@ -143,6 +143,7 @@ async def run_market(req: MarketRequest):
         [], ai_params={"action": "display", "market_type": req.market_type, "sensitivity": req.sensitivity},
         is_called_by_ai=True
     )
+    await increment_usage("market", req.email)
     return result
 
 @router.post("/api/breakout")
@@ -152,6 +153,7 @@ async def run_breakout(req: BreakoutRequest):
         if not limit_check["allowed"]:
             raise HTTPException(status_code=403, detail=limit_check["message"])
     result = await breakout_command.handle_breakout_command([], ai_params={"action": "run"}, is_called_by_ai=True)
+    await increment_usage("breakout", req.email)
     return result
 
 @router.post("/api/sentiment")
@@ -161,6 +163,7 @@ async def run_sentiment(req: SentimentRequest):
     result = await sentiment_command.handle_sentiment_command(ai_params={"ticker": req.ticker}, is_called_by_ai=True)
     if not result: raise HTTPException(status_code=500, detail="Sentiment analysis failed.")
     if result.get("status") == "error": raise HTTPException(status_code=400, detail=result.get("message"))
+    await increment_usage("sentiment", req.email)
     return result
 
 @router.post("/api/powerscore")
@@ -174,13 +177,14 @@ async def run_powerscore(req: PowerScoreRequest):
     )
     if not result: raise HTTPException(status_code=500, detail="PowerScore analysis failed.")
     if result.get("status") == "error": raise HTTPException(status_code=400, detail=result.get("message"))
+    await increment_usage("powerscore", req.email)
     return result
 
 @router.post("/api/summary")
 async def run_summary(req: SummaryRequest):
     if req.email != 'guest':
         limit_check = verify_access_and_limits(req.email, "summary")
-    await increment_usage("summary")
+    await increment_usage("summary", req.email)
     return await summary_command.handle_summary_command(ai_params={"ticker": req.ticker}, is_called_by_ai=True)
 
 @router.post("/api/briefing")
@@ -190,6 +194,7 @@ async def api_briefing(req: BriefingRequest):
         raise HTTPException(status_code=403, detail=access["message"])
     try:
         data = await briefing_command.handle_briefing_command([], is_called_by_ai=True)
+        await increment_usage("briefing", req.email)
         return data
     except Exception as e:
         logger.error(f"Briefing Error: {e}")
@@ -202,6 +207,7 @@ async def api_fundamentals(req: FundamentalsRequest):
         raise HTTPException(status_code=403, detail=access["message"])
     try:
         data = await fundamentals_command.handle_fundamentals_command([], ai_params={"ticker": req.ticker}, is_called_by_ai=True)
+        await increment_usage("fundamentals", req.email)
         if data and "error" in data:
              raise HTTPException(status_code=404, detail=data["error"])
         return data
@@ -232,6 +238,7 @@ async def api_assess_command(req: AssessRequest):
         result = await assess_command.handle_assess_command(
             [], ai_params=ai_params, is_called_by_ai=True, user_id=req.user_id
         )
+        await increment_usage("assess", req.email)
         return {"result": result}
     except Exception as e:
         logger.error(f"Assess Error: {e}")
@@ -246,7 +253,13 @@ async def api_mlforecast_command(req: MLForecastRequest):
         results = await mlforecast_command.handle_mlforecast_command(ai_params={"ticker": req.ticker}, is_called_by_ai=True)
         if isinstance(results, dict) and "error" in results:
              raise Exception(results["error"])
+        await increment_usage("mlforecast", req.email)
         return {"results": results}
+        results = await mlforecast_command.handle_mlforecast_command(ai_params={"ticker": req.ticker}, is_called_by_ai=True)
+        if isinstance(results, dict) and "error" in results:
+             raise Exception(results["error"])
+        return {"results": results}
+        await increment_usage("mlforecast", req.email)
     except Exception as e:
         logger.error(f"MLForecast Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))

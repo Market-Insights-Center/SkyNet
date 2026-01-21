@@ -266,7 +266,19 @@ async def increment_usage_endpoint(req: UsageIncrementRequest):
 def get_recent_actions_endpoint(email: str, limit: int = 50, user_filter: str = None):
     mods = get_mod_list()
     if email.lower() not in mods: raise HTTPException(status_code=403, detail="Not authorized")
-    return get_recent_actions(limit, user_filter)
+    
+    filters = user_filter
+    if user_filter:
+        # Resolve username to emails
+        try:
+            users = get_all_users_from_db()
+            matched_emails = [u['email'] for u in users if user_filter.lower() in (u.get('username') or '').lower()]
+            # Combine original filter (as partial email) + matched emails
+            filters = list(set([user_filter] + matched_emails))
+        except:
+             filters = user_filter
+
+    return get_recent_actions(limit, filters)
 
 # --- UPLOADS ---
 @router.post("/api/upload")
