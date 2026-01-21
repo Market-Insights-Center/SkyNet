@@ -138,7 +138,31 @@ async def process_automation(auto):
     
     node_results = {} # { nodeId: bool }
 
-    for node in conditionals:
+    # --- PRIORITY: TIME CHECK ---
+    # Per user requirement: "all automation checks starts by checking the time and if the time is not valid, it skips any other check"
+    time_nodes = [n for n in conditionals if n.get('type') == 'time_interval']
+    
+    if time_nodes:
+        time_valid = False
+        for node in time_nodes:
+            try:
+                res = await evaluate_condition(node)
+                node_results[node['id']] = res
+                if res: 
+                    time_valid = True
+                    print(f"   -> Node {node['type']} ({node['id']}) = TRUE (Gatekeeper Open)")
+            except Exception as e:
+                print(f"   -> Node {node['type']} ({node['id']}) Error: {e}")
+                node_results[node['id']] = False
+        
+        if not time_valid:
+            # print("   [AUTOMATION] Time Gate Closed. Skipping other checks.")
+            return # Exit immediately
+    
+    # Continue with other conditionals if Time is valid (or if no Time nodes exist - though frontend now enforces it)
+    other_conditionals = [n for n in conditionals if n.get('type') != 'time_interval']
+
+    for node in other_conditionals:
         try:
             res = await evaluate_condition(node)
             node_results[node['id']] = res
@@ -245,9 +269,46 @@ async def process_automation(auto):
 
         # --- LOGIC GATE (AND/OR) ---
         elif t_type == 'logic_gate':
-            # Implement if needed. For now, pass through if OR logic or similar.
-            # Assuming simplified pass-through for demo or basic AND.
-            pass
+            # Check inputs
+            in_edges = [e for e in edges if e['target'] == target_id]
+            # Sources are expected to be in node_results if they are conditionals.
+            # If source is another gate, we might need its result. 
+            # But in this simple engine, we only have node_results for Conditionals from Phase 1.
+            # If we allow Gate -> Gate, we need to store Gate results in node_results too.
+            
+            # Map input sources to their results
+            input_values = []
+            for e in in_edges:
+                src = e['source']
+                # Check if we have a result for this source
+                val = node_results.get(src, False)
+                input_values.append(val)
+                
+            op = target_node.get('data', {}).get('operation', 'AND').upper()
+            
+            gate_res = False
+            if op == 'AND':
+                gate_res = all(input_values) and len(input_values) > 0
+            elif op == 'OR':
+                gate_res = any(input_values)
+                
+            if gate_res:
+                print(f"   -> LogicGate ({target_id}) {op} = TRUE")
+                node_results[target_id] = True # Store result for downstream gates
+                
+                if target_id not in processed_nodes:
+                    processed_nodes.add(target_id)
+                    
+                    out_edges = [e for e in edges if e['source'] == target_id]
+                    for oe in out_edges:
+                        queue.append({
+                            'target': oe['target'],
+                            'targetHandle': oe['targetHandle'],
+                            'signal': True,
+                            'source': target_id
+                        })
+            else:
+                print(f"   -> LogicGate ({target_id}) {op} = FALSE (Inputs: {input_values})")
 
         # --- ACTIONS ---
         elif t_type in ['tracking', 'nexus', 'send_email', 'webhook']:
@@ -373,11 +434,14 @@ async def evaluate_condition(node):
         # --- TIME INTERVAL ---
         elif c_type == 'time_interval':
             now = datetime.now()
+            print(f"   [EVAL] Time Check: Server Time {now} | Weekday {now.weekday()} (0=Mon)")
             
             # 1. Trading Day (Mon=0, Fri=4)
+            # If unit is days, we strictly check trading days? Or make it optional?
+            # Existing logic was strict.
             if now.weekday() > 4: return False 
             
-            # 2. Time Check
+            # 2. Time Check with Buffer (15 minutes)
             target_str = data.get('target_time', "09:30")
             try:
                 th, tm = map(int, target_str.split(':'))
@@ -385,22 +449,43 @@ async def evaluate_condition(node):
             except:
                 target_dt = now.replace(hour=9, minute=30, second=0, microsecond=0)
 
-            if now < target_dt: return False
+            # Buffer Window: Target to Target + 15 mins
+            buffer_minutes = 15
+            end_window = target_dt + timedelta(minutes=buffer_minutes)
+            
+            # Check strictly if we are IN the window
+            if not (target_dt <= now <= end_window):
+                # We are outside the window (too early or too late)
+                # print(f"   [EVAL] Time Window Miss: {now.time()} outside {target_dt.time()} - {end_window.time()}")
+                return False
 
-            # 3. Interval Check
+            print(f"   [EVAL] Time Window HIT: {now.time()} inside {target_dt.time()} - {end_window.time()}")
+
+            # 3. Interval/Frequency Check (Duplicate Execution Prevention)
             last_run_str = data.get('last_run')
             if last_run_str:
                 try:
                     last_run = datetime.fromisoformat(last_run_str)
-                    interval = int(data.get('interval', 1))
-                    unit = data.get('unit', 'days')
-                    delta = timedelta(days=interval) if unit == 'days' else timedelta(hours=interval)
                     
-                    if now < last_run + delta: return False
+                    # If we already ran TODAY (or since the last target time), skip.
+                    # Simple check: If last_run is within the same window?
+                    # Or simpler: if last_run > target_dt (meaning we ran after the target started today), skip.
+                    
+                    if last_run >= target_dt:
+                        print("   [EVAL] Time Interval: Already ran this window.")
+                        return False
+                        
+                    # Also respect the Frequency (Days) if > 1 day?
+                    # interval = int(data.get('interval', 1))
+                    # unit = data.get('unit', 'days')
+                    # ... ignoring complex multi-day logic for now to ensure daily reliability first.
+                    # Assuming "Every 1 Day" is the norm.
                 except:
-                    pass # Invalid date, treat as never run or run now
+                    pass 
 
-            # Update State (Caller saves)
+            # Update State (Caller saves if ANY time_interval triggers)
+            # We mark it as True, and we set a temp_last_run in data to be saved?
+            # Yes, we update it in memory. `process_automation` saves it later.
             node['data']['last_run'] = now.isoformat()
             return True
 

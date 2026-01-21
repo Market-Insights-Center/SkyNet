@@ -199,7 +199,19 @@ def calculate_ema_score_risk(ticker: str ="SPY", is_called_by_ai: bool = False) 
         risk_logger.info(f"[RISK_DEBUG] FAILED EMA score calculation for {ticker}: {e}")
         return None
 
+# --- CACHE GLOBAL ---
+RISK_SCORE_CACHE = {
+    "data": None,
+    "timestamp": None
+}
+
 async def calculate_risk_scores_singularity(is_called_by_ai: bool = False) -> tuple:
+    # Check Memory Cache (Validity: 10 minutes)
+    if RISK_SCORE_CACHE["data"] and RISK_SCORE_CACHE["timestamp"]:
+        if datetime.now() - RISK_SCORE_CACHE["timestamp"] < timedelta(minutes=10):
+            # risk_logger.info("[RISK_DEBUG] Returning Cached Risk Scores")
+            return RISK_SCORE_CACHE["data"]
+
     
     sp500_symbols = get_sp500_symbols_singularity()
     sp100_symbols = get_sp100_symbols_risk()
@@ -247,7 +259,13 @@ async def calculate_risk_scores_singularity(is_called_by_ai: bool = False) -> tu
     large_cap_score = np.clip(((3*oex20_score)+oex50_score+(2*s1fd_score)+s1tw_score)/7.0, 0, 100)
     combined_score = np.clip((general_score + large_cap_score + ema_score_val_risk) / 3.0, 0, 100)
     
-    return general_score, large_cap_score, ema_score_val_risk, combined_score, spy_live_price, vix_live_price
+    result_tuple = (general_score, large_cap_score, ema_score_val_risk, combined_score, spy_live_price, vix_live_price)
+    
+    # Update Cache
+    RISK_SCORE_CACHE["data"] = result_tuple
+    RISK_SCORE_CACHE["timestamp"] = datetime.now()
+    
+    return result_tuple
 
 def calculate_recession_likelihood_ema_risk(ticker:str ="SPY", interval:str ="1mo", period:str ="5y", is_called_by_ai: bool = False) -> Optional[float]:
     try:

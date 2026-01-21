@@ -192,6 +192,14 @@ const WorkflowAutomation = () => {
 
 
     const deleteNode = (id) => {
+        const node = nodes.find(n => n.id === id);
+        if (node && node.type === 'time_interval') {
+            const timeNodes = nodes.filter(n => n.type === 'time_interval');
+            if (timeNodes.length <= 1) {
+                alert("Cannot delete the last Time Module. Automations require at least one time trigger.");
+                return;
+            }
+        }
         setNodes(nodes.filter(n => n.id !== id));
         setEdges(edges.filter(e => e.source !== id && e.target !== id));
     };
@@ -209,8 +217,14 @@ const WorkflowAutomation = () => {
         console.log("Validating Automation...");
         const conditionals = nodes.filter(n => ['risk', 'price', 'percentage', 'time_interval', 'sentinel_trigger'].includes(n.type));
         const actions = nodes.filter(n => ['tracking', 'nexus', 'send_email', 'webhook'].includes(n.type));
+        const timeNodes = nodes.filter(n => n.type === 'time_interval');
 
         console.log("Conditionals:", conditionals.length, "Actions:", actions.length);
+
+        if (timeNodes.length === 0) {
+            alert("Error: Automation must have at least one Time Interval module.");
+            return;
+        }
 
         if (conditionals.length === 0) {
             alert("Error: Automation must have a Conditional block.");
@@ -540,7 +554,15 @@ const WorkflowAutomation = () => {
                         </div>
                         <button
                             onClick={() => {
-                                setNodes([]); setEdges([]);
+                                const timeNodeId = Date.now().toString();
+                                const timeNode = {
+                                    id: timeNodeId,
+                                    type: 'time_interval',
+                                    position: { x: 100, y: 100 },
+                                    data: { interval: 1, unit: 'days', target_time: '09:30', last_run: null }
+                                };
+                                setNodes([timeNode]);
+                                setEdges([]);
                                 setCurrentAuto({ id: Date.now().toString(), name: 'New Automation', active: false });
                             }}
                             className="flex items-center gap-2 bg-gradient-to-r from-purple-600 to-blue-600 px-6 py-3 rounded-xl font-bold hover:shadow-[0_0_20px_rgba(168,85,247,0.4)] transition-all"
