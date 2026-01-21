@@ -708,7 +708,7 @@ async def handle_nexus_command(args: List[str], ai_params: Optional[Dict] = None
         rebal_res = await asyncio.to_thread(
             execute_portfolio_rebalance,
             trades=rebal_trades,
-            execute=False # ALWAYS FALSE INITIALLY - Defer to frontend button
+            execute=execute_rh # Execute if requested by Automation/AI
         )
 
         # Check if we SHOULD offer execution (Triggers frontend button)

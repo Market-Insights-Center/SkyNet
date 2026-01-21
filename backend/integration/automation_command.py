@@ -511,9 +511,9 @@ async def evaluate_condition(node):
 
 
 async def execute_action(node, nodes, edges, user_email):
+    # Unified Execution Logic
     try:
         # 1. Gather Info from attached Condition/Info blocks
-        # Direction: Info Block -> Action Block
         connected_sources = get_connected_nodes(node['id'], nodes, edges, direction="target_to_source")
         
         email_info = None
@@ -528,56 +528,79 @@ async def execute_action(node, nodes, edges, user_email):
         a_type = node.get('type')
         data = node.get('data', {})
 
-        # --- TRACKING / NEXUS ---
-        if a_type in ['tracking', 'nexus']:
-            # ... (Existing logic for tracking/nexus - preserving calls) ...
-            # Since I assume this logic exists in other files or simple calls:
-            # Re-implementing simplified call based on imports
-            
-            # Extract Args
-            code = data.get('code')
-            value = float(data.get('value', 0))
-            use_rh = 'robinhood' in data.get('actions', [])
-            send_email_flag = 'email' in data.get('actions', [])
-            
-            if not code: return
+        # 2. Prepare Parameters (Safe Conversion)
+        code = data.get('code')
+        val_raw = data.get('value')
+        # Safe float conversion handling empty strings
+        value = float(val_raw) if val_raw and str(val_raw).strip() else 0.0
+        
+        fractional = data.get('fractional', False)
+        # Handle 'actions' list (e.g. ['email', 'robinhood'])
+        actions = data.get('actions', []) 
+        
+        ai_params = {
+            'total_value': value,
+            'use_fractional_shares': fractional,
+            'execute_rh': 'robinhood' in actions,
+            'send_email': 'email' in actions,
+            'overwrite': 'overwrite' in actions,
+            'email_to': email_info if email_info else user_email,
+            'rh_user': rh_info.get('email') if rh_info else None,
+            'rh_pass': rh_info.get('password') if rh_info else None
+        }
 
-            print(f"   [ACTION] Executing {a_type.upper()} on {code} (${value})")
-            
-            # Call Commands
-            if a_type == 'tracking':
-                await tracking_command.handle_tracking_command(
-                    args=[code, str(value)], 
-                    user_email=user_email
-                    # Add RH flags if supported by command args
-                )
-            elif a_type == 'nexus':
-                # nexus logic...
-                # Assuming nexus_command is imported (it wasn't in imports block, checking imports...)
-                # It is imported dynamically or earlier. 
-                # Let's use dynamic import to be safe if not present.
-                from backend.integration import nexus_command
+        print(f"   [ACTION] Executing {a_type} (Code: {code}, Val: {value})")
+
+        # 3. Dispatch Command
+        if a_type == 'nexus':
+            if code:
+                ai_params['nexus_code'] = code
+                # Call Nexus Command
+                # Ensure nexus_command is imported
+                try:
+                    from backend.integration import nexus_command
+                except ImportError:
+                    from integration import nexus_command
+                    
                 await nexus_command.handle_nexus_command(
-                    args=[code, str(value)],
-                    user_email=user_email
+                    args=[], 
+                    ai_params=ai_params, 
+                    is_called_by_ai=True
                 )
+            else:
+                print("   [ACTION ERROR] Nexus execution skipped: No code provided.")
 
-        # --- SEND EMAIL ---
+        elif a_type == 'tracking':
+            if code:
+                ai_params['portfolio_code'] = code
+                try:
+                    from backend.integration import tracking_command
+                except ImportError:
+                    from integration import tracking_command
+                    
+                await tracking_command.handle_tracking_command(
+                    args=[], 
+                    ai_params=ai_params
+                )
+            else:
+                print("   [ACTION ERROR] Tracking execution skipped: No code provided.")
+
         elif a_type == 'send_email':
-            target_email = email_info if email_info else user_email
-            subject = data.get('subject', 'SkyNet Alert')
-            body = "Your automation triggered an alert."
+            subject = data.get('subject', 'SkyNet Automation Alert')
+            body = f"Your automation logic was triggered.\n\nTrigger Block ID: {node.get('id')}\nAction: Send Email"
+            recipient = email_info if email_info else user_email
             
-            if target_email:
+            if recipient:
+                print(f"   [ACTION] Sending Email to {recipient}")
                 try:
                     from backend.integration import monitor_command
-                    # Sending via monitor_command or direct?
-                    # monitor_command has send_email helper usually.
-                    # Or use basic implementation.
-                    print(f"   [ACTION] Sending Email to {target_email}: {subject}")
-                except: pass
+                except ImportError:
+                    from cli_commands import monitor_command
+                    
+                await monitor_command.send_notification(subject, body, to_emails=[recipient])
+            else:
+                print("   [ACTION] Email skipped: No recipient found.")
 
-        # --- WEBHOOK ---
         elif a_type == 'webhook':
             url = data.get('url')
             platform = data.get('platform')
@@ -587,66 +610,17 @@ async def execute_action(node, nodes, edges, user_email):
                 payload = {}
                 if platform == 'discord':
                     payload = {"content": message}
-                elif platform == 'slack':
+                else: # slack/generic
                     payload = {"text": message}
-                else: 
-                     payload = {"text": message}
 
                 import aiohttp
                 async with aiohttp.ClientSession() as session:
                     async with session.post(url, json=payload) as resp:
                         print(f"   [WEBHOOK] Sent to {platform} ({resp.status})")
+            else:
+                 print("   [ACTION] Webhook skipped: No URL provided.")
 
     except Exception as e:
-        print(f"[ACTION ERROR] {e}")
-
-    data = node.get('data', {})
-    
-    # args construction for commands
-    # Tracking: `Tracking [Code] [$] [Fractional?] [Actions]`
-    # Nexus: `Nexus [Code] [$] [Fractional?] [Actions]`
-    
-    code = data.get('code')
-    value = float(data.get('value', 0))
-    fractional = data.get('fractional', False)
-    actions = data.get('actions', []) # List of strings: 'overwrite', 'email', 'robinhood'
-    
-    ai_params = {
-        'total_value': value,
-        'use_fractional_shares': fractional,
-        'execute_rh': 'robinhood' in actions,
-        'send_email': 'email' in actions,
-        'overwrite': 'overwrite' in actions,
-        'email_to': email_info, # Might use user_email if None
-        'rh_user': rh_info.get('email') if rh_info else None,
-        'rh_pass': rh_info.get('password') if rh_info else None
-    }
-    
-    # Add code to params
-    if node.get('type') == 'nexus':
-        ai_params['nexus_code'] = code
-        await nexus_command.handle_nexus_command([], ai_params=ai_params, is_called_by_ai=True)
-        
-    elif node.get('type') == 'tracking':
-        # tracking_command might expect slightly different params
-        # checking tracking_command.py (implied)
-        # usually handles port_code
-        ai_params['portfolio_code'] = code 
-        # Assuming handle_tracking_command signature is similar
-        await tracking_command.handle_tracking_command([], ai_params=ai_params)
-    
-    elif node.get('type') == 'send_email':
-        subject = data.get('subject', 'SkyNet Automation Alert')
-        # Construct body
-        body = f"Your automation logic was triggered.\n\nTrigger Block ID: {node.get('id')}\nAction: Send Email"
-        
-        # Use connected email info or fallback to user_email of automation owner
-        recipient = email_info if email_info else user_email
-        
-        if recipient:
-            print(f"[AUTOMATION] Sending Email to {recipient}")
-            # send_notification expects list of emails
-            await monitor_command.send_notification(subject, body, to_emails=[recipient])
-        else:
-            print("[AUTOMATION] Email action skipped: No recipient found.")
+        print(f"[ACTION ERROR] Execution Failed: {e}")
+        traceback.print_exc()
 

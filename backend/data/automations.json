@@ -14,8 +14,8 @@
                 "data": {
                     "interval": "1",
                     "unit": "days",
-                    "target_time": "09:30",
-                    "last_run": "2026-01-08T09:30:00.022305"
+                    "target_time": "11:54",
+                    "last_run": "2026-01-21T11:54:00.021565"
                 }
             },
             {
@@ -117,6 +117,7 @@
             }
         ],
         "user_email": "marketinsightscenter@gmail.com",
-        "description": ""
+        "description": "",
+        "last_run": "2026-01-21T11:54:25.562159"
     }
 ]
