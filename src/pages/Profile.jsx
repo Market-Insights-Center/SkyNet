@@ -411,6 +411,7 @@ export default function Profile() {
                             </div>
 
                             <div className="pt-2 border-t border-white/5">
+                                {/* TEMPORARILY HIDDEN
                                 <div className="text-gray-400 text-sm mb-2">Referral Code</div>
                                 {referralCode ? (
                                     <div className="flex gap-2">
@@ -429,6 +430,7 @@ export default function Profile() {
                                 <p className="text-[10px] text-gray-500 mt-2">
                                     Refer a friend: If they subscribe to Pro, get 3 Months Pro Free. If Enterprise, get 3 Months Enterprise Free.
                                 </p>
+                                */}
                             </div>
                         </div>
                     </div>
