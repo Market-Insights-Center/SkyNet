@@ -830,10 +830,27 @@ const AdminDashboard = () => {
                                                     })()}
                                                 </td>
                                                 <td className="p-4 text-sm text-gray-400 font-mono">
-                                                    {new Date(log.timestamp).toLocaleTimeString()}
-                                                    <span className="text-xs text-gray-600 ml-2">
-                                                        {new Date(log.timestamp).toLocaleDateString()}
-                                                    </span>
+                                                    {(() => {
+                                                        let ts = log.timestamp;
+                                                        // If no timezone offset (Z or +/ -), assume UTC
+                                                        if (!ts.endsWith('Z') && !ts.includes('+') && (ts.split('-').length === 3 || !ts.includes('-'))) {
+                                                            ts += 'Z';
+                                                        } else if (!ts.endsWith('Z') && !ts.includes('+') && ts.includes('T') && ts.split('-').length < 4) {
+                                                            // Basic ISO check: YYYY-MM-DDTHH:mm:ss.sssss
+                                                            // If it looks like ISO but no Offset, append Z
+                                                            ts += 'Z';
+                                                        }
+                                                        
+                                                        const dateObj = new Date(ts);
+                                                        return (
+                                                            <>
+                                                                {dateObj.toLocaleTimeString()}
+                                                                <span className="text-xs text-gray-600 ml-2">
+                                                                    {dateObj.toLocaleDateString()}
+                                                                </span>
+                                                            </>
+                                                        );
+                                                    })()}
                                                 </td>
                                             </tr>
                                         ))

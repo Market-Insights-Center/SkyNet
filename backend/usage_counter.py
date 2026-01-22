@@ -97,7 +97,7 @@ else:
 def log_recent_action(action: str, user_email: str):
     """Logs a user action to the recent actions list, keeping only the last 100."""
     try:
-        from datetime import datetime
+        from datetime import datetime, timezone
         
         actions = []
         if os.path.exists(RECENT_ACTIONS_FILE):
@@ -109,7 +109,7 @@ def log_recent_action(action: str, user_email: str):
         new_entry = {
             "action": action,
             "user": user_email,
-            "timestamp": datetime.now().isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat()
         }
         
         # Prepend
