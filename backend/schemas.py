@@ -277,6 +277,8 @@ class AutomationSaveRequest(BaseModel):
     edges: List[Dict[str, Any]] = []
     user_email: str = "guest"
     description: Optional[str] = ""
+    last_run: Optional[str] = None
+    next_run: Optional[str] = None
 
 class AutomationToggleRequest(BaseModel):
     id: str

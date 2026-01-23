@@ -267,12 +267,55 @@ async def api_delete_community_portfolio_real(req: dict):
 
 @router.get("/api/automations")
 def get_automations_endpoint():
-    return load_automations()
+    automations = load_automations()
+    # Hydrate legacy data for UI
+    for auto in automations:
+        # 1. Hydrate last_run from Time Node if missing
+        if not auto.get('last_run'):
+            nodes = auto.get('nodes', [])
+            t_node = next((n for n in nodes if n.get('type') == 'time_interval'), None)
+            if t_node and t_node.get('data', {}).get('last_run'):
+                auto['last_run'] = t_node['data']['last_run']
+        
+        # 2. Hydrate next_run if missing (re-calculate)
+        if not auto.get('next_run'):
+            nodes = auto.get('nodes', [])
+            t_node = next((n for n in nodes if n.get('type') == 'time_interval'), None)
+            if t_node:
+                try:
+                    from backend.integration.automation_command import calculate_next_run
+                except ImportError:
+                    # Fallback logic if import fails (simple version)
+                    from datetime import datetime, timedelta
+                    def calculate_next_run(target, interval=1):
+                         now = datetime.now()
+                         try:
+                             th, tm = map(int, target.split(':'))
+                             t_dt = now.replace(hour=th, minute=tm, second=0, microsecond=0)
+                             if t_dt <= now: t_dt += timedelta(days=interval)
+                             while t_dt.weekday() > 4: t_dt += timedelta(days=1)
+                             return t_dt.isoformat()
+                         except: return None
+
+                target_time = t_node.get('data', {}).get('target_time', '09:30')
+                auto['next_run'] = calculate_next_run(target_time)
+
+    return automations
 
 @router.post("/api/automations/save")
 def save_automation_endpoint(req: AutomationSaveRequest):
     automations = load_automations()
     existing = next((a for a in automations if a['id'] == req.id), None)
+    
+    # 1. Preserve timestamps if existing and not provided
+    data_to_save = req.dict()
+    
+    if existing:
+        if not data_to_save.get('last_run') and existing.get('last_run'):
+            data_to_save['last_run'] = existing.get('last_run')
+        if not data_to_save.get('next_run') and existing.get('next_run'):
+             data_to_save['next_run'] = existing.get('next_run')
+
     if not existing:
         user_autos = [a for a in automations if a.get('user_email') == req.user_email]
         limit_check = verify_storage_limit(req.user_email, 'automations', len(user_autos))
