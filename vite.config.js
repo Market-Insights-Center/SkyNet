@@ -10,8 +10,7 @@ export default defineConfig({
           'vendor-react': ['react', 'react-dom', 'react-router-dom'],
           'vendor-firebase': ['firebase/app', 'firebase/auth', 'firebase/firestore', 'firebase/storage'],
           'vendor-ui': ['framer-motion', 'lucide-react', '@dnd-kit/core', '@dnd-kit/sortable', '@dnd-kit/utilities'],
-          'vendor-charts': ['recharts'],
-          'vendor-mediapipe': ['@mediapipe/camera_utils', '@mediapipe/drawing_utils', '@mediapipe/hands']
+          'vendor-charts': ['recharts']
         }
       }
     }

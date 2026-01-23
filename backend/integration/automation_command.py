@@ -118,8 +118,12 @@ def calculate_next_run(target_time_str, interval=1):
         # BUT: This function is usually called WHEN running, so we want the *subsequent* run.
         # If called during execution (e.g. 9:30), next run is tomorrow.
         
-        # Move to next interval (e.g. +1 day)
-        next_run = target_today + timedelta(days=interval)
+        if target_today <= now:
+            # Move to next interval (e.g. +1 day) if today is passed
+            next_run = target_today + timedelta(days=interval)
+        else:
+            # It's today, in the future
+            next_run = target_today
         
         # Skip weekends if strictly M-F (Assuming M-F for now as per logic)
         while next_run.weekday() > 4:
