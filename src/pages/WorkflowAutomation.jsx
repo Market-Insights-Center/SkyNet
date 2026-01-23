@@ -635,6 +635,11 @@ const WorkflowAutomation = () => {
                                         <div className="text-right">
                                             {auto.last_run && <span className="text-[10px] text-gray-500 block">Last: {new Date(auto.last_run).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>}
                                             {auto.next_run && <span className="text-[10px] text-blue-400 block">Next: {new Date(auto.next_run).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>}
+                                            {auto.last_error && (
+                                                <span className="text-[10px] text-orange-400 block mt-1 leading-tight" title={auto.last_error.message}>
+                                                    {auto.last_error.message?.length > 30 ? auto.last_error.message.substring(0, 27) + '...' : auto.last_error.message}
+                                                </span>
+                                            )}
                                         </div>
                                         {auto.active && <span className="text-green-400 flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" /> Active</span>}
                                     </div>

@@ -205,7 +205,7 @@ async def process_automation(auto):
     # We should save automation if any time_interval triggered.
     # 1.5 Save State for Time Interval (if any triggered)
     # If time_valid is True, it means we are INSIDE the window.
-    # We should update 'last_run' (attempted) and 'next_run' (scheduled).
+    # We ONLY update 'next_run' here. 'last_run' is updated only if actions execute.
     if time_valid and time_nodes:
         try:
             # Update Next Run
@@ -214,31 +214,41 @@ async def process_automation(auto):
             target_str = t_node.get('data', {}).get('target_time', '09:30')
             auto['next_run'] = calculate_next_run(target_str)
             
-            # Update Last Run (The Check)
-            auto['last_run'] = datetime.now().isoformat()
+            # Note: We do NOT update 'last_run' here anymore.
             
             from backend.automation_storage import save_automation
             save_automation(auto)
             print(f"   [AUTOMATION] valid time window: updated next_run to {auto['next_run']}")
         except Exception as e:
-            print(f"   [AUTOMATION] Failed to update run timestamps: {e}")
+            print(f"   [AUTOMATION] Failed to update next_run: {e}")
 
     # 2. PROPAGATION PHASE
     # Queue: { targetId, targetHandle, signal, sourceId }
     queue = []
     
+    # Track stop reasons for debugging/user feedback
+    stop_reason = None
+
     # Seed queue from Evaluated Conditionals
     for c_node in conditionals:
         res = node_results.get(c_node['id'], False)
-        # Find outgoing edges
-        out_edges = [e for e in edges if e['source'] == c_node['id']]
-        for edge in out_edges:
-            queue.append({
-                'target': edge['target'],
-                'targetHandle': edge['targetHandle'],
-                'signal': res,
-                'source': edge['source']
-            })
+        if not res:
+            # If a root conditional failed, that's a potential stop reason
+            # We overwrite this if later nodes fail, but this is a good start
+            stop_reason = f"Condition Failed: {c_node.get('type', 'Unknown').replace('_', ' ').title()}"
+        
+        # Find outgoing edges even if False? 
+        # Logic: If False, we usually don't propagate unless it's to a Logic Gate that handles False?
+        # Standard flow: If False, we don't fire generic edges.
+        if res:
+            out_edges = [e for e in edges if e['source'] == c_node['id']]
+            for edge in out_edges:
+                queue.append({
+                    'target': edge['target'],
+                    'targetHandle': edge['targetHandle'],
+                    'signal': res,
+                    'source': edge['source']
+                })
             
     processed_nodes = set() # To prevent loops or double execution of Actions
     node_map = {n['id']: n for n in nodes}
@@ -275,17 +285,8 @@ async def process_automation(auto):
             fired_handle = 'out-else'
             
             for edge in in_edges:
-                # Check status of the source node for this edge
                 src_id = edge['source']
-                # If source hasn't been evaluated (e.g. logic flowing into logic), we might have an issue.
-                # But typically Conditionals are roots. 
-                # If Logic -> Logic, we need recursive evaluation or topological sort.
-                # For now, assume Conditionals -> Logic.
                 src_status = node_results.get(src_id, False) 
-                
-                # Note: node_results currently only has Conditionals.
-                # If we have Logic -> Logic, we haven't stored Logic result yet.
-                # FIX: Add Logic result to node_results when valid.
                 
                 if src_status:
                     # Found our priority match
@@ -294,7 +295,7 @@ async def process_automation(auto):
                     break
             
             print(f"   -> IfGate ({target_id}) firing {fired_handle}")
-            node_results[target_id] = True # Mark as "Active" (though typically we care about paths)
+            node_results[target_id] = True 
 
             # Propagate output
             out_edges = [e for e in edges if e['source'] == target_id and e['sourceHandle'] == fired_handle]
@@ -310,10 +311,6 @@ async def process_automation(auto):
         elif t_type == 'logic_gate':
             # Check inputs
             in_edges = [e for e in edges if e['target'] == target_id]
-            # Sources are expected to be in node_results if they are conditionals.
-            # If source is another gate, we might need its result. 
-            # But in this simple engine, we only have node_results for Conditionals from Phase 1.
-            # If we allow Gate -> Gate, we need to store Gate results in node_results too.
             
             # Map input sources to their results
             input_values = []
@@ -348,6 +345,7 @@ async def process_automation(auto):
                         })
             else:
                 print(f"   -> LogicGate ({target_id}) {op} = FALSE (Inputs: {input_values})")
+                stop_reason = f"Logic Gate ({op}) Failed"
 
         # --- ACTIONS ---
         elif t_type in ['tracking', 'nexus', 'send_email', 'webhook']:
@@ -360,17 +358,39 @@ async def process_automation(auto):
                         actions_executed = True
                     except Exception as e:
                         print(f"   [AUTOMATION] Action Failed: {e}")
+                        stop_reason = f"Action Failed: {str(e)}"
 
     
-    # 3. Save State if Actions Executed
+    # 3. Save State (Success or Failure)
+    # We only update 'last_run' if actions actually executed.
+    # Otherwise, we log the 'last_error' or reason it stopped.
+    
+    from backend.automation_storage import save_automation
+    
     if actions_executed:
         auto['last_run'] = datetime.now().isoformat()
+        if 'last_error' in auto: del auto['last_error'] # Clear error on success
         try:
-            from backend.automation_storage import save_automation
             save_automation(auto)
-            print(f"   [AUTOMATION] Saved timestamp for {auto.get('name')}")
+            print(f"   [AUTOMATION] SUCCESS: Saved timestamp for {auto.get('name')}")
         except Exception as e:
             print(f"   [AUTOMATION] Failed to save timestamp: {e}")
+            
+    elif time_valid: 
+        # Time was valid, but no action executed. This counts as a "Stop" or "Fail".
+        # We record this so the UI can show it.
+        # Format: { date: iso, message: str }
+        
+        reason = stop_reason or "Conditions not met"
+        auto['last_error'] = {
+            'date': datetime.now().isoformat(),
+            'message': reason
+        }
+        try:
+            save_automation(auto)
+            print(f"   [AUTOMATION] STOPPED: Saved error state for {auto.get('name')} ({reason})")
+        except Exception as e:
+             print(f"   [AUTOMATION] Failed to save error state: {e}")
 
 
 async def evaluate_condition(node):
