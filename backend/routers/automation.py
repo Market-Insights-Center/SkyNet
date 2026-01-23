@@ -106,46 +106,93 @@ async def run_nexus(req: NexusRequest):
 
 @router.post("/api/execute-trades")
 async def execute_trades_endpoint(req: ExecuteTradesRequest):
+    """
+    Executes trades with streaming progress updates.
+    """
+    from fastapi.responses import StreamingResponse
+    import json
+    
+    # 1. Setup Environment from Request
+    if req.rh_username and req.rh_password:
+        os.environ["RH_USERNAME"] = req.rh_username
+        os.environ["RH_PASSWORD"] = req.rh_password
+    else:
+        # If not provided, we might rely on env variables, but for safety:
+        if not os.environ.get("RH_USERNAME"):
+             return {"status": "error", "message": "Credentials missing."}
+
+    # 2. Prepare Trades
+    if not req.trades:
+        return {"status": "success", "message": "No trades to execute."}
+
+    rh_trades = []
+    for t in req.trades:
+        side = t.get('action', '').lower()
+        if not side: side = t.get('side', '').lower()
+        if not side:
+            d = float(t.get('diff', 0))
+            if d != 0: side = 'buy' if d > 0 else 'sell'
+        qty = abs(float(t.get('diff', 0)))
+        if qty == 0: qty = float(t.get('quantity', 0))
+        if qty == 0: continue
+        
+        rh_trades.append({"ticker": t['ticker'], "side": side, "quantity": qty})
+
     try:
-        try:
-            from backend.integration.execution_command import execute_portfolio_rebalance
-        except ImportError:
-            from integration.execution_command import execute_portfolio_rebalance
+        from backend.integration.execution_command import execute_portfolio_rebalance
+    except ImportError:
+        from integration.execution_command import execute_portfolio_rebalance
 
-        if not req.trades:
-             return {"status": "success", "message": "No trades to execute."}
+    # 3. Stream Generator
+    async def event_generator():
+        q = asyncio.Queue()
+        loop = asyncio.get_event_loop()
 
-        rh_trades = []
-        for t in req.trades:
-            side = t.get('action', '').lower()
-            if not side: side = t.get('side', '').lower()
-            if not side:
-                d = float(t.get('diff', 0))
-                if d != 0: side = 'buy' if d > 0 else 'sell'
-            qty = abs(float(t.get('diff', 0)))
-            if qty == 0: qty = float(t.get('quantity', 0))
-            if qty == 0: continue
-            
-            rh_trades.append({"ticker": t['ticker'], "side": side, "quantity": qty})
-            
-        execution_msg = ""
-        if req.rh_username and req.rh_password:
-             os.environ["RH_USERNAME"] = req.rh_username
-             os.environ["RH_PASSWORD"] = req.rh_password
-             await asyncio.to_thread(execute_portfolio_rebalance, rh_trades)
-             execution_msg += "Executed on Robinhood. "
-        else:
-             execution_msg += "Credentials missing for RH execution. "
+        # Sync callback that puts data into the async queue safely
+        def sync_status_callback(completed, total, trade, msg):
+            payload = {
+                "type": "progress", 
+                "completed": completed, 
+                "total": total, 
+                "trade": trade, 
+                "message": msg
+            }
+            # Use call_soon_threadsafe to interact with the loop from the thread
+            loop.call_soon_threadsafe(q.put_nowait, payload)
 
-        if req.rh_username:
-             await increment_usage("execution_run")
+        async def runner():
+            try:
+                # Run the blocking function in a thread
+                await asyncio.to_thread(
+                    execute_portfolio_rebalance,
+                    trades=rh_trades,
+                    execute=True,
+                    status_callback=sync_status_callback
+                )
+                
+                # Report Final Success
+                await q.put({"type": "result", "status": "success", "message": "Execution Complete"})
+                
+                # Track Usage if successful
+                if req.rh_username:
+                     await increment_usage("execution_run")
+                     
+            except Exception as e:
+                traceback.print_exc()
+                await q.put({"type": "error", "message": str(e)})
+            finally:
+                await q.put(None) # Sentinel
 
-        return {"status": "success", "message": execution_msg, "executed_count": len(rh_trades)}
+        # Start Runner
+        asyncio.create_task(runner())
 
-    except Exception as e:
-        logger.error(f"Execution Error: {e}")
-        traceback.print_exc()
-        raise HTTPException(status_code=500, detail=str(e))
+        # Yield from Queue
+        while True:
+            data = await q.get()
+            if data is None: break
+            yield json.dumps(data) + "\n"
+
+    return StreamingResponse(event_generator(), media_type="application/x-ndjson")
 
 # --- DATABASE LAB ---
 @router.get("/api/database/codes")

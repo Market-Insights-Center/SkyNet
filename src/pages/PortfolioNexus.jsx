@@ -479,54 +479,13 @@ export default function PortfolioNexus() {
                     <ExecutionModal
                         isOpen={showExecModal}
                         onClose={() => setShowExecModal(false)}
+                        trades={result?.trades || []}
                         onExecute={async (options) => {
-                            // Handle Execution
-                            const trades = result.trades || (result.table ? result.table.filter(t => t.ticker !== 'Cash' && t.ticker !== 'Total') : []);
-                            // Fallback logic for trades if result.trades is empty but table exists? 
-                            // Usually Nexus returns `trades` key specifically for rebalancing. If empty, maybe just holdings?
-                            // The user said "No trade data found". This implies result.trades is missing. 
-                            // If Nexus was run with "Execute RH", the backend might have already executed? 
-                            // No, this modal is for manual "Execute Trades" button press AFTER run.
-                            if (!trades || trades.length === 0) { alert("No trades to execute."); return; }
-
-
-                            // MERGE logic: Use Modal's RH opts, but Parent's Execution Opts for email
-                            // The user said "send email... only on the inputs menu".
-                            // So we use `executionOpts` for email/overwrite.
-
-                            const body = {
-                                trades: trades,
-                                rh_username: options.execRh ? options.rhUser : null,
-                                rh_password: options.execRh ? options.rhPass : null,
-                                email_to: executionOpts.send_email ? (executionOpts.email_to || localStorage.getItem('mic_email')) : null,
-                                portfolio_code: result.nexus_code || "Nexus"
-                            };
-
-                            // Ensure email is valid if checked
-                            if (executionOpts.send_email && !body.email_to) {
-                                alert("Please enter an email address in the configuration panel.");
-                                return;
-                            }
-
-                            try {
-                                const response = await fetch('/api/execute-trades', {
-                                    method: 'POST',
-                                    headers: { 'Content-Type': 'application/json' },
-                                    body: JSON.stringify(body)
-                                });
-                                const res = await response.json();
-                                if (res.status === 'success') {
-                                    alert(res.message);
-                                } else {
-                                    alert("Error: " + res.message);
-                                }
-                            } catch (e) {
-                                alert("Execution Error: " + e.message);
-                            } finally {
-                                setShowExecModal(false);
-                            }
+                            // This is now handled internally by ExecutionModal to support streaming
+                            // We keep this prop here if the parent needed to do cleanup, but logic moved inside.
                         }}
                     />
+
 
                     {/* TradingView Widget Modal */}
                     <AnimatePresence>
@@ -737,18 +696,29 @@ const CreateNexusModal = ({ isOpen, onClose, onSave, initialCode = '' }) => {
     );
 };
 
-const ExecutionModal = ({ isOpen, onClose, onExecute }) => {
-    const [email, setEmail] = useState('');
+const ExecutionModal = ({ isOpen, onClose, onExecute, trades = [] }) => {
     const [rhUser, setRhUser] = useState('');
     const [rhPass, setRhPass] = useState('');
-    const [sendEmail, setSendEmail] = useState(false);
     const [execRh, setExecRh] = useState(false);
     const [isProcessing, setIsProcessing] = useState(false);
+
+    // Progress State
+    const [progress, setProgress] = useState(0);
+    const [statusMsg, setStatusMsg] = useState("");
+    const [tradeList, setTradeList] = useState([]);
+    const [logs, setLogs] = useState([]);
+    const [finished, setFinished] = useState(false);
 
     useEffect(() => {
         if (isOpen) {
             setIsProcessing(false);
-            const savedEmail = localStorage.getItem('mic_email');
+            setFinished(false);
+            setProgress(0);
+            setStatusMsg("");
+            setLogs([]);
+            // Initialize trade list from props
+            setTradeList(trades.map(t => ({ ...t, status: 'pending' })));
+
             const savedUser = localStorage.getItem('mic_rh_user');
             const savedPass = localStorage.getItem('mic_rh_pass');
 
@@ -760,23 +730,80 @@ const ExecutionModal = ({ isOpen, onClose, onExecute }) => {
                 setRhPass(savedPass);
             }
         }
-    }, [isOpen]);
+    }, [isOpen, trades]);
 
-    const handleConfirm = () => {
+    const handleConfirm = async () => {
         if (isProcessing) return;
         setIsProcessing(true);
+        setFinished(false);
 
         if (execRh && rhUser) localStorage.setItem('mic_rh_user', rhUser);
         if (execRh && rhPass) localStorage.setItem('mic_rh_pass', rhPass);
 
-        // We only pass back RH credentials. Email, overwrite are handled by initial configuration or main state if passed down, 
-        // BUT wait, execution happens here on "Execute Trades" button which invokes /api/execute-trades.
-        // The /api/execute-trades endpoint NEEDS email_to if we want to send email. 
-        // We removed email input from Modal, so we rely on what was set in Main UI? 
-        // Issue: ExecutionModal is a child, it doesn't know about Main UI state unless passed. 
-        // We should pass `executionOpts` from parent to this modal or `onExecute` should merge it.
-        // Let's rely on `onExecute` merging it.
-        onExecute({ rhUser, rhPass, execRh });
+        // Streaming Logic
+        try {
+            const userEmail = localStorage.getItem('mic_email');
+
+            const response = await fetch('/api/execute-trades', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    trades: tradeList,
+                    rh_username: execRh ? rhUser : null,
+                    rh_password: execRh ? rhPass : null,
+                    email_to: userEmail
+                })
+            });
+
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let accumulatedData = "";
+
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+
+                const chunk = decoder.decode(value, { stream: true });
+                accumulatedData += chunk;
+                const lines = accumulatedData.split('\n');
+                accumulatedData = lines.pop(); // Keep last incomplete line
+
+                for (const line of lines) {
+                    if (!line.trim()) continue;
+                    try {
+                        const event = JSON.parse(line);
+
+                        if (event.type === 'progress') {
+                            const pct = Math.round((event.completed / event.total) * 100);
+                            setProgress(pct);
+                            setStatusMsg(event.message);
+
+                            if (event.trade && event.trade.ticker) {
+                                setTradeList(prev => prev.map(t =>
+                                    t.ticker === event.trade.ticker
+                                        ? { ...t, status: event.message.includes('Executed') ? 'executed' : (event.message.includes('Failed') ? 'failed' : 'processing') }
+                                        : t
+                                ));
+                                setLogs(prev => [...prev, `${event.message} (${event.trade.ticker})`]);
+                            } else {
+                                setLogs(prev => [...prev, event.message]);
+                            }
+
+                        } else if (event.type === 'result') {
+                            setStatusMsg("Execution Complete!");
+                            setFinished(true);
+                        } else if (event.type === 'error') {
+                            setLogs(prev => [...prev, `ERROR: ${event.message}`]);
+                        }
+                    } catch (e) {
+                        console.error("Parse Error", e);
+                    }
+                }
+            }
+
+        } catch (e) {
+            setLogs(prev => [...prev, `Network Error: ${e.message}`]);
+        }
     };
 
     if (!isOpen) return null;
@@ -785,47 +812,143 @@ const ExecutionModal = ({ isOpen, onClose, onExecute }) => {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
             <motion.div
                 initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }}
-                className="bg-gray-900 border border-white/10 rounded-xl p-8 max-w-md w-full shadow-2xl relative"
+                className="bg-gray-900 border border-white/10 rounded-xl max-w-2xl w-full shadow-2xl relative flex flex-col max-h-[90vh]"
             >
-                <h3 className="text-2xl font-bold text-white mb-4 flex items-center gap-2">
-                    <Play className="text-gold" /> Execute Trades
-                </h3>
+                <div className="p-6 border-b border-gray-800">
+                    <h3 className="text-2xl font-bold text-white flex items-center gap-2">
+                        <Play className="text-gold" /> Execute Trades {finished && <CheckCircle className="text-green-500" />}
+                    </h3>
+                </div>
 
-                <div className="space-y-6">
-                    {/* Send Email and Overwrite are now handled in the main UI config, not here. This modal is strictly for RH confirmation if enabled, or just confirmation. */}
+                <div className="p-6 overflow-y-auto flex-1 space-y-6">
 
-                    <div className="p-4 bg-gray-800 rounded-lg border border-gray-700">
-                        <p className="text-sm text-gray-300 mb-2">
-                            You are about to execute trades.
-                            {/* Check if main UI opts are on */}
-                        </p>
-                    </div>
+                    {!isProcessing && !finished ? (
+                        <>
+                            <div className="p-4 bg-gray-800 rounded-lg border border-gray-700">
+                                <p className="text-sm text-gray-300 mb-2">
+                                    You are about to execute <strong>{tradeList.length}</strong> trades.
+                                </p>
 
-                    <div className={`p-4 rounded-lg border ${execRh ? 'border-gold bg-gold/5' : 'border-gray-700 bg-black/30'}`}>
-                        <label className="flex items-center gap-3 cursor-pointer mb-2">
-                            <input type="checkbox" checked={execRh} onChange={(e) => setExecRh(e.target.checked)} className="accent-gold w-5 h-5" />
-                            <span className="font-bold text-white">Execute on Robinhood</span>
-                        </label>
-                        {execRh && (
-                            <div className="space-y-2 mt-2">
-                                <input type="text" placeholder="Robinhood Username" value={rhUser} onChange={(e) => setRhUser(e.target.value)} className="w-full bg-black border border-gray-700 rounded p-2 text-white outline-none" />
-                                <input type="password" placeholder="Robinhood Password" value={rhPass} onChange={(e) => setRhPass(e.target.value)} className="w-full bg-black border border-gray-700 rounded p-2 text-white outline-none" />
+                                <div className="mt-4 space-y-3">
+                                    <label className="flex items-center gap-2 cursor-pointer bg-black p-3 rounded border border-gray-700 hover:border-gray-500 transition-colors">
+                                        <input type="checkbox" checked={execRh} onChange={e => setExecRh(e.target.checked)} className="accent-gold w-5 h-5" />
+                                        <div className="flex-1">
+                                            <span className="font-bold block text-white">Robinhood Execution</span>
+                                            <span className="text-xs text-gray-400">Execute directly on your brokerage account</span>
+                                        </div>
+                                    </label>
+
+                                    {execRh && (
+                                        <div className="grid grid-cols-2 gap-4 animate-in fade-in slide-in-from-top-2">
+                                            <div>
+                                                <label className="text-xs text-gray-500 uppercase">Username</label>
+                                                <input type="text" value={rhUser} onChange={e => setRhUser(e.target.value)} className="w-full bg-black border border-gray-700 rounded p-2 text-white font-mono" />
+                                            </div>
+                                            <div>
+                                                <label className="text-xs text-gray-500 uppercase">Password</label>
+                                                <input type="password" value={rhPass} onChange={e => setRhPass(e.target.value)} className="w-full bg-black border border-gray-700 rounded p-2 text-white font-mono" />
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
                             </div>
-                        )}
-                    </div>
+
+                            {/* Trade Preview */}
+                            <div>
+                                <h4 className="text-sm font-bold text-gray-400 uppercase mb-2">Trade List</h4>
+                                <div className="max-h-60 overflow-y-auto bg-black border border-gray-800 rounded">
+                                    <table className="w-full text-xs text-left">
+                                        <thead className="bg-gray-900 text-gray-500 sticky top-0 z-10">
+                                            <tr>
+                                                <th className="p-2 pl-4">Ticker</th>
+                                                <th className="p-2">Action</th>
+                                                <th className="p-2 text-right pr-4">Qty</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {tradeList.map((t, i) => (
+                                                <tr key={i} className="border-t border-gray-800 hover:bg-white/5">
+                                                    <td className="p-2 pl-4 font-bold text-white">{t.ticker}</td>
+                                                    <td className={`p-2 uppercase font-bold ${t.side === 'buy' || t.action === 'Buy' ? 'text-green-400' : 'text-red-400'}`}>{t.side || t.action}</td>
+                                                    <td className="p-2 text-right pr-4 text-gray-300 font-mono">{Number(t.quantity || t.diff).toFixed(4)}</td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </>
+                    ) : (
+                        <div className="space-y-6">
+                            {/* Progress Update */}
+                            <div className="text-center space-y-2">
+                                <div className="text-4xl font-bold font-mono text-white">{progress}%</div>
+                                <div className="text-sm text-gray-400">{statusMsg}</div>
+                            </div>
+
+                            {/* Progress Bar */}
+                            <div className="bg-black rounded-full h-4 w-full overflow-hidden border border-gray-700 relative shadow-inner">
+                                <motion.div
+                                    className="h-full bg-gradient-to-r from-purple-600 to-blue-500"
+                                    initial={{ width: 0 }}
+                                    animate={{ width: `${progress}%` }}
+                                    transition={{ duration: 0.3 }}
+                                />
+                            </div>
+
+                            {/* Live Trade Status */}
+                            <div className="max-h-60 overflow-y-auto bg-black border border-gray-800 rounded">
+                                <table className="w-full text-xs text-left">
+                                    <thead className="bg-gray-900 text-gray-500 sticky top-0 z-10">
+                                        <tr>
+                                            <th className="p-2 pl-4">Ticker</th>
+                                            <th className="p-2">Status</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {tradeList.map((t, i) => (
+                                            <tr key={i} className="border-t border-gray-800">
+                                                <td className="p-2 pl-4 font-bold text-white">{t.ticker}</td>
+                                                <td className="p-2">
+                                                    {t.status === 'executed' && <span className="text-green-400 flex items-center gap-1 font-bold"><Check size={14} /> Executed</span>}
+                                                    {t.status === 'failed' && <span className="text-red-400 flex items-center gap-1 font-bold"><AlertTriangle size={14} /> Failed</span>}
+                                                    {t.status === 'processing' && <span className="text-blue-400 flex items-center gap-1"><RefreshCw size={12} className="animate-spin" /> Processing</span>}
+                                                    {t.status === 'pending' && <span className="text-gray-600">Pending</span>}
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            {/* Logs */}
+                            <div className="bg-black/50 p-2 rounded border border-gray-800 text-[10px] h-24 overflow-y-auto font-mono text-gray-500">
+                                {logs.map((l, i) => <div key={i} className="border-b border-white/5 py-0.5">{l}</div>)}
+                            </div>
+                        </div>
+                    )}
+
                 </div>
 
-                <div className="mt-8 flex justify-end gap-4">
-                    <button onClick={onClose} disabled={isProcessing} className="text-gray-400 hover:text-white disabled:opacity-50">Cancel</button>
-                    <button
-                        onClick={handleConfirm}
-                        disabled={isProcessing}
-                        className="bg-gold text-black font-bold px-6 py-2 rounded-lg hover:bg-yellow-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-                    >
-                        {isProcessing ? 'Processing...' : 'Confirm Execution'}
-                    </button>
+                <div className="p-6 border-t border-gray-800 flex justify-end gap-3 bg-gray-900/50 rounded-b-xl">
+                    {!isProcessing && !finished && (
+                        <>
+                            <button onClick={onClose} className="px-6 py-2 rounded-lg text-gray-400 hover:text-white hover:bg-white/5 transition-colors">Cancel</button>
+                            <button
+                                onClick={handleConfirm}
+                                className="px-8 py-2 bg-gradient-to-r from-green-600 to-emerald-600 rounded-lg text-white font-bold hover:from-green-500 hover:to-emerald-500 shadow-lg shadow-green-900/30 flex items-center gap-2 transform active:scale-95 transition-all"
+                            >
+                                <Play size={16} fill="currentColor" /> Confirm & Execute
+                            </button>
+                        </>
+                    )}
+                    {finished && (
+                        <button onClick={onClose} className="px-8 py-2 bg-blue-600 rounded-lg text-white font-bold hover:bg-blue-500 shadow-lg shadow-blue-900/30 transform active:scale-95 transition-all">
+                            Done
+                        </button>
+                    )}
                 </div>
-            </motion.div >
-        </div >
+            </motion.div>
+        </div>
     );
 };

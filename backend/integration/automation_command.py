@@ -107,6 +107,29 @@ def find_start_node(nodes):
             return node
     return None
 
+def calculate_next_run(target_time_str, interval=1):
+    """Calculates the next scheduled run time string."""
+    try:
+        now = datetime.now()
+        th, tm = map(int, target_time_str.split(':'))
+        target_today = now.replace(hour=th, minute=tm, second=0, microsecond=0)
+        
+        # If we haven't reached today's target yet, that's the next run
+        # BUT: This function is usually called WHEN running, so we want the *subsequent* run.
+        # If called during execution (e.g. 9:30), next run is tomorrow.
+        
+        # Move to next interval (e.g. +1 day)
+        next_run = target_today + timedelta(days=interval)
+        
+        # Skip weekends if strictly M-F (Assuming M-F for now as per logic)
+        while next_run.weekday() > 4:
+            next_run += timedelta(days=1)
+            
+        return next_run.isoformat()
+    except Exception as e:
+        print(f"Error calculating next run: {e}")
+        return None
+
 def get_connected_nodes(node_id, nodes, edges, direction="source_to_target"):
     connected = []
     for edge in edges:
@@ -176,13 +199,25 @@ async def process_automation(auto):
     # Simple check: if any time_interval was True, we likely updated its state in evaluate_condition?
     # Yes, evaluate_condition updates 'last_run' for time_interval.
     # We should save automation if any time_interval triggered.
-    if any(n['type'] == 'time_interval' and node_results.get(n['id']) for n in conditionals):
+    # 1.5 Save State for Time Interval (if any triggered)
+    # If time_valid is True, it means we are INSIDE the window.
+    # We should update 'last_run' (attempted) and 'next_run' (scheduled).
+    if time_valid and time_nodes:
         try:
+            # Update Next Run
+            # Assuming first time node dictates the schedule for now
+            t_node = time_nodes[0]
+            target_str = t_node.get('data', {}).get('target_time', '09:30')
+            auto['next_run'] = calculate_next_run(target_str)
+            
+            # Update Last Run (The Check)
+            auto['last_run'] = datetime.now().isoformat()
+            
             from backend.automation_storage import save_automation
             save_automation(auto)
-            print(f"   [AUTOMATION] Saved state (Time Interval updated)")
+            print(f"   [AUTOMATION] valid time window: updated next_run to {auto['next_run']}")
         except Exception as e:
-            print(f"   [AUTOMATION] Failed to save state: {e}")
+            print(f"   [AUTOMATION] Failed to update run timestamps: {e}")
 
     # 2. PROPAGATION PHASE
     # Queue: { targetId, targetHandle, signal, sourceId }

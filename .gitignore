@@ -58,6 +58,7 @@ backend/market_data.csv
 backend/risk_eod_data.csv
 backend/*_cache.csv
 backend/data/*.json
+backend/data/automations_live.json
 backend/data/*.db
 backend/.cache/
 !backend/data/banners_default.json

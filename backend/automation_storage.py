@@ -3,11 +3,30 @@ import os
 from typing import List, Dict, Any
 
 # Path config
+# Path config
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DATA_FILE = os.path.join(BASE_DIR, 'data', 'automations.json')
+# NEW: Use a 'live' file that is NOT tracked by git (ensure this is in .gitignore)
+DATA_FILE = os.path.join(BASE_DIR, 'data', 'automations_live.json')
+LEGACY_DATA_FILE = os.path.join(BASE_DIR, 'data', 'automations.json')
 
 def load_automations() -> List[Dict[str, Any]]:
     """Loads all automations from JSON."""
+    # MIGRATION LOGIC:
+    # If live file doesn't exist but legacy does, copy legacy to live.
+    if not os.path.exists(DATA_FILE) and os.path.exists(LEGACY_DATA_FILE):
+        try:
+            print("Migrating automations to live storage...")
+            with open(LEGACY_DATA_FILE, 'r', encoding='utf-8') as f:
+                legacy_data = json.load(f)
+            # Save to new file immediately
+            with open(DATA_FILE, 'w', encoding='utf-8') as f:
+                json.dump(legacy_data, f, indent=4)
+            print(f"Migration successful. Created {DATA_FILE}")
+        except Exception as e:
+            print(f"Migration failed: {e}")
+            # Fallback to empty if migration fails, or return legacy? 
+            # Better to return empty safely than crash, but log heavily.
+
     if not os.path.exists(DATA_FILE):
         return []
     try:

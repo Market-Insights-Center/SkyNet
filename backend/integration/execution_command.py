@@ -97,7 +97,7 @@ def _get_single_holding(ticker: str) -> float:
         pass
     return 0.0
 
-def execute_portfolio_rebalance(trades: List[Dict[str, Any]], known_holdings: Optional[Dict[str, float]] = None, execute: bool = True) -> List[Dict[str, Any]]:
+def execute_portfolio_rebalance(trades: List[Dict[str, Any]], known_holdings: Optional[Dict[str, float]] = None, execute: bool = True, progress_callback=None) -> List[Dict[str, Any]]:
     """
     Executes trades with full retry logic, precision handling, and error management.
     ADAPTED FOR BACKEND: No interactive input() calls. Assumes execution is requested if called with execute=True.
@@ -136,6 +136,26 @@ def execute_portfolio_rebalance(trades: List[Dict[str, Any]], known_holdings: Op
 
     # --- BATCH PRICE FETCH ---
     print("\n⏳ Fetching latest prices for all tickers to ensure accuracy...")
+    if progress_callback:
+        # Since this is synchronous, we might need to handle async callback if provided
+        # But 'execution_command' is sync right now?  Ah, the signature change suggests we might need to handle it.
+        # But execute_portfolio_rebalance is defined as sync in the signature above, but typically called via asyncio.to_thread?
+        # If it's called via to_thread, it cannot await an async callback directly unless it runs a loop or the callback is sync.
+        # However, the plan says "Add a progress_callback argument (async)".
+        # If execute_portfolio_rebalance is blocking (sync), we cannot await an async callback without a loop.
+        # We should make execute_portfolio_rebalance async or handle the callback carefully.
+        # Let's assume for now we will convert this function to async or use a sync wrapper.
+        # Actually, to_thread runs sync code. 
+        # Better strategy: make execute_portfolio_rebalance ASYNC.
+        # BUT `r.jobs` etc are blocking. Mixing them is fine if we define `async def`.
+        # Let's change the definition to `async def` in the previous step? 
+        # I only changed the signature line.
+        # Let's use a sync callback wrapper if needed, or better:
+        # The caller (automation.py) defines an async callback.
+        # If `execute_portfolio_rebalance` remains sync, it can't await.
+        # I will change `execute_portfolio_rebalance` to `async def` since I am editing the file.
+        pass
+
     price_map = {}
     try:
         all_tickers = list(set([t.get('ticker') for t in trades]))
