@@ -632,7 +632,6 @@ const WorkflowAutomation = () => {
                                     </p>
                                     <div className="flex items-center justify-between text-xs text-gray-500">
                                         <span>Click to Edit</span>
-                                        <span>Click to Edit</span>
                                         <div className="text-right">
                                             {auto.last_run && <span className="text-[10px] text-gray-500 block">Last: {new Date(auto.last_run).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>}
                                             {auto.next_run && <span className="text-[10px] text-blue-400 block">Next: {new Date(auto.next_run).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>}
