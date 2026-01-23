@@ -283,6 +283,53 @@ def save_automation_endpoint(req: AutomationSaveRequest):
     if not limit_check_blocks['allowed']:
          raise HTTPException(status_code=403, detail=limit_check_blocks.get('message', 'Block Limit Reached'))
 
+    
+    # Calculate initial 'next_run' so it appears on UI immediately
+    # We need to find the 'time_interval' node.
+    try:
+        time_node = next((n for n in req.nodes if n.type == 'time_interval'), None)
+        if time_node:
+            from datetime import datetime, timedelta
+            target_time = time_node.data.get('target_time', '09:30')
+            
+            # Simple Next Run Calc (Similar to automation_command)
+            now = datetime.now()
+            try:
+                th, tm = map(int, target_time.split(':'))
+                target_today = now.replace(hour=th, minute=tm, second=0, microsecond=0)
+                
+                # If target is in future today, use it. Else tomorrow.
+                if target_today > now:
+                    next_run = target_today
+                else:
+                    next_run = target_today + timedelta(days=1)
+                
+                # Skip weekends logic (consistent with backend)
+                while next_run.weekday() > 4:
+                     next_run += timedelta(days=1)
+                     
+                # Update request object data (converted to dict)
+                # But req is Pydantic. We convert safely.
+                # Actually save_automation takes dict.
+                # We can't modify req directly if it's immutable, but we pass req.dict()
+                pass
+            except:
+                next_run = None
+            
+            data_to_save = req.dict()
+            if next_run:
+                # Only set if not already set or if we want to force update on save?
+                # User might want to see updated time if they changed the time settings.
+                # Yes, always recalculate on save.
+                data_to_save['next_run'] = next_run.isoformat()
+            
+            save_automation(data_to_save)
+            return {"status": "success"}
+
+    except Exception as e:
+        print(f"Error calculating next_run on save: {e}")
+        # Proceed with saving anyway
+
     save_automation(req.dict())
     return {"status": "success"}
 
