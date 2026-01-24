@@ -1307,15 +1307,7 @@ const UsageTicker = React.memo(() => {
         return () => { clearInterval(dataInterval); clearInterval(cycleInterval); };
     }, []);
 
-    // Static Metrics (Top Row)
-    const staticMetrics = [
-        { key: 'fundamentals', label: 'FUNDAMENTALS PREVIEW' }, // Placeholder/Mock if needed, or real
-        { key: 'total_users', label: 'ACTIVE USERS' },
-        { key: 'total_system_actions', label: 'TOTAL ACTIONS' },
-        { key: 'cultivate', label: 'CULTIVATE' } // Keeping structure balanced if desired, or just 2?
-        // User asked for Active Users and Total Actions specifically outside.
-        // Let's make the Top Row strictly the "High Level" stats.
-    ];
+
 
     // Metrics to rotate
     const allMetrics = [
@@ -1340,6 +1332,7 @@ const UsageTicker = React.memo(() => {
         { key: 'sentiment_analyzed', label: "Sentiment Analyzed", value: stats?.sentiment || 0 },
         { key: 'powerscores', label: "PowerScores Generated", value: stats?.powerscore || 0 },
         { key: 'custom_portfolios', label: "Custom Portfolios", value: stats?.custom || 0 },
+        { key: 'fundamentals_analyzed', label: "Fundamentals Analyzed", value: stats?.fundamentals || 0 },
     ];
 
     // Get 4 metrics for the current set

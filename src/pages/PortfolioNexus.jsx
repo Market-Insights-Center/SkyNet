@@ -66,6 +66,7 @@ export default function PortfolioNexus() {
                 email: userEmail,
                 nexus_code: nexusCode,
                 total_value: Number(totalValue),
+                skip_execution: true, // Only calculate, don't execute yet
                 ...executionOpts
             };
 

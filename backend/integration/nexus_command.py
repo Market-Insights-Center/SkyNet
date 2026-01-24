@@ -705,10 +705,14 @@ async def handle_nexus_command(args: List[str], ai_params: Optional[Dict] = None
             })
 
         # Call execute_portfolio_rebalance in dry-run mode
+        # If skip_execution is True, we force execute=False regardless of execute_rh
+        skip_execution = ai_params.get('skip_execution', False) if ai_params else False
+        should_execute = execute_rh and not skip_execution
+
         rebal_res = await asyncio.to_thread(
             execute_portfolio_rebalance,
             trades=rebal_trades,
-            execute=execute_rh # Execute if requested by Automation/AI
+            execute=should_execute # Execute only if requested AND not skipped
         )
 
         # Check if we SHOULD offer execution (Triggers frontend button)
