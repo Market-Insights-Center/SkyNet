@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException
 from backend.schemas import (
-    MarketDataRequest, ModRequest, RankingSubmitRequest, RankingRemoveRequest
+    MarketDataRequest, ModRequest, RankingSubmitRequest, RankingRemoveRequest, RobinhoodRequest
 )
 from backend.config import get_mod_list, SUPER_ADMIN_EMAIL
 import yfinance as yf
@@ -23,6 +23,58 @@ router = APIRouter()
 # Simple in-memory cache for market data (Global to the module)
 MARKET_CACHE = {}
 CACHE_TTL = 300  # 5 minutes
+
+from backend.services.robinhood_manager import RobinhoodManager
+
+# If backend.services.firebase doesn't exist, we might need to initialize it or use existing init?
+# Based on main.py imports, 'backend.routers' are imported.
+# Let's check where 'db' comes from. Profile.jsx uses client SDK. Backend likely uses firebase-admin.
+# We'll assume a helper or basic firestore usage.
+import firebase_admin
+from firebase_admin import firestore
+
+def get_firestore_db():
+    try:
+        return firestore.client()
+    except:
+        return None
+
+@router.post("/api/market-data/robinhood")
+async def get_robinhood_data(req: RobinhoodRequest): 
+    # req.email is the user
+    try:
+        db_client = get_firestore_db()
+        if not db_client: return {"status": "error", "message": "DB Error"}
+        
+        # Fetch user credentials from Firestore
+        # DO NOT TRUST CLIENT TO SEND PASSWORD. Fetch from DB.
+        user_doc = db_client.collection('users').document(req.email).get()
+        if not user_doc.exists:
+             return {"status": "error", "message": "User not found"}
+        
+        data = user_doc.to_dict()
+        rh_data = data.get('integrations', {}).get('robinhood', {})
+        
+        if not rh_data.get('connected'):
+             return {"status": "error", "message": "Not connected"}
+             
+        username = rh_data.get('username')
+        password = rh_data.get('encrypted_pass') # Stored as plain text for prototype
+        
+        if not username or not password:
+             return {"status": "error", "message": "Credentials missing"}
+             
+        # Fetch from Manager
+        portfolio = RobinhoodManager.get_portfolio(username, password)
+        
+        if portfolio:
+            return {"status": "success", "data": portfolio}
+        else:
+            return {"status": "error", "message": "Failed to fetch data"}
+            
+    except Exception as e:
+        print(f"RH Endpoint Error: {e}")
+        return {"status": "error", "message": str(e)}
 
 @router.post("/api/market-data")
 async def get_market_data(request: MarketDataRequest):

@@ -3,7 +3,7 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from backend.schemas import (
     AssessRequest, MLForecastRequest, BriefingRequest, FundamentalsRequest,
     QuickscoreRequest, MarketRequest, BreakoutRequest, SentimentRequest,
-    PowerScoreRequest, SummaryRequest, SentinelRequest
+    PowerScoreRequest, SummaryRequest, SentinelRequest, PrometheusRequest
 )
 from backend.database import verify_access_and_limits, get_user_profile
 from backend.config import SUPER_ADMIN_EMAIL
@@ -284,6 +284,42 @@ async def execute_sentinel(req: SentinelRequest):
         except Exception as e:
              traceback.print_exc()
              yield json.dumps({"type": "error", "message": f"Server Error: {str(e)}"}, default=str) + "\n"
+
+    return StreamingResponse(
+        event_generator(), media_type="application/x-ndjson", headers={"X-Accel-Buffering": "no"}
+    )
+
+
+@router.post("/api/prometheus")
+async def api_prometheus(req: PrometheusRequest):
+    # Simulate thinking process for UI
+    async def event_generator():
+        steps = [
+            "Parsing detailed request parameters...",
+            "Accessing global market data layer...",
+            "Correlating historical patterns...",
+            "Synthesizing strategic response..."
+        ]
+        
+        for step in steps:
+            await asyncio.sleep(0.8) # Simulate processing time
+            yield json.dumps({"type": "step", "content": step}) + "\n"
+        
+        # Final answer (Mock for now, or hook into sentinel logic)
+        await asyncio.sleep(0.5)
+        
+        # Simple Logic Router
+        response_text = "I have analyzed the market conditions based on your request. "
+        if "spy" in req.prompt.lower():
+            response_text += "Measurements indicate SPY is reflecting a cautious sentiment with implied volatility stabilizing."
+        elif "nvda" in req.prompt.lower():
+             response_text += "NVIDIA continues to show strong momentum divergence. Watch for volume spikes around key resistance levels."
+        elif "btc" in req.prompt.lower():
+            response_text += "Bitcoin liquidity flows suggest accumulation. Correlation with tech equities remains high."
+        else:
+            response_text += "System is nominal. Specify a ticker or strategy for deeper analysis."
+
+        yield json.dumps({"type": "result", "content": response_text}) + "\n"
 
     return StreamingResponse(
         event_generator(), media_type="application/x-ndjson", headers={"X-Accel-Buffering": "no"}

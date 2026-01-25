@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import { useNavigate, Link } from "react-router-dom";
-import { AlertCircle, CheckCircle, LogOut, User, Lock, ArrowLeft, Loader2, Shield, ArrowRight, Edit3, AlertTriangle, Trophy } from "lucide-react";
+import { AlertCircle, CheckCircle, LogOut, User, Lock, ArrowLeft, Loader2, Shield, ArrowRight, Edit3, AlertTriangle, Trophy, Eye, EyeOff } from "lucide-react";
 import { doc, getDoc, setDoc, deleteDoc } from "firebase/firestore";
 import { db } from "../firebase";
 import { WaveBackground } from "../components/WaveBackground.jsx";
@@ -38,6 +38,22 @@ export default function Profile() {
     const [showLeaderboard, setShowLeaderboard] = useState(false);
     const [generatingCode, setGeneratingCode] = useState(false);
 
+    // Integrations & Header Widgets
+    const [rhUsername, setRhUsername] = useState("");
+    const [rhPassword, setRhPassword] = useState("");
+    const [saveRh, setSaveRh] = useState(false);
+    const [headerWidgets, setHeaderWidgets] = useState(['market_status']);
+    const [showRhPass, setShowRhPass] = useState(false);
+
+    const WIDGET_OPTIONS = [
+        { id: 'market_status', label: 'Market Status' },
+        { id: 'spy_day', label: 'SPY Return (Day)' },
+        { id: 'spy_week', label: 'SPY Return (Week)' },
+        { id: 'rh_value', label: 'RH Portfolio Value', requiresAuth: true },
+        { id: 'rh_day', label: 'RH Return (Day)', requiresAuth: true },
+        { id: 'rh_all', label: 'RH Return (All Time)', requiresAuth: true }
+    ];
+
     // Check for existing profile data on mount
     useEffect(() => {
         async function checkProfile() {
@@ -64,8 +80,24 @@ export default function Profile() {
                             const totalPending = data.pending_transactions.reduce((sum, txn) => sum + (txn.amount || 0), 0);
                             setPendingPoints(totalPending);
                         }
+                        if (data.points) setPoints(data.points);
+                        if (data.pending_transactions) {
+                            const totalPending = data.pending_transactions.reduce((sum, txn) => sum + (txn.amount || 0), 0);
+                            setPendingPoints(totalPending);
+                        }
                         if (data.referral_code) setReferralCode(data.referral_code);
                         if (data.settings?.show_leaderboard !== false) setShowLeaderboard(true); // Default to True
+
+                        // Load Header Widgets
+                        if (data.settings?.header_widgets) setHeaderWidgets(data.settings.header_widgets);
+
+                        // Load Integrations
+                        if (data.integrations?.robinhood) {
+                            setSaveRh(data.integrations.robinhood.connected || false);
+                            if (data.integrations.robinhood.username) setRhUsername(data.integrations.robinhood.username);
+                            // NOTE: Password usually wouldn't be sent back to client in plain text in real app, but for prototype logic:
+                            if (data.integrations.robinhood.encrypted_pass) setRhPassword(data.integrations.robinhood.encrypted_pass);
+                        }
 
                         // Calculate Account Age
                         const created = data.created_at?.toDate ? data.created_at.toDate() : new Date(data.created_at || currentUser.metadata.creationTime);
@@ -258,6 +290,40 @@ export default function Profile() {
         }
     };
 
+
+    // --- INTEGRATIONS LOGIC ---
+    const handleSaveIntegrations = async () => {
+        setLoading(true);
+        try {
+            await setDoc(doc(db, "users", currentUser.email), {
+                settings: {
+                    header_widgets: headerWidgets
+                },
+                integrations: {
+                    robinhood: {
+                        connected: saveRh,
+                        username: saveRh ? rhUsername : "",
+                        encrypted_pass: saveRh ? rhPassword : "" // In real world -> Hash/Encrypt this!
+                    }
+                }
+            }, { merge: true });
+            setMessage("Integration settings saved!");
+        } catch (e) {
+            console.error(e);
+            setError("Failed to save settings: " + e.message);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const toggleHeaderWidget = (id) => {
+        setHeaderWidgets(prev => {
+            if (prev.includes(id)) return prev.filter(w => w !== id);
+            if (prev.length >= 6) return prev; // Limit max widgets
+            return [...prev, id];
+        });
+    };
+
     return (
         <div className="relative min-h-screen bg-transparent text-white flex flex-col items-center pt-24 pb-10 overflow-hidden">
 
@@ -361,57 +427,55 @@ export default function Profile() {
                             </Link>
                         </div>
                     )}
-                </div>
+                    {/* REWARDS & STATUS SECTION */}
+                    <div className="mb-8 p-6 bg-black/30 rounded-lg border border-white/5 grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                            <h3 className="text-xl font-bold text-gold mb-4 flex items-center gap-2"><Shield size={20} /> Singularity Points</h3>
+                            <div className="grid grid-cols-2 gap-4 mb-4">
+                                <div className="bg-white/5 border border-white/10 rounded-lg p-4 flex flex-col items-center justify-center">
+                                    <div className="text-3xl font-bold text-white">{points.toLocaleString()}</div>
+                                    <div className="text-xs text-gray-400 mt-1 uppercase tracking-wider">Total Points</div>
+                                </div>
+                                <div className="bg-white/5 border border-white/10 rounded-lg p-4 flex flex-col items-center justify-center">
+                                    <div className="text-3xl font-bold text-gold">#{rank}</div>
+                                    <div className="text-xs text-gray-400 mt-1 uppercase tracking-wider">Global Rank</div>
+                                </div>
+                            </div>
 
-                {/* REWARDS & STATUS SECTION */}
-                <div className="mb-8 p-6 bg-black/30 rounded-lg border border-white/5 grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div>
-                        <h3 className="text-xl font-bold text-gold mb-4 flex items-center gap-2"><Shield size={20} /> Singularity Points</h3>
-                        <div className="grid grid-cols-2 gap-4 mb-4">
-                            <div className="bg-white/5 border border-white/10 rounded-lg p-4 flex flex-col items-center justify-center">
-                                <div className="text-3xl font-bold text-white">{points.toLocaleString()}</div>
-                                <div className="text-xs text-gray-400 mt-1 uppercase tracking-wider">Total Points</div>
-                            </div>
-                            <div className="bg-white/5 border border-white/10 rounded-lg p-4 flex flex-col items-center justify-center">
-                                <div className="text-3xl font-bold text-gold">#{rank}</div>
-                                <div className="text-xs text-gray-400 mt-1 uppercase tracking-wider">Global Rank</div>
-                            </div>
+                            {/* PENDING POINTS BOX - Always show if > 0, or maybe even if 0 if requested prominently */}
+                            {pendingPoints > 0 && (
+                                <div className="bg-purple-900/20 border border-purple-500/30 rounded-lg p-4 mb-4 flex items-center justify-between">
+                                    <div className="flex items-center gap-3">
+                                        <div className="bg-purple-500/20 p-2 rounded-full text-purple-400">
+                                            <Loader2 size={20} className="animate-spin-slow" />
+                                        </div>
+                                        <div>
+                                            <div className="text-sm text-purple-200 font-bold">Pending Distribution</div>
+                                            <div className="text-xs text-purple-400/80">Available in 24 Hours</div>
+                                        </div>
+                                    </div>
+                                    <div className="text-2xl font-bold text-purple-300">
+                                        {pendingPoints.toLocaleString()}
+                                    </div>
+                                </div>
+                            )}
+
+                            <label className="flex items-center gap-2 cursor-pointer text-sm text-gray-400 hover:text-white mt-2">
+                                <input type="checkbox" checked={showLeaderboard} onChange={toggleLeaderboard} className="accent-gold" />
+                                Show me on public leaderboard
+                            </label>
                         </div>
 
-                        {/* PENDING POINTS BOX - Always show if > 0, or maybe even if 0 if requested prominently */}
-                        {pendingPoints > 0 && (
-                            <div className="bg-purple-900/20 border border-purple-500/30 rounded-lg p-4 mb-4 flex items-center justify-between">
-                                <div className="flex items-center gap-3">
-                                    <div className="bg-purple-500/20 p-2 rounded-full text-purple-400">
-                                        <Loader2 size={20} className="animate-spin-slow" />
-                                    </div>
-                                    <div>
-                                        <div className="text-sm text-purple-200 font-bold">Pending Distribution</div>
-                                        <div className="text-xs text-purple-400/80">Available in 24 Hours</div>
-                                    </div>
+                        <div>
+                            <h3 className="text-xl font-bold text-gold mb-4 flex items-center gap-2"><User size={20} /> Account Status</h3>
+                            <div className="space-y-3">
+                                <div className="flex justify-between">
+                                    <span className="text-gray-400">Account Age</span>
+                                    <span className="font-bold text-white">{accountAge || "New"}</span>
                                 </div>
-                                <div className="text-2xl font-bold text-purple-300">
-                                    {pendingPoints.toLocaleString()}
-                                </div>
-                            </div>
-                        )}
 
-                        <label className="flex items-center gap-2 cursor-pointer text-sm text-gray-400 hover:text-white mt-2">
-                            <input type="checkbox" checked={showLeaderboard} onChange={toggleLeaderboard} className="accent-gold" />
-                            Show me on public leaderboard
-                        </label>
-                    </div>
-
-                    <div>
-                        <h3 className="text-xl font-bold text-gold mb-4 flex items-center gap-2"><User size={20} /> Account Status</h3>
-                        <div className="space-y-3">
-                            <div className="flex justify-between">
-                                <span className="text-gray-400">Account Age</span>
-                                <span className="font-bold text-white">{accountAge || "New"}</span>
-                            </div>
-
-                            <div className="pt-2 border-t border-white/5">
-                                {/* TEMPORARILY HIDDEN
+                                <div className="pt-2 border-t border-white/5">
+                                    {/* TEMPORARILY HIDDEN
                                 <div className="text-gray-400 text-sm mb-2">Referral Code</div>
                                 {referralCode ? (
                                     <div className="flex gap-2">
@@ -431,8 +495,105 @@ export default function Profile() {
                                     Refer a friend: If they subscribe to Pro, get 3 Months Pro Free. If Enterprise, get 3 Months Enterprise Free.
                                 </p>
                                 */}
+                                </div>
                             </div>
                         </div>
+                    </div>
+
+                </div>
+
+                {/* --- INTEGRATIONS & CUSTOMIZATION --- */}
+                <div className="mb-8 p-6 bg-black/30 rounded-lg border border-white/5">
+                    <h3 className="text-xl font-bold text-gold mb-6 flex items-center gap-2"><Lock size={20} /> Integrations & Customization</h3>
+
+                    {/* Robinhood Connect */}
+                    <div className="mb-8 pb-8 border-b border-white/5">
+                        <div className="flex justify-between items-start mb-4">
+                            <div>
+                                <h4 className="text-white font-bold flex items-center gap-2">
+                                    Link Robinhood Account
+                                    {saveRh && <span className="bg-green-500/20 text-green-400 text-[10px] px-2 py-0.5 rounded border border-green-500/20">CONNECTED</span>}
+                                </h4>
+                                <p className="text-sm text-gray-400 mt-1">Connect your account to view live portfolio performance in the Floating Header.</p>
+                            </div>
+                            <label className="relative inline-flex items-center cursor-pointer">
+                                <input type="checkbox" checked={saveRh} onChange={(e) => setSaveRh(e.target.checked)} className="sr-only peer" />
+                                <div className="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-600"></div>
+                            </label>
+                        </div>
+
+                        <div className={`grid grid-cols-1 md:grid-cols-2 gap-4 transition-all duration-300 ${!saveRh ? 'opacity-50 pointer-events-none grayscale' : 'opacity-100'}`}>
+                            <div>
+                                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Username / Email</label>
+                                <input
+                                    type="text"
+                                    value={rhUsername}
+                                    onChange={(e) => setRhUsername(e.target.value)}
+                                    placeholder="Enter Robinhood username"
+                                    className="w-full bg-black/40 border border-white/10 rounded px-3 py-2 text-sm text-white focus:border-green-500/50 outline-none"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Password</label>
+                                <div className="relative">
+                                    <input
+                                        type={showRhPass ? "text" : "password"}
+                                        value={rhPassword}
+                                        onChange={(e) => setRhPassword(e.target.value)}
+                                        placeholder="Enter password"
+                                        className="w-full bg-black/40 border border-white/10 rounded px-3 py-2 text-sm text-white focus:border-green-500/50 outline-none pr-10"
+                                    />
+                                    <button onClick={() => setShowRhPass(!showRhPass)} type="button" className="absolute right-3 top-2.5 text-gray-500 hover:text-white">
+                                        {showRhPass ? <EyeOff size={14} /> : <Eye size={14} />}
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Floating Header Widgets */}
+                    <div>
+                        <div className="flex justify-between items-center mb-4">
+                            <div>
+                                <h4 className="text-white font-bold">Floating Header Widgets</h4>
+                                <p className="text-sm text-gray-400 mt-1">Select up to 6 metrics to display site-wide.</p>
+                            </div>
+                            <span className="text-xs text-gol border border-gold/20 bg-gold/5 px-2 py-1 rounded">{headerWidgets.length}/6 Selected</span>
+                        </div>
+
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                            {WIDGET_OPTIONS.map((opt) => (
+                                <button
+                                    key={opt.id}
+                                    type="button"
+                                    onClick={() => toggleHeaderWidget(opt.id)}
+                                    disabled={!saveRh && opt.requiresAuth}
+                                    className={`
+                                        flex items-center gap-2 p-3 rounded-lg border text-sm transition-all
+                                        ${!saveRh && opt.requiresAuth ? 'opacity-30 cursor-not-allowed border-white/5 bg-transparent' :
+                                            headerWidgets.includes(opt.id)
+                                                ? 'bg-purple-600/20 border-purple-500 text-white shadow-[0_0_10px_rgba(147,51,234,0.2)]'
+                                                : 'bg-white/5 border-white/10 text-gray-400 hover:bg-white/10'
+                                        }
+                                    `}
+                                >
+                                    {headerWidgets.includes(opt.id) && <CheckCircle size={14} className="text-purple-400" />}
+                                    {opt.requiresAuth && <Lock size={12} className="text-gold" />}
+                                    {opt.label}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+
+                    <div className="mt-6 flex justify-end">
+                        <button
+                            type="button"
+                            onClick={handleSaveIntegrations}
+                            disabled={loading}
+                            className="bg-white/10 hover:bg-white/20 text-white font-bold py-2 px-6 rounded-lg transition-all border border-white/20"
+                        >
+                            {loading ? "Saving..." : "Save Preferences"}
+                        </button>
                     </div>
                 </div>
 
@@ -646,6 +807,6 @@ export default function Profile() {
                     </motion.div>
                 )}
             </AnimatePresence>
-        </div>
+        </div >
     );
 }

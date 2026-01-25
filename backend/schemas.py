@@ -44,6 +44,9 @@ class HeartbeatRequest(BaseModel):
 class MarketDataRequest(BaseModel):
     tickers: List[str]
 
+class RobinhoodRequest(BaseModel):
+    email: str
+
 class ModRequest(BaseModel):
     email: str
     action: Optional[str] = None # add, remove (Optional because get_mods doesn't use it)
@@ -226,6 +229,11 @@ class SentinelRequest(BaseModel):
     email: str
     plan: Optional[List[Dict[str, Any]]] = None
     execution_mode: Optional[str] = "auto" # "plan_and_review", "quick_execute", "auto"
+
+# --- Prometheus ---
+class PrometheusRequest(BaseModel):
+    prompt: str
+    email: str
 
 # --- Predictions ---
 class PredictionCreateRequest(BaseModel):

@@ -2,11 +2,12 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../contexts/AuthContext';
-import { User, Search, Home, Briefcase, MessageSquare, Users, Command, Shield, Menu, X } from 'lucide-react';
+import { User, Search, Home, Briefcase, MessageSquare, Users, Command, Shield, Menu, X, Zap } from 'lucide-react';
 
 import LiquidBackground from './LiquidBackground';
 import PillNav from './PillNav';
 import HealthStatus from './HealthStatus';
+import FloatingHeader from './FloatingHeader';
 
 const Layout = ({ children }) => {
     const location = useLocation();
@@ -115,7 +116,10 @@ const Layout = ({ children }) => {
         { name: 'Chatbox', path: '/chat', icon: MessageSquare, hasNotification: hasUnread },
         { name: 'Profile', path: '/profile', icon: User },
         // Only render Admin tab if explicitly authorized
-        ...(isMod ? [{ name: 'Admin', path: '/admin', icon: Shield }] : [])
+        ...(isMod ? [
+            { name: 'Admin', path: '/admin', icon: Shield },
+            { name: 'Singularity', path: '/singularity', icon: Zap }
+        ] : [])
     ], [hasUnread, isMod]);
 
     const searchableItems = [
@@ -169,7 +173,10 @@ const Layout = ({ children }) => {
         { label: 'Forum', href: '/forum' },
         { label: 'Chatbox', href: '/chat', hasNotification: hasUnread },
         { label: 'Profile', href: '/profile' },
-        ...(isMod ? [{ label: 'Admin', href: '/admin' }] : []),
+        ...(isMod ? [
+            { label: 'Admin', href: '/admin' },
+            { label: 'Singularity', href: '/singularity' }
+        ] : []),
         ...(currentUser ? [] : [
             { label: 'Log In', href: '/login' },
             { label: 'Sign Up', href: '/signup' }
@@ -180,6 +187,9 @@ const Layout = ({ children }) => {
         <div className="min-h-screen bg-deep-black text-white font-sans selection:bg-gold selection:text-black">
             {/* Liquid Background - Enhanced Glass Feel */}
             <LiquidBackground />
+
+            {/* Floating Global Header */}
+            <FloatingHeader />
 
             {/* Navigation Bar */}
             <div className="fixed top-0 left-0 right-0 z-50">

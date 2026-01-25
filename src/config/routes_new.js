@@ -34,6 +34,7 @@ const components = {
     MarketPredictions: () => import('../pages/MarketPredictions'),
     About: () => import('../pages/About'),
     WorkflowAutomation: () => import('../pages/WorkflowAutomation'),
+    SingularityInterface: () => import('../pages/SingularityInterface'),
 };
 
 // Create React Lazy components
@@ -76,6 +77,7 @@ const routeToComponentMap = {
     '/market-predictions': 'MarketPredictions',
     '/about': 'About',
     '/workflow-automation': 'WorkflowAutomation',
+    '/singularity': 'SingularityInterface',
 };
 
 export const prefetchRoute = (path) => {
