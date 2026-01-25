@@ -5,6 +5,7 @@ import { Activity, Wifi, Zap, Lock, Cpu, Globe } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { doc, setDoc, onSnapshot } from 'firebase/firestore';
 import { db } from '../firebase';
+import SingularityHelpModal from '../components/SingularityHelpModal';
 
 // Placeholder imports for sub-components we are about to build
 import SingularityStream from '../components/SingularityStream';
@@ -15,6 +16,7 @@ const SingularityInterface = () => {
     const navigate = useNavigate();
     const [mode, setMode] = useState('ANALYST'); // ANALYST (Prometheus) | GOVERNOR (Kronos)
     const [isMod, setIsMod] = useState(false);
+    const [helpOpen, setHelpOpen] = useState(false); // Default logic: maybe true on first visit?
 
     // Stubbed Backend Status (Would likely come from a context or hook in real integration)
     // Dynamic System Status
@@ -25,6 +27,25 @@ const SingularityInterface = () => {
         marketStatus: 'CLOSED', // Default
         pnl: 12450.32
     });
+
+    // Modules State (Shared between Stream and Canvas)
+    const [modules, setModules] = useState([]);
+
+    const handleAddModule = (module) => {
+        setModules(prev => {
+            if (prev.find(m => m.id === module.id)) return prev;
+            return [...prev, { ...module, x: Math.random() * 60 + 20 + '%', y: Math.random() * 60 + 20 + '%' }];
+        });
+    };
+
+    const handleRemoveModule = (id) => {
+        setModules(prev => prev.filter(m => m.id !== id));
+    };
+
+    const handleReset = () => {
+        setModules([]);
+        // We'll pass a reset signal to Stream
+    };
 
     useEffect(() => {
         const checkMarketStatus = () => {
@@ -76,6 +97,8 @@ const SingularityInterface = () => {
     return (
         <div className="h-screen w-full bg-[#050510] text-[#e0e0ff] font-mono overflow-hidden flex flex-col relative selection:bg-cyan-500/30">
 
+            <SingularityHelpModal isOpen={helpOpen} onClose={() => setHelpOpen(false)} />
+
             {/* --- BACKGROUND AMBIENCE --- */}
             <div className="absolute inset-0 pointer-events-none z-0">
                 <div className={`absolute top-0 left-0 w-full h-full opacity-20 transition-colors duration-1000 ${mode === 'ANALYST' ? 'bg-gradient-to-br from-cyan-900/40 via-transparent to-black' : 'bg-gradient-to-br from-amber-900/40 via-transparent to-black'}`} />
@@ -91,6 +114,12 @@ const SingularityInterface = () => {
                             SINGULARITY <span className="opacity-50">V1.0</span>
                         </h1>
                     </div>
+                    <button
+                        onClick={() => setHelpOpen(true)}
+                        className="ml-4 text-[10px] bg-white/5 hover:bg-white/10 px-2 py-1 rounded border border-white/10 transition-colors"
+                    >
+                        PROTOCOL GUIDE
+                    </button>
                 </div>
 
                 {/* MODE SWITCHER */}
@@ -110,6 +139,7 @@ const SingularityInterface = () => {
                 </div>
 
                 <div className="flex items-center gap-6 text-xs font-bold text-gray-500">
+                    <button onClick={handleReset} className="hover:text-red-400 transition-colors">RESET SESSION</button>
                     <div className="flex items-center gap-2">
                         <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></span>
                         <span className="text-green-500">SYSTEM STABLE</span>
@@ -122,12 +152,22 @@ const SingularityInterface = () => {
 
                 {/* LEFT: NEURAL STREAM */}
                 <section className="w-[450px] shrink-0 border-r border-white/5 bg-black/20 flex flex-col relative z-20">
-                    <SingularityStream mode={mode} />
+                    <SingularityStream
+                        mode={mode}
+                        onStatusChange={(status) => setSystemStatus(prev => ({ ...prev, activeTask: status }))}
+                        onAddModule={handleAddModule}
+                        resetSignal={modules.length === 0} // Hacky trigger
+                    />
                 </section>
 
                 {/* RIGHT: CANVAS */}
                 <section className="flex-1 relative overflow-hidden bg-black/50">
-                    <SingularityCanvas mode={mode} />
+                    <SingularityCanvas
+                        mode={mode}
+                        customLabel={systemStatus.activeTask}
+                        modules={modules}
+                        onRemoveModule={handleRemoveModule}
+                    />
                 </section>
 
             </main>

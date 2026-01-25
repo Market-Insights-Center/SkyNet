@@ -1,14 +1,14 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 
-const SingularityCanvas = ({ mode }) => {
+const SingularityCanvas = ({ mode, customLabel, modules, onRemoveModule }) => {
     const canvasRef = useRef(null);
 
     // --- MOCK VISUALIZATION ---
     // In a real app, this would be Three.js or D3.js
     // For this prototype, we'll use a dynamic CSS/SVG pulse effect.
 
-    const [stockData, setStockData] = React.useState([]);
+    const [stockData, setStockData] = useState([]);
 
     useEffect(() => {
         const fetchStocks = async () => {
@@ -84,8 +84,8 @@ const SingularityCanvas = ({ mode }) => {
                 </motion.div>
 
                 <div className="absolute inset-0 flex items-center justify-center">
-                    <span className="font-mono text-xs tracking-[0.2em] font-bold" style={{ color: primaryColor }}>
-                        {mode === 'ANALYST' ? 'AWAITING INPUT' : 'SYSTEM READY'}
+                    <span className="font-mono text-xs tracking-[0.2em] font-bold uppercase text-center max-w-[200px] leading-relaxed transition-all duration-500" style={{ color: primaryColor }}>
+                        {customLabel || (mode === 'ANALYST' ? 'AWAITING INPUT' : 'SYSTEM READY')}
                     </span>
                 </div>
             </div>
@@ -103,7 +103,80 @@ const SingularityCanvas = ({ mode }) => {
                 />
             ))}
 
+            {/* ACTIVE MODULES (CARDS) */}
+            {modules && modules.map((mod, i) => (
+                <FloatingModule
+                    key={mod.id}
+                    module={mod}
+                    color={primaryColor}
+                    onRemove={() => onRemoveModule(mod.id)}
+                />
+            ))}
+
         </div>
+    );
+};
+
+const FloatingModule = ({ module, color, onRemove }) => {
+    const [minimized, setMinimized] = useState(false);
+
+    return (
+        <motion.div
+            initial={{ scale: 0, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1, height: minimized ? 'auto' : 'auto' }}
+            drag
+            className={`absolute bg-black/80 border backdrop-blur-md rounded-lg p-3 z-50 cursor-grab active:cursor-grabbing shadow-2xl transition-all duration-300 ${minimized ? 'w-48' : 'w-64'}`}
+            style={{ left: module.x, top: module.y, borderColor: color }}
+        >
+            <div className="flex justify-between items-center border-b border-white/10 pb-2 mb-2">
+                <span className="text-[10px] font-bold tracking-widest text-white truncate pr-2">{module.title}</span>
+                <div className="flex items-center gap-2">
+                    <button
+                        onClick={(e) => { e.stopPropagation(); setMinimized(!minimized); }}
+                        className="text-[9px] font-bold bg-white/10 hover:bg-white/20 px-1.5 py-0.5 rounded text-gray-300 transition-colors"
+                    >
+                        {minimized ? '+' : '-'}
+                    </button>
+                    <button
+                        onClick={(e) => { e.stopPropagation(); onRemove(); }}
+                        className="text-[9px] font-bold bg-red-500/20 hover:bg-red-500/40 text-red-400 px-1.5 py-0.5 rounded transition-colors"
+                    >
+                        ✕
+                    </button>
+                    <div className="w-2 h-2 rounded-full animate-pulse" style={{ backgroundColor: color }} />
+                </div>
+            </div>
+
+            {!minimized && (
+                <div className="text-xs text-gray-300 animate-in fade-in duration-300">
+                    {module.type === 'SENTIMENT_CARD' && (
+                        <div className="flex items-center justify-between">
+                            <span>Score</span>
+                            <span className={`font-bold ${module.data.verdict === 'BULLISH' ? 'text-green-400' : 'text-red-400'}`}>{module.data.score.toFixed(2)}</span>
+                        </div>
+                    )}
+                    {module.type === 'QUICKSCORE_CARD' && (
+                        <div className="grid grid-cols-3 gap-1 text-[9px]">
+                            {Object.entries(module.data.scores || {}).map(([k, item]) => {
+                                const val = item.score || item;
+                                const tag = item.label ? item.label.substring(0, 1) : (k === '1' ? 'W' : k === '2' ? 'D' : 'H');
+                                return (
+                                    <div key={k} className="bg-white/5 p-1 rounded text-center">
+                                        <div className="text-gray-500 opacity-50 text-[8px]">{tag}</div>
+                                        <div>{val}</div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
+                </div>
+            )}
+
+            {/* Connector Line (Visual Hack) */}
+            <svg className="absolute top-1/2 left-1/2 w-[500px] h-[500px] pointer-events-none -z-10 -translate-x-1/2 -translate-y-1/2 opacity-20">
+                <line x1="250" y1="250" x2="50%" y2="50%" stroke={color} strokeDasharray="5,5" />
+            </svg>
+        </motion.div>
     );
 };
 
@@ -112,7 +185,7 @@ const FloatingNode = ({ x, y, delay, color, label, val }) => (
         initial={{ opacity: 0 }}
         animate={{ opacity: 1, y: [0, -10, 0] }}
         transition={{ delay, duration: 4, repeat: Infinity, ease: "easeInOut" }}
-        className="absolute px-3 py-1 bg-black/60 border border-white/10 backdrop-blur-sm rounded text-[10px] font-mono flex gap-2 items-center"
+        className="absolute px-3 py-1 bg-black/60 border border-white/10 backdrop-blur-sm rounded text-[10px] font-mono flex gap-2 items-center pointer-events-none"
         style={{ left: x, top: y, borderColor: `${color}40` }}
     >
         <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: color }}></div>

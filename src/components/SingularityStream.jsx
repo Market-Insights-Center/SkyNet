@@ -44,15 +44,78 @@ const LogicBrickDrawer = ({ isOpen, onClose, onAddBrick }) => {
     );
 };
 
-const SingularityStream = ({ mode }) => {
+const SentimentCard = ({ data }) => {
+    const [hidden, setHidden] = useState(false);
+    return (
+        <div className="mt-3 w-[90%] bg-black/40 border border-white/10 rounded-lg p-3 flex flex-col gap-2 relative group transition-all duration-300 hover:border-cyan-500/30">
+            <button onClick={() => setHidden(!hidden)} className="absolute top-2 right-2 text-[10px] font-bold bg-black/80 px-2 rounded border border-white/10 text-gray-400 hover:text-white opacity-0 group-hover:opacity-100 transition-opacity z-20">
+                {hidden ? 'EXPAND' : 'HIDE'}
+            </button>
+            <div className="flex justify-between items-center border-b border-white/5 pb-2">
+                <span className="text-xs text-gray-400 font-mono">{data.ticker} SENTIMENT</span>
+                <span className={`text-xs font-bold ${data.verdict === 'BULLISH' ? 'text-green-400' : 'text-red-400'}`}>{data.verdict}</span>
+            </div>
+            {!hidden && (
+                <div className="flex items-center gap-4 animate-in fade-in slide-in-from-top-2 duration-300">
+                    <div className="text-2xl font-bold text-white">{data.score.toFixed(3)}</div>
+                    <div className="text-[10px] text-gray-500 leading-tight flex-1">{data.details}</div>
+                </div>
+            )}
+        </div>
+    );
+};
+
+const QuickscoreCard = ({ data }) => {
+    const [hidden, setHidden] = useState(false);
+    return (
+        <div className="mt-3 w-[95%] bg-black/40 border border-white/10 rounded-lg p-3 flex flex-col gap-2 overflow-hidden relative group hover:border-cyan-500/30">
+            <button onClick={() => setHidden(!hidden)} className="absolute top-2 right-2 text-[10px] font-bold bg-black/80 px-2 rounded border border-white/10 text-gray-400 hover:text-white opacity-0 group-hover:opacity-100 transition-opacity z-20">
+                {hidden ? 'EXPAND' : 'HIDE'}
+            </button>
+            <div className="flex justify-between items-center border-b border-white/5 pb-2">
+                <span className="text-xs text-gray-400 font-mono">QUICKSCORE ANALYSIS</span>
+                <span className="text-xs text-cyan-400 font-mono">{data.ticker}</span>
+            </div>
+            {!hidden && (
+                <div className="animate-in fade-in slide-in-from-top-2 duration-300">
+                    <div className="grid grid-cols-3 gap-2 text-center py-2">
+                        {Object.entries(data.scores || {}).map(([k, item]) => {
+                            // Handle backward compatibility or new object
+                            const label = item.label || (k === '1' ? 'Weekly' : k === '2' ? 'Daily' : 'Hourly');
+                            const val = item.score || item;
+                            return (
+                                <div key={k} className="bg-white/5 rounded p-1">
+                                    <div className="text-[9px] text-gray-500 uppercase">{label}</div>
+                                    <div className="text-sm font-bold text-white">{val}</div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                    {data.graphs && data.graphs[1] && (
+                        <div className="relative w-full h-32 rounded bg-black/50 overflow-hidden">
+                            <img src={data.graphs[1].split(': ')[1]} alt="Graph" className="w-full h-full object-contain opacity-80 hover:opacity-100 transition-opacity" />
+                        </div>
+                    )}
+                </div>
+            )}
+        </div>
+    );
+};
+
+const SingularityStream = ({ mode, onStatusChange, onAddModule, resetSignal }) => {
     const [input, setInput] = useState('');
     const [histories, setHistories] = useState(() => {
         const saved = localStorage.getItem('singularity_histories');
-        return saved ? JSON.parse(saved) : {
-            ANALYST: [{ role: 'system', content: 'Prometheus Interface Online. Awaiting market queries...', timestamp: new Date().toLocaleTimeString() }],
-            MANAGER: [{ role: 'system', content: 'Kronos Command System Ready. Awaiting logic instructions...', timestamp: new Date().toLocaleTimeString() }]
-        };
+        try { return saved ? JSON.parse(saved) : { ANALYST: [], GOVERNOR: [] }; } catch { return { ANALYST: [], GOVERNOR: [] }; }
     });
+
+    // Reset Listener
+    useEffect(() => {
+        if (resetSignal) {
+            setHistories({ ANALYST: [], GOVERNOR: [] });
+            localStorage.removeItem('singularity_histories');
+        }
+    }, [resetSignal]);
 
     useEffect(() => {
         localStorage.setItem('singularity_histories', JSON.stringify(histories));
@@ -126,7 +189,8 @@ const SingularityStream = ({ mode }) => {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     prompt: text,
-                    email: currentUser ? currentUser.email : 'guest'
+                    email: currentUser ? currentUser.email : 'guest',
+                    mode: mode
                 })
             });
 
@@ -148,10 +212,26 @@ const SingularityStream = ({ mode }) => {
                         updateHistory(prev => prev.map(msg => {
                             if (msg.id !== aiPlaceholderId) return msg;
 
+                            // Safety check for null/undefined data
+                            if (!data || !data.type) return msg;
+
                             if (data.type === 'step') {
+                                if (onStatusChange) onStatusChange(data.content);
                                 return { ...msg, steps: [...(msg.steps || []), data.content] };
                             } else if (data.type === 'result') {
+                                if (onStatusChange) setTimeout(() => onStatusChange(null), 2000); // Reset after delay
                                 return { ...msg, content: data.content, isStreaming: false };
+                            } else if (data.type === 'widget') {
+                                // Lift widget to Canvas
+                                if (onAddModule) {
+                                    onAddModule({
+                                        id: Date.now(),
+                                        type: data.content.type,
+                                        data: data.content.data,
+                                        title: data.content.type.replace('_CARD', '')
+                                    });
+                                }
+                                return { ...msg, widget: data.content.type, widgetData: data.content.data };
                             }
                             return msg;
                         }));
@@ -217,11 +297,20 @@ const SingularityStream = ({ mode }) => {
                             {msg.content}
                             {msg.isStreaming && !msg.content && <span className="animate-pulse">_</span>}
                         </div>
+
+                        {/* WIDGET AREA */}
                         {msg.widget === 'BACKTEST_WIDGET' && (
                             <div className={`mt-2 w-[85%] h-24 bg-${themeColor}-900/10 border border-${themeColor}-500/20 rounded-lg flex items-center justify-center`}>
                                 <span className={`text-xs ${textColor} animate-pulse`}>Initializing Simulation Widget...</span>
                             </div>
                         )}
+                        {msg.widget === 'SENTIMENT_CARD' && msg.widgetData && (
+                            <SentimentCard data={msg.widgetData} />
+                        )}
+                        {msg.widget === 'QUICKSCORE_CARD' && msg.widgetData && (
+                            <QuickscoreCard data={msg.widgetData} />
+                        )}
+
                         <span className="text-[9px] text-gray-600 mt-1 uppercase tracking-wide">{msg.role} • {msg.timestamp || new Date().toLocaleTimeString()}</span>
                     </motion.div>
                 ))}

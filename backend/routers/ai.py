@@ -291,6 +291,7 @@ async def execute_sentinel(req: SentinelRequest):
     )
 
 
+
 @router.post("/api/prometheus")
 async def api_prometheus(req: PrometheusRequest):
     # Simulate thinking process for UI
@@ -303,12 +304,31 @@ async def api_prometheus(req: PrometheusRequest):
         # Helper to extract ticker
         def extract_ticker(text):
              words = text.split()
-             # Improved filter: exclude common words even if they look like tickers (UPPERCASE)
-             common = ["THE", "FOR", "AND", "WITH", "FROM", "THAT", "THIS", "SENTIMENT", "ANALYSIS", "ANALYZE", "STOCK", "BREAKOUT", "FIND", "SEARCH", "SCAN", "MARKET", "ON", "ABOUT", "WHAT"]
-             # Look for $TICKER or just TICKER
+             
+             # 1. Priority: Explicit Ticker ($NVDA)
+             for w in words:
+                  if w.startswith("$") and len(w) > 1:
+                       return w.strip("$,.?!").upper()
+
+             # 2. Priority: Common known tickers (if plain text) which are NOT common words
+             
+             # 3. Fallback: Filtered word search
+             common = [
+                 "THE", "FOR", "AND", "WITH", "FROM", "THAT", "THIS", "SENTIMENT", "ANALYSIS", "ANALYZE", 
+                 "STOCK", "BREAKOUT", "FIND", "SEARCH", "SCAN", "MARKET", "ON", "ABOUT", "WHAT", 
+                 "QUICKSCORE", "SCORE", "QUICK", "INVEST", "RISK", "HISTORY", "TRACKING", "CUSTOM",
+                 "CULTIVATE", "POWERSCORE", "BRIEFING", "FUNDAMENTALS", "ASSESS", "MLFORECAST", "SENTINEL",
+                 "IS", "ARE", "WAS", "WERE", "BE", "BEEN", "BEING", "HAVE", "HAS", "HAD", "DO", "DOES", "DID",
+                 "A", "AN", "IN", "OUT", "UP", "DOWN", "LEFT", "RIGHT", "OVER", "UNDER", "AGAINST", "BETWEEN",
+                 "INTO", "THROUGH", "DURING", "BEFORE", "AFTER", "ABOVE", "BELOW", "TO", "OF", "AT", "BY",
+                 "CONVERGENCE", "DIVERGENCE", "MOMENTUM", "VOLATILITY", "SECTOR", "INDUSTRY", "TECH"
+             ]
+             
              for w in words:
                   clean = w.strip("$,.?!").upper()
-                  if clean.isalpha() and len(clean) >= 2 and clean not in common:
+                  # Ticker Length Constraint: Most US tickers are 1-5 chars. 
+                  # Longer words like "CONVERGENCE" (11) are likely not tickers unless explicitly marked with $.
+                  if clean.isalpha() and 2 <= len(clean) <= 5 and clean not in common:
                        return clean
              return "SPY" # Default
 
@@ -323,36 +343,83 @@ async def api_prometheus(req: PrometheusRequest):
                  steps.append("Querying social & news vectors...")
                  result = await sentiment_command.handle_sentiment_command(ai_params={"ticker": ticker}, is_called_by_ai=True)
                  
-                 # Debugging zero score issue: ensure result is valid
+                 valid_data = False
                  if result and result.get("status") == "success":
-                      data = result.get("data", {})
-                      score = data.get("compound_score", 0)
-                      # If score is exactly 0.000, it might be a lookup failure. Try harder or fake a slight variance for "neutral" if real data is missing.
-                      # Ideally, we should check if 'news_count' or 'tweets' > 0.
-                      
-                      verdict = "BULLISH" if score > 0.05 else "BEARISH" if score < -0.05 else "NEUTRAL"
-                      response_text = f"**Sentiment Analysis for {ticker}**\n\n**Verdict**: {verdict} (Score: {score:.3f})\n\nBased on recent data processing, {ticker} is exhibiting {verdict.lower()} signals. The aggregated sentiment score of {score:.3f} suggests a shift in market perception."
-                 else:
-                      response_text = f"Could not determine sentiment for {ticker}. Data insufficient."
+                      data = result.get("data", {}) if "data" in result else result
+                      # Check if we actually have data
+                      if data.get("source_counts") and "Found 0" not in data.get("source_counts", ""):
+                          valid_data = True
+                          score = data.get("compound_score", 0) if "compound_score" in data else data.get("sentiment_score_raw", 0)
+                          verdict = "BULLISH" if score > 0.05 else "BEARISH" if score < -0.05 else "NEUTRAL"
+                          response_text = f"**Sentiment Analysis for {ticker}**\n\n**Verdict**: {verdict} (Score: {score:.3f})\n\nBased on recent data processing, {ticker} is exhibiting {verdict.lower()} signals. The aggregated sentiment score of {score:.3f} suggests a shift in market perception."
+                          
+                          # Widget Data
+                          widget_payload = {
+                              "type": "SENTIMENT_CARD",
+                              "data": { "ticker": ticker, "score": score, "verdict": verdict, "details": data.get("summary", "N/A") }
+                          }
+                          yield json.dumps({"type": "widget", "content": widget_payload}) + "\n"
+                      else:
+                          pass # Falling through to error message
+
+                 if not valid_data:
+                      response_text = f"Could not determine sentiment for {ticker}. Recent social/news data volume is insufficient for a confident score."
+
              except Exception as e:
                  response_text = f"Sentiment analysis error: {str(e)}"
 
-        elif "breakout" in prompt:
-             steps.append("Scanning Market for Volatility Breakouts...")
-             steps.append("Applying Technical Filters (RSI, Bollinger)...")
-             try:
-                 result = await breakout_command.handle_breakout_command([], ai_params={"action": "run"}, is_called_by_ai=True)
-                 if result and result.get("status") == "success":
-                      breakouts = result.get("data", [])[:5] # Top 5
-                      if breakouts:
-                           list_str = "\n".join([f"- **{b['ticker']}**: {b['signal_type']} (Strength: {b.get('strength', 'N/A')})" for b in breakouts])
-                           response_text = f"**Breakout Scan Results**\n\nI have identified the following potential breakout candidates:\n\n{list_str}\n\nThese assets are showing significant momentum divergence from their baseline."
-                      else:
-                           response_text = "System scan completed. No significant breakout signals detected at this time."
-                 else:
-                      response_text = "Breakout scan produced no viable results."
-             except Exception as e:
-                 response_text = f"Breakout scan error: {str(e)}"
+        elif "breakout" in prompt or "scan" in prompt:
+             is_kronos = (req.mode == "GOVERNOR")
+             
+             if is_kronos:
+                 # KRONOS UPGRADE: Use Sentinel for Deep Scanning
+                 steps.append("KRONOS: Activating Sentinel Autonomous Scanner...")
+                 steps.append("KRONOS: Deploying multi-vector analysis (Market, Risk, Breakout)...")
+                 
+                 # We trigger a predefined Sentinel plan for "Deep Scan"
+                 # Define a manual plan to ensure high quality execution
+                 sentinel_plan = [
+                      {"step_id": 1, "tool": "market", "params": {"sensitivity": 2, "market_type": "sp500"}, "description": "Scanning S&P 500 for Volatility"},
+                      {"step_id": 2, "tool": "risk", "params": {}, "description": "Evaluating Systemic Risk Levels"},
+                      {"step_id": 3, "tool": "summary", "params": {"data_source": "$CONTEXT"}, "description": "Synthesizing Strategic Report"}
+                 ]
+                 
+                 # Stream Sentinel Updates
+                 try:
+                     async for update in sentinel_command.run_sentinel("Deep Scan", plan_override=sentinel_plan, execution_mode="quick_execute"):
+                          if update.get("type") == "status":
+                              yield json.dumps({"type": "step", "content": f"KRONOS: {update.get('message')}"}) + "\n"
+                          elif update.get("type") == "final":
+                              # The context has the summary
+                              ctx = update.get("context", {})
+                              summary_text = ctx.get("final_summary", "Analysis Completed.")
+                              if isinstance(summary_text, dict): summary_text = str(summary_text)
+                              
+                              # Extract key findings from context if available
+                              response_text = f"**KRONOS STRATEGIC OUTPUT**\n\n{summary_text}\n\n**Directives:**\n- Align portfolio beta with identified risk.\n- Monitor flagged high-volatility assets."
+                          elif update.get("type") == "error":
+                               response_text = f"KRONOS EXECUTION ERROR: {update.get('message')}"
+                 except Exception as e:
+                     response_text = f"Kronos Sentinel Failure: {str(e)}"
+
+             else:
+                 # Standard Analyst Breakout
+                 steps.append("Analyst: Routing request to Kronos Execution Layer...")
+                 steps.append("Analyst: Waiting for scan results...")
+
+                 try:
+                     result = await breakout_command.handle_breakout_command([], ai_params={"action": "run"}, is_called_by_ai=True)
+                     if result and result.get("status") == "success":
+                          breakouts = result.get("data", [])[:5] # Top 5
+                          if breakouts:
+                               list_str = "\n".join([f"- **{b['ticker']}**: {b['signal_type']} (Strength: {b.get('strength', 'N/A')})" for b in breakouts])
+                               response_text = f"**Breakout Scan Results**\n\nKronos has identified the following potential breakout candidates:\n\n{list_str}\n\nThese assets are showing significant momentum divergence."
+                          else:
+                               response_text = "System scan completed. No significant breakout signals detected at this time."
+                     else:
+                          response_text = "Breakout scan produced no viable results."
+                 except Exception as e:
+                     response_text = f"Breakout scan error: {str(e)}"
 
         elif "market" in prompt or "sector" in prompt or "trend" in prompt:
              steps.append("Accessing Global Market Data Layer...")
@@ -368,17 +435,30 @@ async def api_prometheus(req: PrometheusRequest):
              except Exception as e:
                   response_text = f"Market analysis error: {str(e)}"
         
-        elif "analyze" in prompt or "$" in req.prompt or ticker != "SPY":
+        elif "quickscore" in prompt or "analyze" in prompt or "$" in req.prompt or ticker != "SPY":
              # General analysis for a ticker
              steps.append(f"Deep Scanning Ticker: {ticker}...")
              steps.append("Aggregating Multi-Factor Model...")
              
              try:
-                 # Run quickscore
-                 qs = await quickscore_command.handle_quickscore_command([], ai_params={"ticker": ticker}, is_called_by_ai=True)
+                 # Run quickscore with timeout
+                 qs = await asyncio.wait_for(quickscore_command.handle_quickscore_command([], ai_params={"ticker": ticker}, is_called_by_ai=True), timeout=25.0)
                  if qs and qs.get("status") == "success":
-                      score = qs.get("data", {}).get("total_score", "N/A")
-                      response_text = f"**Analysis for {ticker}**\n\n**QuickScore**: {score}/100\n\nThe asset has been evaluated against our multi-factor model. A score of {score} indicates the current technical and fundamental strength."
+                       # Parse new structured data (String keys "1", "2", "3")
+                       # Fallback to direct access if needed
+                       daily_data = qs.get("scores", {}).get("2", {})
+                       score = daily_data.get("score", "N/A") if isinstance(daily_data, dict) else daily_data
+                       
+                       
+                       summary = qs.get("summary", "N/A")
+                       response_text = f"**Analysis for {ticker}**\n\n{summary}\n\nThe asset has been evaluated against our multi-factor model."
+                       
+                       widget_payload = {
+                           "type": "QUICKSCORE_CARD",
+                           "data": qs
+                       }
+                       yield json.dumps({"type": "widget", "content": widget_payload}) + "\n"
+
                  else:
                       response_text = f"Analysis for {ticker} yielded inconclusive results."
              except Exception as e:

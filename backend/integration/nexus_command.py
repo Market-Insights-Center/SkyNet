@@ -556,7 +556,13 @@ async def handle_nexus_command(args: List[str], ai_params: Optional[Dict] = None
              return {"status": "error", "message": "No portfolio value provided and unable to fetch Robinhood equity. Execution aborted."}
 
         # Process Target
-        new_holdings, new_cash_unadjusted = await process_nexus_portfolio(config, total_value, nexus_code, ai_params, progress_callback)
+        new_holdings, new_cash_unadjusted = await process_nexus_portfolio(
+            nexus_config=config, 
+            total_value=total_value, 
+            nexus_code=nexus_code, 
+            ai_params=ai_params, 
+            progress_callback=progress_callback
+        )
         new_cash = new_cash_unadjusted # Will be updated by sweep
 
 

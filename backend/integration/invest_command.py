@@ -292,7 +292,13 @@ async def process_custom_portfolio(
                 if alloc_pct > 0 and price > 0:
                     target_amt = total_val * (alloc_pct / 100.0)
                     shares = target_amt / price
-                    final_shares = round(shares, 2) if frac_shares_singularity else math.floor(shares)
+                    if frac_shares_singularity:
+                         # Use 4 decimal places for fractional shares to catch small allocations (e.g. $1 of NVDA)
+                         final_shares = round(shares, 4)
+                         # If still 0 but we wanted it, force min allocation if possible or keep as ultra-small float
+                         if final_shares == 0 and shares > 0: final_shares = shares # Keep raw precision
+                    else:
+                         final_shares = math.floor(shares)
                     
                     # DEBUG: Dropped Stock Analysis
                     if final_shares <= 0:

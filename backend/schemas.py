@@ -234,6 +234,7 @@ class SentinelRequest(BaseModel):
 class PrometheusRequest(BaseModel):
     prompt: str
     email: str
+    mode: Optional[str] = "ANALYST" # ANALYST or GOVERNOR
 
 # --- Predictions ---
 class PredictionCreateRequest(BaseModel):

@@ -184,11 +184,28 @@ async def handle_quickscore_command(args: List[str], ai_params: Optional[Dict]=N
     # for /quickscore, but this function was only returning a string.
     # The executor's summarization logic will handle this dict.
     if is_called_by_ai:
+        # Check if we have valid data
+        if live_price_qs_display == "N/A":
+             return {
+                 "status": "error",
+                 "message": f"No market data found for {ticker_qs}",
+                 "ticker": ticker_qs
+             }
+        
+        # Structure Data for Frontend
+        structured_scores = {}
+        for k, v in scores_qs.items():
+            structured_scores[str(k)] = { # Ensure string keys
+                "label": sensitivity_map[k].split(' ')[0], # "Weekly", "Daily"
+                "full_label": sensitivity_map[k],
+                "score": v
+            }
+
         return {
             "status": "success",
             "ticker": ticker_qs,
             "live_price": live_price_qs_display,
-            "scores": scores_qs,
+            "scores": structured_scores, # Labeled dict
             "graphs": graphs_qs_files,
             "chart_data": chart_data,
             "summary": summary
