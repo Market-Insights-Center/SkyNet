@@ -46,9 +46,31 @@ const LogicBrickDrawer = ({ isOpen, onClose, onAddBrick }) => {
 
 const SingularityStream = ({ mode }) => {
     const [input, setInput] = useState('');
-    const [history, setHistory] = useState([
-        { role: 'system', content: 'Singularity Interface Initialized. Listening for commands...' }
-    ]);
+    const [histories, setHistories] = useState(() => {
+        const saved = localStorage.getItem('singularity_histories');
+        return saved ? JSON.parse(saved) : {
+            ANALYST: [{ role: 'system', content: 'Prometheus Interface Online. Awaiting market queries...', timestamp: new Date().toLocaleTimeString() }],
+            MANAGER: [{ role: 'system', content: 'Kronos Command System Ready. Awaiting logic instructions...', timestamp: new Date().toLocaleTimeString() }]
+        };
+    });
+
+    useEffect(() => {
+        localStorage.setItem('singularity_histories', JSON.stringify(histories));
+    }, [histories]);
+
+    const history = histories[mode] || [];
+
+    const updateHistory = (updater) => {
+        setHistories(prev => {
+            const currentHistory = prev[mode] || [];
+            const newHistory = typeof updater === 'function' ? updater(currentHistory) : updater;
+            return {
+                ...prev,
+                [mode]: newHistory
+            };
+        });
+    };
+
     const [showSuggestions, setShowSuggestions] = useState(false);
     const [showDrawer, setShowDrawer] = useState(false);
     const scrollRef = useRef(null);
@@ -66,22 +88,36 @@ const SingularityStream = ({ mode }) => {
 
     const { currentUser } = useAuth(); // Needed for API
 
+    const themeColor = mode === 'ANALYST' ? 'cyan' : 'amber';
+    const borderColor = mode === 'ANALYST' ? 'border-cyan-500/30' : 'border-amber-500/30';
+    const textColor = mode === 'ANALYST' ? 'text-cyan-400' : 'text-amber-400';
+
+    const QUICK_PROMPTS = mode === 'ANALYST'
+        ? ['Analyze Tech Sector', 'Find Breakout Stocks', 'Sentiment on $NVDA', 'Explain Market Trend']
+        : ['/backtest RSI on SPY', '/optimize MA_Cross', '/scan Convergence', 'Risk Check Portfolio'];
+
+
+
+
+
+
     const executeCommand = async (text) => {
         if (!text.trim()) return;
 
         // Add user message
-        const userMsg = { role: 'user', content: text };
-        setHistory(prev => [...prev, userMsg]);
+        const userMsg = { role: 'user', content: text, timestamp: new Date().toLocaleTimeString() };
+        updateHistory(prev => [...prev, userMsg]);
 
         // Placeholder for AI
         const aiPlaceholderId = Date.now();
-        setHistory(prev => [...prev, {
+        updateHistory(prev => [...prev, {
             id: aiPlaceholderId,
             role: 'ai',
             content: '',
             steps: [],
             isStreaming: true,
-            widget: text.toLowerCase().includes('backtest') ? 'BACKTEST_WIDGET' : null
+            widget: text.toLowerCase().includes('backtest') ? 'BACKTEST_WIDGET' : null,
+            timestamp: new Date().toLocaleTimeString()
         }]);
 
         try {
@@ -109,7 +145,7 @@ const SingularityStream = ({ mode }) => {
                     try {
                         const data = JSON.parse(line);
 
-                        setHistory(prev => prev.map(msg => {
+                        updateHistory(prev => prev.map(msg => {
                             if (msg.id !== aiPlaceholderId) return msg;
 
                             if (data.type === 'step') {
@@ -125,7 +161,7 @@ const SingularityStream = ({ mode }) => {
             }
         } catch (e) {
             console.error("Prometheus Error", e);
-            setHistory(prev => prev.map(msg => {
+            updateHistory(prev => prev.map(msg => {
                 if (msg.id !== aiPlaceholderId) return msg;
                 return { ...msg, content: "Connection to Singularity Core failed.", isStreaming: false };
             }));
@@ -145,6 +181,11 @@ const SingularityStream = ({ mode }) => {
     const handlePromptClick = (text) => {
         executeCommand(text);
     };
+
+    const handleBrickAdd = (brick) => {
+        setInput(prev => prev + (prev ? ' + ' : '') + `[${brick}]`);
+    };
+
 
     return (
         <div className="flex flex-col h-full w-full relative">
@@ -181,7 +222,7 @@ const SingularityStream = ({ mode }) => {
                                 <span className={`text-xs ${textColor} animate-pulse`}>Initializing Simulation Widget...</span>
                             </div>
                         )}
-                        <span className="text-[9px] text-gray-600 mt-1 uppercase tracking-wide">{msg.role} • {new Date().toLocaleTimeString()}</span>
+                        <span className="text-[9px] text-gray-600 mt-1 uppercase tracking-wide">{msg.role} • {msg.timestamp || new Date().toLocaleTimeString()}</span>
                     </motion.div>
                 ))}
             </div>
