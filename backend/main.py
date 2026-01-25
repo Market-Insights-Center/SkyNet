@@ -20,7 +20,7 @@ if current_dir not in sys.path:
 
 # --- IMPORTS ---
 from backend.services.orion_manager import OrionManager
-from backend.routers import auth, chat, content, market, automation, ai, web
+from backend.routers import auth, chat, content, market, automation, ai, web, background
 # --- LOGGING ---
 # Ensure logs are overwritten on each startup for a clean state
 log_filename = "backend_log.txt"
@@ -150,6 +150,7 @@ app.include_router(market.router)
 app.include_router(automation.router)
 app.include_router(ai.router)
 app.include_router(web.router)
+app.include_router(background.router)
 
 @app.get("/")
 def root():
@@ -158,4 +159,4 @@ def root():
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000) 
- 
+

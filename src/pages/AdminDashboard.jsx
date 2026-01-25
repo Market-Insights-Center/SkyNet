@@ -8,6 +8,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import CreateArticleModal from '../components/CreateArticleModal';
 import CreateIdeaModal from '../components/CreateIdeaModal';
+import BackgroundCommandPanel from '../components/BackgroundCommandPanel';
 
 const AdminDashboard = () => {
     const { currentUser } = useAuth();
@@ -444,6 +445,7 @@ const AdminDashboard = () => {
         { id: 'banners', label: 'Banners', icon: Megaphone },
         { id: 'predictions', label: 'Predictions', icon: TrendingUp },
         { id: 'mods', label: 'Moderators', icon: Shield },
+        { id: 'background', label: 'Background Cmds', icon: Zap },
         { id: 'logs', label: 'System Logs', icon: FileText },
         { id: 'recent_actions', label: 'Recent Actions', icon: Clock },
     ];
@@ -680,6 +682,8 @@ const AdminDashboard = () => {
                     </div>
                 )}
 
+                {activeTab === 'background' && <BackgroundCommandPanel />}
+
                 {activeTab === 'logs' && (
                     <div className="bg-white/5 rounded-xl border border-white/10 p-6 flex flex-col h-[70vh]">
                         <div className="flex justify-between items-center mb-4">
@@ -840,7 +844,7 @@ const AdminDashboard = () => {
                                                             // If it looks like ISO but no Offset, append Z
                                                             ts += 'Z';
                                                         }
-                                                        
+
                                                         const dateObj = new Date(ts);
                                                         return (
                                                             <>

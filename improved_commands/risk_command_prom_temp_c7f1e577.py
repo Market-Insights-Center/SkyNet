@@ -1,0 +1,1 @@
+Error generating content with Ollama: HTTPConnectionPool(host='localhost', port=11434): Read timed out. (read timeout=120)

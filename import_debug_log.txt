@@ -1,0 +1,15 @@
+--- Debugging Kronos Command Import (File Log) ---
+CWD: C:\Users\victo\OneDrive\Documents\GitHub\SkyNet
+Python Path: ['C:\\Users\\victo\\OneDrive\\Documents\\GitHub\\SkyNet', 'C:\\Users\\victo\\AppData\\Local\\Programs\\Python\\Python311\\python311.zip', 'C:\\Users\\victo\\AppData\\Local\\Programs\\Python\\Python311\\Lib', 'C:\\Users\\victo\\AppData\\Local\\Programs\\Python\\Python311\\DLLs', 'C:\\Users\\victo\\AppData\\Local\\Programs\\Python\\Python311', 'C:\\Users\\victo\\AppData\\Local\\Programs\\Python\\Python311\\Lib\\site-packages', 'C:\\Users\\victo\\AppData\\Local\\Programs\\Python\\Python311\\Lib\\site-packages\\win32', 'C:\\Users\\victo\\AppData\\Local\\Programs\\Python\\Python311\\Lib\\site-packages\\win32\\lib', 'C:\\Users\\victo\\AppData\\Local\\Programs\\Python\\Python311\\Lib\\site-packages\\Pythonwin', 'C:\\Users\\victo\\OneDrive\\Documents\\GitHub\\SkyNet']
+
+Attempting: from backend.integration import kronos_command
+WARNING - BaseStrategy not found, defining a dummy class for type checking.
+✅ Success: backend.integration.kronos_command imported.
+
+--- Attempting Fallback ---
+Attempting: from integration import kronos_command
+❌ Failed: No module named 'integration'
+Traceback (most recent call last):
+  File "C:\Users\victo\OneDrive\Documents\GitHub\SkyNet\debug_kronos_import_v3.py", line 27, in <module>
+    from integration import kronos_command
+ModuleNotFoundError: No module named 'integration'

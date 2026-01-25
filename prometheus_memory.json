@@ -1,0 +1,41 @@
+{
+    "rsi_SPY": {
+        "params": {
+            "rsi_period": 28,
+            "rsi_buy": 27,
+            "rsi_sell": 76
+        },
+        "fitness": 40.032291266229336,
+        "timestamp": "2026-01-24T21:03:37.150645"
+    },
+    "rsi_SPY_1y": [
+        {
+            "params": {
+                "rsi_period": 30,
+                "rsi_buy": 27,
+                "rsi_sell": 81
+            },
+            "fitness": 40.032291266229336,
+            "timestamp": "2026-01-25T00:24:38.025224"
+        },
+        {
+            "params": {
+                "rsi_period": 30,
+                "rsi_buy": 27,
+                "rsi_sell": 84
+            },
+            "fitness": 40.032291266229336,
+            "timestamp": "2026-01-25T00:13:50.005333"
+        }
+    ],
+    "ma_crossover_SPY_1y": [
+        {
+            "params": {
+                "short_ma": 33,
+                "long_ma": 20
+            },
+            "fitness": 24.834334987346086,
+            "timestamp": "2026-01-25T00:56:33.923712"
+        }
+    ]
+}
