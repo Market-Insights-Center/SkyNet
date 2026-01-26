@@ -709,6 +709,13 @@ const ExecutionModal = ({ isOpen, onClose, onExecute, trades = [] }) => {
     const [tradeList, setTradeList] = useState([]);
     const [logs, setLogs] = useState([]);
     const [finished, setFinished] = useState(false);
+    const messagesEndRef = React.useRef(null);
+
+    useEffect(() => {
+        if (messagesEndRef.current) {
+            messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
+        }
+    }, [logs]);
 
     useEffect(() => {
         if (isOpen) {
@@ -737,11 +744,11 @@ const ExecutionModal = ({ isOpen, onClose, onExecute, trades = [] }) => {
         if (isProcessing) return;
         setIsProcessing(true);
         setFinished(false);
+        setLogs(prev => [...prev, "Starting Execution..."]);
 
         if (execRh && rhUser) localStorage.setItem('mic_rh_user', rhUser);
         if (execRh && rhPass) localStorage.setItem('mic_rh_pass', rhPass);
 
-        // Streaming Logic
         try {
             const userEmail = localStorage.getItem('mic_email');
 
@@ -767,7 +774,12 @@ const ExecutionModal = ({ isOpen, onClose, onExecute, trades = [] }) => {
                 const chunk = decoder.decode(value, { stream: true });
                 accumulatedData += chunk;
                 const lines = accumulatedData.split('\n');
-                accumulatedData = lines.pop(); // Keep last incomplete line
+
+                if (!chunk.endsWith('\n')) {
+                    accumulatedData = lines.pop();
+                } else {
+                    accumulatedData = "";
+                }
 
                 for (const line of lines) {
                     if (!line.trim()) continue;
@@ -775,7 +787,7 @@ const ExecutionModal = ({ isOpen, onClose, onExecute, trades = [] }) => {
                         const event = JSON.parse(line);
 
                         if (event.type === 'progress') {
-                            const pct = Math.round((event.completed / event.total) * 100);
+                            const pct = event.total > 0 ? Math.round((event.completed / event.total) * 100) : 0;
                             setProgress(pct);
                             setStatusMsg(event.message);
 
@@ -785,16 +797,16 @@ const ExecutionModal = ({ isOpen, onClose, onExecute, trades = [] }) => {
                                         ? { ...t, status: event.message.includes('Executed') ? 'executed' : (event.message.includes('Failed') ? 'failed' : 'processing') }
                                         : t
                                 ));
-                                setLogs(prev => [...prev, `${event.message} (${event.trade.ticker})`]);
-                            } else {
-                                setLogs(prev => [...prev, event.message]);
                             }
+
+                            if (event.message) setLogs(prev => [...prev, event.message]);
 
                         } else if (event.type === 'result') {
                             setStatusMsg("Execution Complete!");
+                            setLogs(prev => [...prev, "✅ Execution Cycle Finished."]);
                             setFinished(true);
                         } else if (event.type === 'error') {
-                            setLogs(prev => [...prev, `ERROR: ${event.message}`]);
+                            setLogs(prev => [...prev, `❌ ERROR: ${event.message}`]);
                         }
                     } catch (e) {
                         console.error("Parse Error", e);
@@ -802,8 +814,10 @@ const ExecutionModal = ({ isOpen, onClose, onExecute, trades = [] }) => {
                 }
             }
 
-        } catch (e) {
-            setLogs(prev => [...prev, `Network Error: ${e.message}`]);
+        } catch (err) {
+            console.error("Execution Request Error:", err);
+            setLogs(prev => [...prev, `CRITICAL ERROR: ${err.message}`]);
+            setStatusMsg("Failed.");
         }
     };
 
@@ -925,6 +939,7 @@ const ExecutionModal = ({ isOpen, onClose, onExecute, trades = [] }) => {
                             {/* Logs */}
                             <div className="bg-black/50 p-2 rounded border border-gray-800 text-[10px] h-24 overflow-y-auto font-mono text-gray-500">
                                 {logs.map((l, i) => <div key={i} className="border-b border-white/5 py-0.5">{l}</div>)}
+                                <div ref={messagesEndRef} />
                             </div>
                         </div>
                     )}
@@ -949,7 +964,7 @@ const ExecutionModal = ({ isOpen, onClose, onExecute, trades = [] }) => {
                         </button>
                     )}
                 </div>
-            </motion.div>
-        </div>
+            </motion.div >
+        </div >
     );
 };

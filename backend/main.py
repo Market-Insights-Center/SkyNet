@@ -20,7 +20,7 @@ if current_dir not in sys.path:
 
 # --- IMPORTS ---
 from backend.services.orion_manager import OrionManager
-from backend.routers import auth, chat, content, market, automation, ai, web, background
+from backend.routers import auth, chat, content, market, automation, ai, web, background, execution
 # --- LOGGING ---
 # Ensure logs are overwritten on each startup for a clean state
 log_filename = "backend_log.txt"
@@ -151,6 +151,7 @@ app.include_router(automation.router)
 app.include_router(ai.router)
 app.include_router(web.router)
 app.include_router(background.router)
+app.include_router(execution.router)
 
 @app.get("/")
 def root():
