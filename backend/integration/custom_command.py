@@ -174,7 +174,7 @@ async def _save_custom_portfolio_run_to_csv(portfolio_code: str, tailored_stock_
                 price = float(holding.get('live_price_at_eval', 0.0))
                 # Force round to nearest integer
                 new_shares = round(shares)
-                holding['shares'] = str(new_shares)
+                holding['shares'] = str(new_shares) # Update with integer string
                 
                 # Adjust allocation values to match new share count if price is valid
                 if price > 0:

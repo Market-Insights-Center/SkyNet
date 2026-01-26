@@ -100,7 +100,11 @@ async def run_nexus(req: NexusRequest):
         while True:
             data = await q.get()
             if data is None: break
-            yield json.dumps(data) + "\n"
+            try:
+                yield json.dumps(data) + "\n"
+            except TypeError as e:
+                print(f"JSON Serialization Error: {e} - Data: {str(data)[:200]}...")
+                yield json.dumps({"type": "error", "message": f"Serialization Error: {str(e)}"}) + "\n"
 
     return StreamingResponse(event_generator(), media_type="application/x-ndjson")
 

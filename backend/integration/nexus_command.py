@@ -683,7 +683,8 @@ async def handle_nexus_command(args: List[str], ai_params: Optional[Dict] = None
             if isinstance(hc.get('path'), list): hc['path'] = " > ".join(hc['path'])
             save_data.append(hc)
             
-        await _save_custom_portfolio_run_to_csv(
+        await asyncio.to_thread(
+            _save_custom_portfolio_run_to_csv,
             portfolio_code=f"nexus_{nexus_code}",
             tailored_stock_holdings=save_data,
             final_cash=new_cash,
