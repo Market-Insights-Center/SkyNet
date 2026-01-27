@@ -6,7 +6,8 @@ from backend.schemas import (
 )
 from backend.database import (
     share_automation, get_community_automations, increment_copy_count, verify_access_and_limits,
-    delete_community_automation, delete_community_portfolio, verify_storage_limit
+    delete_community_automation, delete_community_portfolio, verify_storage_limit,
+    share_portfolio, get_community_portfolios, increment_portfolio_copy
 )
 from backend.integration.database_manager import (
     read_nexus_codes, read_portfolio_codes, save_nexus_code, save_portfolio_code, delete_code
