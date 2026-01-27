@@ -220,7 +220,7 @@ const Layout = ({ children }) => {
                                     setShowSuggestions(true);
                                 }}
                                 onFocus={() => setShowSuggestions(true)}
-                                className="bg-white/5 border border-white/10 text-gray-300 text-sm rounded-full focus:ring-1 focus:ring-gold focus:border-gold block w-48 pl-10 p-2.5 transition-all focus:w-64 outline-none"
+                                className="bg-white/5 border border-white/10 text-gray-300 text-sm rounded-full focus:ring-1 focus:ring-gold focus:border-gold block w-32 md:w-48 pl-10 p-2.5 transition-all focus:w-48 md:focus:w-64 outline-none"
                             />
                         </form>
 
@@ -256,7 +256,7 @@ const Layout = ({ children }) => {
             </div>
 
             {/* Main Content */}
-            <main className="pt-20 min-h-screen relative overflow-x-hidden">
+            <main className="pt-24 md:pt-20 min-h-screen relative overflow-x-hidden">
                 <div className="relative z-10">
                     {children}
                 </div>

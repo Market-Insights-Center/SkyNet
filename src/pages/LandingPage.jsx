@@ -855,7 +855,7 @@ const LandingPage = () => {
                                 <div className="mb-6 flex justify-center">
                                     <BlurText
                                         text="M.I.C."
-                                        className="text-5xl md:text-8xl font-bold tracking-tight text-white drop-shadow-2xl"
+                                        className="text-4xl md:text-8xl font-bold tracking-tight text-white drop-shadow-2xl"
                                         animateBy="letters"
                                         delay={200}
                                         direction="top"

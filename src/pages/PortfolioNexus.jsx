@@ -284,7 +284,7 @@ export default function PortfolioNexus() {
                                         </label>
                                     </div>
 
-                                    <div className="pt-4 flex gap-3">
+                                    <div className="pt-4 flex flex-col sm:flex-row gap-3">
                                         <button
                                             onClick={runNexus}
                                             disabled={loading || !nexusCode}

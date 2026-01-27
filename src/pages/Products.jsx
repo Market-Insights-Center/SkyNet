@@ -86,7 +86,7 @@ const Products = () => {
                     transition={{ duration: 0.8 }}
                     className="text-center mb-16"
                 >
-                    <h1 className="text-5xl md:text-7xl font-bold mb-6">Our <span className="text-gold">Products</span></h1>
+                    <h1 className="text-4xl md:text-7xl font-bold mb-6">Our <span className="text-gold">Products</span></h1>
                     <p className="text-xl text-gray-400 max-w-2xl mx-auto">
                         Explore the suite of advanced financial tools designed to give you the edge in the modern market.
                     </p>
