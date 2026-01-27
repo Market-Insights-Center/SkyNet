@@ -163,7 +163,7 @@ async def _save_nexus_config(config_data: Dict[str, Any]):
     except Exception as e:
         print(f"Error saving nexus config: {e}")
 
-async def _resolve_nexus_component(comp_type: str, comp_value: str, allocated_value: float, parent_path: str, allow_fractional: bool = True, pre_calculated_data: Any = None) -> List[Dict[str, Any]]:
+async def _resolve_nexus_component(comp_type: str, comp_value: str, allocated_value: float, parent_path: str, allow_fractional: bool = True, pre_calculated_data: Any = None, progress_callback=None) -> List[Dict[str, Any]]:
     print(f"[DEBUG NEXUS] Resolving Component: Type={comp_type}, Value={comp_value}, Alloc=${allocated_value:.2f}, Frac={allow_fractional}")
     holdings = []
     try:
@@ -173,6 +173,7 @@ async def _resolve_nexus_component(comp_type: str, comp_value: str, allocated_va
                 print(f"[DEBUG NEXUS] Loaded sub-portfolio config for {comp_value}: {sub_config}")
                 print(f"[DEBUG NEXUS] Calling process_custom_portfolio with Alloc=${allocated_value}, Frac={allow_fractional}")
                 # Force tailor=True based on allocated value
+                if progress_callback: await progress_callback(f"  - Loading Sub-Portfolio '{comp_value}'...")
                 res = await process_custom_portfolio(
                     portfolio_data_config=sub_config,
                     tailor_portfolio_requested=True,
@@ -237,8 +238,10 @@ async def _resolve_nexus_component(comp_type: str, comp_value: str, allocated_va
             
             if "market" in comp_val_lower:
                 print("[DEBUG NEXUS] Resolving 'Market' command...")
+                if progress_callback: await progress_callback(f"  - Scanning Top Market Candidates...")
                 sp500 = await asyncio.to_thread(get_sp500_symbols_singularity)
                 if sp500:
+                    if progress_callback: await progress_callback(f"  - Scoring {len(sp500)} Tickers...")
                     scores = await calculate_market_invest_scores_singularity(sp500, 2)
                     valid_scores = [s for s in scores if s.get('score') is not None]
                     tickers = [s['ticker'] for s in valid_scores[:10]]
@@ -248,8 +251,10 @@ async def _resolve_nexus_component(comp_type: str, comp_value: str, allocated_va
                 print("[DEBUG NEXUS] Resolving 'Breakout' command...")
                 if pre_calculated_data:
                     print("[DEBUG NEXUS] Using Pre-Calculated Breakout Data.")
+                    if progress_callback: await progress_callback("  - Applying Cached Breakout Data...")
                     res = pre_calculated_data
                 else:
+                    if progress_callback: await progress_callback("  - Running Breakout Analysis...")
                     res = await run_breakout_analysis_singularity(is_called_by_ai=True)
                 
                 if isinstance(res, dict) and res.get('status') == 'success':
@@ -262,6 +267,7 @@ async def _resolve_nexus_component(comp_type: str, comp_value: str, allocated_va
                 print(f"[DEBUG NEXUS] Resolving 'Cultivate' command ({comp_value})...")
                 code = "A" if "a" in comp_val_lower else "B"
                 # Cultivate logic
+                if progress_callback: await progress_callback(f"  - Running Cultivate Strategy ({code})...")
                 cult_res = await run_cultivate_analysis_singularity(
                     portfolio_value=allocated_value, 
                     frac_shares=allow_fractional, 
@@ -426,7 +432,7 @@ async def process_nexus_portfolio(nexus_config, total_value, nexus_code, ai_para
             if 'data' in breakout_cache:
                 pre_calc = breakout_cache['data']
         
-        res = await _resolve_nexus_component(c_type, c_value, alloc, nexus_code, allow_fractional, pre_calculated_data=pre_calc)
+        res = await _resolve_nexus_component(c_type, c_value, alloc, nexus_code, allow_fractional, pre_calculated_data=pre_calc, progress_callback=progress_callback)
         if res: all_holdings.extend(res)
 
     # Aggregation
@@ -683,8 +689,7 @@ async def handle_nexus_command(args: List[str], ai_params: Optional[Dict] = None
             if isinstance(hc.get('path'), list): hc['path'] = " > ".join(hc['path'])
             save_data.append(hc)
             
-        await asyncio.to_thread(
-            _save_custom_portfolio_run_to_csv,
+        await _save_custom_portfolio_run_to_csv(
             portfolio_code=f"nexus_{nexus_code}",
             tailored_stock_holdings=save_data,
             final_cash=new_cash,

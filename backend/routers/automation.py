@@ -167,11 +167,12 @@ async def execute_trades_endpoint(req: ExecuteTradesRequest):
         async def runner():
             try:
                 # Run the blocking function in a thread
+                # Run the blocking function in a thread
                 await asyncio.to_thread(
                     execute_portfolio_rebalance,
                     trades=rh_trades,
                     execute=True,
-                    status_callback=sync_status_callback
+                    progress_callback=sync_status_callback
                 )
                 
                 # Report Final Success

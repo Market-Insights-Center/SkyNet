@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     Network, Play, Plus, Trash2, Save, BarChart3,
@@ -720,7 +720,8 @@ const ExecutionModal = ({ isOpen, onClose, onExecute, trades = [] }) => {
     const [tradeList, setTradeList] = useState([]);
     const [logs, setLogs] = useState([]);
     const [finished, setFinished] = useState(false);
-    const messagesEndRef = React.useRef(null);
+    const abortController = useRef(null);
+    const messagesEndRef = useRef(null);
 
     useEffect(() => {
         if (messagesEndRef.current) {
@@ -751,6 +752,15 @@ const ExecutionModal = ({ isOpen, onClose, onExecute, trades = [] }) => {
         }
     }, [isOpen, trades]);
 
+    const handleCancel = () => {
+        if (abortController.current) {
+            abortController.current.abort();
+            setStatusMsg("Request Cancelled by User.");
+            setLogs(prev => [...prev, "🛑 Execution Cancelled."]);
+            setIsProcessing(false);
+        }
+    };
+
     const handleConfirm = async () => {
         if (isProcessing) return;
         setIsProcessing(true);
@@ -759,6 +769,8 @@ const ExecutionModal = ({ isOpen, onClose, onExecute, trades = [] }) => {
 
         if (execRh && rhUser) localStorage.setItem('mic_rh_user', rhUser);
         if (execRh && rhPass) localStorage.setItem('mic_rh_pass', rhPass);
+
+        abortController.current = new AbortController();
 
         try {
             const userEmail = localStorage.getItem('mic_email');
@@ -771,7 +783,8 @@ const ExecutionModal = ({ isOpen, onClose, onExecute, trades = [] }) => {
                     rh_username: execRh ? rhUser : null,
                     rh_password: execRh ? rhPass : null,
                     email_to: userEmail
-                })
+                }),
+                signal: abortController.current.signal
             });
 
             const reader = response.body.getReader();
@@ -826,9 +839,18 @@ const ExecutionModal = ({ isOpen, onClose, onExecute, trades = [] }) => {
             }
 
         } catch (err) {
-            console.error("Execution Request Error:", err);
-            setLogs(prev => [...prev, `CRITICAL ERROR: ${err.message}`]);
-            setStatusMsg("Failed.");
+            if (err.name === 'AbortError') {
+                console.log("Execution aborted by user.");
+            } else {
+                console.error("Execution Request Error:", err);
+                setLogs(prev => [...prev, `CRITICAL ERROR: ${err.message}`]);
+                setStatusMsg("Failed.");
+            }
+        } finally {
+            if (!abortController.current?.signal.aborted) {
+                // Only finish if not aborted (aborted specific handling above)
+                // But wait, if finished successfully, `finished` is set inside logic above.
+            }
         }
     };
 
@@ -840,10 +862,15 @@ const ExecutionModal = ({ isOpen, onClose, onExecute, trades = [] }) => {
                 initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }}
                 className="bg-gray-900 border border-white/10 rounded-xl max-w-2xl w-full shadow-2xl relative flex flex-col max-h-[90vh]"
             >
-                <div className="p-6 border-b border-gray-800">
+                <div className="p-6 border-b border-gray-800 flex justify-between items-center">
                     <h3 className="text-2xl font-bold text-white flex items-center gap-2">
                         <Play className="text-gold" /> Execute Trades {finished && <CheckCircle className="text-green-500" />}
                     </h3>
+                    {isProcessing && (
+                        <button onClick={handleCancel} className="bg-red-600/20 text-red-500 hover:bg-red-600/40 px-3 py-1 rounded text-xs uppercase font-bold border border-red-600/50 transition-colors">
+                            Cancel
+                        </button>
+                    )}
                 </div>
 
                 <div className="p-6 overflow-y-auto flex-1 space-y-6">
