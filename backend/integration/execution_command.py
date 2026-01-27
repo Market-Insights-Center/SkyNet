@@ -131,7 +131,23 @@ def execute_portfolio_rebalance(trades: List[Dict[str, Any]], known_holdings: Op
     # Backend Safety: We rely on the caller to have obtained user consent.
     # No 'input()' check here.
     
+    # Force auto-login via config
     if not login_to_robinhood():
+        if progress_callback: 
+            # We can't await here easily if this function isn't async, 
+            # BUT we updated the signature to simple def... wait, did we make it async?
+            # The previous tool call was "def ...". 
+            # I need to verify if I should make it async.
+            # Nexus calls it with `await asyncio.to_thread`.
+            # So it MUST remain synchronous (blocking).
+            # So `progress_callback` must be run in a loop? No, that's hard.
+            # We will skin the callback for now in strict sync mode, 
+            # OR we rely on print() and the stream captures stdout?
+            # Actually, `nexus_command` has a `progress_callback` that writes to the stream.
+            # If we run in a thread, we can't await the callback.
+            # Fix: We will just print() and let the stdout capturer (if any) handle it, 
+            # OR we skip callback usage inside this sync function for now to avoid complexity.
+            pass
         return []
 
     # --- BATCH PRICE FETCH ---

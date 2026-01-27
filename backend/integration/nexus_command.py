@@ -713,14 +713,34 @@ async def handle_nexus_command(args: List[str], ai_params: Optional[Dict] = None
 
         # Call execute_portfolio_rebalance in dry-run mode
         # If skip_execution is True, we force execute=False regardless of execute_rh
-        skip_execution = ai_params.get('skip_execution', False) if ai_params else False
-        should_execute = execute_rh and not skip_execution
+        # force execute=False to ensure we NEVER execute during the Nexus preview/planning phase.
+        # The user must explicit click "Execute" in the frontend which calls the separate /api/execute-trades endpoint.
+        
+        # We process 'execute_rh' only to return the "requires_execution_confirmation" flag below.
+        should_execute = False 
 
         rebal_res = await asyncio.to_thread(
             execute_portfolio_rebalance,
             trades=rebal_trades,
-            execute=should_execute # Execute only if requested AND not skipped
+            execute=should_execute, # ALWAYS FALSE for Nexus Command (Plan Only)
+            progress_callback=progress_callback
         )
+
+        # 6b. Send Email if requested (Even in dry run)
+        email_to = ai_params.get('email_to')
+        if email_to and len(trades) > 0:
+            if progress_callback: await progress_callback("Sending Preview Email...")
+            try:
+                # Import here to avoid circular dependency if needed, or assume standard import
+                from backend.integration.tracking_command import _send_tracking_email
+                
+                rows = "".join([f"<tr><td>{t['ticker']}</td><td>{t['action']}</td><td>{t['diff']:.4f}</td></tr>" for t in trades])
+                html = f"<h2>Nexus Portfolio Preview: {nexus_code}</h2><p><b>Note:</b> These trades have NOT been executed yet. Please confirm in the dashboard.</p><table border='1' cellpadding='5' style='border-collapse: collapse;'><tr><th>Ticker</th><th>Action</th><th>Shares</th></tr>{rows}</table>"
+                await _send_tracking_email(f"Nexus Preview: {nexus_code}", html, email_to)
+                if progress_callback: await progress_callback("Email Sent.")
+            except Exception as e:
+                print(f"[DEBUG NEXUS] Email failed: {e}")
+                if progress_callback: await progress_callback(f"Email Failed: {e}")
 
         # Check if we SHOULD offer execution (Triggers frontend button)
         # We allow execution if there are trades, regardless of predefined credentials,

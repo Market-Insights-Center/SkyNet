@@ -136,6 +136,18 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+@app.middleware("http")
+async def add_security_headers(request: Request, call_next):
+    response = await call_next(request)
+    # COOP/COEP headers to fix "Cross-Origin-Opener-Policy" blocking window.closed
+    response.headers["Cross-Origin-Opener-Policy"] = "same-origin-allow-popups"
+    response.headers["Cross-Origin-Embedder-Policy"] = "require-corp"
+    # Also ensure StreamingResponse doesn't breakChunked Encoding
+    if "Transfer-Encoding" not in response.headers and "Content-Length" not in response.headers:
+         # Optional: Force buffering if needed, but usually not for streams
+         pass
+    return response
+
 # --- STATIC FILES ---
 STATIC_DIR = os.path.join(current_dir, "static")
 if not os.path.exists(STATIC_DIR):

@@ -524,10 +524,16 @@ async def handle_tracking_command(args: List[str], ai_params: Optional[Dict] = N
             except Exception as e:
                 execution_result_msg += f" Email failed: {e}."
 
-        # 2. DELETED: Immediate Execution on Robinhood
-        # We now simply return the trades and let the frontend handle the execution button.
+        # 2. Force Dry Run Logic
+        # We NEVER execute here anymore. We only return trades.
+        # Frontend sees "requires_execution_confirmation" and pops the modal.
         if execute_rh:
              execution_result_msg += " Ready for Review."
+             
+        # But if we wanted to auto-email, we did it above.
+        # Ensure we don't double-send if the user clicks execute later?
+        # The execute endpoint will handle the simplified execution, it won't re-run this command.
+        pass
 
     # --- Top Cards Summary Construction ---
     summary_stats = [

@@ -114,9 +114,20 @@ export default function PortfolioNexus() {
             // if (!result) throw new Error("Stream ended without result"); 
             // result state update is async, so we rely on the loop event.
 
+            // Explicitly handle "done" state if needed
+            if (!loading && !result) {
+                // Determine if we should show a partial result or error?
+                // For now, key state is set inside the loop.
+            }
+
         } catch (err) {
             console.error("Nexus Execution Error:", err);
-            setError(err.message);
+            // Ignore "network error" if we actually got a result (stream close race condition)
+            if (result && (err.message.includes("network error") || err.message.includes("chunked"))) {
+                console.log("Ignored stream error after result received.");
+            } else {
+                setError(err.message);
+            }
         } finally {
             setLoading(false);
             setProgressMsg('');
