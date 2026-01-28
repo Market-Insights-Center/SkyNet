@@ -178,12 +178,14 @@ async def process_automation(auto):
                 if res: 
                     time_valid = True
                     print(f"   -> Node {node['type']} ({node['id']}) = TRUE (Gatekeeper Open)")
+                else:
+                    print(f"   -> Node {node['type']} ({node['id']}) = FALSE (Gatekeeper Closed)")
             except Exception as e:
                 print(f"   -> Node {node['type']} ({node['id']}) Error: {e}")
                 node_results[node['id']] = False
         
         if not time_valid:
-            # print("   [AUTOMATION] Time Gate Closed. Skipping other checks.")
+            print("   [AUTOMATION] Time Gate Closed. Skipping other checks.")
             return # Exit immediately
     
     # Continue with other conditionals if Time is valid (or if no Time nodes exist - though frontend now enforces it)
@@ -195,6 +197,8 @@ async def process_automation(auto):
             node_results[node['id']] = res
             if res:
                 print(f"   -> Node {node['type']} ({node['id']}) = TRUE")
+            else:
+                 print(f"   -> Node {node['type']} ({node['id']}) = FALSE")
         except Exception as e:
             print(f"   -> Node {node['type']} ({node['id']}) Error: {e}")
             node_results[node['id']] = False
@@ -515,7 +519,7 @@ async def evaluate_condition(node):
             # Check strictly if we are IN the window
             if not (target_dt <= now <= end_window):
                 # We are outside the window (too early or too late)
-                # print(f"   [EVAL] Time Window Miss: {now.time()} outside {target_dt.time()} - {end_window.time()}")
+                print(f"   [EVAL] Time Window Miss: {now.time()} outside {target_dt.time()} - {end_window.time()}")
                 return False
 
             print(f"   [EVAL] Time Window HIT: {now.time()} inside {target_dt.time()} - {end_window.time()}")

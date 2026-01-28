@@ -722,12 +722,13 @@ async def handle_nexus_command(args: List[str], ai_params: Optional[Dict] = None
         # The user must explicit click "Execute" in the frontend which calls the separate /api/execute-trades endpoint.
         
         # We process 'execute_rh' only to return the "requires_execution_confirmation" flag below.
-        should_execute = False 
+        # Allow execution ONLY if called by AI (Automation) AND explicitly requested.
+        should_execute = is_called_by_ai and execute_rh
 
         rebal_res = await asyncio.to_thread(
             execute_portfolio_rebalance,
             trades=rebal_trades,
-            execute=should_execute, # ALWAYS FALSE for Nexus Command (Plan Only)
+            execute=should_execute,
             progress_callback=progress_callback
         )
 

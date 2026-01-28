@@ -342,10 +342,10 @@ def save_automation_endpoint(req: AutomationSaveRequest):
     # Calculate initial 'next_run' so it appears on UI immediately
     # We need to find the 'time_interval' node.
     try:
-        time_node = next((n for n in req.nodes if n.type == 'time_interval'), None)
+        time_node = next((n for n in req.nodes if n.get('type') == 'time_interval'), None)
         if time_node:
             from datetime import datetime, timedelta
-            target_time = time_node.data.get('target_time', '09:30')
+            target_time = time_node.get('data', {}).get('target_time', '09:30')
             
             # Simple Next Run Calc (Similar to automation_command)
             now = datetime.now()
