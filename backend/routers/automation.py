@@ -283,28 +283,54 @@ def get_automations_endpoint():
             if t_node and t_node.get('data', {}).get('last_run'):
                 auto['last_run'] = t_node['data']['last_run']
         
-        # 2. Hydrate next_run if missing (re-calculate)
-        if not auto.get('next_run'):
+        # 2. Hydrate next_run check
+        # Existing logic merely calculated if missing. We must also fix it if it's IN THE PAST.
+        
+        should_recalc = False
+        current_next = auto.get('next_run')
+        
+        if not current_next:
+            should_recalc = True
+        else:
+            try:
+                # Check if past
+                from datetime import datetime
+                nx = datetime.fromisoformat(current_next)
+                if nx < datetime.now():
+                    should_recalc = True
+            except:
+                should_recalc = True
+                
+        if should_recalc:
             nodes = auto.get('nodes', [])
             t_node = next((n for n in nodes if n.get('type') == 'time_interval'), None)
             if t_node:
                 try:
                     from backend.integration.automation_command import calculate_next_run
                 except ImportError:
-                    # Fallback logic if import fails (simple version)
+                     # Fallback logic if import fails (simple version)
                     from datetime import datetime, timedelta
                     def calculate_next_run(target, interval=1):
                          now = datetime.now()
                          try:
                              th, tm = map(int, target.split(':'))
                              t_dt = now.replace(hour=th, minute=tm, second=0, microsecond=0)
+                             # Logic: If target time passed today, next run is tomorrow? 
+                             # Or if we want "Next Valid Run", yes.
                              if t_dt <= now: t_dt += timedelta(days=interval)
                              while t_dt.weekday() > 4: t_dt += timedelta(days=1)
                              return t_dt.isoformat()
                          except: return None
 
                 target_time = t_node.get('data', {}).get('target_time', '09:30')
+                
+                # Recalculate based on NOW
                 auto['next_run'] = calculate_next_run(target_time)
+                
+                # Optional: Persist this fix back to DB so it doesn't recalc every fetch?
+                # Probably good idea, but might affect performance if many autos update at once.
+                # For now, just display correct time.
+                # To persist: save_automation(auto) (might be slow loop)
 
     return automations
 
