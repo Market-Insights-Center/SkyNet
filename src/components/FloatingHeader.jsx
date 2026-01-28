@@ -4,9 +4,18 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Activity, TrendingUp, DollarSign, Globe, Trophy } from 'lucide-react';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { db } from '../firebase';
+import { useLocation } from 'react-router-dom';
 
 const FloatingHeader = () => {
     const { currentUser } = useAuth();
+    const location = useLocation();
+    const isWorkflowPage = location.pathname === '/workflow-automation';
+
+    // Position: Top usually, Bottom for Workflow
+    const positionClass = isWorkflowPage
+        ? "fixed bottom-6 md:bottom-8 left-1/2 -translate-x-1/2"
+        : "fixed bottom-6 md:bottom-auto md:top-32 left-1/2 -translate-x-1/2";
+
     const [widgets, setWidgets] = useState([]);
     const [rhConnected, setRhConnected] = useState(false);
     const [marketData, setMarketData] = useState({
@@ -154,7 +163,7 @@ const FloatingHeader = () => {
         <motion.div
             initial={{ y: -20, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
-            className="fixed bottom-6 md:bottom-8 left-1/2 -translate-x-1/2 z-[40] flex items-center gap-6 px-6 py-2 bg-black/40 backdrop-blur-xl border border-white/10 rounded-full shadow-2xl w-max max-w-[90vw] overflow-x-auto scrollbar-none"
+            className={`${positionClass} z-[40] flex items-center gap-6 px-6 py-2 bg-black/40 backdrop-blur-xl border border-white/10 rounded-full shadow-2xl w-max max-w-[90vw] overflow-x-auto scrollbar-none`}
         >
             {widgets.map(id => renderWidget(id))}
         </motion.div >
