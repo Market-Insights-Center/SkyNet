@@ -49,6 +49,8 @@ export default function Profile() {
         { id: 'market_status', label: 'Market Status' },
         { id: 'spy_day', label: 'SPY Return (Day)' },
         { id: 'spy_week', label: 'SPY Return (Week)' },
+        { id: 'spy_month', label: 'SPY Return (Month)' },
+        { id: 'spy_year', label: 'SPY Return (Year)' },
         { id: 'rh_value', label: 'RH Portfolio Value', requiresAuth: true },
         { id: 'rh_day', label: 'RH Return (Day)', requiresAuth: true }
     ];

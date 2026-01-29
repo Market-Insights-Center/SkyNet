@@ -389,7 +389,7 @@ const WorkflowAutomation = () => {
         const isConditional = ['risk', 'price', 'percentage', 'sentiment_trigger', 'time_interval'].includes(sourceType);
         const isLogic = ['logic_gate', 'if_gate'].includes(sourceType);
         const isInfo = ['email_info', 'rh_info'].includes(sourceType);
-        const isAction = ['tracking', 'nexus', 'send_email', 'webhook'].includes(targetType);
+        const isAction = ['tracking', 'nexus', 'send_email', 'webhook', 'completion_email'].includes(targetType);
         const isTargetLogic = ['logic_gate', 'if_gate'].includes(targetType);
 
         // Rules
@@ -417,9 +417,12 @@ const WorkflowAutomation = () => {
         }
 
         // 4. Action -> Nothing (End of flow)
-        // (Handled by the fact that Actions usually don't have "Right" handles, but if they did...)
-        if (['tracking', 'nexus', 'send_email', 'webhook'].includes(sourceType)) {
-            return "Action blocks cannot have outgoing connections.";
+        // EXCEPTION: Allow chaining Actions if the target is 'completion_email' (or another action if we want chains)
+        // User specific request: "Make sure connection between modules like this (Action -> Email) works"
+        if (['tracking', 'nexus', 'send_email', 'webhook', 'completion_email'].includes(sourceType)) {
+            if (targetType !== 'completion_email') {
+                return "Action blocks cannot have outgoing connections (except to Completion Email).";
+            }
         }
 
         return null; // Valid
@@ -525,6 +528,7 @@ const WorkflowAutomation = () => {
         if (type === 'rh_info') initialData = { email: '', password: '' };
         if (type === 'send_email') initialData = { subject: 'Automation Alert' };
         if (type === 'webhook') initialData = { url: '', platform: 'discord', message: 'Alert Triggered' };
+        if (type === 'completion_email') initialData = { email: userEmail || '' };
         if (type === 'time_interval') initialData = { interval: 1, unit: 'days', target_time: '09:30', last_run: null };
 
         const newNode = {
@@ -815,6 +819,7 @@ const WorkflowAutomation = () => {
                                         </div>
                                     )}
                                 </div>
+                                <BlockButton label="Completion Email" icon={Mail} onClick={() => addNode('completion_email')} color="text-emerald-400" />
                             </div>
                         </div>
                         <div>
@@ -1048,7 +1053,7 @@ const WorkflowAutomation = () => {
                         ))}
                     </div>
                     {errorMessage && (
-                        <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2 bg-red-500/90 text-white px-6 py-3 rounded-full shadow-[0_0_20px_rgba(239,68,68,0.6)] backdrop-blur-md flex items-center gap-3 z-50 animate-bounce">
+                        <div className="absolute bottom-20 left-1/2 transform -translate-x-1/2 bg-red-500/90 text-white px-6 py-3 rounded-full shadow-[0_0_20px_rgba(239,68,68,0.6)] backdrop-blur-md flex items-center gap-3 z-50 animate-bounce">
                             <X size={20} className="cursor-pointer" onClick={() => setErrorMessage(null)} />
                             <span className="font-bold">{errorMessage}</span>
                         </div>
@@ -1410,6 +1415,13 @@ const NodeComponent = ({ node, onDelete, updateData, onDotClick, connecting }) =
                             value={node.data.message}
                             onChange={e => updateData({ message: e.target.value })}
                         />
+                    </div>
+                )}
+
+                {node.type === 'completion_email' && (
+                    <div className="space-y-2">
+                        <div className="text-xs text-gray-400">Sends summary upon completion.</div>
+                        <input className="w-full bg-black/40 rounded px-2 py-1 border border-white/10" placeholder="Target Email (Optional)" value={node.data.email} onChange={e => updateData({ email: e.target.value })} />
                     </div>
                 )}
 

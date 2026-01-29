@@ -121,7 +121,12 @@ const SingularityInterface = () => {
             </div>
 
             {/* Scanline Overlay Effect */}
-            <div className="absolute inset-0 bg-[url('/scanline.png')] opacity-5 pointer-events-none z-20" style={{ backgroundSize: '100% 4px' }} />
+            <div className="absolute inset-0 pointer-events-none z-20 opacity-10"
+                style={{
+                    backgroundImage: 'linear-gradient(to bottom, rgba(0, 0, 0, 0) 50%, rgba(0, 0, 0, 0.5) 50%)',
+                    backgroundSize: '100% 4px'
+                }}
+            />
             <div className="absolute inset-0 pointer-events-none z-10" style={{ background: 'radial-gradient(circle, transparent 60%, black 100%)' }} />
         </div>
     );

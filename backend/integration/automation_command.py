@@ -352,14 +352,27 @@ async def process_automation(auto):
                 stop_reason = f"Logic Gate ({op}) Failed"
 
         # --- ACTIONS ---
-        elif t_type in ['tracking', 'nexus', 'send_email', 'webhook']:
+        elif t_type in ['tracking', 'nexus', 'send_email', 'webhook', 'completion_email']:
             if signal:
                 if target_id not in processed_nodes:
                     processed_nodes.add(target_id)
                     try:
                         await increment_usage('automations_run') # Increment usage when an action is triggered
-                        await execute_action(target_node, nodes, edges, auto.get('user_email'))
+                        await execute_action(target_node, nodes, edges, auto.get('user_email'), node_results, auto.get('name'))
                         actions_executed = True
+                        
+                        # NEW: Allow propagation from Actions (if chaining is desired)
+                        # We treat successful execution as a "True" signal for downstream nodes
+                        node_results[target_id] = True
+                        out_edges = [e for e in edges if e['source'] == target_id]
+                        for oe in out_edges:
+                            queue.append({
+                                'target': oe['target'],
+                                'targetHandle': oe['targetHandle'],
+                                'signal': True,
+                                'source': target_id
+                            })
+
                     except Exception as e:
                         print(f"   [AUTOMATION] Action Failed: {e}")
                         stop_reason = f"Action Failed: {str(e)}"
@@ -573,7 +586,7 @@ async def evaluate_condition(node):
         return False
 
 
-async def execute_action(node, nodes, edges, user_email):
+async def execute_action(node, nodes, edges, user_email, node_results=None, auto_name="Automation"):
     # Unified Execution Logic
     try:
         # 1. Gather Info from attached Condition/Info blocks
@@ -663,6 +676,64 @@ async def execute_action(node, nodes, edges, user_email):
                 await monitor_command.send_notification(subject, body, to_emails=[recipient])
             else:
                 print("   [ACTION] Email skipped: No recipient found.")
+
+        elif a_type == 'completion_email':
+            # Send Completion Summary
+            target_email = node.get('data', {}).get('email')
+            if not target_email and email_info: target_email = email_info
+            
+            if not target_email and user_email: target_email = user_email
+
+            if target_email:
+                print(f"   [ACTION] Sending Completion Email to {target_email}...")
+                
+                # Construct Summary
+                timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                # auto_name is passed in args
+                
+                steps_summary = "<ul>"
+                # Sort nodes by some logic? or just list them
+                sorted_nodes = sorted(nodes, key=lambda n: (n.get('position', {}).get('y', 0), n.get('position', {}).get('x', 0)))
+                
+                for n in sorted_nodes:
+                    n_type = n.get('type', '').replace('_', ' ').title()
+                    n_res = node_results.get(n['id']) if node_results else None
+                    
+                    status_icon = "⚪"
+                    status_text = "Skipped/Pending"
+                    if n_res is True: 
+                        status_icon = "✅" 
+                        status_text = "Passed"
+                    elif n_res is False: 
+                        status_icon = "❌" 
+                        status_text = "Failed"
+                        
+                    # Don't show every node detail, just high level
+                    steps_summary += f"<li>{status_icon} <b>{n_type}</b>: {status_text}</li>"
+                steps_summary += "</ul>"
+                
+                subject = f"Automation Completed: {auto_name}"
+                body = f"""
+                <h2>Automation Run Successful</h2>
+                <p><b>Time:</b> {timestamp}</p>
+                <hr>
+                <h3>Execution Stack:</h3>
+                {steps_summary}
+                <p><i>Sent via Medulla Automation</i></p>
+                """
+                
+                try:
+                    from backend.integration import monitor_command
+                    await monitor_command.send_notification(
+                        subject,
+                        body, # send_notification handles HTML? usually logic handles it
+                        to_emails=[target_email]
+                    )
+                    print(f"   [ACTION] Completion Email Sent.")
+                except Exception as e:
+                    print(f"   [ACTION] Failed to send email: {e}")
+            else:
+                 print("   [ACTION] Skipped Completion Email: No email address found.")
 
         elif a_type == 'webhook':
             url = data.get('url')

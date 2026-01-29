@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException
 from backend.schemas import (
-    MarketDataRequest, ModRequest, RankingSubmitRequest, RankingRemoveRequest, RobinhoodRequest
+    MarketDataRequest, ModRequest, RankingSubmitRequest, RankingRemoveRequest, RobinhoodRequest, ChartRequest
 )
 from backend.config import get_mod_list, SUPER_ADMIN_EMAIL
 import yfinance as yf
@@ -212,6 +212,55 @@ async def get_market_data_details(request: MarketDataRequest):
             results[ticker] = {"earnings": "-", "iv": "-"}
             
     return {"results": results}
+
+@router.post("/api/market-data/chart")
+async def get_chart_data(req: ChartRequest):
+    try:
+        ticker = req.ticker.upper().strip()
+        r = req.range.lower()
+        
+        # Map range to yfinance period/interval
+        period = "1d"
+        interval = "5m"
+        
+        if r == "1d":
+            period = "1d"
+            interval = "5m"
+        elif r == "1w":
+            period = "5d" # yfinance uses 5d for roughly a week
+            interval = "15m" 
+        elif r == "1m":
+            period = "1mo"
+            interval = "1h" # or 1d? 1h gives more detail for chart
+        elif r == "1y":
+            period = "1y"
+            interval = "1d"
+            
+        df = yf.download(ticker, period=period, interval=interval, progress=False, auto_adjust=True)
+        if df.empty:
+            return {"status": "error", "message": "No data found"}
+            
+        # Format for chart (List of { time: timestamp, value: close })
+        data = []
+        for idx, row in df.iterrows():
+            # Index is DatetimeIndex
+            close_val = float(row['Close'].iloc[0]) if isinstance(row['Close'], pd.Series) else float(row['Close'])
+            
+            # Format timestamp
+            # For intraday (1d, 1w), we want time. For 1y, date is enough, but ISO works for all.
+            ts = idx.isoformat() 
+            
+            data.append({"time": ts, "value": close_val})
+            
+        # If result is too large, downsample? 
+        # For 1y 1d, it's ~252 points -> OK.
+        # For 1d 5m, it's ~78 points -> OK.
+        
+        return {"status": "success", "data": data, "ticker": ticker, "range": r}
+
+    except Exception as e:
+        print(f"Chart Error: {e}")
+        return {"status": "error", "message": str(e)}
 
 @router.get("/api/performance-stream")
 def get_performance_stream():

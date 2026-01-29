@@ -44,6 +44,10 @@ class HeartbeatRequest(BaseModel):
 class MarketDataRequest(BaseModel):
     tickers: List[str]
 
+class ChartRequest(BaseModel):
+    ticker: str
+    range: str = "1d" # 1d, 1w, 1m, 1y
+
 class RobinhoodRequest(BaseModel):
     email: str
 
