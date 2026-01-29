@@ -108,13 +108,9 @@ def find_start_node(nodes):
     return None
 
 def calculate_next_run(target_time_str, interval=1):
-    """Calculates the next scheduled run time string (EST/EDT)."""
+    """Calculates the next scheduled run time string (System Local Time)."""
     try:
-        import pytz
-        est = pytz.timezone('America/New_York')
-        # Get current time in EST, then make it naive for calculations/compatibility
-        now = datetime.now(est).replace(tzinfo=None)
-        
+        now = datetime.now()
         th, tm = map(int, target_time_str.split(':'))
         target_today = now.replace(hour=th, minute=tm, second=0, microsecond=0)
         
@@ -131,7 +127,6 @@ def calculate_next_run(target_time_str, interval=1):
         
         # Skip weekends if strictly M-F (Assuming M-F for now as per logic)
         while next_run.weekday() > 4:
-            # If we land on Sat(5) or Sun(6), add a day until Mon
             next_run += timedelta(days=1)
             
         return next_run.isoformat()
@@ -514,11 +509,8 @@ async def evaluate_condition(node):
 
         # --- TIME INTERVAL ---
         elif c_type == 'time_interval':
-            import pytz
-            est = pytz.timezone('America/New_York')
-            now = datetime.now(est).replace(tzinfo=None) # Naive EST
-            
-            print(f"   [EVAL] Time Check (EST): {now} | Weekday {now.weekday()} (0=Mon)")
+            now = datetime.now()
+            print(f"   [EVAL] Time Check (Local): {now} | Weekday {now.weekday()} (0=Mon)")
             
             # 1. Trading Day (Mon=0, Fri=4)
             # If unit is days, we strictly check trading days? Or make it optional?
@@ -540,10 +532,10 @@ async def evaluate_condition(node):
             # Check strictly if we are IN the window
             if not (target_dt <= now <= end_window):
                 # We are outside the window (too early or too late)
-                print(f"   [EVAL] Time Window Miss: {now.time()} outside {target_dt.time()} - {end_window.time()} (EST)")
+                print(f"   [EVAL] Time Window Miss: {now.time()} outside {target_dt.time()} - {end_window.time()}")
                 return False
 
-            print(f"   [EVAL] Time Window HIT: {now.time()} inside {target_dt.time()} - {end_window.time()} (EST)")
+            print(f"   [EVAL] Time Window HIT: {now.time()} inside {target_dt.time()} - {end_window.time()}")
 
             # 3. Interval/Frequency Check (Duplicate Execution Prevention)
             last_run_str = data.get('last_run')
