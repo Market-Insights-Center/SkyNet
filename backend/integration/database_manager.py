@@ -40,13 +40,22 @@ def read_nexus_codes() -> List[Dict[str, Any]]:
                         })
                         current_idx += 3
                 
+                # Check for connected commands (appended after all components)
+                connected_commands = []
+                if current_idx < len(row):
+                     # The remaining field is connected_commands joined by |
+                     raw_cmds = row[current_idx]
+                     if raw_cmds:
+                         connected_commands = raw_cmds.split('|')
+
                 codes.append({
                     "id": nexus_code, # Use code as ID
                     "type": "nexus",
                     "nexus_code": nexus_code,
                     "num_components": num_components,
                     "frac_shares": frac_shares,
-                    "components": components
+                    "components": components,
+                    "connected_commands": connected_commands
                 })
             except Exception as e:
                 print(f"Error parsing nexus row {row}: {e}")
@@ -139,6 +148,11 @@ def save_nexus_code(data: Dict[str, Any]):
             ]
             for comp in c['components']:
                 row.extend([comp['type'], comp['value'], comp['weight']])
+            
+            # Append connected commands
+            cmds = "|".join(c.get('connected_commands', []))
+            row.append(cmds)
+
             writer.writerow(row)
 
 def save_portfolio_code(data: Dict[str, Any]):

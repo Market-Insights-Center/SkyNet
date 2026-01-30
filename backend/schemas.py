@@ -197,6 +197,7 @@ class NexusRequest(BaseModel):
     send_email: Optional[bool] = False
     email_to: Optional[str] = None
     overwrite: Optional[bool] = False
+    connected_commands: Optional[List[str]] = []
 
 class ExecuteTradesRequest(BaseModel):
     trades: List[Dict[str, Any]]

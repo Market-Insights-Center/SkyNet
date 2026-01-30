@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Database, Trash2, Edit, Save, Plus, ArrowLeft, Shield, Zap, Box } from 'lucide-react';
+import { Database, Trash2, Edit, Save, Plus, ArrowLeft, Shield, Zap, Box, ChevronDown, ChevronRight } from 'lucide-react';
 import NeonWrapper from '../components/NeonWrapper';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -130,9 +130,115 @@ const CommunityView = ({ communityCodes, sort, setSort, handleImport, userProfil
     </div>
 );
 
-const EditorView = ({ activeCode, setActiveCode, handleSave, setViewMode }) => {
-    const isNexus = activeCode.type === 'nexus';
 
+const PortfolioHierarchyInternal = ({ code, codes, startEditing, level }) => {
+    const definition = codes.nexus.find(c => c.nexus_code === code) ||
+        codes.portfolios.find(p => p.portfolio_code === code);
+    if (!definition) return null;
+
+    const items = definition.components || definition.sub_portfolios || [];
+    const connectedCmds = definition.connected_commands || [];
+
+    return (
+        <div className={`mt-1 ${level > 0 ? 'ml-2 pl-2 border-l border-gray-700/50' : ''}`}>
+            {/* Header is handled by parent for the toggle button usually, but here we render the BLOCK */}
+            {/* The parent renders the "Button > Name %". This component renders the content beneath. */}
+
+            {/* Recursive Items */}
+            <div className="space-y-1">
+                {items.map((sub, sIdx) => {
+                    const label = sub.tickers || sub.ticker || sub.value || "Unknown";
+                    const childDef = codes.nexus.find(c => c.nexus_code === label) ||
+                        codes.portfolios.find(p => p.portfolio_code === label);
+
+                    let typeLabel = "";
+                    if (sub.type === 'command') typeLabel = "[CMD] ";
+
+                    return (
+                        <HierarchyItem
+                            key={sIdx}
+                            label={label}
+                            typeLabel={typeLabel}
+                            weight={sub.weight}
+                            childDef={childDef}
+                            codes={codes}
+                            startEditing={startEditing}
+                            level={level}
+                        />
+                    );
+                })}
+                {connectedCmds.length > 0 && (
+                    <div className="mt-1 pt-1 border-t border-gray-700/30">
+                        {connectedCmds.map((cmd, cIdx) => (
+                            <div key={cIdx} className="text-xs text-purple-400 font-mono pl-4">/{cmd}</div>
+                        ))}
+                    </div>
+                )}
+            </div>
+        </div>
+    )
+}
+
+const HierarchyItem = ({ label, typeLabel, weight, childDef, codes, startEditing, level }) => {
+    const [expanded, setExpanded] = useState(false);
+
+    return (
+        <div>
+            <div className="flex justify-between text-xs text-gray-300 hover:bg-white/5 p-1 rounded items-center">
+                <div className="flex items-center gap-2">
+                    {childDef ? (
+                        <button
+                            onClick={() => setExpanded(!expanded)}
+                            className="text-blue-400 hover:text-white transition-colors"
+                        >
+                            {expanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+                        </button>
+                    ) : <span className="w-3"></span>}
+
+                    <span className={childDef ? "text-blue-200" : ""}>
+                        <span className="text-purple-400">{typeLabel}</span>{label}
+                    </span>
+                </div>
+
+                <div className="flex items-center gap-3">
+                    <span className="font-mono text-gray-500">{weight}%</span>
+                    {childDef && (
+                        <button
+                            onClick={() => startEditing(childDef)}
+                            className="text-[10px] text-gray-600 hover:text-blue-400 opacity-50 hover:opacity-100"
+                            title="Edit Directly"
+                        >
+                            <Edit size={10} />
+                        </button>
+                    )}
+                </div>
+            </div>
+
+            {expanded && childDef && (
+                <PortfolioHierarchyInternal
+                    code={label}
+                    codes={codes}
+                    startEditing={startEditing}
+                    level={level + 1}
+                />
+            )}
+        </div>
+    )
+}
+
+const EditorView = ({ activeCode, setActiveCode, handleSave, setViewMode, codes, startEditing }) => {
+    const isNexus = activeCode.type === 'nexus';
+    const [expandedItems, setExpandedItems] = useState({});
+
+    const toggleExpand = (idx) => {
+        setExpandedItems(prev => ({ ...prev, [idx]: !prev[idx] }));
+    };
+
+    const getSubPortfolio = (codeName) => {
+        if (!codeName) return null;
+        return codes.portfolios.find(p => p.portfolio_code === codeName)
+            || codes.nexus.find(n => n.nexus_code === codeName);
+    };
     const updateField = (field, value) => {
         setActiveCode(prev => ({ ...prev, [field]: value }));
     };
@@ -154,7 +260,10 @@ const EditorView = ({ activeCode, setActiveCode, handleSave, setViewMode }) => {
     };
 
     const addItem = () => {
-        const newItem = { ticker: '', weight: 0 };
+        const newItem = isNexus
+            ? { type: 'ticker', value: '', weight: 0 }
+            : { tickers: '', weight: 0 };
+
         setActiveCode(prev => ({
             ...prev,
             [listKey]: [...(prev[listKey] || []), newItem]
@@ -165,6 +274,8 @@ const EditorView = ({ activeCode, setActiveCode, handleSave, setViewMode }) => {
         const newItems = items.filter((_, i) => i !== index);
         setActiveCode(prev => ({ ...prev, [listKey]: newItems }));
     };
+
+
 
     const totalWeight = items.reduce((s, i) => s + (parseFloat(i.weight) || 0), 0);
 
@@ -233,25 +344,111 @@ const EditorView = ({ activeCode, setActiveCode, handleSave, setViewMode }) => {
 
                 <div className="space-y-3">
                     {items.map((item, idx) => (
-                        <div key={idx} className="flex gap-4 items-center bg-black/40 p-3 rounded-lg border border-gray-800/50">
-                            <input
-                                value={item.ticker || item.symbol || ''}
-                                onChange={(e) => updateItem(idx, 'ticker', e.target.value.toUpperCase())}
-                                placeholder="TICKER"
-                                className="bg-transparent border-b border-gray-700 focus:border-white w-24 text-white font-mono uppercase outline-none"
-                            />
-                            <div className="flex items-center gap-2 flex-1">
-                                <input
-                                    type="number"
-                                    value={item.weight || 0}
-                                    onChange={(e) => updateItem(idx, 'weight', parseFloat(e.target.value))}
-                                    className="bg-transparent border-b border-gray-700 focus:border-white w-20 text-right text-white font-mono outline-none"
-                                />
-                                <span className="text-gray-500">%</span>
+                        <div key={idx} className="bg-black/40 rounded-lg border border-gray-800/50 mb-3">
+                            {/* Top Row: Inputs */}
+                            <div className="flex gap-4 items-center p-3">
+                                {isNexus ? (
+                                    <>
+                                        <select
+                                            value={item.type || 'ticker'}
+                                            onChange={(e) => updateItem(idx, 'type', e.target.value)}
+                                            className="bg-gray-800 border-none text-xs rounded text-gray-300 focus:ring-0 cursor-pointer"
+                                        >
+                                            <option className="text-black" value="ticker">Ticker</option>
+                                            <option className="text-black" value="portfolio">Portfolio</option>
+                                            <option className="text-black" value="command">Command</option>
+                                        </select>
+                                        {item.type === 'command' ? (
+                                            <select
+                                                value={item.value || 'breakout'}
+                                                onChange={(e) => updateItem(idx, 'value', e.target.value)}
+                                                className="bg-gray-800 border bg-transparent border-gray-700 rounded text-white text-sm focus:border-white px-2 py-1 outline-none w-32"
+                                            >
+                                                <option className="text-black" value="breakout">Breakout</option>
+                                                <option className="text-black" value="market">Market</option>
+                                                <option className="text-black" value="cultivate">Cultivate</option>
+                                            </select>
+                                        ) : (
+                                            <input
+                                                value={item.value || ''}
+                                                onChange={(e) => updateItem(idx, 'value', e.target.value)}
+                                                placeholder={item.type === 'portfolio' ? "PORT_CODE" : "TICKER"}
+                                                className="bg-transparent border-b border-gray-700 focus:border-white w-32 text-white font-mono outline-none"
+                                            />
+                                        )}
+                                    </>
+                                ) : (
+                                    /* Standard Portfolio Ticker/Sub-Portfolio Input */
+                                    <input
+                                        value={item.tickers || item.ticker || item.symbol || ''}
+                                        onChange={(e) => updateItem(idx, 'tickers', e.target.value.toUpperCase())}
+                                        placeholder="TICKER"
+                                        className="bg-transparent border-b border-gray-700 focus:border-white w-24 text-white font-mono uppercase outline-none"
+                                    />
+                                )}
+
+                                <div className="flex items-center gap-2 flex-1 justify-end">
+                                    <input
+                                        type="number"
+                                        value={item.weight || 0}
+                                        onChange={(e) => updateItem(idx, 'weight', parseFloat(e.target.value))}
+                                        className="bg-transparent border-b border-gray-700 focus:border-white w-20 text-right text-white font-mono outline-none"
+                                    />
+                                    <span className="text-gray-500">%</span>
+                                </div>
+                                <button onClick={() => deleteItem(idx)} className="text-gray-600 hover:text-red-500 transition-colors">
+                                    <Trash2 size={16} />
+                                </button>
                             </div>
-                            <button onClick={() => deleteItem(idx)} className="text-gray-600 hover:text-red-500 transition-colors">
-                                <Trash2 size={16} />
-                            </button>
+
+                            {/* Bottom Row: Expansion (for Sub-Portfolios) */}
+                            {(() => {
+                                const subCode = isNexus
+                                    ? (item.type === 'portfolio' ? (item.tickers || item.ticker || item.value) : item.value)
+                                    : (item.tickers || item.ticker);
+
+                                const subP = getSubPortfolio(subCode);
+
+                                // For Nexus: Only expand if type is portfolio or it's a valid sub-portfolio ref
+                                // For Standard: Always try to expand if subP exists
+                                if (!subP) return null;
+                                if (isNexus && item.type === 'ticker') return null;
+
+                                const isExpanded = expandedItems[idx];
+
+                                return (
+                                    <div className="px-3 pb-3">
+                                        <div className="mt-2 border-t border-gray-700/50 pt-2">
+                                            <button onClick={() => toggleExpand(idx)} className="text-xs flex items-center gap-1 text-blue-400 hover:text-blue-300 mb-2">
+                                                {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                                                {isExpanded ? 'Hide Contents' : 'Show Contents'}
+                                            </button>
+
+                                            {isExpanded && (
+                                                <div className="bg-gray-800/30 rounded p-3 animate-in fade-in slide-in-from-top-1">
+                                                    <div className="flex justify-between items-center mb-2 border-b border-gray-700/50 pb-2">
+                                                        <span className="text-xs font-mono text-gray-400">@{subP.portfolio_code || subP.nexus_code}</span>
+                                                        <button
+                                                            onClick={() => startEditing(subP)}
+                                                            className="text-xs bg-blue-900/30 hover:bg-blue-600 text-blue-300 hover:text-white px-2 py-1 rounded transition-colors flex items-center gap-1"
+                                                        >
+                                                            <Edit size={12} /> Edit Directly
+                                                        </button>
+                                                    </div>
+
+                                                    {/* Use Recursive Component */}
+                                                    <PortfolioHierarchyInternal
+                                                        code={subCode}
+                                                        codes={codes}
+                                                        startEditing={startEditing}
+                                                        level={0}
+                                                    />
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                );
+                            })()}
                         </div>
                     ))}
                     {items.length === 0 && (
@@ -265,10 +462,13 @@ const EditorView = ({ activeCode, setActiveCode, handleSave, setViewMode }) => {
                         Total Allocation: {totalWeight.toFixed(1)}%
                     </div>
                 </div>
-            </div>
-        </div>
+            </div >
+
+
+        </div >
     );
 };
+
 
 const DatabaseNodes = () => {
     const { userProfile } = useAuth();
@@ -489,6 +689,7 @@ const DatabaseNodes = () => {
             type: 'nexus',
             nexus_code: 'NEW_NEXUS',
             components: [],
+            connected_commands: [],
             frac_shares: true,
             num_components: 0
         } : {
@@ -552,6 +753,8 @@ const DatabaseNodes = () => {
                     setActiveCode={setActiveCode}
                     handleSave={handleSave}
                     setViewMode={setViewMode}
+                    codes={codes}
+                    startEditing={startEditing}
                 />
             )}
         </div>

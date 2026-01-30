@@ -2,6 +2,8 @@ import asyncio
 import traceback
 import yfinance as yf
 from datetime import datetime, timedelta
+import pytz # Ensure installed or handle error
+USER_TZ = pytz.timezone('America/Chicago')
 from typing import List, Dict, Any
 try:
     from backend.usage_counter import increment_usage
@@ -108,24 +110,28 @@ def find_start_node(nodes):
     return None
 
 def calculate_next_run(target_time_str, interval=1):
-    """Calculates the next scheduled run time string (System Local Time)."""
+    """Calculates the next scheduled run time string using User Timezone (CST)."""
     try:
-        now = datetime.now()
+        # 1. Get current time in User TZ
+        now_utc = datetime.now(pytz.utc)
+        now_user = datetime.now(USER_TZ)
+
         th, tm = map(int, target_time_str.split(':'))
-        target_today = now.replace(hour=th, minute=tm, second=0, microsecond=0)
         
-        # If we haven't reached today's target yet, that's the next run
-        # BUT: This function is usually called WHEN running, so we want the *subsequent* run.
-        # If called during execution (e.g. 9:30), next run is tomorrow.
+        # Create target for "today" in User TZ
+        target_today = now_user.replace(hour=th, minute=tm, second=0, microsecond=0)
         
-        if target_today <= now:
-            # Move to next interval (e.g. +1 day) if today is passed
-            next_run = target_today + timedelta(days=interval)
+        # Logic: If now_user >= target_today, we missed it?
+        # NOTE: This function is called to set the NEXT run.
+        # If we are strictly AFTER the target, next run is tomorrow.
+        # If we are BEFORE, next run is today.
+        
+        if target_today <= now_user:
+             next_run = target_today + timedelta(days=interval)
         else:
-            # It's today, in the future
-            next_run = target_today
+             next_run = target_today
         
-        # Skip weekends if strictly M-F (Assuming M-F for now as per logic)
+        # Skip weekends
         while next_run.weekday() > 4:
             next_run += timedelta(days=1)
             
@@ -508,34 +514,35 @@ async def evaluate_condition(node):
                 return False
 
         # --- TIME INTERVAL ---
-        elif c_type == 'time_interval':
-            now = datetime.now()
-            print(f"   [EVAL] Time Check (Local): {now} | Weekday {now.weekday()} (0=Mon)")
+        if c_type == 'time_interval':
+            now_user = datetime.now(USER_TZ)
+            print(f"   [EVAL] Time Check (User TZ): {now_user} | Weekday {now_user.weekday()}")
             
             # 1. Trading Day (Mon=0, Fri=4)
             # If unit is days, we strictly check trading days? Or make it optional?
             # Existing logic was strict.
-            if now.weekday() > 4: return False 
+            # 1. Trading Day (Mon=0, Fri=4)
+            if now_user.weekday() > 4: return False 
             
             # 2. Time Check with Buffer (15 minutes)
             target_str = data.get('target_time', "09:30")
             try:
                 th, tm = map(int, target_str.split(':'))
-                target_dt = now.replace(hour=th, minute=tm, second=0, microsecond=0)
+                target_dt = now_user.replace(hour=th, minute=tm, second=0, microsecond=0)
             except:
-                target_dt = now.replace(hour=9, minute=30, second=0, microsecond=0)
+                target_dt = now_user.replace(hour=9, minute=30, second=0, microsecond=0)
 
             # Buffer Window: Target to Target + 15 mins
             buffer_minutes = 15
             end_window = target_dt + timedelta(minutes=buffer_minutes)
             
             # Check strictly if we are IN the window
-            if not (target_dt <= now <= end_window):
+            if not (target_dt <= now_user <= end_window):
                 # We are outside the window (too early or too late)
-                print(f"   [EVAL] Time Window Miss: {now.time()} outside {target_dt.time()} - {end_window.time()}")
+                print(f"   [EVAL] Time Window Miss: {now_user.time()} outside {target_dt.time()} - {end_window.time()}")
                 return False
 
-            print(f"   [EVAL] Time Window HIT: {now.time()} inside {target_dt.time()} - {end_window.time()}")
+            print(f"   [EVAL] Time Window HIT: {now_user.time()} inside {target_dt.time()} - {end_window.time()}")
 
             # 3. Interval/Frequency Check (Duplicate Execution Prevention)
             last_run_str = data.get('last_run')
@@ -562,7 +569,7 @@ async def evaluate_condition(node):
             # Update State (Caller saves if ANY time_interval triggers)
             # We mark it as True, and we set a temp_last_run in data to be saved?
             # Yes, we update it in memory. `process_automation` saves it later.
-            node['data']['last_run'] = now.isoformat()
+            node['data']['last_run'] = now_user.isoformat()
             return True
 
 
