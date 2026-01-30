@@ -40,7 +40,7 @@ def get_firestore_db():
         return None
 
 @router.post("/api/market-data/robinhood")
-async def get_robinhood_data(req: RobinhoodRequest): 
+def get_robinhood_data(req: RobinhoodRequest): 
     # req.email is the user
     try:
         db_client = get_firestore_db()
@@ -64,7 +64,7 @@ async def get_robinhood_data(req: RobinhoodRequest):
         if not username or not password:
              return {"status": "error", "message": "Credentials missing"}
              
-        # Fetch from Manager
+        # Fetch from Manager (Non-blocking now)
         portfolio = RobinhoodManager.get_portfolio(username, password)
         
         if portfolio:
@@ -77,7 +77,7 @@ async def get_robinhood_data(req: RobinhoodRequest):
         return {"status": "error", "message": str(e)}
 
 @router.post("/api/market-data")
-async def get_market_data(request: MarketDataRequest):
+def get_market_data(request: MarketDataRequest):
     try:
         tickers = [t.upper().strip() for t in request.tickers if t]
         if not tickers: return []
@@ -167,7 +167,7 @@ async def get_market_data(request: MarketDataRequest):
         return []
 
 @router.post("/api/market-data/details")
-async def get_market_data_details(request: MarketDataRequest):
+def get_market_data_details(request: MarketDataRequest):
     results = {}
     tickers = [t.upper().strip() for t in request.tickers if t]
     
@@ -214,7 +214,7 @@ async def get_market_data_details(request: MarketDataRequest):
     return {"results": results}
 
 @router.post("/api/market-data/chart")
-async def get_chart_data(req: ChartRequest):
+def get_chart_data(req: ChartRequest):
     try:
         ticker = req.ticker.upper().strip()
         r = req.range.lower()

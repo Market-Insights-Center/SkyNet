@@ -3,76 +3,141 @@ import pyotp
 import logging
 from functools import lru_cache
 import time
+import threading
+from enum import Enum
 
 logger = logging.getLogger("backend.market")
 
-# Simple in-memory cache for portfolio data to avoid hitting RH API rate limits/login spam
-# Key: email, Value: (timestamp, data)
+# Simple in-memory cache for portfolio data
 RH_CACHE = {}
 CACHE_TTL = 300 # 5 minutes
 
+class ConnectionStatus(Enum):
+    DISCONNECTED = "disconnected"
+    CONNECTING = "connecting"
+    CONNECTED = "connected"
+    FAILED = "failed"
+
 class RobinhoodManager:
-    @staticmethod
-    def login(username, encrypted_pass, mfa_code=None):
+    # Track state per user: { username: { 'status': ConnectionStatus, 'last_attempt': float, 'thread': Thread } }
+    _user_states = {}
+    _lock = threading.Lock()
+    
+    RETRY_INTERVAL = 60 # Seconds before retrying a failed login
+
+    @classmethod
+    def _get_state(cls, username):
+        with cls._lock:
+            if username not in cls._user_states:
+                cls._user_states[username] = {
+                    'status': ConnectionStatus.DISCONNECTED,
+                    'last_attempt': 0,
+                    'thread': None,
+                    'last_error': None
+                }
+            return cls._user_states[username]
+
+    @classmethod
+    def ensure_connected(cls, username, password):
         """
-        Attempt to login to Robinhood.
-        Note: 'encrypted_pass' is currently passed as plain text in this prototype phase 
-        as per user instructions (stored in firestore). In production, decrypt here.
+        Non-blocking check. Triggers background login if needed.
+        Returns the current status.
         """
+        state = cls._get_state(username)
+        status = state['status']
+        now = time.time()
+
+        if status == ConnectionStatus.CONNECTED:
+            return status
+
+        if status == ConnectionStatus.CONNECTING:
+             # Already trying
+             return status
+
+        # If Failed, check if we should retry
+        if status == ConnectionStatus.FAILED:
+            if now - state['last_attempt'] < cls.RETRY_INTERVAL:
+                return status # Too soon to retry
+
+        # Start Login Thread
+        logger.info(f"Triggering background login for {username}...")
+        state['status'] = ConnectionStatus.CONNECTING
+        state['last_attempt'] = now
+        state['thread'] = threading.Thread(target=cls._login_worker, args=(username, password), daemon=True)
+        state['thread'].start()
+        
+        return ConnectionStatus.CONNECTING
+
+    @classmethod
+    def _login_worker(cls, username, password):
         try:
-            # If MFA is set up with a TOTP secret (tricky without user interaction), 
-            # we might need that. For now, we assume simple login or handle the challenge/input flow?
-            # User said "simply entering their username and password", implies no MFA or stored MFA secret.
-            # If MFA is required, this will fail or require console input (which we can't do easily).
-            # We'll try standard login.
+            # Attempt Login
+            # note: store_session=False to avoid pickling issues or disk writes if preferred, 
+            # but True is default. keeping default for now.
+            r.login(username, password, store_session=False)
             
-            # NOTE: r.login stores session in pickle. We might want to persist this?
-            # For now, we login on demand or check validity.
+            with cls._lock:
+                cls._user_states[username]['status'] = ConnectionStatus.CONNECTED
+                cls._user_states[username]['last_error'] = None
             
-            resp = r.login(username, encrypted_pass, store_session=True)
-            return True, "Logged in"
+            logger.info(f"Background login SUCCESS for {username}")
+            
         except Exception as e:
-            logger.error(f"RH Login Failed for {username}: {e}")
-            return False, str(e)
+            logger.error(f"Background login FAILED for {username}: {e}")
+            with cls._lock:
+                cls._user_states[username]['status'] = ConnectionStatus.FAILED
+                cls._user_states[username]['last_error'] = str(e)
 
     @staticmethod
     def get_portfolio(username, password):
-        # Check cache
+        # 1. Check Cache first (if valid)
         if username in RH_CACHE:
             ts, data = RH_CACHE[username]
             if time.time() - ts < CACHE_TTL:
                 return data
 
-        success, msg = RobinhoodManager.login(username, password)
-        if not success:
-            return None
+        # 2. Check Connection
+        status = RobinhoodManager.ensure_connected(username, password)
+        
+        if status != ConnectionStatus.CONNECTED:
+            # Return a special status dict instead of blocking or failing
+            state = RobinhoodManager._get_state(username)
+            msg = "Connecting to Robinhood..."
+            if status == ConnectionStatus.FAILED:
+                msg = f"Connection Failed (Retrying in {int(RobinhoodManager.RETRY_INTERVAL - (time.time() - state['last_attempt']))}s). Error: {state.get('last_error')}"
+            
+            return {
+                "equity": 0,
+                "equity_formatted": "---",
+                "day_change": 0,
+                "day_change_pct": 0,
+                "status": status.value,
+                "message": msg
+            }
 
+        # 3. Fetch Data (Synchronous but quick generally if logged in)
         try:
             # Fetch Profiles
-            profiles = r.build_user_profile()
+            # profiles = r.build_user_profile() # Unused
             
-            # Calculate total equity
-            # method 1: load_portfolio_profile gives equity
             portfolio = r.profiles.load_portfolio_profile()
-            
             if not portfolio:
+                # Session might be invalid?
+                # Trigger re-login next time?
+                with RobinhoodManager._lock:
+                     RobinhoodManager._user_states[username]['status'] = ConnectionStatus.FAILED
                 return None
 
             equity = float(portfolio.get('equity', 0) or 0)
             extended_hours_equity = float(portfolio.get('extended_hours_equity', 0) or 0)
             
-            # Use extended hours if available and different/active?
-            # Usually just use valid equity.
             if extended_hours_equity and extended_hours_equity > 0:
                 current_val = extended_hours_equity
             else:
                 current_val = equity
 
-            # Get Previous Close for PnL
-            # 'equity_previous_close'
             prev_close = float(portfolio.get('equity_previous_close', 0) or 0)
             
-            # Simple PnL
             day_change_amount = current_val - prev_close
             day_change_pct = (day_change_amount / prev_close) * 100 if prev_close != 0 else 0
             
@@ -81,7 +146,7 @@ class RobinhoodManager:
                 "equity_formatted": f"${current_val:,.2f}",
                 "day_change": day_change_amount,
                 "day_change_pct": day_change_pct,
-                # "year_change": None  # Feature removed due to API limitations
+                "status": "connected"
             }
             
             # Update cache
@@ -90,4 +155,8 @@ class RobinhoodManager:
             
         except Exception as e:
             logger.error(f"RH Data Fetch Error: {e}")
+            # Assume connection died
+            with RobinhoodManager._lock:
+                 RobinhoodManager._user_states[username]['status'] = ConnectionStatus.FAILED
+                 RobinhoodManager._user_states[username]['last_error'] = str(e)
             return None
