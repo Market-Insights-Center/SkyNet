@@ -26,7 +26,14 @@ from backend.integration import (
     quickscore_command
 )
 
+def safe_float(val):
+    try:
+        return float(val)
+    except (ValueError, TypeError):
+        return 0.0
+
 # Configure Logging
+logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("sentinel_ai")
 
@@ -39,9 +46,10 @@ COMMAND_REGISTRY = {
     "briefing": briefing_command.handle_briefing_command,
     "fundamentals": fundamentals_command.handle_fundamentals_command,
     "assess": assess_command.handle_assess_command,
-    # "mlforecast": mlforecast_command.handle_mlforecast_command, # Might need adaptation
+    "mlforecast": mlforecast_command.handle_mlforecast_command,
     "powerscore": powerscore_command.handle_powerscore_command,
     "quickscore": quickscore_command.handle_quickscore_command,
+    "nexus_import": lambda args, ai_params, is_called_by_ai: handle_nexus_import_tool(ai_params),
     "summary": lambda args, ai_params, is_called_by_ai: handle_summary_tool(ai_params),
     "manual_list": lambda args, ai_params, is_called_by_ai: handle_manual_list_tool(ai_params)
 }
@@ -66,18 +74,52 @@ async def handle_manual_list_tool(params: Dict[str, Any]) -> Dict[str, Any]:
         "message": f"Processed {len(tickers)} manual tickers."
     }
 
+async def handle_nexus_import_tool(params: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Imports tickers from a Nexus/Portfolio code.
+    """
+    nexus_code = params.get("nexus_code", "")
+    if not nexus_code: return {"error": "No Nexus code provided."}
+    
+    # Import here to avoid circulars if possible (or assume it's safe at module level)
+    # We need to ensure nexus_command is available. 
+    # It is imported at top level: from backend.integration import ... nexus_command?
+    # Let's check imports. sentinel_command imports: market_command, sentiment_command...
+    # We need to add nexus_command to imports if not there.
+    try:
+        from backend.integration.nexus_command import fetch_nexus_tickers
+        tickers = await fetch_nexus_tickers(nexus_code)
+    except Exception as e:
+        return {"error": f"Failed to import Nexus tickers: {e}"}
+        
+    return {
+        "tickers": tickers,
+        "top_10": tickers[:10],
+        "count": len(tickers),
+        "message": f"Imported {len(tickers)} tickers from Nexus '{nexus_code}'."
+    }
+
 async def handle_summary_tool(params: Dict[str, Any]) -> str:
     """
-    Summarizes the provided context data, optimized for speed.
+    Summarizes the provided context data, optimized for speed but prioritizing key insights.
     """
     data = params.get("context_data", {})
     user_query = params.get("user_query", "the user request")
     
     # Smart Context Truncation (Pre-JSON)
-    # This prevents dumping 10MB strings only to slice them later.
     optimized_data = {}
     for k, v in data.items():
-        if isinstance(v, list) and len(v) > 20:
+        # Specific handling for MLForecast results to ensure we don't truncate valuable predictions
+        if isinstance(v, list) and len(v) > 0 and isinstance(v[0], dict) and "table" in v[0]:
+            # This looks like a list of MLForecast return objects
+            summarized_forecasts = []
+            for item in v:
+                if "table" in item:
+                    # Keep the table, it's small enough and critical
+                    summarized_forecasts.append({"forecast_table": item["table"]})
+            optimized_data[k] = summarized_forecasts
+        
+        elif isinstance(v, list) and len(v) > 20:
             optimized_data[k] = {"summary": f"List with {len(v)} items", "preview": v[:20]}
         elif isinstance(v, dict) and "all_data" in v: # Handle market command specific large outputs
              # Keep summary stats if available, drop raw 'all_data'
@@ -92,20 +134,30 @@ async def handle_summary_tool(params: Dict[str, Any]) -> str:
     context_str = json.dumps(optimized_data, default=str)
     
     # Final Safety Limit
-    if len(context_str) > 25000:
-        context_str = context_str[:25000] + "...(truncated)"
+    if len(context_str) > 30000:
+        context_str = context_str[:30000] + "...(truncated)"
 
     prompt = f"""
-    Write a concise Mission Report for: "{user_query}".
+    You are the Strategy Analyst for Sentinel AI. 
+    User Request: "{user_query}"
     
-    Data:
+    Context Data:
     {context_str}
     
+    Goal: write a comprehensive, professional Mission Report.
+    
+    Guidelines:
+    1. **Synthesize, don't just list.** Explain WHiCH stocks look best and WHY based on the combined data (Market Scan + Sentiment + ML Forecasts).
+    2. **Highlight Discrepancies.** If Sentiment is high but ML Forecast is DOWN, mention this risk.
+    3. **Actionable Conclusion.** Give a final verdict or recommendation.
+    4. **ML Forecast Specifics.** If ML Forecast data is present, explicitly mention the predicted direction and confidence for the different time horizons (1-Week, 1-Month, etc.).
+    
     Format Rules:
-    1. Mission Report Summary (1-2 sentences).
-    2. Key Findings (Bullet points).
-    3. Strictly NO Markdown Tables. Use text lists if needed.
-    4. NO code blocks.
+    - **Mission Summary**: High-level executive summary.
+    - **Key Insights**: Bullet points with deep analysis.
+    - **Data-Driven Verdict**: Clear conclusion.
+    - NO Markdown Tables.
+    - NO code blocks.
     """
     
     try:
@@ -127,6 +179,8 @@ Available Tools (Commands):
 6. **fundamentals**: Get fundamental data (PE, EPS, etc.). Params: 'tickers_source' (source), 'limit' (int).
 7. **powerscore**: Get comprehensive PowerScore (0-100). Params: 'tickers_source' (source), 'limit' (int).
 8. **quickscore**: Get quick technical score. Params: 'tickers_source' (source).
+9. **mlforecast**: Generate ML-based price forecasts. Params: 'tickers_source' (source of tickers), 'limit' (int).
+10. **nexus_import**: Import tickers from a Nexus/Portfolio code. Params: 'nexus_code' (str).
 
 Rules:
 1. **Break it down**: If the user asks for "market and then sentiment", that is TWO steps.
@@ -285,11 +339,11 @@ async def execute_step(step: Dict[str, Any], context: Dict[str, Any], progress_c
                     elif isinstance(item, str):
                         target_tickers.append(item)
                 
-                # Limit handling
-                limit = int(params.get("limit", 100))
-                target_tickers = target_tickers[:limit]
+                # Limit handling: Capture limit for OUTPUT truncation, not input
+                output_limit = int(params.get("limit", 100))
+                # target_tickers = target_tickers[:limit] # REMOVED: Do not limit input
                 
-                logger.info(f"Resolved context tickers from {source_key}: {target_tickers}")
+                logger.info(f"Resolved {len(target_tickers)} context tickers from {source_key}")
             else:
                  logger.warning(f"Context key '{base_var}' not found. Available keys: {list(context.keys())}")
                  return {"error": f"Dependency {base_var} failed or missing."}
@@ -301,28 +355,72 @@ async def execute_step(step: Dict[str, Any], context: Dict[str, Any], progress_c
         # For now, handle_summary_tool defaults to generic query if not found.
     
     # If the tool handles single ticker but we have a list (e.g. Sentiment on Top 3)
-    if target_tickers and tool_name in ["sentiment", "powerscore", "quickscore", "fundamentals"]:
-        # We need to run this command MULTIPLE times? Or update the command to accept a list?
+    if target_tickers and tool_name in ["sentiment", "powerscore", "quickscore", "fundamentals", "mlforecast"]:        # We need to run this command MULTIPLE times? Or update the command to accept a list?
         # Most of our commands accept a single ticker in args[0].
         # We will iterate here for this specific meta-command logic.
         
+        # Parallel Execution Logic
         results = []
         total = len(target_tickers)
-        for idx, t in enumerate(target_tickers):
-             if progress_callback:
-                 await progress_callback(f"Processing {t} ({idx+1}/{total})...")
-             # Prepare args/params for the function
-             # Most handlers take (args, ai_params, is_called_by_ai)
-             # args[0] is usually ticker
-             
-             # Call handler
-             # Merge current ticker with existing params
-             step_params = params.copy()
-             step_params["ticker"] = t
-             res = await handler(args=[t], ai_params=step_params, is_called_by_ai=True)
-             results.append(res)
         
-        return results
+        # Determine concurrency limit based on tool type to avoid rate limits
+        # Quickscore/Fundamentals are local calculations or light DB queries -> Higher concurrency
+        # Sentiment/MLForecast might hit external APIs -> Lower concurrency
+        concurrency = 15 
+        if tool_name in ["mlforecast", "sentiment"]:
+            concurrency = 5
+        
+        semaphore = asyncio.Semaphore(concurrency)
+        
+        async def _process_single_ticker(idx, t):
+            async with semaphore:
+                # Progress Update (Batch-style to reduce noise, e.g. every 5 or 10%)
+                if progress_callback and (idx % 5 == 0 or idx == total - 1): 
+                     await progress_callback(f"Processing {t} ({idx+1}/{total})...")
+                
+                step_params = params.copy()
+                step_params["ticker"] = t
+                try:
+                    return await handler(args=[t], ai_params=step_params, is_called_by_ai=True)
+                except Exception as e:
+                    logger.error(f"Error processing {t}: {e}")
+                    return {"ticker": t, "error": str(e)}
+
+        tasks = [_process_single_ticker(i, t) for i, t in enumerate(target_tickers)]
+        results = await asyncio.gather(*tasks)
+        
+        # --- POST-PROCESSING & SORTING ---
+        # Sort results to provide the "Best" N results requested by user
+        def get_score(item):
+            # Try common score keys
+            s = item.get('score', item.get('quick_score', item.get('total_score', 0)))
+            return safe_float(s)
+
+        try:
+            results.sort(key=get_score, reverse=True)
+        except: pass # Sort might fail if mixed types, ignore
+        
+        # Slice output to requested limit to prevent UI freeze
+        # But allow "All" to pass through if limit is very high (e.g. > 500)
+        # Assuming frontend limit input usually implies "Top N"
+        output_limit = int(params.get("limit", 10)) # Re-read in case not set above
+        
+        final_output = results[:output_limit]
+        logger.info(f"Processed {len(results)} items. Returning top {len(final_output)}.")
+        
+        return {
+            "top_10": final_output[:10],
+            "tickers": results, # Keep full list available for next steps? 
+                                # WARNING: This might crash frontend if "tickers" is rendered.
+                                # SentinelAI.jsx likely renders the whole return object.
+                                # FIX: We should return a structure that mimics a single result or a list.
+                                # If we return a LIST, frontend iterates.
+                                # If we return DICT, frontend shows specific keys.
+            "results": final_output,
+            "count": len(final_output),
+            "total_processed": len(results),
+            "message": f"Processed {len(results)} tickers. Showing top {len(final_output)}."
+        }
 
     # Normal Single Execution
     # Prepare arguments
@@ -452,7 +550,32 @@ async def run_sentinel(user_prompt: str, plan_override: Optional[List[Dict[str, 
                  if tool_name == "summary":
                      yield {"type": "summary", "message": result}
                  else:
-                     yield {"type": "step_result", "step_id": step_id, "result": result}
+                     # Aggressive Recursive Sanitizer for Frontend Display
+                     def sanitize_for_display(obj, depth=0):
+                         if depth > 3: return "..." # Prevent deep recursion
+                         
+                         if isinstance(obj, list):
+                             if len(obj) > 10:
+                                 return [sanitize_for_display(x, depth+1) for x in obj[:10]] + [f"<{len(obj)-10} more items...>"]
+                             return [sanitize_for_display(x, depth+1) for x in obj]
+                         
+                         elif isinstance(obj, dict):
+                             new_dict = {}
+                             for k, v in obj.items():
+                                 if k in ["tickers", "data"] and isinstance(v, list) and len(v) > 20:
+                                     new_dict[k] = f"<{len(v)} items hidden>"
+                                 else:
+                                     new_dict[k] = sanitize_for_display(v, depth+1)
+                             return new_dict
+                         
+                         elif isinstance(obj, str):
+                             if len(obj) > 1000: return obj[:1000] + "...(truncated)"
+                             return obj
+                             
+                         return obj
+
+                     display_result = sanitize_for_display(result)
+                     yield {"type": "step_result", "step_id": step_id, "result": display_result}
             
 
             

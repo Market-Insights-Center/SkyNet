@@ -283,9 +283,8 @@ async def update_single_portfolio_ranking(portfolio_code: str):
             
             try:
                 # We need to emulate `process_nexus_portfolio`.
-                # If I cannot see the signature clearly, I should assume standard call.
-                # Just call it and see what we get.
-                _, nexus_holdings = await process_nexus_portfolio(portfolio_code) 
+                # process_nexus_portfolio(nexus_config, total_value, nexus_code)
+                _, nexus_holdings = await process_nexus_portfolio(config, current_equity, portfolio_code) 
                 
                 # Now we distribute `current_equity` according to `actual_percent_allocation` (if available) or `actual_money_allocation` ratios.
                 total_model_value = sum([float(h.get('actual_money_allocation', 0)) for h in nexus_holdings])

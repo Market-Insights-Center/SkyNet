@@ -416,6 +416,9 @@ const SentinelAI = () => {
                                                                         } else if (newTool === 'manual_list') {
                                                                             defaultParams = { tickers: "" };
                                                                             defaultDesc = "Process manual ticker list.";
+                                                                        } else if (newTool === 'nexus_import') {
+                                                                            defaultParams = { nexus_code: "" };
+                                                                            defaultDesc = "Import tickers from Nexus portfolio.";
                                                                         } else if (['sentiment', 'fundamentals', 'powerscore', 'quickscore'].includes(newTool)) {
                                                                             defaultParams = { tickers_source: "", limit: 10 };
                                                                             if (newTool === 'powerscore') defaultParams.sensitivity = 2;
@@ -429,6 +432,9 @@ const SentinelAI = () => {
                                                                         } else if (newTool === 'summary') {
                                                                             defaultParams = { data_source: "$CONTEXT" };
                                                                             defaultDesc = "Generate final mission report.";
+                                                                        } else if (newTool === 'mlforecast') {
+                                                                            defaultParams = { tickers_source: "", limit: 5 };
+                                                                            defaultDesc = "Generate ML Price Forecasts...";
                                                                         }
 
                                                                         newPlan[idx] = {
@@ -448,6 +454,7 @@ const SentinelAI = () => {
                                                                                 <>
                                                                                     <option value="market" className="bg-gray-900 text-white">MARKET SCAN</option>
                                                                                     <option value="manual_list" className="bg-gray-900 text-white">MANUAL TICKER LIST</option>
+                                                                                    <option value="nexus_import" className="bg-gray-900 text-white">IMPORT PORTFOLIO</option>
                                                                                 </>
                                                                             );
                                                                         }
@@ -457,7 +464,8 @@ const SentinelAI = () => {
                                                                             { id: 'sentiment', label: 'SENTIMENT ANALYSIS' },
                                                                             { id: 'fundamentals', label: 'FUNDAMENTALS' },
                                                                             { id: 'powerscore', label: 'POWERSCORE' },
-                                                                            { id: 'quickscore', label: 'QUICKSCORE' }
+                                                                            { id: 'quickscore', label: 'QUICKSCORE' },
+                                                                            { id: 'mlforecast', label: 'ML FORECAST' }
                                                                         ];
 
                                                                         // Filter out tools used elsewhere in the plan
@@ -571,8 +579,28 @@ const SentinelAI = () => {
                                                             </div>
                                                         )}
 
+                                                        {/* NEXUS IMPORT UI */}
+                                                        {step.tool === 'nexus_import' && (
+                                                            <div>
+                                                                <label className="text-[10px] text-purple-400 font-bold uppercase tracking-wider block mb-1">
+                                                                    Portfolio Code (e.g. IQUANTUM)
+                                                                </label>
+                                                                <input
+                                                                    type="text"
+                                                                    className="w-full bg-gray-900 border border-gray-700 rounded px-2 py-2 text-xs text-white focus:border-purple-500 outline-none font-mono uppercase"
+                                                                    placeholder="SKYNET"
+                                                                    value={step.params.nexus_code || ""}
+                                                                    onChange={(e) => {
+                                                                        const newPlan = [...executionPlan];
+                                                                        newPlan[idx].params = { ...newPlan[idx].params, nexus_code: e.target.value };
+                                                                        setExecutionPlan(newPlan);
+                                                                    }}
+                                                                />
+                                                            </div>
+                                                        )}
+
                                                         {/* Inputs / Dependencies */}
-                                                        {['sentiment', 'powerscore', 'fundamentals', 'quickscore'].includes(step.tool) && (
+                                                        {['sentiment', 'powerscore', 'fundamentals', 'quickscore', 'mlforecast'].includes(step.tool) && (
                                                             <div>
                                                                 <label className="text-[10px] text-purple-400 font-bold uppercase tracking-wider block mb-1 flex items-center gap-1">
                                                                     <Layers size={10} /> Data Source
@@ -588,9 +616,14 @@ const SentinelAI = () => {
                                                                 >
                                                                     <option value="">Select Input Source...</option>
                                                                     {idx > 0 && executionPlan.slice(0, idx).map((prevStep, prevIdx) => (
-                                                                        <option key={prevIdx} value={`$step_${prevStep.step_id}_output.top_10`}>
-                                                                            Step {prevStep.step_id} ({prevStep.tool.toUpperCase()}) Output
-                                                                        </option>
+                                                                        <React.Fragment key={prevIdx}>
+                                                                            <option value={`$step_${prevStep.step_id}_output.top_10`}>
+                                                                                Step {prevStep.step_id} ({prevStep.tool.toUpperCase()}) - Top 10
+                                                                            </option>
+                                                                            <option value={`$step_${prevStep.step_id}_output.tickers`}>
+                                                                                Step {prevStep.step_id} ({prevStep.tool.toUpperCase()}) - All Items
+                                                                            </option>
+                                                                        </React.Fragment>
                                                                     ))}
                                                                 </select>
                                                             </div>
@@ -636,7 +669,7 @@ const SentinelAI = () => {
                                                                 </div>
                                                             )}
 
-                                                            {['sentiment', 'powerscore', 'fundamentals', 'quickscore'].includes(step.tool) && (
+                                                            {['sentiment', 'powerscore', 'fundamentals', 'quickscore', 'mlforecast'].includes(step.tool) && (
                                                                 <div>
                                                                     <label className="text-[10px] text-gray-500 font-bold uppercase tracking-wider block mb-1">Limit (Max Items)</label>
                                                                     <input
@@ -669,7 +702,7 @@ const SentinelAI = () => {
                                                         const nextId = executionPlan.length + 1;
                                                         // Determine next available tool
                                                         const usedTools = executionPlan.map(s => s.tool);
-                                                        const allTools = ['sentiment', 'fundamentals', 'powerscore', 'quickscore'];
+                                                        const allTools = ['sentiment', 'fundamentals', 'powerscore', 'quickscore', 'mlforecast'];
                                                         const available = allTools.find(t => !usedTools.includes(t));
 
                                                         if (available) {

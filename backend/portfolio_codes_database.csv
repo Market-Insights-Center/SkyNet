@@ -1,5 +1,4 @@
 portfolio_code,ema_sensitivity,amplification,num_portfolios,frac_shares,risk_tolerance,risk_type,remove_amplification_cap,user_id,tickers_1,weight_1,tickers_2,weight_2,tickers_3,weight_3,tickers_4,weight_4,tickers_5,weight_5,tickers_6,weight_6,tickers_7,weight_7,tickers_8,weight_8,tickers_9,weight_9,tickers_10,weight_10
 overvaluedpicks,2,2.0,1,yes,10,stock,true,,"USAR, RGTI, REMX, NNE, IONQ, RDDT, MU, HOOD, GLW, APP, INTC, OKLO, PLTR, AMD",100.0
 iquantum,2,1.0,2,yes,10,stock,true,,quantumfix,80.0,overvaluedpicks,20.0
-quantumfix,2,1,9,yes,10,stock,true,,"NVDA, ASML, NOW, TSM, GOOG, MRVL, META, AVGO, SAP, ORCL, AAPL",8,"VRT, DELL, MSFT, CRWV, HPE",12,"GEV, CCJ, CEG, VST, SMR, ETN",6,"CPER, LIT, MP",4,"GE, BYDDY, CRWD, HWM, PH, CDNS, SE, SNOW",6,"QTUM, IBM",2,"COIN, MSTR",2,"SPY, QQQ, OEF, DIA",30,"GLD, SLV",30
-test,2,1,1,true,10,,,jb8jHxIcJuNzZF4GWUm1Kfar4it1,"MU,REMX,GEV",100
+quantumfix,2,1.0,9,yes,10,stock,true,,"NVDA, ASML, NOW, TSM, GOOG, MRVL, META, AVGO, SAP, ORCL, AAPL",8.0,"VRT, DELL, MSFT, CRWV, HPE",12.0,"GEV, CCJ, CEG, VST, SMR, ETN",6.0,"CPER, LIT, MP",4.0,"GE, BYDDY, CRWD, HWM, PH, CDNS, SE, SNOW",6.0,"QTUM, IBM",2.0,"COIN, MSTR",2.0,"SPY, QQQ, OEF, DIA",30.0,"GLD, SLV",30.0

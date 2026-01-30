@@ -792,3 +792,98 @@ async def handle_nexus_command(args: List[str], ai_params: Optional[Dict] = None
             "message": f"Backend Error: {str(e)}",
             "traceback": traceback.format_exc()
         }
+async def fetch_nexus_tickers(nexus_code: str) -> List[str]:
+    """
+    Retrieves a flat list of unique tickers belonging to a specific Portfolio code (Custom or Nexus).
+    Prioritizes Custom Portfolios from the database.
+    Recursively resolves sub-portfolios to extraction static tickers only.
+    """
+    from backend.integration.custom_command import load_portfolio_config
+
+    print(f"[DEBUG IMPORT] Fetching tickers for: {nexus_code}")
+    unique_tickers = set()
+    
+    # Cache to prevent infinite recursion
+    visited_codes = set()
+
+    async def _recursive_fetch(code: str, depth: int = 0):
+        if depth > 5: return 
+        code_clean = code.strip().lower()
+        if code_clean in visited_codes: return
+        visited_codes.add(code_clean)
+
+        # 1. Try Custom Portfolio Config (DB CSV) - PRIORITIZED
+        try:
+            custom_cfg = await load_portfolio_config(code_clean)
+            if custom_cfg:
+                print(f"[DEBUG IMPORT] Found Custom Config for '{code}'")
+                try:
+                    num_raw = str(custom_cfg.get('num_portfolios', '0')).strip()
+                    num_subs = int(float(num_raw)) if num_raw else 0
+                except (ValueError, TypeError):
+                    num_subs = 0
+                
+                # Iterate through all ticker fields
+                for i in range(1, num_subs + 1):
+                    t_str = str(custom_cfg.get(f'tickers_{i}', '')).upper()
+                    if not t_str: continue
+                    
+                    # Split into individual items
+                    items = [t.strip() for t in t_str.split(',') if t.strip()]
+                    
+                    for item in items:
+                        # Check if this item is ITSELF a portfolio
+                        # A quick heuristic: try to load it. If it loads, it's a portfolio.
+                        # If not, assume it's a ticker.
+                        is_sub_portfolio = False
+                        try:
+                            sub_cfg = await load_portfolio_config(item)
+                            if sub_cfg:
+                                print(f"[DEBUG IMPORT] '{item}' is a sub-portfolio. Recursing...")
+                                await _recursive_fetch(item, depth + 1)
+                                is_sub_portfolio = True
+                        except: pass
+                        
+                        if not is_sub_portfolio:
+                            # Verify it looks like a ticker
+                            if len(item) <= 5 and item.isalpha():
+                                unique_tickers.add(item)
+                return 
+        except Exception as e:
+            print(f"[DEBUG IMPORT] Error checking custom config for {code}: {e}")
+
+        # 2. Try Nexus Config (CSV) - FALLBACK
+        # Only if NOT found as a custom portfolio
+        try:
+            nexus_cfg = await _load_nexus_config(code)
+            if nexus_cfg:
+                print(f"[DEBUG IMPORT] Found Nexus Config for '{code}'")
+                num = int(nexus_cfg.get('num_components', 0))
+                for i in range(1, num + 1):
+                    c_type = str(nexus_cfg.get(f'component_{i}_type', '')).lower()
+                    c_val = str(nexus_cfg.get(f'component_{i}_value', '')).strip()
+                    
+                    if not c_val: continue
+                    
+                    if c_type == 'portfolio':
+                        await _recursive_fetch(c_val, depth + 1)
+                    elif c_type == 'command':
+                        continue # Skip dynamic
+                    else:
+                        target = c_val.upper()
+                        if len(target) <= 5 and target.isalpha():
+                            unique_tickers.add(target)
+                return
+        except Exception as e:
+            print(f"[DEBUG IMPORT] Error checking nexus config for {code}: {e}")
+
+        print(f"[DEBUG IMPORT] No config found for '{code}' (treated as potentially empty or invalid)")
+
+    try:
+        await _recursive_fetch(nexus_code)
+        print(f"[DEBUG IMPORT] Found {len(unique_tickers)} unique tickers for '{nexus_code}'")
+        return list(unique_tickers)
+    except Exception as e:
+        print(f"[DEBUG IMPORT] Error fetching tickers: {e}")
+        return []
+
