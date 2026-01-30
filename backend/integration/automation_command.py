@@ -550,6 +550,11 @@ async def evaluate_condition(node):
                 try:
                     last_run = datetime.fromisoformat(last_run_str)
                     
+                    # STRICT DAILY LIMIT: If it ran at all today, skip.
+                    if last_run.date() == now_user.date():
+                        print("   [EVAL] Time Interval: Already ran today (Strict Limit).")
+                        return False
+
                     # If we already ran TODAY (or since the last target time), skip.
                     # Simple check: If last_run is within the same window?
                     # Or simpler: if last_run > target_dt (meaning we ran after the target started today), skip.

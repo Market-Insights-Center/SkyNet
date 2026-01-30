@@ -13,7 +13,9 @@ const StrategyRanking = () => {
     const [submission, setSubmission] = useState({
         user_email: '',
         portfolio_code: '',
-        interval: '1/d'
+        interval: '1/d',
+        execution_time: '09:30',
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'
     });
     const [message, setMessage] = useState('');
 
@@ -181,11 +183,19 @@ const StrategyRanking = () => {
                                 onChange={(e) => setSubmission({ ...submission, interval: e.target.value })}
                                 className="w-full bg-black/50 border border-white/20 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-gold"
                             >
-                                <option value="1/h">Hourly (1/h)</option>
                                 <option value="1/d">Daily (1/d)</option>
                                 <option value="1/w">Weekly (1/w)</option>
                                 <option value="1/m">Monthly (1/m)</option>
                             </select>
+                        </div>
+                        <div className="w-full md:w-48">
+                            <label className="block text-gray-400 text-sm mb-1">Execution Time</label>
+                            <input
+                                type="time"
+                                value={submission.execution_time}
+                                onChange={(e) => setSubmission({ ...submission, execution_time: e.target.value })}
+                                className="w-full bg-black/50 border border-white/20 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-gold"
+                            />
                         </div>
                         <button
                             type="submit"
@@ -265,7 +275,11 @@ const StrategyRanking = () => {
                                                     {formatPnL(item.pnl_all_time)}
                                                 </td>
                                                 <td className="px-6 py-4">
-                                                    <span className="px-2 py-1 bg-white/5 rounded text-xs text-gray-300">{item.interval || '1/d'}</span>
+                                                    <div className="flex flex-col">
+                                                        <span className="px-2 py-1 bg-white/5 rounded text-xs text-center text-gray-300 w-fit">{item.interval || '1/d'}</span>
+                                                        <span className="text-[10px] text-gray-500 mt-1">@ {item.execution_time || '09:30'}</span>
+                                                        <span className="text-[8px] text-gray-600 uppercase tracking-wide">{item.timezone || 'UTC'}</span>
+                                                    </div>
                                                 </td>
                                                 <td className="px-6 py-4 text-gray-400 text-sm">
                                                     <div className="flex items-center gap-1">

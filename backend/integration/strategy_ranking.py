@@ -5,6 +5,7 @@ import asyncio
 from typing import List, Dict, Any, Optional
 from datetime import datetime
 import traceback
+import pytz
 
 # Try to import process_custom_portfolio. 
 # Depending on circular imports, we might need to import inside the function.
@@ -58,7 +59,7 @@ def save_rankings(data: Dict[str, Any]):
     except Exception as e:
         logger.error(f"Failed to save rankings: {e}")
 
-async def submit_portfolio_to_ranking(user_email: str, portfolio_code: str, interval: str) -> Dict[str, Any]:
+async def submit_portfolio_to_ranking(user_email: str, portfolio_code: str, interval: str, execution_time: str = "09:30", timezone: str = "UTC") -> Dict[str, Any]:
     """
     Submits a portfolio (Custom or Nexus) to the active rankings.
     """
@@ -77,6 +78,8 @@ async def submit_portfolio_to_ranking(user_email: str, portfolio_code: str, inte
     for item in rankings["active"]:
         if item["portfolio_code"].lower() == portfolio_code.lower():
             item["interval"] = interval
+            item["execution_time"] = execution_time
+            item["timezone"] = timezone
             item["user_email"] = user_email
             item["username"] = username
             item["status"] = "active"
@@ -100,6 +103,8 @@ async def submit_portfolio_to_ranking(user_email: str, portfolio_code: str, inte
         "portfolio_code": portfolio_code,
         "type": "nexus" if is_nexus else "custom",
         "interval": interval,
+        "execution_time": execution_time,
+        "timezone": timezone,
         "submission_date": datetime.utcnow().isoformat(),
         "last_run": None,
         "pnl_all_time": 0.0,
@@ -362,20 +367,58 @@ async def check_and_update_rankings():
     
     for item in active:
         last_run_str = item.get("last_run")
-        interval = item.get("interval", "1d")
+        interval = item.get("interval", "1/d")
+        execution_time_str = item.get("execution_time", "09:30")
+        tz_name = item.get("timezone", "UTC")
         
         should_run = False
+        
+        # Parse target hour/minute
+        try:
+            target_hour, target_minute = map(int, execution_time_str.split(':'))
+        except:
+             target_hour, target_minute = 9, 30
+             
+        # Normalize "now" to the User's Timezone
+        try:
+            user_tz = pytz.timezone(tz_name)
+            # utcnow -> replace tzinfo=utc -> astimezone(user_tz)
+            now_localized = datetime.utcnow().replace(tzinfo=pytz.utc).astimezone(user_tz)
+        except Exception as e:
+            logger.warning(f"Invalid timezone {tz_name} for strategy {item['portfolio_code']}, falling back to UTC")
+            now_localized = datetime.utcnow().replace(tzinfo=pytz.utc) 
+
+        now_time = now_localized.time()
+        is_past_time = (now_time.hour > target_hour) or (now_time.hour == target_hour and now_time.minute >= target_minute)
+        
         if not last_run_str:
-            should_run = True
+            # First run
+            if is_past_time:
+                should_run = True
         else:
-            last_run = datetime.fromisoformat(last_run_str)
-            delta = now - last_run
+            last_run_utc = datetime.fromisoformat(last_run_str)
+            # Localize last_run to check dates in user logic
+            # Assuming last_run_str was stored as UTC ISO
+            if last_run_utc.tzinfo is None:
+                last_run_utc = last_run_utc.replace(tzinfo=pytz.utc)
             
-            # logic
-            if interval == "1/h" and delta.total_seconds() >= 3600: should_run = True
-            elif interval == "1/d" and delta.total_seconds() >= 86400: should_run = True
-            elif interval == "1/w" and delta.total_seconds() >= 604800: should_run = True
-            elif interval == "1/m" and delta.total_seconds() >= 2592000: should_run = True
+            last_run_local = last_run_utc.astimezone(user_tz)
+            
+            if interval == "1/d":
+                if last_run_local.date() < now_localized.date() and is_past_time:
+                    should_run = True
+                    
+            elif interval == "1/w":
+                # Check if it's been 7 days
+                delta = now_localized - last_run_local
+                if delta.days >= 7 and is_past_time:
+                    should_run = True
+            
+            elif interval == "1/m":
+                delta = now_localized - last_run_local
+                if delta.days >= 30 and is_past_time:
+                    should_run = True
             
         if should_run:
+            logger.info(f"Triggering scheduled update for {item['portfolio_code']} (Target: {execution_time_str} {tz_name})")
             await update_single_portfolio_ranking(item["portfolio_code"])

@@ -90,7 +90,12 @@ export default function Profile() {
                         if (data.settings?.show_leaderboard !== false) setShowLeaderboard(true); // Default to True
 
                         // Load Header Widgets
-                        if (data.settings?.header_widgets) setHeaderWidgets(data.settings.header_widgets);
+                        if (data.settings?.header_widgets) {
+                            // Sanitize: Only keep widgets that actually exist in options and remove duplicates
+                            const validIds = WIDGET_OPTIONS.map(o => o.id);
+                            const sanitized = [...new Set(data.settings.header_widgets)].filter(id => validIds.includes(id));
+                            setHeaderWidgets(sanitized);
+                        }
 
                         // Load Integrations
                         if (data.integrations?.robinhood) {
@@ -559,7 +564,7 @@ export default function Profile() {
                                 <h4 className="text-white font-bold">Floating Header Widgets</h4>
                                 <p className="text-sm text-gray-400 mt-1">Select up to 6 metrics to display site-wide.</p>
                             </div>
-                            <span className="text-xs text-gol border border-gold/20 bg-gold/5 px-2 py-1 rounded">{headerWidgets.length}/6 Selected</span>
+                            <span className="text-xs text-gold border border-gold/20 bg-gold/5 px-2 py-1 rounded">{headerWidgets.length}/6 Selected</span>
                         </div>
 
                         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">

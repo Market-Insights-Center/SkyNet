@@ -157,6 +157,7 @@ class OrionV2Controller:
         
         self.mic = None
         self.ears_active = False
+        self.eyes_active = False
 
     def initialize_microphone(self):
         # --- AUTO-SELECT MICROPHONE ---
@@ -635,12 +636,12 @@ class OrionV2Controller:
                         self.initiate_shutdown("Frontend Button")
                     elif action == "START_VISION":
                         if not hasattr(self, 'vision_thread') or not self.vision_thread.is_alive():
-                            self.vision_active = True
+                            self.eyes_active = True
                             self.vision_thread = threading.Thread(target=self.start_camera_and_processing, daemon=True)
                             self.vision_thread.start()
                             self.speak("Vision System Online")
                     elif action == "STOP_VISION":
-                        self.vision_active = False 
+                        self.eyes_active = False 
                         self.speak("Vision System Offline")
                     elif action == "START_EARS":
                         self.ears_active = True

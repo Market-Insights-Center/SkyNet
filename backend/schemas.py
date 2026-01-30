@@ -313,6 +313,8 @@ class RankingSubmitRequest(BaseModel):
     user_email: str
     portfolio_code: str
     interval: str 
+    execution_time: Optional[str] = "09:30" 
+    timezone: Optional[str] = "UTC" 
 
 class RankingRemoveRequest(BaseModel):
     user_email: str

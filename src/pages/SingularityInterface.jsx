@@ -3,24 +3,32 @@ import { motion, AnimatePresence } from 'framer-motion';
 import SingularityCanvas from '../components/SingularityCanvas';
 import SingularityStream from '../components/SingularityStream'; // Assuming this exists
 import { FaNetworkWired, FaPowerOff, FaShieldAlt } from 'react-icons/fa'; // Ensure react-icons is installed
+import { useOrion } from '../contexts/OrionContext';
 
 const SingularityInterface = () => {
-    const [isConnected, setIsConnected] = useState(false);
+    const { connect, disconnect, isConnected, sendCommand } = useOrion();
     const [systemStatus, setSystemStatus] = useState('IDLE');
     const [streamData, setStreamData] = useState([]);
 
-    // Mock connecting sequence
+    // Sync status and auto-start vision
+    useEffect(() => {
+        if (isConnected) {
+            setSystemStatus('CONNECTED // SYSTEM ONLINE');
+            sendCommand('START_VISION');
+        } else {
+            setSystemStatus('IDLE');
+        }
+    }, [isConnected]);
+
     const handleConnect = () => {
         if (isConnected) {
-            setIsConnected(false);
             setSystemStatus('DISCONNECTING...');
-            setTimeout(() => setSystemStatus('IDLE'), 1000);
+            // Optional: Send stop command before disconnecting
+            sendCommand('STOP_VISION');
+            setTimeout(() => disconnect(), 500);
         } else {
             setSystemStatus('INITIALIZING HANDSHAKE...');
-            setTimeout(() => {
-                setIsConnected(true);
-                setSystemStatus('CONNECTED // SYSTEM ONLINE');
-            }, 1500);
+            connect();
         }
     };
 
