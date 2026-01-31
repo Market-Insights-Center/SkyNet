@@ -289,7 +289,7 @@ async def update_single_portfolio_ranking(portfolio_code: str):
             try:
                 # We need to emulate `process_nexus_portfolio`.
                 # process_nexus_portfolio(nexus_config, total_value, nexus_code)
-                _, nexus_holdings = await process_nexus_portfolio(config, current_equity, portfolio_code) 
+                nexus_holdings, _ = await process_nexus_portfolio(config, current_equity, portfolio_code) 
                 
                 # Now we distribute `current_equity` according to `actual_percent_allocation` (if available) or `actual_money_allocation` ratios.
                 total_model_value = sum([float(h.get('actual_money_allocation', 0)) for h in nexus_holdings])
@@ -341,7 +341,7 @@ async def update_single_portfolio_ranking(portfolio_code: str):
                 is_called_by_ai=True
             )
             if isinstance(res, tuple) and len(res) >= 3:
-                tailored_data = res[1]
+                tailored_data = res[0] # Updated to index 0 for tailored_data with shares
                 final_cash = res[2]
 
         # --- UPDATE STATE ---
