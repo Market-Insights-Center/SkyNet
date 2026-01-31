@@ -314,12 +314,12 @@ const FloatingHeader = () => {
                 }}
                 transition={{
                     type: "spring",
-                    stiffness: 200, // Reduced stiffness for softer feel
-                    damping: 25,
-                    layout: { duration: 0.6 } // Slower layout transition
+                    stiffness: 120, // Even softer spring
+                    damping: 20,
+                    layout: { duration: 0.8 } // Slower, smoother resize
                 }}
                 onDoubleClick={() => setIsEditing(!isEditing)}
-                className={`${positionClass} z-[40] flex items-center justify-center bg-black/80 backdrop-blur-xl border border-white/10 shadow-2xl overflow-hidden ${isMinimized ? 'h-14 p-0' : 'h-auto max-w-[90vw] pr-10'}`} // Added pr-10 for button space
+                className={`${positionClass} z-[40] flex items-center justify-center bg-black/80 backdrop-blur-xl border border-white/10 shadow-2xl overflow-hidden ${isMinimized ? 'h-14 p-0' : 'h-auto max-w-[90vw] pr-12'}`} // Slightly more padding for aesthetics
                 style={{ originX: 0.5 }}
             >
                 <AnimatePresence mode="wait">

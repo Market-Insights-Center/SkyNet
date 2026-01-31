@@ -129,6 +129,8 @@ class RobinhoodManager:
         try:
             # Attempt Login
             import os
+            import requests # Import at runtime to avoid top-level dependency issues if not installed
+            
             data_dir = cls._get_start_dir()
             pickle_path = os.path.join(data_dir, 'robinhood.pickle')
 
@@ -152,14 +154,34 @@ class RobinhoodManager:
                 cls._user_states[username]['status'] = ConnectionStatus.FAILED
                 cls._user_states[username]['last_error'] = "Login Failed: Interactive challenge required or bad credentials."
                 cls._user_states[username]['fail_count'] = cls._user_states[username].get('fail_count', 0) + 1
-                
+       
+        except requests.exceptions.HTTPError as he:
+            # Specific handling for HTTP errors from requests (underlying robin_stocks)
+            code = 0
+            if he.response is not None:
+                code = he.response.status_code
+            
+            logger.error(f"Background login HTTP Error for {username}: {code} - {he}")
+            
+            msg = str(he)
+            if code == 429:
+                logger.critical(f"Robinhood Rate Limit (429) Detected for {username}. Backing off for 15 minutes.")
+                until = time.time() + cls.RATE_LIMIT_COOLDOWN
+                cls._save_cooldown(until)
+                msg = "Rate Limited (Too Many Requests). Paused for 15m."
+            
+            with cls._lock:
+                cls._user_states[username]['status'] = ConnectionStatus.FAILED
+                cls._user_states[username]['last_error'] = msg
+                cls._user_states[username]['fail_count'] = cls._user_states[username].get('fail_count', 0) + 1
+                 
         except Exception as e:
             logger.error(f"Background login FAILED for {username}: {str(e)}")
             msg = str(e)
             
-            # Check for Rate Limit explicitly
+            # Check for Rate Limit explicitly in string if HTTPError wasn't caught
             if '429' in msg or 'Too Many Requests' in msg:
-                logger.critical(f"Robinhood Rate Limit Detected for {username}. Backing off for 15 minutes.")
+                logger.critical(f"Robinhood Rate Limit Detected (Generic) for {username}. Backing off for 15 minutes.")
                 # Save persistent cooldown
                 until = time.time() + cls.RATE_LIMIT_COOLDOWN
                 cls._save_cooldown(until)
