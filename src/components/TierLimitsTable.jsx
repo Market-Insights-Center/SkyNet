@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Check, X, Shield, Zap, TrendingUp, Activity, Database, Brain, Cpu, Lock, Crown, ArrowRight, Star } from 'lucide-react';
 import { Link } from 'react-router-dom';
@@ -13,24 +13,48 @@ const TierLimitsTable = () => {
     const isTierActive = (targetTier) => currentTierIdx >= tiers.indexOf(targetTier);
 
     const [hoveredRow, setHoveredRow] = useState(null);
+    const [limitsData, setLimitsData] = useState({});
+
+    useEffect(() => {
+        fetch('/api/admin/tier-limits')
+            .then(res => {
+                if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+                return res.json();
+            })
+            .then(data => setLimitsData(data))
+            .catch(err => console.error("Failed to load tier limits:", err));
+    }, []);
+
+    // Helper to format raw limit string (NL -> Unlimited, NA -> No, numbers -> numbers)
+    const formatLimit = (tier, product) => {
+        if (!limitsData[tier]) return "Loading...";
+        const raw = limitsData[tier][product];
+        if (!raw || raw === 'NA') return "No";
+        if (raw === 'NL') return "Unlimited";
+        // If it looks like "10/day" or "3", return distinct parts? 
+        // Current table just shows "3", "10". 
+        // If CSV says "3/day", we might want to just show "3" if the row implies daily?
+        // Let's return the full string for clarity unless it's just a number.
+        return raw;
+    };
 
     const features = [
-        { name: "Daily AI Investments", basic: "3", pro: "10", ent: "Unlimited", icon: TrendingUp },
-        { name: "Cultivate Optimization", basic: "1/week", pro: "3/day", ent: "5/day", icon: Zap },
-        { name: "Portfolio Tracking", basic: "1/day", pro: "10/day", ent: "Unlimited", icon: Activity },
-        { name: "Market Briefings", basic: "No", pro: "3/day", ent: "5/day", icon: Database },
-        { name: "Risk Analysis", basic: "Unlimited", pro: "Unlimited", ent: "Unlimited", icon: Shield },
-        { name: "Trading History", basic: "No", pro: "Unlimited", ent: "Unlimited", icon: Database },
-        { name: "QuickScore Ratings", basic: "Unlimited", pro: "20/day", ent: "Unlimited", icon: Activity },
-        { name: "Breakout Scans", basic: "No", pro: "3/day", ent: "10/day", icon: TrendingUp },
-        { name: "Sentiment Analysis", basic: "No", pro: "3/day", ent: "5/day", icon: Brain },
-        { name: "Nexus Portfolios", basic: "No", pro: "No", ent: "5/day", icon: Cpu },
-        { name: "Automation Blocks", basic: "5", pro: "10", ent: "25", icon: Cpu },
+        { name: "Daily AI Investments", key: "invest", icon: TrendingUp },
+        { name: "Cultivate Optimization", key: "cultivate", icon: Zap },
+        { name: "Portfolio Tracking", key: "tracking", icon: Activity },
+        { name: "Market Briefings", key: "briefing", icon: Database }, // Note: CSV key is 'briefing'
+        { name: "Risk Analysis", key: "risk", icon: Shield },
+        { name: "Trading History", key: "history", icon: Database },
+        { name: "QuickScore Ratings", key: "quickscore", icon: Activity },
+        { name: "Breakout Scans", key: "breakout", icon: TrendingUp },
+        { name: "Sentiment Analysis", key: "sentiment", icon: Brain },
+        { name: "Nexus Portfolios", key: "nexus", icon: Cpu }, // CSV key 'nexus' limit is usually NA/5/day/NL
+        { name: "Automation Blocks", key: "automation_blocks", icon: Cpu },
     ];
 
     const RenderValue = ({ val, highlight = false, dim = false }) => {
         if (val === "No") return <X size={16} className="mx-auto text-gray-800" />;
-        if (val === "Unlimited") return <span className={`font-bold text-lg ${highlight ? 'text-white drop-shadow-[0_0_5px_rgba(255,255,255,0.5)]' : 'text-blue-400'}`}>∞</span>;
+        if (val === "Unlimited") return <span className={`font-bold text-sm ${highlight ? 'text-white drop-shadow-[0_0_5px_rgba(255,255,255,0.5)]' : 'text-blue-400'}`}>Unlimited</span>;
         return <span className={`${highlight ? 'text-white font-bold' : dim ? 'text-gray-600' : 'text-gray-400'}`}>{val}</span>;
     };
 
@@ -79,7 +103,6 @@ const TierLimitsTable = () => {
                                         { tier: 'Enterprise', color: 'purple', label: 'Power User' }
                                     ].map((col) => {
                                         const isCurrent = currentTier === col.tier;
-                                        const isActive = isTierActive(col.tier);
 
                                         return (
                                             <th key={col.tier} className="p-8 text-center w-1/4 relative group align-top">
@@ -124,7 +147,7 @@ const TierLimitsTable = () => {
                                         </td>
 
                                         <td className={`p-6 text-center font-mono relative ${currentTier === 'Basic' ? 'bg-white/5 border-l border-r border-white/10' : ''}`}>
-                                            <RenderValue val={feat.basic} dim={true} highlight={currentTier === 'Basic'} />
+                                            <RenderValue val={formatLimit('Basic', feat.key)} dim={true} highlight={currentTier === 'Basic'} />
                                         </td>
 
                                         <td className={`p-6 text-center font-mono relative ${currentTier === 'Pro' ? 'bg-gold/5 border-l border-r border-gold/20' : ''}`}>
@@ -132,11 +155,11 @@ const TierLimitsTable = () => {
                                             {currentTier === 'Pro' && (
                                                 <div className="absolute inset-y-0 left-0 right-0 bg-gold/5 opacity-50 pointer-events-none" />
                                             )}
-                                            <div className="relative z-10"><RenderValue val={feat.pro} highlight={currentTier === 'Pro'} /></div>
+                                            <div className="relative z-10"><RenderValue val={formatLimit('Pro', feat.key)} highlight={currentTier === 'Pro'} /></div>
                                         </td>
 
                                         <td className={`p-6 text-center font-mono relative ${currentTier === 'Enterprise' ? 'bg-purple-500/5 border-l border-r border-purple-500/20' : ''}`}>
-                                            <RenderValue val={feat.ent} highlight={currentTier === 'Enterprise'} />
+                                            <RenderValue val={formatLimit('Enterprise', feat.key)} highlight={currentTier === 'Enterprise'} />
                                         </td>
                                     </tr>
                                 ))}

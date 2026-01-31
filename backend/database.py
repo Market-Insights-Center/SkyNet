@@ -85,6 +85,23 @@ def load_tier_limits():
             print(f"Error loading limits CSV: {e}")
     return limits
 
+def save_tier_limits(limits_dict):
+    """Saves the nested dictionary of limits back to the CSV."""
+    try:
+        with open(TIER_LIMITS_CSV, 'w', newline='') as f:
+            writer = csv.writer(f)
+            writer.writerow(['Tier', 'Product', 'Limit'])
+            
+            # Since the frontend will likely send us a nested dict, we iterate
+            for tier, tier_data in limits_dict.items():
+                for product, limit in tier_data.items():
+                    writer.writerow([tier, product, limit])
+        return True
+    except Exception as e:
+        print(f"Error saving updated limits: {e}")
+        return False
+
+
 def get_next_tier_with_access(current_tier, product):
     """Finds the next higher tier that has access (not NA)."""
     try:

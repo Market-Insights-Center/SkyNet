@@ -13,7 +13,8 @@ from backend.database import (
     create_coupon, get_all_coupons, delete_coupon, update_user_tier, delete_user_full,
     get_user_points, generate_referral_code, process_referral_signup,
     get_predictions_leaderboard, resolve_prediction, get_active_predictions,
-    create_prediction, delete_prediction, get_user_bets, place_bet, update_user_heartbeat
+    create_prediction, delete_prediction, get_user_bets, place_bet, update_user_heartbeat,
+    load_tier_limits, save_tier_limits
 )
 from backend.services.orion_manager import OrionManager
 from backend.usage_counter import increment_usage, get_all_usage, get_recent_actions
@@ -147,6 +148,26 @@ def api_gen_referral(req: PointsRequest):
 def api_redeem_referral(req: ReferralRedeemRequest):
     success = process_referral_signup(req.email, req.code)
     return {"success": success}
+
+# --- ADMIN TIER LIMITS ---
+@router.get("/api/admin/tier-limits")
+def get_tier_limits_endpoint(email: str = None):
+    # Public read access is okay for rendering tables on landing page
+    return load_tier_limits()
+
+@router.post("/api/admin/tier-limits")
+def save_tier_limits_endpoint(req: dict):
+    # Expects { "limits": {...}, "requester_email": ... }
+    email = req.get('requester_email')
+    mods = get_mod_list()
+    if not email or email.lower() not in mods: raise HTTPException(status_code=403, detail="Not authorized")
+    
+    limits = req.get('limits')
+    if not limits: raise HTTPException(status_code=400, detail="Missing limits data")
+    
+    if save_tier_limits(limits): return {"status": "success"}
+    raise HTTPException(status_code=500, detail="Failed to save limits")
+
 
 # --- ADMIN LOGS ---
 @router.get("/api/admin/logs")

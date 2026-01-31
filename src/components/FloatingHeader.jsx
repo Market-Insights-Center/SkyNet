@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { motion, AnimatePresence, Reorder } from 'framer-motion';
-import { Activity, TrendingUp, DollarSign, Globe, Trophy, X, Plus, Check, BarChart2, Loader2, Calendar } from 'lucide-react';
+import { Activity, TrendingUp, DollarSign, Globe, Trophy, X, Plus, Check, BarChart2, Loader2, Calendar, Minus } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { db } from '../firebase';
@@ -11,6 +11,7 @@ const FloatingHeader = () => {
     const { currentUser } = useAuth();
     const location = useLocation();
     const isWorkflowPage = location.pathname === '/workflow-automation';
+    const [isMinimized, setIsMinimized] = useState(false);
 
     // Position: Top usually, Bottom for Workflow
     const positionClass = isWorkflowPage
@@ -303,71 +304,121 @@ const FloatingHeader = () => {
     return (
         <>
             <motion.div
-                initial={{ y: -20, opacity: 0 }}
-                animate={{ y: 0, opacity: 1 }}
+                layout
+                initial={{ y: -20, opacity: 0, width: "auto" }}
+                animate={{
+                    y: 0,
+                    opacity: 1,
+                    width: isMinimized ? 56 : "auto", // Slightly larger for button
+                    borderRadius: 9999
+                }}
+                transition={{
+                    type: "spring",
+                    stiffness: 200, // Reduced stiffness for softer feel
+                    damping: 25,
+                    layout: { duration: 0.6 } // Slower layout transition
+                }}
                 onDoubleClick={() => setIsEditing(!isEditing)}
-                className={`${positionClass} z-[40] flex items-center gap-6 px-6 py-2 bg-black/80 backdrop-blur-xl border border-white/10 rounded-full shadow-2xl w-max max-w-[90vw] overflow-x-auto scrollbar-none transition-all duration-300 ${isEditing ? 'ring-2 ring-purple-500 scale-105' : ''}`}
+                className={`${positionClass} z-[40] flex items-center justify-center bg-black/80 backdrop-blur-xl border border-white/10 shadow-2xl overflow-hidden ${isMinimized ? 'h-14 p-0' : 'h-auto max-w-[90vw] pr-10'}`} // Added pr-10 for button space
+                style={{ originX: 0.5 }}
             >
-                {isEditing ? (
-                    <Reorder.Group axis="x" values={widgets} onReorder={handleReorder} className="flex items-center gap-6">
-                        {widgets.map(id => (
-                            <Reorder.Item key={id} value={id}>
-                                <WidgetItem id={id} />
-                            </Reorder.Item>
-                        ))}
-                    </Reorder.Group>
-                ) : (
-                    <div className="flex items-center gap-6">
-                        {widgets.map(id => <div key={id}><WidgetItem id={id} /></div>)} {/* Wrapped in div for consistent keying without Reorder */}
-                    </div>
-                )}
-
-                {/* Edit Mode Controls */}
-                <AnimatePresence>
-                    {isEditing && (
-                        <motion.div
-                            initial={{ scale: 0, opacity: 0 }}
-                            animate={{ scale: 1, opacity: 1 }}
-                            exit={{ scale: 0, opacity: 0 }}
-                            className="flex items-center gap-2 border-l border-white/10 pl-4 ml-2"
+                <AnimatePresence mode="wait">
+                    {isMinimized ? (
+                        <motion.button
+                            key="maximize-btn"
+                            initial={{ opacity: 0, scale: 0.5 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            exit={{ opacity: 0, scale: 0.5 }}
+                            transition={{ duration: 0.3 }}
+                            onClick={() => setIsMinimized(false)}
+                            className="text-gold hover:text-white transition-colors w-full h-full flex items-center justify-center"
                         >
-                            {/* Add Widget Button */}
-                            <div className="relative">
-                                <button
-                                    onClick={() => setShowAddMenu(!showAddMenu)}
-                                    className="bg-purple-600/20 hover:bg-purple-600/40 text-purple-400 p-1 rounded-full transition-colors flex items-center justify-center border border-purple-500/30"
-                                >
-                                    <Plus size={16} />
-                                </button>
-
-                                {/* Add Menu Dropdown */}
-                                {showAddMenu && (
-                                    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-48 bg-gray-900 border border-white/10 rounded-lg shadow-xl overflow-hidden z-50">
-                                        <div className="p-2 text-xs font-bold text-gray-500 uppercase">Add Widget</div>
-                                        {availableWidgets.length > 0 ? (
-                                            availableWidgets.map(w => (
-                                                <button
-                                                    key={w.id}
-                                                    onClick={() => handleAddWidget(w.id)}
-                                                    className="w-full text-left px-3 py-2 text-sm text-gray-300 hover:bg-white/10 transition-colors flex items-center gap-2"
-                                                >
-                                                    <Plus size={12} /> {w.label}
-                                                </button>
-                                            ))
-                                        ) : (
-                                            <div className="px-3 py-2 text-xs text-gray-500 italic">No more widgets</div>
-                                        )}
+                            <Plus size={28} />
+                        </motion.button>
+                    ) : (
+                        <motion.div
+                            key="content-container"
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            transition={{ duration: 0.3, delay: 0.2 }}
+                            className="flex items-center"
+                        >
+                            <div className="flex items-center gap-6 px-6 py-2 overflow-x-auto scrollbar-hide">
+                                {isEditing ? (
+                                    <Reorder.Group axis="x" values={widgets} onReorder={handleReorder} className="flex items-center gap-6">
+                                        {widgets.map(id => (
+                                            <Reorder.Item key={id} value={id}>
+                                                <WidgetItem id={id} />
+                                            </Reorder.Item>
+                                        ))}
+                                    </Reorder.Group>
+                                ) : (
+                                    <div className="flex items-center gap-6">
+                                        {widgets.map(id => <div key={id}><WidgetItem id={id} /></div>)}
                                     </div>
                                 )}
                             </div>
 
-                            {/* Exit Edit Mode */}
-                            <button
-                                onClick={() => setIsEditing(false)}
-                                className="bg-green-500/20 hover:bg-green-500/40 text-green-400 p-1 rounded-full transition-colors flex items-center justify-center border border-green-500/30"
-                            >
-                                <Check size={16} />
-                            </button>
+                            {!isEditing && (
+                                <button
+                                    onClick={() => setIsMinimized(true)}
+                                    className="absolute top-1/2 -translate-y-1/2 right-3 bg-white/10 hover:bg-white/20 text-gray-300 hover:text-white rounded-full p-1.5 transition-all outline-none"
+                                    title="Minimize"
+                                >
+                                    <Minus size={14} />
+                                </button>
+                            )}
+
+                            {/* Edit Mode Controls */}
+                            <AnimatePresence>
+                                {isEditing && (
+                                    <motion.div
+                                        initial={{ scale: 0, width: 0, opacity: 0 }}
+                                        animate={{ scale: 1, width: "auto", opacity: 1 }}
+                                        exit={{ scale: 0, width: 0, opacity: 0 }}
+                                        className="flex items-center gap-2 border-l border-white/10 pl-4 mr-4 overflow-hidden"
+                                    >
+                                        {/* Add Widget Button */}
+                                        <div className="relative shrink-0">
+                                            <button
+                                                onClick={() => setShowAddMenu(!showAddMenu)}
+                                                className="bg-purple-600/20 hover:bg-purple-600/40 text-purple-400 p-1 rounded-full transition-colors flex items-center justify-center border border-purple-500/30"
+                                            >
+                                                <Plus size={16} />
+                                            </button>
+
+                                            {/* Add Menu Dropdown */}
+                                            {showAddMenu && (
+                                                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-48 bg-gray-900 border border-white/10 rounded-lg shadow-xl overflow-hidden z-50">
+                                                    <div className="p-2 text-xs font-bold text-gray-500 uppercase">Add Widget</div>
+                                                    {availableWidgets.length > 0 ? (
+                                                        availableWidgets.map(w => (
+                                                            <button
+                                                                key={w.id}
+                                                                onClick={() => handleAddWidget(w.id)}
+                                                                className="w-full text-left px-3 py-2 text-sm text-gray-300 hover:bg-white/10 transition-colors flex items-center gap-2"
+                                                            >
+                                                                <Plus size={12} /> {w.label}
+                                                            </button>
+                                                        ))
+                                                    ) : (
+                                                        <div className="px-3 py-2 text-xs text-gray-500 italic">No more widgets</div>
+                                                    )}
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        {/* Exit Edit Mode */}
+                                        <button
+                                            onClick={() => setIsEditing(false)}
+                                            className="bg-green-500/20 hover:bg-green-500/40 text-green-400 p-1 rounded-full transition-colors flex items-center justify-center border border-green-500/30 shrink-0"
+                                        >
+                                            <Check size={16} />
+                                        </button>
+                                    </motion.div>
+                                )}
+                            </AnimatePresence>
                         </motion.div>
                     )}
                 </AnimatePresence>

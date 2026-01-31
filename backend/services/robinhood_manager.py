@@ -25,15 +25,59 @@ class RobinhoodManager:
     
     RETRY_INTERVAL = 60 # Seconds before retrying a failed login
 
+    MAX_LOGIN_RETRIES = 3
+    RATE_LIMIT_COOLDOWN = 900  # 15 minutes
+    _rate_limited_until = 0
+
+    @classmethod
+    def _get_start_dir(cls):
+         import os
+         base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+         data_dir = os.path.join(base_dir, 'data')
+         if not os.path.exists(data_dir):
+             os.makedirs(data_dir)
+         return data_dir
+
+    @classmethod
+    def _load_cooldown(cls):
+        import json, os
+        try:
+             path = os.path.join(cls._get_start_dir(), 'rh_cooldown.json')
+             if os.path.exists(path):
+                 with open(path, 'r') as f:
+                     data = json.load(f)
+                     until = data.get('until', 0)
+                     if until > time.time():
+                         cls._rate_limited_until = until
+                         logger.warning(f"Robinhood Rate Limit Loaded from file. Active until: {time.ctime(until)}")
+        except Exception as e:
+            logger.error(f"Failed to load RH cooldown: {e}")
+
+    @classmethod
+    def _save_cooldown(cls, until):
+        import json, os
+        try:
+            cls._rate_limited_until = until
+            path = os.path.join(cls._get_start_dir(), 'rh_cooldown.json')
+            with open(path, 'w') as f:
+                 json.dump({'until': until}, f)
+        except Exception as e:
+            logger.error(f"Failed to save RH cooldown: {e}")
+
     @classmethod
     def _get_state(cls, username):
+        # Load cooldown once if not checked
+        if cls._rate_limited_until == 0:
+            cls._load_cooldown()
+
         with cls._lock:
             if username not in cls._user_states:
                 cls._user_states[username] = {
                     'status': ConnectionStatus.DISCONNECTED,
                     'last_attempt': 0,
                     'thread': None,
-                    'last_error': None
+                    'last_error': None,
+                    'fail_count': 0
                 }
             return cls._user_states[username]
 
@@ -43,6 +87,17 @@ class RobinhoodManager:
         Non-blocking check. Triggers background login if needed.
         Returns the current status.
         """
+        # Ensure cooldown is loaded
+        if cls._rate_limited_until == 0:
+            cls._load_cooldown()
+
+        if time.time() < cls._rate_limited_until:
+             wait_min = int((cls._rate_limited_until - time.time()) / 60)
+             return {
+                 'status': ConnectionStatus.FAILED.value,
+                 'message': f"Rate Limited. Retrying in {wait_min}m."
+             }
+             
         state = cls._get_state(username)
         status = state['status']
         now = time.time()
@@ -51,12 +106,13 @@ class RobinhoodManager:
             return status
 
         if status == ConnectionStatus.CONNECTING:
-             # Already trying
              return status
 
         # If Failed, check if we should retry
         if status == ConnectionStatus.FAILED:
-            if now - state['last_attempt'] < cls.RETRY_INTERVAL:
+            # Exponential backoff based on fail count
+            backoff = cls.RETRY_INTERVAL * (2 ** state.get('fail_count', 0))
+            if now - state['last_attempt'] < backoff:
                 return status # Too soon to retry
 
         # Start Login Thread
@@ -72,24 +128,58 @@ class RobinhoodManager:
     def _login_worker(cls, username, password):
         try:
             # Attempt Login
-            # note: store_session=False to avoid pickling issues or disk writes if preferred, 
-            # but True is default. keeping default for now.
-            r.login(username, password, store_session=False)
+            import os
+            data_dir = cls._get_start_dir()
+            pickle_path = os.path.join(data_dir, 'robinhood.pickle')
+
+            # store_session=True enables creating/reading the pickle file
+            res = r.login(username, password, store_session=True, pickle_name=pickle_path)
             
+            # Verify login success immediately
+            if not r.profiles.load_account_profile(info='account_number'):
+                 raise Exception("Login Verification Failed: Could not load account profile.")
+
             with cls._lock:
                 cls._user_states[username]['status'] = ConnectionStatus.CONNECTED
                 cls._user_states[username]['last_error'] = None
+                cls._user_states[username]['fail_count'] = 0 # Reset on success
             
             logger.info(f"Background login SUCCESS for {username}")
             
-        except Exception as e:
-            logger.error(f"Background login FAILED for {username}: {e}")
+        except TypeError as te:
+            logger.error(f"Background login TypeError for {username}: {te}")
             with cls._lock:
                 cls._user_states[username]['status'] = ConnectionStatus.FAILED
-                cls._user_states[username]['last_error'] = str(e)
+                cls._user_states[username]['last_error'] = "Login Failed: Interactive challenge required or bad credentials."
+                cls._user_states[username]['fail_count'] = cls._user_states[username].get('fail_count', 0) + 1
+                
+        except Exception as e:
+            logger.error(f"Background login FAILED for {username}: {str(e)}")
+            msg = str(e)
+            
+            # Check for Rate Limit explicitly
+            if '429' in msg or 'Too Many Requests' in msg:
+                logger.critical(f"Robinhood Rate Limit Detected for {username}. Backing off for 15 minutes.")
+                # Save persistent cooldown
+                until = time.time() + cls.RATE_LIMIT_COOLDOWN
+                cls._save_cooldown(until)
+                msg = "Rate Limited (Too Many Requests). Paused for 15m."
+            
+            with cls._lock:
+                cls._user_states[username]['status'] = ConnectionStatus.FAILED
+                cls._user_states[username]['last_error'] = msg
+                cls._user_states[username]['fail_count'] = cls._user_states[username].get('fail_count', 0) + 1
 
     @staticmethod
     def get_portfolio(username, password):
+        # 0. Global Rate Limit Check
+        if time.time() < RobinhoodManager._rate_limited_until:
+             return {
+                 "equity": 0, "equity_formatted": "---", "day_change": 0, "day_change_pct": 0,
+                 "status": ConnectionStatus.FAILED.value,
+                 "message": "Rate Limited. Please wait."
+             }
+
         # 1. Check Cache first (if valid)
         if username in RH_CACHE:
             ts, data = RH_CACHE[username]
@@ -97,14 +187,23 @@ class RobinhoodManager:
                 return data
 
         # 2. Check Connection
-        status = RobinhoodManager.ensure_connected(username, password)
+        res = RobinhoodManager.ensure_connected(username, password)
+        
+        # Handle dict return (custom rate limit message) or Enum
+        if isinstance(res, dict):
+             return {
+                 "equity": 0, "equity_formatted": "---", "day_change": 0, "day_change_pct": 0,
+                 "status": res['status'], "message": res['message']
+             }
+             
+        status = res
         
         if status != ConnectionStatus.CONNECTED:
             # Return a special status dict instead of blocking or failing
             state = RobinhoodManager._get_state(username)
             msg = "Connecting to Robinhood..."
             if status == ConnectionStatus.FAILED:
-                msg = f"Connection Failed (Retrying in {int(RobinhoodManager.RETRY_INTERVAL - (time.time() - state['last_attempt']))}s). Error: {state.get('last_error')}"
+                msg = f"Connection Failed. Error: {state.get('last_error')}"
             
             return {
                 "equity": 0,
@@ -117,9 +216,6 @@ class RobinhoodManager:
 
         # 3. Fetch Data (Synchronous but quick generally if logged in)
         try:
-            # Fetch Profiles
-            # profiles = r.build_user_profile() # Unused
-            
             portfolio = r.profiles.load_portfolio_profile()
             if not portfolio:
                 # Session might be invalid?

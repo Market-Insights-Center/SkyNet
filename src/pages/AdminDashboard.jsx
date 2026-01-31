@@ -99,6 +99,34 @@ const AdminDashboard = () => {
     const [logFile, setLogFile] = useState('server');
     const [loadingLogs, setLoadingLogs] = useState(false);
 
+    // --- LIMITS STATE ---
+    const [tierLimits, setTierLimits] = useState({});
+
+    const fetchTierLimits = () => {
+        fetch('/api/admin/tier-limits')
+            .then(res => res.json())
+            .then(data => setTierLimits(data))
+            .catch(err => console.error("Failed to fetch limits:", err));
+    };
+
+    const handleSaveLimits = async () => {
+        try {
+            const res = await fetch('/api/admin/tier-limits', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    limits: tierLimits,
+                    requester_email: currentUser.email
+                })
+            });
+            if (res.ok) alert("Limits saved successfully!");
+            else alert("Failed to save limits.");
+        } catch (e) {
+            console.error(e);
+            alert("Error saving limits.");
+        }
+    };
+
     const fetchLogs = (file = 'server') => {
         setLoadingLogs(true);
         setLogFile(file);
@@ -195,6 +223,7 @@ const AdminDashboard = () => {
             fetchArticles();
             fetchIdeas();
             fetchPredictions();
+            fetchTierLimits();
             setCacheLoaded(true);
         }
 
@@ -440,6 +469,7 @@ const AdminDashboard = () => {
         { id: 'overview', label: 'Overview', icon: Activity },
         { id: 'users', label: 'Users', icon: Users },
         { id: 'coupons', label: 'Coupons', icon: Tag },
+        { id: 'limits', label: 'Tier Limits', icon: Activity },
         { id: 'articles', label: 'Articles', icon: FileText },
         { id: 'ideas', label: 'Ideas', icon: Zap },
         { id: 'banners', label: 'Banners', icon: Megaphone },
@@ -735,304 +765,373 @@ const AdminDashboard = () => {
                             )}
                         </div>
                     </div>
+
+
                 )}
 
-                {activeTab === 'recent_actions' && (
-                    <div className="bg-white/5 rounded-xl border border-white/10 p-6">
-                        <div className="flex justify-between items-center mb-6">
-                            <h2 className="text-xl font-bold flex items-center gap-2">
-                                <Clock className="text-gold" size={24} />
-                                Live Activity Feed
-                            </h2>
-                            <div className="flex items-center gap-2">
-                                <span className="relative flex h-3 w-3">
-                                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-                                    <span className="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span>
-                                </span>
-                                <span className="text-xs text-green-400 font-mono">LIVE UPDATING</span>
+                {
+                    activeTab === 'limits' && (
+                        <div className="bg-white/5 rounded-xl border border-white/10 p-6">
+                            <div className="flex justify-between items-center mb-6">
+                                <h2 className="text-xl font-bold flex items-center gap-2">
+                                    <Activity className="text-gold" size={24} />
+                                    Product Tier Limits
+                                </h2>
+                                <button onClick={handleSaveLimits} className="bg-gold text-black px-4 py-2 rounded-lg font-bold flex items-center gap-2 hover:bg-yellow-500">
+                                    <Save size={18} /> Save Changes
+                                </button>
+                            </div>
+
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-left border-collapse">
+                                    <thead>
+                                        <tr className="bg-black/40 text-gray-400 text-sm uppercase tracking-wider">
+                                            <th className="p-4 border-b border-white/10">Product Key</th>
+                                            <th className="p-4 border-b border-white/10 text-center">Basic</th>
+                                            <th className="p-4 border-b border-white/10 text-center">Pro</th>
+                                            <th className="p-4 border-b border-white/10 text-center">Enterprise</th>
+                                            <th className="p-4 border-b border-white/10 text-center">Singularity</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-white/5">
+                                        {/* Get unique product keys from all tiers combined */
+                                            Array.from(new Set(
+                                                Object.values(tierLimits).flatMap(t => Object.keys(t))
+                                            )).sort().map(product => (
+                                                <tr key={product} className="hover:bg-white/5 transition-colors">
+                                                    <td className="p-4 font-mono text-sm text-gold">{product}</td>
+                                                    {['Basic', 'Pro', 'Enterprise', 'Singularity'].map(tier => {
+                                                        const val = tierLimits[tier]?.[product] || 'NA';
+                                                        return (
+                                                            <td key={`${tier}-${product}`} className="p-2 text-center">
+                                                                <input
+                                                                    type="text"
+                                                                    value={val}
+                                                                    onChange={(e) => {
+                                                                        const newVal = e.target.value;
+                                                                        setTierLimits(prev => ({
+                                                                            ...prev,
+                                                                            [tier]: { ...prev[tier], [product]: newVal }
+                                                                        }));
+                                                                    }}
+                                                                    className={`bg-black/50 border border-white/10 rounded px-2 py-1 text-center w-24 text-sm focus:border-gold outline-none ${val === 'NL' ? 'text-green-400 font-bold' : val === 'NA' ? 'text-red-500' : 'text-white'}`}
+                                                                />
+                                                            </td>
+                                                        );
+                                                    })}
+                                                </tr>
+                                            ))
+                                        }
+                                    </tbody>
+                                </table>
+                            </div>
+                            <div className="mt-4 text-xs text-gray-500">
+                                <p>Legend: <span className="text-green-400 font-bold">NL</span> = Unlimited (No Limit), <span className="text-red-500">NA</span> = No Access. Format: "3/day", "1/week", "10".</p>
                             </div>
                         </div>
+                    )
+                }
 
-                        {/* Filters */}
-                        <div className="flex flex-wrap gap-4 mb-6 bg-black/40 p-4 rounded-lg border border-white/5">
-                            {/* Limit Selector */}
-                            <div className="flex items-center gap-2">
-                                <span className="text-xs text-gray-400 uppercase font-bold">Show:</span>
-                                <select
-                                    className="bg-gray-900 border border-gray-700 rounded px-2 py-1 text-sm text-white focus:border-gold outline-none"
-                                    value={actionLimit}
-                                    onChange={(e) => setActionLimit(Number(e.target.value))}
-                                >
-                                    <option value={10}>10</option>
-                                    <option value={25}>25</option>
-                                    <option value={50}>50</option>
-                                    <option value={100}>100</option>
-                                    <option value={500}>500</option>
-                                    <option value={1000}>All (1000)</option>
-                                </select>
-                            </div>
-
-                            {/* User Search */}
-                            <div className="flex-1 flex items-center gap-2">
-                                <span className="text-xs text-gray-400 uppercase font-bold">Filter User:</span>
-                                <div className="relative flex-1 max-w-md">
-                                    <input
-                                        type="text"
-                                        placeholder="Search by username or email..."
-                                        className="w-full bg-gray-900 border border-gray-700 rounded px-3 py-1 text-sm text-white focus:border-gold outline-none pl-8"
-                                        value={actionUserFilter}
-                                        onChange={(e) => setActionUserFilter(e.target.value)}
-                                    />
-                                    <div className="absolute left-2 top-1.5 text-gray-500">
-                                        <div className="w-4 h-4 rounded-full border border-current"></div>
-                                    </div>
-                                    {actionUserFilter && (
-                                        <button
-                                            onClick={() => setActionUserFilter('')}
-                                            className="absolute right-2 top-1.5 text-gray-500 hover:text-white"
-                                        >
-                                            ✕
-                                        </button>
-                                    )}
+                {
+                    activeTab === 'recent_actions' && (
+                        <div className="bg-white/5 rounded-xl border border-white/10 p-6">
+                            <div className="flex justify-between items-center mb-6">
+                                <h2 className="text-xl font-bold flex items-center gap-2">
+                                    <Clock className="text-gold" size={24} />
+                                    Live Activity Feed
+                                </h2>
+                                <div className="flex items-center gap-2">
+                                    <span className="relative flex h-3 w-3">
+                                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                                        <span className="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span>
+                                    </span>
+                                    <span className="text-xs text-green-400 font-mono">LIVE UPDATING</span>
                                 </div>
                             </div>
-                        </div>
 
-                        <div className="overflow-hidden rounded-lg border border-white/10">
-                            <table className="w-full text-left">
-                                <thead className="bg-black text-gray-400 text-xs uppercase tracking-wider">
-                                    <tr>
-                                        <th className="p-4">Action / Product</th>
-                                        <th className="p-4">User</th>
-                                        <th className="p-4">Time</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-white/5">
-                                    {recentActions.length === 0 ? (
-                                        <tr><td colSpan="3" className="p-8 text-center text-gray-500">No recent activity recorded.</td></tr>
-                                    ) : (
-                                        recentActions.map((log, idx) => (
-                                            <tr key={idx} className="hover:bg-white/5 transition-colors">
-                                                <td className="p-4">
-                                                    <span className="font-mono text-gold font-bold">{log.action.toUpperCase()}</span>
-                                                </td>
-                                                <td className="p-4 text-gray-300">
-                                                    {(() => {
-                                                        const userEntry = users.find(u => u.email === log.user);
-                                                        const username = userEntry?.username || 'Unknown';
-                                                        return (
-                                                            <div className="flex items-center gap-3">
-                                                                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-gold/20 to-gold/5 flex items-center justify-center text-xs font-bold text-gold border border-gold/20">
-                                                                    {(username !== 'Unknown' ? username : log.user).slice(0, 2).toUpperCase()}
-                                                                </div>
-                                                                <div>
-                                                                    <div className="font-bold text-white text-sm">{username !== 'Unknown' ? username : 'Guest/System'}</div>
-                                                                    <div className="text-xs text-gray-500">{log.user}</div>
-                                                                </div>
-                                                            </div>
-                                                        );
-                                                    })()}
-                                                </td>
-                                                <td className="p-4 text-sm text-gray-400 font-mono">
-                                                    {(() => {
-                                                        let ts = log.timestamp;
-                                                        // If no timezone offset (Z or +/ -), assume UTC
-                                                        if (!ts.endsWith('Z') && !ts.includes('+') && (ts.split('-').length === 3 || !ts.includes('-'))) {
-                                                            ts += 'Z';
-                                                        } else if (!ts.endsWith('Z') && !ts.includes('+') && ts.includes('T') && ts.split('-').length < 4) {
-                                                            // Basic ISO check: YYYY-MM-DDTHH:mm:ss.sssss
-                                                            // If it looks like ISO but no Offset, append Z
-                                                            ts += 'Z';
-                                                        }
-
-                                                        const dateObj = new Date(ts);
-                                                        return (
-                                                            <>
-                                                                {dateObj.toLocaleTimeString()}
-                                                                <span className="text-xs text-gray-600 ml-2">
-                                                                    {dateObj.toLocaleDateString()}
-                                                                </span>
-                                                            </>
-                                                        );
-                                                    })()}
-                                                </td>
-                                            </tr>
-                                        ))
-                                    )}
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                )}
-
-                {activeTab === 'predictions' && (
-                    <div className="space-y-8">
-                        {/* CREATE PREDICTION */}
-                        <div className="bg-black/40 border border-white/10 rounded-lg p-6">
-                            <h3 className="text-xl font-bold mb-4 flex items-center gap-2"><Plus size={20} /> Create Market Prediction</h3>
-
-                            {/* Category Tabs */}
-                            <div className="flex gap-2 mb-6 border-b border-gray-800 pb-2">
-                                {['Stocks', 'Crypto', 'Indices', 'Custom'].map(cat => (
-                                    <button
-                                        type="button"
-                                        key={cat}
-                                        onClick={() => setCategory(cat)}
-                                        className={`px-4 py-2 text-sm font-bold rounded-t-lg transition-colors ${category === cat ? 'bg-gold/10 text-gold border-b-2 border-gold' : 'text-gray-500 hover:text-gray-300'}`}
+                            {/* Filters */}
+                            <div className="flex flex-wrap gap-4 mb-6 bg-black/40 p-4 rounded-lg border border-white/5">
+                                {/* Limit Selector */}
+                                <div className="flex items-center gap-2">
+                                    <span className="text-xs text-gray-400 uppercase font-bold">Show:</span>
+                                    <select
+                                        className="bg-gray-900 border border-gray-700 rounded px-2 py-1 text-sm text-white focus:border-gold outline-none"
+                                        value={actionLimit}
+                                        onChange={(e) => setActionLimit(Number(e.target.value))}
                                     >
-                                        {cat}
-                                    </button>
-                                ))}
-                            </div>
-
-                            <form onSubmit={handleCreatePrediction} className="space-y-4">
-                                {/* CONDITIONAL INPUTS */}
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    {category === 'Stocks' && (
-                                        <div>
-                                            <label className="block text-sm text-gray-400 mb-1">Stock Ticker</label>
-                                            <input
-                                                placeholder="NVDA"
-                                                value={smartInputs.ticker}
-                                                onChange={e => setSmartInputs({ ...smartInputs, ticker: e.target.value })}
-                                                className="w-full bg-black border border-white/10 rounded px-3 py-2 text-white outline-none focus:border-gold"
-                                            />
-                                        </div>
-                                    )}
-
-                                    {category === 'Crypto' && (
-                                        <div>
-                                            <label className="block text-sm text-gray-400 mb-1">Coin</label>
-                                            <select
-                                                value={smartInputs.coin}
-                                                onChange={e => setSmartInputs({ ...smartInputs, coin: e.target.value })}
-                                                className="w-full bg-black border border-white/10 rounded px-3 py-2 text-white outline-none focus:border-gold"
-                                            >
-                                                <option value="BTC">Bitcoin (BTC)</option>
-                                                <option value="ETH">Ethereum (ETH)</option>
-                                                <option value="SOL">Solana (SOL)</option>
-                                                <option value="DOGE">Dogecoin (DOGE)</option>
-                                            </select>
-                                        </div>
-                                    )}
-
-                                    {category === 'Indices' && (
-                                        <div>
-                                            <label className="block text-sm text-gray-400 mb-1">Index ETF</label>
-                                            <select
-                                                value={smartInputs.index}
-                                                onChange={e => setSmartInputs({ ...smartInputs, index: e.target.value })}
-                                                className="w-full bg-black border border-white/10 rounded px-3 py-2 text-white outline-none focus:border-gold"
-                                            >
-                                                <option value="SPY">S&P 500 (SPY)</option>
-                                                <option value="QQQ">Nasdaq 100 (QQQ)</option>
-                                                <option value="DIA">Dow Jones (DIA)</option>
-                                                <option value="IWM">Russell 2000 (IWM)</option>
-                                            </select>
-                                        </div>
-                                    )}
-
-                                    {/* SMART FIELDS */}
-                                    {category !== 'Custom' && (
-                                        <>
-                                            <div>
-                                                <label className="block text-sm text-gray-400 mb-1">Target Price ($)</label>
-                                                <input
-                                                    type="number"
-                                                    placeholder="150.00"
-                                                    value={smartInputs.targetPrice}
-                                                    onChange={e => setSmartInputs({ ...smartInputs, targetPrice: e.target.value })}
-                                                    className="w-full bg-black border border-white/10 rounded px-3 py-2 text-white outline-none focus:border-gold"
-                                                />
-                                            </div>
-                                            <div>
-                                                <label className="block text-sm text-gray-400 mb-1">Direction</label>
-                                                <select
-                                                    value={smartInputs.direction}
-                                                    onChange={e => setSmartInputs({ ...smartInputs, direction: e.target.value })}
-                                                    className="w-full bg-black border border-white/10 rounded px-3 py-2 text-white outline-none focus:border-gold"
-                                                >
-                                                    <option value="Above">Price Above (&gt;)</option>
-                                                    <option value="Below">Price Below (&lt;)</option>
-                                                </select>
-                                            </div>
-                                        </>
-                                    )}
+                                        <option value={10}>10</option>
+                                        <option value={25}>25</option>
+                                        <option value={50}>50</option>
+                                        <option value={100}>100</option>
+                                        <option value={500}>500</option>
+                                        <option value={1000}>All (1000)</option>
+                                    </select>
                                 </div>
 
-                                {/* COMMON: END DATE & PREVIEW */}
-                                <div>
-                                    <label className="block text-sm text-gray-400 mb-1">End Date</label>
-                                    <input
-                                        type="datetime-local"
-                                        value={newPrediction.end_date}
-                                        onChange={e => setNewPrediction({ ...newPrediction, end_date: e.target.value })}
-                                        className="w-full bg-black border border-white/10 rounded px-3 py-2 text-white focus:border-gold outline-none"
-                                        required
-                                    />
-                                </div>
-
-                                <div className="pt-4 border-t border-white/10">
-                                    <label className="block text-xs text-gold font-bold mb-2 uppercase">Prediction Preview (Auto-Generated)</label>
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        <div>
-                                            <label className="block text-xs text-gray-500 mb-1">Title</label>
-                                            <input
-                                                value={newPrediction.title}
-                                                onChange={e => setNewPrediction({ ...newPrediction, title: e.target.value })}
-                                                className="w-full bg-gray-800/50 border border-gray-700 rounded px-3 py-2 text-sm text-white focus:border-gold outline-none"
-                                            />
+                                {/* User Search */}
+                                <div className="flex-1 flex items-center gap-2">
+                                    <span className="text-xs text-gray-400 uppercase font-bold">Filter User:</span>
+                                    <div className="relative flex-1 max-w-md">
+                                        <input
+                                            type="text"
+                                            placeholder="Search by username or email..."
+                                            className="w-full bg-gray-900 border border-gray-700 rounded px-3 py-1 text-sm text-white focus:border-gold outline-none pl-8"
+                                            value={actionUserFilter}
+                                            onChange={(e) => setActionUserFilter(e.target.value)}
+                                        />
+                                        <div className="absolute left-2 top-1.5 text-gray-500">
+                                            <div className="w-4 h-4 rounded-full border border-current"></div>
                                         </div>
-                                        <div>
-                                            <label className="block text-xs text-gray-500 mb-1">Market Condition</label>
-                                            <input
-                                                value={newPrediction.market_condition}
-                                                onChange={e => setNewPrediction({ ...newPrediction, market_condition: e.target.value })}
-                                                className="w-full bg-gray-800/50 border border-gray-700 rounded px-3 py-2 text-sm text-gray-300 font-mono focus:border-gold outline-none"
-                                            />
-                                        </div>
-                                        {category === 'Custom' && (
-                                            <div>
-                                                <label className="block text-xs text-gray-500 mb-1">Related Ticker</label>
-                                                <input
-                                                    value={newPrediction.stock}
-                                                    onChange={e => setNewPrediction({ ...newPrediction, stock: e.target.value.toUpperCase() })}
-                                                    className="w-full bg-gray-800/50 border border-gray-700 rounded px-3 py-2 text-sm text-white focus:border-gold outline-none"
-                                                />
-                                            </div>
+                                        {actionUserFilter && (
+                                            <button
+                                                onClick={() => setActionUserFilter('')}
+                                                className="absolute right-2 top-1.5 text-gray-500 hover:text-white"
+                                            >
+                                                ✕
+                                            </button>
                                         )}
                                     </div>
                                 </div>
+                            </div>
 
-                                <button type="submit" className="w-full bg-gold text-black font-bold py-3 rounded hover:bg-yellow-500 transition-colors shadow-lg shadow-gold/10">Post Prediction</button>
-                            </form>
-                        </div>
+                            <div className="overflow-hidden rounded-lg border border-white/10">
+                                <table className="w-full text-left">
+                                    <thead className="bg-black text-gray-400 text-xs uppercase tracking-wider">
+                                        <tr>
+                                            <th className="p-4">Action / Product</th>
+                                            <th className="p-4">User</th>
+                                            <th className="p-4">Time</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-white/5">
+                                        {recentActions.length === 0 ? (
+                                            <tr><td colSpan="3" className="p-8 text-center text-gray-500">No recent activity recorded.</td></tr>
+                                        ) : (
+                                            recentActions.map((log, idx) => (
+                                                <tr key={idx} className="hover:bg-white/5 transition-colors">
+                                                    <td className="p-4">
+                                                        <span className="font-mono text-gold font-bold">{log.action.toUpperCase()}</span>
+                                                    </td>
+                                                    <td className="p-4 text-gray-300">
+                                                        {(() => {
+                                                            const userEntry = users.find(u => u.email === log.user);
+                                                            const username = userEntry?.username || 'Unknown';
+                                                            return (
+                                                                <div className="flex items-center gap-3">
+                                                                    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-gold/20 to-gold/5 flex items-center justify-center text-xs font-bold text-gold border border-gold/20">
+                                                                        {(username !== 'Unknown' ? username : log.user).slice(0, 2).toUpperCase()}
+                                                                    </div>
+                                                                    <div>
+                                                                        <div className="font-bold text-white text-sm">{username !== 'Unknown' ? username : 'Guest/System'}</div>
+                                                                        <div className="text-xs text-gray-500">{log.user}</div>
+                                                                    </div>
+                                                                </div>
+                                                            );
+                                                        })()}
+                                                    </td>
+                                                    <td className="p-4 text-sm text-gray-400 font-mono">
+                                                        {(() => {
+                                                            let ts = log.timestamp;
+                                                            // If no timezone offset (Z or +/ -), assume UTC
+                                                            if (!ts.endsWith('Z') && !ts.includes('+') && (ts.split('-').length === 3 || !ts.includes('-'))) {
+                                                                ts += 'Z';
+                                                            } else if (!ts.endsWith('Z') && !ts.includes('+') && ts.includes('T') && ts.split('-').length < 4) {
+                                                                // Basic ISO check: YYYY-MM-DDTHH:mm:ss.sssss
+                                                                // If it looks like ISO but no Offset, append Z
+                                                                ts += 'Z';
+                                                            }
 
-                        {/* LIST PREDICTIONS */}
-                        <div className="bg-black/40 border border-white/10 rounded-lg p-6">
-                            <h3 className="text-xl font-bold mb-4">Active Predictions</h3>
-                            <div className="space-y-4">
-                                {predictions.map(pred => (
-                                    <div key={pred.id} className="flex justify-between items-center p-4 bg-white/5 rounded border border-white/5">
-                                        <div>
-                                            <div className="font-bold text-lg">{pred.title}</div>
-                                            <div className="text-sm text-gray-400">Ends: {new Date(pred.end_date).toLocaleString()} | Stock: {pred.stock}</div>
-                                            <div className="text-xs text-gold mt-1">Pool: {pred.total_pool_yes + pred.total_pool_no} pts</div>
-                                        </div>
-                                        <button onClick={() => handleDeletePrediction(pred.id)} className="p-2 text-red-500 hover:bg-white/10 rounded"><Trash2 size={18} /></button>
-                                    </div>
-                                ))}
-                                {predictions.length === 0 && <p className="text-gray-500">No active predictions.</p>}
+                                                            const dateObj = new Date(ts);
+                                                            return (
+                                                                <>
+                                                                    {dateObj.toLocaleTimeString()}
+                                                                    <span className="text-xs text-gray-600 ml-2">
+                                                                        {dateObj.toLocaleDateString()}
+                                                                    </span>
+                                                                </>
+                                                            );
+                                                        })()}
+                                                    </td>
+                                                </tr>
+                                            ))
+                                        )}
+                                    </tbody>
+                                </table>
                             </div>
                         </div>
-                    </div>
-                )}
+                    )
+                }
+
+                {
+                    activeTab === 'predictions' && (
+                        <div className="space-y-8">
+                            {/* CREATE PREDICTION */}
+                            <div className="bg-black/40 border border-white/10 rounded-lg p-6">
+                                <h3 className="text-xl font-bold mb-4 flex items-center gap-2"><Plus size={20} /> Create Market Prediction</h3>
+
+                                {/* Category Tabs */}
+                                <div className="flex gap-2 mb-6 border-b border-gray-800 pb-2">
+                                    {['Stocks', 'Crypto', 'Indices', 'Custom'].map(cat => (
+                                        <button
+                                            type="button"
+                                            key={cat}
+                                            onClick={() => setCategory(cat)}
+                                            className={`px-4 py-2 text-sm font-bold rounded-t-lg transition-colors ${category === cat ? 'bg-gold/10 text-gold border-b-2 border-gold' : 'text-gray-500 hover:text-gray-300'}`}
+                                        >
+                                            {cat}
+                                        </button>
+                                    ))}
+                                </div>
+
+                                <form onSubmit={handleCreatePrediction} className="space-y-4">
+                                    {/* CONDITIONAL INPUTS */}
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        {category === 'Stocks' && (
+                                            <div>
+                                                <label className="block text-sm text-gray-400 mb-1">Stock Ticker</label>
+                                                <input
+                                                    placeholder="NVDA"
+                                                    value={smartInputs.ticker}
+                                                    onChange={e => setSmartInputs({ ...smartInputs, ticker: e.target.value })}
+                                                    className="w-full bg-black border border-white/10 rounded px-3 py-2 text-white outline-none focus:border-gold"
+                                                />
+                                            </div>
+                                        )}
+
+                                        {category === 'Crypto' && (
+                                            <div>
+                                                <label className="block text-sm text-gray-400 mb-1">Coin</label>
+                                                <select
+                                                    value={smartInputs.coin}
+                                                    onChange={e => setSmartInputs({ ...smartInputs, coin: e.target.value })}
+                                                    className="w-full bg-black border border-white/10 rounded px-3 py-2 text-white outline-none focus:border-gold"
+                                                >
+                                                    <option value="BTC">Bitcoin (BTC)</option>
+                                                    <option value="ETH">Ethereum (ETH)</option>
+                                                    <option value="SOL">Solana (SOL)</option>
+                                                    <option value="DOGE">Dogecoin (DOGE)</option>
+                                                </select>
+                                            </div>
+                                        )}
+
+                                        {category === 'Indices' && (
+                                            <div>
+                                                <label className="block text-sm text-gray-400 mb-1">Index ETF</label>
+                                                <select
+                                                    value={smartInputs.index}
+                                                    onChange={e => setSmartInputs({ ...smartInputs, index: e.target.value })}
+                                                    className="w-full bg-black border border-white/10 rounded px-3 py-2 text-white outline-none focus:border-gold"
+                                                >
+                                                    <option value="SPY">S&P 500 (SPY)</option>
+                                                    <option value="QQQ">Nasdaq 100 (QQQ)</option>
+                                                    <option value="DIA">Dow Jones (DIA)</option>
+                                                    <option value="IWM">Russell 2000 (IWM)</option>
+                                                </select>
+                                            </div>
+                                        )}
+
+                                        {/* SMART FIELDS */}
+                                        {category !== 'Custom' && (
+                                            <>
+                                                <div>
+                                                    <label className="block text-sm text-gray-400 mb-1">Target Price ($)</label>
+                                                    <input
+                                                        type="number"
+                                                        placeholder="150.00"
+                                                        value={smartInputs.targetPrice}
+                                                        onChange={e => setSmartInputs({ ...smartInputs, targetPrice: e.target.value })}
+                                                        className="w-full bg-black border border-white/10 rounded px-3 py-2 text-white outline-none focus:border-gold"
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-sm text-gray-400 mb-1">Direction</label>
+                                                    <select
+                                                        value={smartInputs.direction}
+                                                        onChange={e => setSmartInputs({ ...smartInputs, direction: e.target.value })}
+                                                        className="w-full bg-black border border-white/10 rounded px-3 py-2 text-white outline-none focus:border-gold"
+                                                    >
+                                                        <option value="Above">Price Above (&gt;)</option>
+                                                        <option value="Below">Price Below (&lt;)</option>
+                                                    </select>
+                                                </div>
+                                            </>
+                                        )}
+                                    </div>
+
+                                    {/* COMMON: END DATE & PREVIEW */}
+                                    <div>
+                                        <label className="block text-sm text-gray-400 mb-1">End Date</label>
+                                        <input
+                                            type="datetime-local"
+                                            value={newPrediction.end_date}
+                                            onChange={e => setNewPrediction({ ...newPrediction, end_date: e.target.value })}
+                                            className="w-full bg-black border border-white/10 rounded px-3 py-2 text-white focus:border-gold outline-none"
+                                            required
+                                        />
+                                    </div>
+
+                                    <div className="pt-4 border-t border-white/10">
+                                        <label className="block text-xs text-gold font-bold mb-2 uppercase">Prediction Preview (Auto-Generated)</label>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            <div>
+                                                <label className="block text-xs text-gray-500 mb-1">Title</label>
+                                                <input
+                                                    value={newPrediction.title}
+                                                    onChange={e => setNewPrediction({ ...newPrediction, title: e.target.value })}
+                                                    className="w-full bg-gray-800/50 border border-gray-700 rounded px-3 py-2 text-sm text-white focus:border-gold outline-none"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-xs text-gray-500 mb-1">Market Condition</label>
+                                                <input
+                                                    value={newPrediction.market_condition}
+                                                    onChange={e => setNewPrediction({ ...newPrediction, market_condition: e.target.value })}
+                                                    className="w-full bg-gray-800/50 border border-gray-700 rounded px-3 py-2 text-sm text-gray-300 font-mono focus:border-gold outline-none"
+                                                />
+                                            </div>
+                                            {category === 'Custom' && (
+                                                <div>
+                                                    <label className="block text-xs text-gray-500 mb-1">Related Ticker</label>
+                                                    <input
+                                                        value={newPrediction.stock}
+                                                        onChange={e => setNewPrediction({ ...newPrediction, stock: e.target.value.toUpperCase() })}
+                                                        className="w-full bg-gray-800/50 border border-gray-700 rounded px-3 py-2 text-sm text-white focus:border-gold outline-none"
+                                                    />
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    <button type="submit" className="w-full bg-gold text-black font-bold py-3 rounded hover:bg-yellow-500 transition-colors shadow-lg shadow-gold/10">Post Prediction</button>
+                                </form>
+                            </div>
+
+                            {/* LIST PREDICTIONS */}
+                            <div className="bg-black/40 border border-white/10 rounded-lg p-6">
+                                <h3 className="text-xl font-bold mb-4">Active Predictions</h3>
+                                <div className="space-y-4">
+                                    {predictions.map(pred => (
+                                        <div key={pred.id} className="flex justify-between items-center p-4 bg-white/5 rounded border border-white/5">
+                                            <div>
+                                                <div className="font-bold text-lg">{pred.title}</div>
+                                                <div className="text-sm text-gray-400">Ends: {new Date(pred.end_date).toLocaleString()} | Stock: {pred.stock}</div>
+                                                <div className="text-xs text-gold mt-1">Pool: {pred.total_pool_yes + pred.total_pool_no} pts</div>
+                                            </div>
+                                            <button onClick={() => handleDeletePrediction(pred.id)} className="p-2 text-red-500 hover:bg-white/10 rounded"><Trash2 size={18} /></button>
+                                        </div>
+                                    ))}
+                                    {predictions.length === 0 && <p className="text-gray-500">No active predictions.</p>}
+                                </div>
+                            </div>
+                        </div>
+                    )
+                }
 
 
-            </div>
+            </div >
 
             {/* Edit User Modal */}
-            <AnimatePresence>
+            < AnimatePresence >
                 {editingUser && (
                     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
                         <div className="bg-gray-900 border border-white/10 p-8 rounded-xl w-full max-w-md">
@@ -1050,10 +1149,10 @@ const AdminDashboard = () => {
                         </div>
                     </div>
                 )}
-            </AnimatePresence>
+            </AnimatePresence >
 
             {/* Create Coupon Modal */}
-            <AnimatePresence>
+            < AnimatePresence >
                 {showCouponModal && (
                     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
                         <div className="bg-gray-900 border border-white/10 p-8 rounded-xl w-full max-w-md">
@@ -1068,10 +1167,10 @@ const AdminDashboard = () => {
                         </div>
                     </div>
                 )}
-            </AnimatePresence>
+            </AnimatePresence >
 
             {/* Banner Modal */}
-            <AnimatePresence>
+            < AnimatePresence >
                 {showBannerModal && (
                     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
                         <div className="bg-gray-900 border border-white/10 p-8 rounded-xl w-full max-w-md">
@@ -1119,10 +1218,10 @@ const AdminDashboard = () => {
                         </div>
                     </div>
                 )}
-            </AnimatePresence>
+            </AnimatePresence >
 
             {/* Create Article Modal */}
-            <CreateArticleModal
+            < CreateArticleModal
                 isOpen={showCreateArticleModal}
                 onClose={() => setShowCreateArticleModal(false)}
                 onArticleCreated={() => fetchArticles()}
@@ -1130,7 +1229,7 @@ const AdminDashboard = () => {
             />
 
             {/* Create Idea Modal */}
-            <CreateIdeaModal
+            < CreateIdeaModal
                 isOpen={showCreateIdeaModal}
                 onClose={() => setShowCreateIdeaModal(false)}
                 onIdeaCreated={() => fetchIdeas()}
