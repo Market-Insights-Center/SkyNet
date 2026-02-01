@@ -305,33 +305,34 @@ const FloatingHeader = () => {
         <>
             <motion.div
                 layout
-                initial={{ y: -20, opacity: 0, width: "auto" }}
+                initial={{ y: -20, opacity: 0, width: "auto", borderRadius: 9999 }}
                 animate={{
                     y: 0,
                     opacity: 1,
-                    width: isMinimized ? 56 : "auto", // Slightly larger for button
+                    width: isMinimized ? 56 : "auto",
                     borderRadius: 9999
                 }}
                 transition={{
                     type: "spring",
-                    stiffness: 120, // Even softer spring
-                    damping: 20,
-                    layout: { duration: 0.8 } // Slower, smoother resize
+                    stiffness: 140,
+                    damping: 25,
+                    mass: 1,
+                    layout: { duration: 0.8, type: "spring", stiffness: 140, damping: 25 }
                 }}
                 onDoubleClick={() => setIsEditing(!isEditing)}
-                className={`${positionClass} z-[40] flex items-center justify-center bg-black/80 backdrop-blur-xl border border-white/10 shadow-2xl overflow-hidden ${isMinimized ? 'h-14 p-0' : 'h-auto max-w-[90vw] pr-12'}`} // Slightly more padding for aesthetics
-                style={{ originX: 0.5 }}
+                className={`${positionClass} z-[40] flex items-center justify-center bg-black/80 backdrop-blur-xl border border-white/10 shadow-2xl overflow-hidden ${isMinimized ? 'h-14 p-0' : 'h-14 max-w-[90vw] pr-12'}`} // Fixed height h-14 for consistency
+                style={{ originX: 0.5, borderRadius: 9999 }}
             >
-                <AnimatePresence mode="wait">
+                <AnimatePresence initial={false}>
                     {isMinimized ? (
                         <motion.button
                             key="maximize-btn"
-                            initial={{ opacity: 0, scale: 0.5 }}
-                            animate={{ opacity: 1, scale: 1 }}
-                            exit={{ opacity: 0, scale: 0.5 }}
+                            initial={{ opacity: 0, scale: 0.5, position: "absolute" }}
+                            animate={{ opacity: 1, scale: 1, position: "absolute" }}
+                            exit={{ opacity: 0, scale: 0.5, position: "absolute" }}
                             transition={{ duration: 0.3 }}
                             onClick={() => setIsMinimized(false)}
-                            className="text-gold hover:text-white transition-colors w-full h-full flex items-center justify-center"
+                            className="text-gold hover:text-white transition-colors flex items-center justify-center w-full h-full left-0 top-0"
                         >
                             <Plus size={28} />
                         </motion.button>
@@ -341,10 +342,10 @@ const FloatingHeader = () => {
                             initial={{ opacity: 0 }}
                             animate={{ opacity: 1 }}
                             exit={{ opacity: 0 }}
-                            transition={{ duration: 0.3, delay: 0.2 }}
-                            className="flex items-center"
+                            transition={{ duration: 0.4, delay: 0.3 }} // Delay increased to 0.3s
+                            className="flex items-center h-full"
                         >
-                            <div className="flex items-center gap-6 px-6 py-2 overflow-x-auto scrollbar-hide">
+                            <div className="flex items-center gap-6 px-6 overflow-x-auto scrollbar-hide h-full">
                                 {isEditing ? (
                                     <Reorder.Group axis="x" values={widgets} onReorder={handleReorder} className="flex items-center gap-6">
                                         {widgets.map(id => (
@@ -354,7 +355,7 @@ const FloatingHeader = () => {
                                         ))}
                                     </Reorder.Group>
                                 ) : (
-                                    <div className="flex items-center gap-6">
+                                    <div className="flex items-center gap-6 whitespace-nowrap">
                                         {widgets.map(id => <div key={id}><WidgetItem id={id} /></div>)}
                                     </div>
                                 )}

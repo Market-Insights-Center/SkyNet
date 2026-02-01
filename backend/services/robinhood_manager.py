@@ -131,11 +131,10 @@ class RobinhoodManager:
             import os
             import requests # Import at runtime to avoid top-level dependency issues if not installed
             
-            data_dir = cls._get_start_dir()
-            pickle_path = os.path.join(data_dir, 'robinhood.pickle')
-
-            # store_session=True enables creating/reading the pickle file
-            res = r.login(username, password, store_session=True, pickle_name=pickle_path)
+            # Use simple name to avoid robin_stocks path concatenation bugs (it prepends ~/.tokens/)
+            # This will save to C:\Users\victo\.tokens\skynet_rh.pickle
+            # Request 30 days (2592000s) to minimize MFA prompts
+            res = r.login(username, password, expiresIn=2592000, store_session=True, pickle_name="skynet_rh")
             
             # Verify login success immediately
             if not r.profiles.load_account_profile(info='account_number'):

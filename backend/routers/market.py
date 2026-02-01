@@ -68,6 +68,10 @@ def get_robinhood_data(req: RobinhoodRequest):
         portfolio = RobinhoodManager.get_portfolio(username, password)
         
         if portfolio:
+            # Check for internal error/status (e.g. Rate Limit)
+            if portfolio.get('status') == 'failed':
+                 return {"status": "error", "message": portfolio.get('message', 'Robinhood Error')}
+                 
             return {"status": "success", "data": portfolio}
         else:
             return {"status": "error", "message": "Failed to fetch data"}
@@ -91,33 +95,74 @@ def get_market_data(request: MarketDataRequest):
             if current_time - timestamp < CACHE_TTL:
                 return data
         
-        # Use yf.download for batch processing
-        df = yf.download(tickers, period="1y", interval="1d", progress=False, auto_adjust=True)
+        # Use yf.download for batch processing (2y to ensure full 1y coverage)
+        df = yf.download(tickers, period="2y", interval="1d", progress=False, auto_adjust=True)
+        # Fetch 5d for accurate recent price/change (avoids 1y adjustment drift)
+        df_short = yf.download(tickers, period="5d", interval="1d", progress=False, auto_adjust=True)
         
         results = []
         for ticker in tickers:
             try:
-                # Handle DataFrame structure differences for single vs multi ticker
+                # 1. Process Historical Data
                 if len(tickers) > 1:
                     if ticker not in df['Close'].columns: continue
                     hist_close = df['Close'][ticker].dropna()
                 else:
                     hist_close = df['Close'].dropna()
+                    if isinstance(hist_close, pd.DataFrame) and not hist_close.empty:
+                        hist_close = hist_close.iloc[:, 0]
 
                 if hist_close.empty: continue
+
+                # 2. Process 5D Data (for accurate current stats)
+                hist_short = None
+                if not df_short.empty:
+                    if len(tickers) > 1:
+                        if ticker in df_short['Close'].columns:
+                            hist_short = df_short['Close'][ticker].dropna()
+                    else:
+                        hist_short = df_short['Close'].dropna()
+                        if isinstance(hist_short, pd.DataFrame) and not hist_short.empty:
+                            hist_short = hist_short.iloc[:, 0]
 
                 def get_val(series, idx):
                     try: return float(series.iloc[idx].item())
                     except: return float(series.iloc[idx])
+                
+                # Helper to find price closest to days_ago
+                def get_price_days_ago(series, days_ago):
+                    if series.empty: return 0
+                    target_date = datetime.now() - pd.Timedelta(days=days_ago)
+                    # Find nearest index
+                    try:
+                        # Convert series index to datetime if not already (yfinance usually is)
+                        idx = series.index.get_indexer([target_date], method='nearest')[0]
+                        return get_val(series, idx)
+                    except:
+                        # Fallback to roughly correct index if date lookup fails
+                        approx_idx = -1 - int(days_ago * 0.69) # roughly trading days
+                        if abs(approx_idx) > len(series): return get_val(series, 0)
+                        return get_val(series, approx_idx)
 
-                current_price = get_val(hist_close, -1)
-                price_1d = get_val(hist_close, -2) if len(hist_close) > 1 else current_price
-                change_1d = ((current_price - price_1d) / price_1d) * 100 if price_1d != 0 else 0
-                price_1w = get_val(hist_close, -6) if len(hist_close) > 6 else get_val(hist_close, 0)
+                # Determine Current Price & Day Change Source
+                if hist_short is not None and not hist_short.empty:
+                    current_price = get_val(hist_short, -1)
+                    price_1d = get_val(hist_short, -2) if len(hist_short) > 1 else current_price
+                    change_1d = ((current_price - price_1d) / price_1d) * 100 if price_1d != 0 else 0
+                else:
+                    # Fallback to History
+                    current_price = get_val(hist_close, -1)
+                    price_1d = get_val(hist_close, -2) if len(hist_close) > 1 else current_price
+                    change_1d = ((current_price - price_1d) / price_1d) * 100 if price_1d != 0 else 0
+
+                # Historical Changes (Robust Date-Based)
+                price_1w = get_price_days_ago(hist_close, 7)
                 change_1w = ((current_price - price_1w) / price_1w) * 100 if price_1w != 0 else 0
-                price_1m = get_val(hist_close, -22) if len(hist_close) > 22 else get_val(hist_close, 0)
+                
+                price_1m = get_price_days_ago(hist_close, 30)
                 change_1m = ((current_price - price_1m) / price_1m) * 100 if price_1m != 0 else 0
-                price_1y = get_val(hist_close, 0)
+                
+                price_1y = get_price_days_ago(hist_close, 365)
                 change_1y = ((current_price - price_1y) / price_1y) * 100 if price_1y != 0 else 0
 
                 subset = hist_close.tail(30)

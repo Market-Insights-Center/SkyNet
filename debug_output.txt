@@ -1,0 +1,38 @@
+--- Debugging SPY Data ---
+Fetching 1y data...
+Fetching 5d data...
+1Y Columns: MultiIndex([( 'Close', 'SPY'),
+            (  'High', 'SPY'),
+            (   'Low', 'SPY'),
+            (  'Open', 'SPY'),
+            ('Volume', 'SPY')],
+           names=['Price', 'Ticker'])
+1Y Tail:
+Date
+2026-01-26    692.729980
+2026-01-27    695.489990
+2026-01-28    695.419983
+2026-01-29    694.039978
+2026-01-30    691.969971
+Name: SPY, dtype: float64
+5D Tail:
+Date
+2026-01-26    692.729980
+2026-01-27    695.489990
+2026-01-28    695.419983
+2026-01-29    694.039978
+2026-01-30    691.969971
+Name: SPY, dtype: float64
+Fetching 2y data...
+Fetching 5d data...
+
+Calculated Current: $691.97
+Calculating Historical Changes...
+  [Date Lookup] Target: 2026-01-24, Found: 2026-01-26, Price: 692.73
+  [Date Lookup] Target: 2026-01-01, Found: 2026-01-02, Price: 683.17
+  [Date Lookup] Target: 2025-01-31, Found: 2025-01-31, Price: 594.83
+
+Historical Reference Prices:
+1 Week Ago: $692.73 -> Change: -0.11%
+1 Month Ago: $683.17 -> Change: 1.29%
+1 Year Ago: $594.83 -> Change: 16.33%
