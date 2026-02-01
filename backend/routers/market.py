@@ -131,18 +131,44 @@ def get_market_data(request: MarketDataRequest):
                 
                 # Helper to find price closest to days_ago
                 def get_price_days_ago(series, days_ago):
-                    if series.empty: return 0
-                    target_date = datetime.now() - pd.Timedelta(days=days_ago)
-                    # Find nearest index
+                    if series.empty: return 0.0
                     try:
-                        # Convert series index to datetime if not already (yfinance usually is)
-                        idx = series.index.get_indexer([target_date], method='nearest')[0]
+                        # 1. Determine Target Date with correct Timezone
+                        now = pd.Timestamp.now()
+                        if series.index.tz is not None:
+                            # If index is TZ-aware, ensure target is too
+                            if now.tz is None:
+                                # Assume 'now' is local/system time, localize it to the series TZ if possible, 
+                                # or just use UTC now converted? 
+                                # Safer: Use now(tz=...)
+                                now = pd.Timestamp.now(tz=series.index.tz)
+                            else:
+                                now = now.tz_convert(series.index.tz)
+                        
+                        target_date = now - pd.Timedelta(days=days_ago)
+                        
+                        # 2. Find Nearest Index
+                        # get_indexer returns array of indices
+                        indexer = series.index.get_indexer([target_date], method='nearest')
+                        idx = indexer[0]
+                        
+                        # Safety check on index
+                        if idx == -1: 
+                            # Fallback logic if get_indexer fails to find neighbor? (shouldn't with 'nearest')
+                            # e.g. if target_date is way before start of series
+                            if target_date < series.index[0]: idx = 0
+                            elif target_date > series.index[-1]: idx = len(series) - 1
+                        
                         return get_val(series, idx)
-                    except:
-                        # Fallback to roughly correct index if date lookup fails
-                        approx_idx = -1 - int(days_ago * 0.69) # roughly trading days
-                        if abs(approx_idx) > len(series): return get_val(series, 0)
-                        return get_val(series, approx_idx)
+                        
+                    except Exception as e:
+                        print(f"Date Lookup Error for {days_ago}d ago: {e}")
+                        # Fallback: estimate trading days (252 per year -> ~0.69 per calendar day)
+                        trading_days_est = int(days_ago * 0.69)
+                        idx = len(series) - 1 - trading_days_est
+                        if idx < 0: idx = 0
+                        if idx >= len(series): idx = len(series) - 1
+                        return get_val(series, idx)
 
                 # Determine Current Price & Day Change Source
                 if hist_short is not None and not hist_short.empty:
