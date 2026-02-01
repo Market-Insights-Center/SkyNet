@@ -1,14 +1,39 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Database, Trash2, Edit, Save, Plus, ArrowLeft, Shield, Zap, Box, ChevronDown, ChevronRight } from 'lucide-react';
 import NeonWrapper from '../components/NeonWrapper';
 import { useAuth } from '../contexts/AuthContext';
+import DatabaseGuide from '../components/DatabaseGuide';
 
 // --- SUB-COMPONENTS (Defined OUTSIDE main component to prevent remounting/focus loss) ---
 
 // --- API URL ---
 const API_URL = '/api'; // Relative proxy
 
-const ListView = ({ codes, startNew, startEditing, handleDelete, handleShare }) => (
+const AutoResizingTextarea = ({ value, onChange, placeholder, className }) => {
+    const textareaRef = useRef(null);
+
+    useEffect(() => {
+        if (textareaRef.current) {
+            textareaRef.current.style.height = 'auto';
+            textareaRef.current.style.height = textareaRef.current.scrollHeight + 'px';
+        }
+    }, [value]);
+
+    return (
+        <textarea
+            ref={textareaRef}
+            value={value}
+            onChange={(e) => {
+                onChange(e);
+            }}
+            placeholder={placeholder}
+            rows={1}
+            className={className}
+        />
+    );
+};
+
+const ListView = ({ codes, startNew, startEditing, handleDelete, handleShare, toggleGuide }) => (
     <div className="space-y-8 animate-in fade-in duration-500">
         {/* Header */}
         <div className="flex justify-between items-center">
@@ -16,16 +41,16 @@ const ListView = ({ codes, startNew, startEditing, handleDelete, handleShare }) 
                 <Database className="text-cyan-400" /> Database Codes
             </h2>
             <div className="flex gap-4">
+                <button
+                    onClick={toggleGuide}
+                    className="px-4 py-2 bg-gray-900 border border-gray-600 rounded flex items-center gap-2 hover:bg-gray-800 text-gray-300 transition-colors"
+                >
+                    <Box size={16} className="text-cyan-400" /> Guide
+                </button>
                 <NeonWrapper color="purple">
                     <button onClick={() => startNew('nexus')} className="px-4 py-2 bg-black border border-purple-500 rounded flex items-center gap-2 hover:bg-purple-900/20 text-purple-300">
                         <Plus size={16} /> New Nexus
                     </button>
-                    {/* Add conditional limit logic indicator if needed, 
-                        but simpler to just rely on backend 403 or add a small indicator text 
-                        "Limit: 5" etc.
-                        The request is "icon and very clear tier limitation messages".
-                        So I should probably wrap this or add a help text.
-                    */}
                 </NeonWrapper>
                 <NeonWrapper color="gold">
                     <button onClick={() => startNew('portfolio')} className="px-4 py-2 bg-black border border-yellow-500 rounded flex items-center gap-2 hover:bg-yellow-900/20 text-yellow-300">
@@ -310,15 +335,7 @@ const EditorView = ({ activeCode, setActiveCode, handleSave, setViewMode, codes,
 
                 {!isNexus && (
                     <>
-                        <div className="space-y-4">
-                            <label className="block text-sm font-medium text-gray-400">Risk Tolerance (0-100)</label>
-                            <input
-                                type="number"
-                                value={activeCode.risk_tolerance || 0}
-                                onChange={(e) => updateField('risk_tolerance', parseInt(e.target.value))}
-                                className="w-full bg-gray-900 border border-gray-700 rounded-lg p-3 text-white focus:border-yellow-500 outline-none"
-                            />
-                        </div>
+                        {/* Risk Tolerance Removed (Default 10) */}
                         <div className="space-y-4">
                             <label className="block text-sm font-medium text-gray-400">Amplification</label>
                             <input
@@ -354,37 +371,123 @@ const EditorView = ({ activeCode, setActiveCode, handleSave, setViewMode, codes,
                                             onChange={(e) => updateItem(idx, 'type', e.target.value)}
                                             className="bg-gray-800 border-none text-xs rounded text-gray-300 focus:ring-0 cursor-pointer"
                                         >
-                                            <option className="text-black" value="ticker">Ticker</option>
-                                            <option className="text-black" value="portfolio">Portfolio</option>
-                                            <option className="text-black" value="command">Command</option>
+                                            <option className="bg-gray-800 text-white" value="ticker">Ticker</option>
+                                            <option className="bg-gray-800 text-white" value="portfolio">Portfolio</option>
+                                            <option className="bg-gray-800 text-white" value="command">Command</option>
                                         </select>
                                         {item.type === 'command' ? (
+                                            <>
+                                                <select
+                                                    value={item.value && item.value.toLowerCase().includes('cultivate') ? 'cultivate' : (item.value || 'breakout')}
+                                                    onChange={(e) => updateItem(idx, 'value', e.target.value)}
+                                                    className="bg-gray-800 border bg-transparent border-gray-700 rounded text-white text-sm focus:border-white px-2 py-1 outline-none w-32"
+                                                >
+                                                    <option className="bg-gray-800 text-white" value="breakout">Breakout</option>
+                                                    <option className="bg-gray-800 text-white" value="market">Market</option>
+                                                    <option className="bg-gray-800 text-white" value="cultivate">Cultivate</option>
+                                                </select>
+
+                                                {/* Cultivate A/B Selection */}
+                                                {(item.value && item.value.toLowerCase().includes('cultivate')) && (
+                                                    <div className="flex gap-2 bg-gray-800 p-1 rounded">
+                                                        <button
+                                                            onClick={() => updateItem(idx, 'value', 'Cultivate A')}
+                                                            className={`px-3 py-1 rounded text-xs font-bold transition-colors ${item.value === 'Cultivate A' ? 'bg-purple-600 text-white shadow-lg' : 'text-gray-400 hover:text-white'}`}
+                                                        >
+                                                            Code A
+                                                        </button>
+                                                        <button
+                                                            onClick={() => updateItem(idx, 'value', 'Cultivate B')}
+                                                            className={`px-3 py-1 rounded text-xs font-bold transition-colors ${item.value === 'Cultivate B' ? 'bg-purple-600 text-white shadow-lg' : 'text-gray-400 hover:text-white'}`}
+                                                        >
+                                                            Code B
+                                                        </button>
+                                                    </div>
+                                                )}
+                                                {!(item.value && item.value.toLowerCase().includes('cultivate')) && (
+                                                    <span className="hidden"></span>
+                                                )}
+                                            </>
+                                        ) : item.type === 'portfolio' ? (
                                             <select
-                                                value={item.value || 'breakout'}
+                                                value={item.value || ''}
                                                 onChange={(e) => updateItem(idx, 'value', e.target.value)}
                                                 className="bg-gray-800 border bg-transparent border-gray-700 rounded text-white text-sm focus:border-white px-2 py-1 outline-none w-32"
                                             >
-                                                <option className="text-black" value="breakout">Breakout</option>
-                                                <option className="text-black" value="market">Market</option>
-                                                <option className="text-black" value="cultivate">Cultivate</option>
+                                                <option value="" className="bg-gray-800 text-white">Select Portfolio...</option>
+                                                {codes.portfolios.map(p => (
+                                                    <option key={p.portfolio_code} value={p.portfolio_code} className="bg-gray-800 text-white">{p.portfolio_code}</option>
+                                                ))}
                                             </select>
                                         ) : (
-                                            <input
-                                                value={item.value || ''}
-                                                onChange={(e) => updateItem(idx, 'value', e.target.value)}
-                                                placeholder={item.type === 'portfolio' ? "PORT_CODE" : "TICKER"}
-                                                className="bg-transparent border-b border-gray-700 focus:border-white w-32 text-white font-mono outline-none"
+                                            /* Standard Portfolio Ticker/Sub-Portfolio Input */
+                                            <AutoResizingTextarea
+                                                value={item.tickers || item.ticker || item.symbol || ''}
+                                                onChange={(e) => updateItem(idx, 'tickers', e.target.value.toUpperCase())}
+                                                placeholder="TICKER1, TICKER2..."
+                                                className="bg-transparent border border-gray-700 rounded focus:border-white w-full max-w-md text-white font-mono uppercase outline-none p-2 text-sm resize-none overflow-hidden min-h-[40px]"
                                             />
                                         )}
                                     </>
                                 ) : (
-                                    /* Standard Portfolio Ticker/Sub-Portfolio Input */
-                                    <input
-                                        value={item.tickers || item.ticker || item.symbol || ''}
-                                        onChange={(e) => updateItem(idx, 'tickers', e.target.value.toUpperCase())}
-                                        placeholder="TICKER"
-                                        className="bg-transparent border-b border-gray-700 focus:border-white w-24 text-white font-mono uppercase outline-none"
-                                    />
+                                    <>
+                                        <select
+                                            value={item.type || 'ticker'}
+                                            onChange={(e) => updateItem(idx, 'type', e.target.value)}
+                                            className="bg-gray-800 border-none text-xs rounded text-gray-300 focus:ring-0 cursor-pointer w-24 mr-2"
+                                        >
+                                            <option className="bg-gray-800 text-white" value="ticker">Ticker</option>
+                                            <option className="bg-gray-800 text-white" value="portfolio">Portfolio</option>
+                                        </select>
+
+                                        {item.type === 'portfolio' ? (
+                                            <select
+                                                value={item.tickers || ''}
+                                                onChange={(e) => updateItem(idx, 'tickers', e.target.value)}
+                                                className="bg-gray-800 border bg-transparent border-gray-700 rounded text-white text-sm focus:border-white px-2 py-1 outline-none w-full max-w-md"
+                                            >
+                                                <option value="" className="bg-gray-800 text-white">Select Portfolio...</option>
+                                                {codes.portfolios
+                                                    .filter(p => {
+                                                        if (p.portfolio_code === activeCode.portfolio_code) return false;
+                                                        // Cycle Check: Does 'p' contain 'activeCode' (recursively)?
+                                                        const dependsOn = (candCode, target, visited = new Set()) => {
+                                                            if (visited.has(candCode)) return false;
+                                                            visited.add(candCode);
+                                                            const cand = codes.portfolios.find(c => c.portfolio_code === candCode);
+                                                            if (!cand) return false;
+
+                                                            // Check items/tickers
+                                                            let children = [];
+                                                            if (Array.isArray(cand.components)) children = cand.components.map(c => c.value || c.tickers || c.ticker);
+                                                            else if (Array.isArray(cand.sub_portfolios)) children = cand.sub_portfolios.map(c => c.value || c.tickers || c.ticker);
+                                                            else if (typeof cand.tickers === 'string') children = cand.tickers.split(',').map(s => s.trim());
+
+                                                            for (const child of children) {
+                                                                if (!child) continue;
+                                                                if (child === target) return true;
+                                                                // Recurse if child is a portfolio
+                                                                if (codes.portfolios.some(px => px.portfolio_code === child)) {
+                                                                    if (dependsOn(child, target, visited)) return true;
+                                                                }
+                                                            }
+                                                            return false;
+                                                        };
+                                                        return !dependsOn(p.portfolio_code, activeCode.portfolio_code);
+                                                    })
+                                                    .map(p => (
+                                                        <option key={p.portfolio_code} value={p.portfolio_code} className="bg-gray-800 text-white">{p.portfolio_code}</option>
+                                                    ))}
+                                            </select>
+                                        ) : (
+                                            <AutoResizingTextarea
+                                                value={item.tickers || item.ticker || item.symbol || ''}
+                                                onChange={(e) => updateItem(idx, 'tickers', e.target.value.toUpperCase())}
+                                                placeholder="TICKER1, TICKER2..."
+                                                className="bg-transparent border border-gray-700 rounded focus:border-white w-full max-w-md text-white font-mono uppercase outline-none p-2 text-sm resize-none overflow-hidden min-h-[40px]"
+                                            />
+                                        )}
+                                    </>
                                 )}
 
                                 <div className="flex items-center gap-2 flex-1 justify-end">
@@ -457,7 +560,7 @@ const EditorView = ({ activeCode, setActiveCode, handleSave, setViewMode, codes,
                 </div>
 
                 {/* Total Weight Check */}
-                <div className="mt-4 flex justify-end">
+                < div className="mt-4 flex justify-end" >
                     <div className={`text-sm font-bold ${Math.abs(totalWeight - 100) < 0.1 ? 'text-green-500' : 'text-red-500'}`}>
                         Total Allocation: {totalWeight.toFixed(1)}%
                     </div>
@@ -478,6 +581,7 @@ const DatabaseNodes = () => {
     const [communitySort, setCommunitySort] = useState('recent');
     const [activeCode, setActiveCode] = useState(null);
     const [loading, setLoading] = useState(false);
+    const [showGuide, setShowGuide] = useState(false);
 
     useEffect(() => {
         fetchCodes();
@@ -710,6 +814,7 @@ const DatabaseNodes = () => {
 
     return (
         <div className="min-h-screen bg-black pt-24 pb-12 px-8">
+            <DatabaseGuide isOpen={showGuide} onClose={() => setShowGuide(false)} />
             {/* Tabs for List/Community */}
             {viewMode !== 'editor' && (
                 <div className="flex items-center gap-6 mb-8 border-b border-gray-800 pb-2">
@@ -735,6 +840,7 @@ const DatabaseNodes = () => {
                     startEditing={startEditing}
                     handleDelete={handleDelete}
                     handleShare={handleShare}
+                    toggleGuide={() => setShowGuide(true)}
                 />
             )}
             {viewMode === 'community' && (

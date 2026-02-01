@@ -588,6 +588,16 @@ const CreateNexusModal = ({ isOpen, onClose, onSave, initialCode = '' }) => {
         setComponents(components.map(c => c.id === id ? { ...c, [field]: val } : c));
     };
 
+    const [userPortfolios, setUserPortfolios] = useState([]);
+
+    useEffect(() => {
+        if (isOpen) {
+            fetch('/api/database/codes').then(res => res.json()).then(data => {
+                setUserPortfolios(data.portfolios || []);
+            });
+        }
+    }, [isOpen]);
+
     const handleSave = async () => {
         setIsSaving(true);
         // Send to backend
@@ -658,25 +668,47 @@ const CreateNexusModal = ({ isOpen, onClose, onSave, initialCode = '' }) => {
                                         </select>
 
                                         {/* Dynamic Input based on Type */}
+                                        {/* Dynamic Input based on Type */}
                                         {comp.type === 'Command' ? (
                                             <select
-                                                value={comp.value}
+                                                value={comp.value.startsWith('Cultivate') ? 'Cultivate' : comp.value}
                                                 onChange={e => updateComponent(comp.id, 'value', e.target.value)}
                                                 className="flex-1 bg-gray-800 text-white text-sm rounded px-2 py-1 border border-gray-700"
                                             >
                                                 <option value="">Select Command...</option>
                                                 <option value="Market">Market (Top 10)</option>
                                                 <option value="Breakout">Breakout (All)</option>
-                                                <option value="Cultivate A">Cultivate (Code A)</option>
-                                                <option value="Cultivate B">Cultivate (Code B)</option>
+                                                <option value="Cultivate">Cultivate</option>
                                             </select>
                                         ) : (
-                                            <input
+                                            <select
                                                 value={comp.value}
                                                 onChange={e => updateComponent(comp.id, 'value', e.target.value)}
-                                                placeholder="Portfolio Code"
-                                                className="flex-1 bg-black border border-gray-700 rounded px-2 py-1 text-white text-sm"
-                                            />
+                                                className="flex-1 bg-gray-800 text-white text-sm rounded px-2 py-1 border border-gray-700"
+                                            >
+                                                <option value="">Select Portfolio...</option>
+                                                {userPortfolios.map(p => (
+                                                    <option key={p.portfolio_code} value={p.portfolio_code}>{p.portfolio_code}</option>
+                                                ))}
+                                            </select>
+                                        )}
+
+                                        {/* Secondary Dropdown for Cultivate */}
+                                        {comp.type === 'Command' && (comp.value === 'Cultivate' || comp.value.startsWith('Cultivate')) && (
+                                            <div className="flex gap-2 bg-gray-800 p-1 rounded">
+                                                <button
+                                                    onClick={() => updateComponent(comp.id, 'value', 'Cultivate A')}
+                                                    className={`px-3 py-1 rounded text-xs font-bold transition-colors ${comp.value === 'Cultivate A' ? 'bg-purple-600 text-white shadow-lg' : 'text-gray-400 hover:text-white'}`}
+                                                >
+                                                    Code A
+                                                </button>
+                                                <button
+                                                    onClick={() => updateComponent(comp.id, 'value', 'Cultivate B')}
+                                                    className={`px-3 py-1 rounded text-xs font-bold transition-colors ${comp.value === 'Cultivate B' ? 'bg-purple-600 text-white shadow-lg' : 'text-gray-400 hover:text-white'}`}
+                                                >
+                                                    Code B
+                                                </button>
+                                            </div>
                                         )}
                                     </div>
                                     <div className="flex items-center gap-2">
@@ -715,7 +747,7 @@ const CreateNexusModal = ({ isOpen, onClose, onSave, initialCode = '' }) => {
                     </button>
                 </div>
             </div>
-        </div>
+        </div >
     );
 };
 

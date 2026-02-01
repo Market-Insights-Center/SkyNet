@@ -173,13 +173,19 @@ async def run_powerscore(req: PowerScoreRequest):
         limit_check = verify_access_and_limits(req.email, "powerscore")
         if not limit_check["allowed"]:
             raise HTTPException(status_code=403, detail=limit_check["message"])
-    result = await powerscore_command.handle_powerscore_command(
-        ai_params={"ticker": req.ticker, "sensitivity": req.sensitivity}, is_called_by_ai=True
+
+    async def event_generator():
+        try:
+             async for update in powerscore_command.stream_powerscore_analysis(req.ticker, req.sensitivity, is_called_by_ai=True):
+                  yield json.dumps(update, default=str) + "\n"
+        except Exception as e:
+             logger.error(f"PowerScore Stream Error: {e}")
+             traceback.print_exc()
+             yield json.dumps({"type": "error", "message": f"Server Error: {str(e)}"}, default=str) + "\n"
+
+    return StreamingResponse(
+        event_generator(), media_type="application/x-ndjson", headers={"X-Accel-Buffering": "no"}
     )
-    if not result: raise HTTPException(status_code=500, detail="PowerScore analysis failed.")
-    if result.get("status") == "error": raise HTTPException(status_code=400, detail=result.get("message"))
-    await increment_usage("powerscore", req.email)
-    return result
 
 @router.post("/api/summary")
 async def run_summary(req: SummaryRequest):

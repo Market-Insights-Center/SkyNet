@@ -453,93 +453,68 @@ async def get_powerscore_explanation(ticker: str, component_scores: dict, model_
     return "AI summary analysis unavailable."
 
 # --- Main Command Handler ---
-async def handle_powerscore_command(
-    args: List[str] = None,
-    ai_params: dict = None,
-    is_called_by_ai: bool = False,
-    # Legacy arguments preserved for compatibility but ignored
-    gemini_model_obj: Any = None,
-    api_lock_override: asyncio.Lock = None,
-    **kwargs
-):
+async def stream_powerscore_analysis(ticker: str, sensitivity: int, is_called_by_ai: bool = False):
+    """
+    Async generator that yields progress updates and the final result.
+    Yields: Dict objects representing event updates.
+    """
+    # Initialize
+    yield {"type": "status", "message": f"Initializing PowerScore Analysis for {ticker}...", "progress": 5}
     await increment_usage('powerscore')
-    model_to_use = None # Deprecated
-    lock_to_use = None # Deprecated
-
-    ticker, sensitivity = None, None
-    try:
-        if is_called_by_ai and ai_params:
-            ticker = ai_params.get("ticker")
-            sensitivity_raw = ai_params.get("sensitivity")
-            sensitivity = int(sensitivity_raw) if sensitivity_raw is not None else None
-        elif args and len(args) == 2:
-            ticker = args[0].upper()
-            sensitivity = int(args[1])
-        
-        if not ticker or sensitivity not in [1, 2, 3]:
-            if is_called_by_ai: return {"status": "error", "message": "Usage: /powerscore <TICKER> <SENSITIVITY 1-3>"}
-            else: print("Usage: /powerscore <TICKER> <SENSITIVITY 1-3>"); return None
-
-    except Exception:
-         if is_called_by_ai: return {"status": "error", "message": "Invalid input."}
-         else: return None
-
-    if not is_called_by_ai:
-        print(f"\n--- Generating PowerScore for {ticker} (Sensitivity: {sensitivity}) ---")
-        print("--- Fetching Components Sequentially (One by One) ---")
-
-    # [DEBUG] Log model usage
-    if is_called_by_ai:
-         # print(f"   [DEBUG] PowerScore called by AI.")
-         pass
-
+    
     period_map = {1: '10y', 2: '5y', 3: '1y'}
     backtest_period = period_map[sensitivity]
     
     raw = {}
     component_errors = []
-
-    # --- SEQUENTIAL FETCHING WITH RETRIES ---
     
     # 1. Market Score (R)
+    yield {"type": "step_start", "step": "Market Score", "key": "R", "progress": 10}
     raw['R'] = await fetch_step_with_retry("Market Score (R)", get_market_invest_score_for_powerscore)
     if raw['R'] is None: component_errors.append("R (Market)")
+    yield {"type": "step_complete", "step": "Market Score", "key": "R", "value": raw['R'], "progress": 20}
 
     # 2. Beta/Correlation (ABB, ABC)
+    yield {"type": "step_start", "step": "Beta/Correlation", "key": "AB", "progress": 25}
     beta_res = await fetch_step_with_retry("Beta/Corr (AB)", get_single_stock_beta_corr, ticker, backtest_period)
-    if beta_res: raw['ABB'], raw['ABC'] = beta_res
+    if beta_res: 
+        raw['ABB'], raw['ABC'] = beta_res
     else: 
         raw['ABB'], raw['ABC'] = None, None
         component_errors.append("AB (Beta/Corr)")
+    yield {"type": "step_complete", "step": "Beta/Correlation", "key": "AB", "value": beta_res, "progress": 40}
 
     # 3. Volatility (AA)
+    yield {"type": "step_start", "step": "Volatility Analysis", "key": "AA", "progress": 45}
     vol_res = await fetch_step_with_retry("Volatility (AA)", calculate_volatility_metrics, ticker, backtest_period)
     raw['AA'] = vol_res[1] if vol_res else None
     if raw['AA'] is None: component_errors.append("AA (Volatility)")
+    yield {"type": "step_complete", "step": "Volatility Analysis", "key": "AA", "value": raw['AA'], "progress": 55}
 
     # 4. Fundamentals (F)
+    yield {"type": "step_start", "step": "Fundamentals", "key": "F", "progress": 60}
     fund_res = await fetch_step_with_retry("Fundamentals (F)", handle_fundamentals_command_internal, ai_params={'ticker': ticker})
     raw['F'] = fund_res.get('fundamental_score') if fund_res else None
     if raw['F'] is None: component_errors.append("F (Fundamentals)")
+    yield {"type": "step_complete", "step": "Fundamentals", "key": "F", "value": raw['F'], "progress": 70}
 
     # 5. QuickScore / Technicals (Q)
+    yield {"type": "step_start", "step": "Technical Analysis", "key": "Q", "progress": 75}
     q_res = await fetch_step_with_retry("QuickScore (Q)", calculate_ema_invest, ticker, sensitivity, is_called_by_ai=True)
     raw['Q'] = q_res[1] if q_res else None
     if raw['Q'] is None: component_errors.append("Q (Technicals)")
+    yield {"type": "step_complete", "step": "Technical Analysis", "key": "Q", "value": raw['Q'], "progress": 85}
 
     # 6. Sentiment (S)
+    yield {"type": "step_start", "step": "Sentiment Analysis", "key": "S", "progress": 88}
     sent_res = await fetch_step_with_retry(
         "Sentiment (S)", 
         handle_sentiment_command, 
         ai_params={'ticker': ticker}, 
-        is_called_by_ai=True, 
-        gemini_model_override=model_to_use, 
-        api_lock_override=lock_to_use,
+        is_called_by_ai=True,
         retries=3 
     )
-    
     if sent_res and isinstance(sent_res, dict):
-        # Even if status is error, if we have a raw score (e.g. 0.0 fallback), use it
         if 'sentiment_score_raw' in sent_res:
             raw['S'] = sent_res['sentiment_score_raw']
         else:
@@ -548,8 +523,10 @@ async def handle_powerscore_command(
     else:
         raw['S'] = None
         component_errors.append("S (Sentiment - Failed)")
+    yield {"type": "step_complete", "step": "Sentiment Analysis", "key": "S", "value": raw['S'], "progress": 92}
 
     # 7. ML Forecast (M)
+    yield {"type": "step_start", "step": "ML Forecast", "key": "M", "progress": 95}
     ml_res = await fetch_step_with_retry("ML Forecast (M)", handle_mlforecast_command_internal, ai_params={'ticker': ticker})
     raw['M'], used_m_period = None, "N/A"
     if ml_res:
@@ -566,8 +543,11 @@ async def handle_powerscore_command(
                     break 
                 except: pass
     if raw['M'] is None: component_errors.append("M (ML Forecast)")
+    yield {"type": "step_complete", "step": "ML Forecast", "key": "M", "value": raw['M'], "progress": 98}
 
     # --- Calculate Prime Scores ---
+    yield {"type": "status", "message": "Finalizing Calculations...", "progress": 99}
+    
     prime = {}
     def calc_prime_val(val):
         try: return float(val) if pd.notna(val) else None
@@ -632,50 +612,62 @@ async def handle_powerscore_command(
     
     final_score = np.clip((w_sum / w_total) if w_total > 0 else 0.0, 0, 100)
 
-    # --- Output ---
-    if is_called_by_ai:
-        return {
-            "status": "success" if not component_errors else "partial_error",
-            "ticker": ticker,
-            "sensitivity": sensitivity,
-            "powerscore": final_score,
-            "prime_scores": {k: v for k, v in prime.items() if v is not None},
-            "ai_explanation": await get_powerscore_explanation(ticker, prime, None, None),
-            "errors": component_errors if component_errors else None
-        }
-    else:
-        print("\n--- PowerScore Components ---")
-        table_data = []
-        for k, name, r_key in [
-            ('R', "Market Score", 'R'), ('AB', "Beta/Corr", 'ABB'),
-            ('AA', "Volatility Rank", 'AA'), ('F', "Fundamentals", 'F'),
-            ('Q', "Technicals", 'Q'), ('S', "Sentiment", 'S'), ('M', f"ML ({used_m_period})", 'M')
-        ]:
-            r_val = "N/A"
-            if k == 'AB': 
-                if raw.get('ABB') is not None: r_val = f"{raw['ABB']:.2f}/{raw.get('ABC','N/A'):.2f}"
-            else:
-                if raw.get(r_key) is not None: r_val = f"{raw[r_key]:.2f}"
-            
-            p_val = f"{prime.get(k):.1f}" if prime.get(k) is not None else "N/A"
-            table_data.append([name, r_val, p_val, f"{cur_weights.get(k,0)*100:.0f}%"])
-        
-        print(tabulate(table_data, headers=["Metric", "Raw", "Prime", "Weight"], tablefmt="grid"))
-        
-        if component_errors:
-            print("\nWarnings:")
-            for e in component_errors: print(f"  - Failed: {e}")
-        
-        print(f"\nAI Summary:\n{await get_powerscore_explanation(ticker, prime, None, None)}")
-        
-        # Color logic for final score
-        color = Colors.RESET
-        if final_score > 60:
-            color = Colors.GREEN
-        elif final_score >= 40:
-            color = Colors.YELLOW
-        else:
-            color = Colors.RED
+    # Yield Final Result
+    result_payload = {
+        "status": "success" if not component_errors else "partial_error",
+        "ticker": ticker,
+        "sensitivity": sensitivity,
+        "powerscore": final_score,
+        "prime_scores": {k: v for k, v in prime.items() if v is not None},
+        "ai_explanation": await get_powerscore_explanation(ticker, prime, None, None),
+        "errors": component_errors if component_errors else None
+    }
+    yield {"type": "result", "payload": result_payload, "progress": 100}
 
-        print(f"\nFINAL POWERSCORE: {color}{final_score:.2f}{Colors.RESET} / 100.00")
+async def handle_powerscore_command(
+    args: List[str] = None,
+    ai_params: dict = None,
+    is_called_by_ai: bool = False,
+    **kwargs
+):
+    """
+    Wrapper for non-streaming callers (AI, CLI). 
+    Collects the stream and returns the final result.
+    """
+    ticker, sensitivity = None, None
+    try:
+        if is_called_by_ai and ai_params:
+            ticker = ai_params.get("ticker")
+            sensitivity_raw = ai_params.get("sensitivity")
+            sensitivity = int(sensitivity_raw) if sensitivity_raw is not None else None
+        elif args and len(args) == 2:
+            ticker = args[0].upper()
+            sensitivity = int(args[1])
+        
+        if not ticker or sensitivity not in [1, 2, 3]:
+            if is_called_by_ai: return {"status": "error", "message": "Usage: /powerscore <TICKER> <SENSITIVITY 1-3>"}
+            else: print("Usage: /powerscore <TICKER> <SENSITIVITY 1-3>"); return None
+
+    except Exception:
+         if is_called_by_ai: return {"status": "error", "message": "Invalid input."}
+         else: return None
+
+    if not is_called_by_ai:
+        print(f"\n--- Generating PowerScore for {ticker} (Sensitivity: {sensitivity}) ---")
+
+    final_result = None
+    async for event in stream_powerscore_analysis(ticker, sensitivity, is_called_by_ai):
+        if event["type"] == "result":
+            final_result = event["payload"]
+        elif event["type"] == "status" and not is_called_by_ai:
+             print(f"   [STATUS] {event['message']}")
+    
+    if is_called_by_ai:
+        return final_result
+    else:
+        # CLI Printing Logic (Legacy)
+        if not final_result: return None
+        raw = {} # Reconstruct raw? Too hard, just print final params if compatible
+        # For CLI usage we might just print the summary.
+        print(f"FINAL POWERSCORE: {final_result['powerscore']:.2f}")
         return None

@@ -43,6 +43,8 @@ export default function Profile() {
     const [rhPassword, setRhPassword] = useState("");
     const [saveRh, setSaveRh] = useState(false);
     const [headerWidgets, setHeaderWidgets] = useState(['market_status']);
+    const [headerEnabled, setHeaderEnabled] = useState(true);
+    const [headerPosition, setHeaderPosition] = useState('top'); // 'top' | 'right'
     const [showRhPass, setShowRhPass] = useState(false);
 
     const WIDGET_OPTIONS = [
@@ -96,6 +98,8 @@ export default function Profile() {
                             const sanitized = [...new Set(data.settings.header_widgets)].filter(id => validIds.includes(id));
                             setHeaderWidgets(sanitized);
                         }
+                        if (data.settings?.header_enabled !== undefined) setHeaderEnabled(data.settings.header_enabled);
+                        if (data.settings?.header_position) setHeaderPosition(data.settings.header_position);
 
                         // Load Integrations
                         if (data.integrations?.robinhood) {
@@ -303,7 +307,9 @@ export default function Profile() {
         try {
             await setDoc(doc(db, "users", currentUser.email), {
                 settings: {
-                    header_widgets: headerWidgets
+                    header_widgets: headerWidgets,
+                    header_enabled: headerEnabled,
+                    header_position: headerPosition
                 },
                 integrations: {
                     robinhood: {
@@ -559,10 +565,48 @@ export default function Profile() {
 
                     {/* Floating Header Widgets */}
                     <div>
+                        <div className="flex justify-between items-center mb-6">
+                            <div>
+                                <h4 className="text-white font-bold">Floating Header Settings</h4>
+                                <p className="text-sm text-gray-400 mt-1">Customize visibility and position.</p>
+                            </div>
+                        </div>
+
+                        {/* Enable & Position Controls */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                            <div className="bg-white/5 border border-white/10 rounded-lg p-4 flex justify-between items-center">
+                                <span className="text-sm font-bold text-gray-300">Enable Header</span>
+                                <label className="relative inline-flex items-center cursor-pointer">
+                                    <input type="checkbox" checked={headerEnabled} onChange={(e) => setHeaderEnabled(e.target.checked)} className="sr-only peer" />
+                                    <div className="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-purple-600"></div>
+                                </label>
+                            </div>
+
+                            <div className="bg-white/5 border border-white/10 rounded-lg p-4 flex flex-col justify-center">
+                                <span className="text-sm font-bold text-gray-300 mb-2">Position</span>
+                                <div className="flex bg-black/50 rounded p-1 border border-white/5">
+                                    <button
+                                        type="button"
+                                        onClick={() => setHeaderPosition('top')}
+                                        className={`flex-1 py-1 rounded text-xs font-bold transition-colors ${headerPosition === 'top' ? 'bg-purple-600 text-white shadow' : 'text-gray-400 hover:text-white'}`}
+                                    >
+                                        Top (Horizontal)
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setHeaderPosition('right')}
+                                        className={`flex-1 py-1 rounded text-xs font-bold transition-colors ${headerPosition === 'right' ? 'bg-purple-600 text-white shadow' : 'text-gray-400 hover:text-white'}`}
+                                    >
+                                        Right (Vertical)
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
                         <div className="flex justify-between items-center mb-4">
                             <div>
-                                <h4 className="text-white font-bold">Floating Header Widgets</h4>
-                                <p className="text-sm text-gray-400 mt-1">Select up to 6 metrics to display site-wide.</p>
+                                <h4 className="text-white font-bold">Active Widgets</h4>
+                                <p className="text-sm text-gray-400 mt-1">Select metrics to display.</p>
                             </div>
                             <span className="text-xs text-gold border border-gold/20 bg-gold/5 px-2 py-1 rounded">{headerWidgets.length}/6 Selected</span>
                         </div>

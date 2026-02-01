@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Info, Plus, Trash2, Check } from 'lucide-react';
 
 // --- Helper Components ---
@@ -24,6 +24,35 @@ const TextInput = ({ placeholder, defaultValue, value, onChange }) => (
         className="w-full bg-black border border-gray-800 rounded-lg px-4 py-3 text-white focus:border-royal-purple focus:ring-1 focus:ring-royal-purple outline-none transition-all duration-300 placeholder-gray-600"
     />
 );
+
+const TextAreaInput = ({ placeholder, defaultValue, value, onChange }) => {
+    const textareaRef = useRef(null);
+
+    useEffect(() => {
+        if (textareaRef.current) {
+            textareaRef.current.style.height = 'auto';
+            textareaRef.current.style.height = textareaRef.current.scrollHeight + 'px';
+        }
+    }, [value, defaultValue]);
+
+    return (
+        <textarea
+            ref={textareaRef}
+            defaultValue={defaultValue}
+            value={value}
+            placeholder={placeholder}
+            onChange={(e) => {
+                if (onChange) onChange(e.target.value);
+            }}
+            onFocus={(e) => {
+                e.target.style.height = 'auto';
+                e.target.style.height = e.target.scrollHeight + 'px';
+            }}
+            rows={1}
+            className="w-full bg-black border border-gray-800 rounded-lg px-4 py-3 text-white focus:border-royal-purple focus:ring-1 focus:ring-royal-purple outline-none transition-all duration-300 placeholder-gray-600 resize-none overflow-hidden min-h-[50px]"
+        />
+    );
+};
 
 const SelectInput = ({ options, onChange }) => (
     <div className="relative">
@@ -137,9 +166,9 @@ const SubPortfolioInput = ({ subPortfolios, onChange }) => {
                     <div className="space-y-3">
                         <div>
                             <label className="text-xs text-gray-400 mb-1 block">Tickers (Comma separated)</label>
-                            <TextInput
+                            <TextAreaInput
                                 value={portfolio.tickers}
-                                placeholder="AAPL, MSFT"
+                                placeholder="AAPL, MSFT, GOOGL..."
                                 onChange={(val) => updatePortfolio(index, 'tickers', val)}
                             />
                         </div>

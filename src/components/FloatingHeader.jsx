@@ -13,18 +13,30 @@ const FloatingHeader = () => {
     const isWorkflowPage = location.pathname === '/workflow-automation';
     const [isMinimized, setIsMinimized] = useState(false);
 
-    // Position: Top usually, Bottom for Workflow
-    const positionClass = isWorkflowPage
-        ? "fixed bottom-6 md:bottom-8 left-1/2 -translate-x-1/2"
-        : "fixed bottom-6 md:bottom-auto md:top-32 left-1/2 -translate-x-1/2";
-
     const [widgets, setWidgets] = useState([]);
+    const [headerPos, setHeaderPos] = useState('top');
+    const [enabled, setEnabled] = useState(true);
     const [rhConnected, setRhConnected] = useState(false);
     const [marketData, setMarketData] = useState({
         spy: { price: 0, change: 0 },
         status: 'CLOSED'
     });
     const [rhData, setRhData] = useState(null);
+
+    // Position: Top (Default) or Right (Vertical)
+    const isVertical = headerPos === 'right';
+
+    // Dynamic Position Classes
+    let positionClass = "";
+    if (isWorkflowPage) {
+        // Workflow page override (always bottom center for now, or match user preference?)
+        // Let's keep workflow override as bottom center for usability unless requested otherwise
+        positionClass = "fixed bottom-6 md:bottom-8 left-1/2 -translate-x-1/2";
+    } else if (isVertical) {
+        positionClass = "fixed right-6 top-1/2 -translate-y-1/2 flex-col";
+    } else {
+        positionClass = "fixed bottom-6 md:bottom-auto md:top-24 left-1/2 -translate-x-1/2";
+    }
 
     // Real-time Settings Sync
     useEffect(() => {
@@ -37,6 +49,9 @@ const FloatingHeader = () => {
                 if (data.settings?.header_widgets) {
                     setWidgets(data.settings.header_widgets);
                 }
+                if (data.settings?.header_position) setHeaderPos(data.settings.header_position);
+                if (data.settings?.header_enabled !== undefined) setEnabled(data.settings.header_enabled);
+
                 if (data.integrations?.robinhood?.connected) {
                     setRhConnected(true);
                 } else {
@@ -299,7 +314,7 @@ const FloatingHeader = () => {
         );
     };
 
-    if (widgets.length === 0 && !isEditing) return null;
+    if ((widgets.length === 0 || !enabled) && !isEditing) return null;
 
     return (
         <>
@@ -310,6 +325,7 @@ const FloatingHeader = () => {
                     y: 0,
                     opacity: 1,
                     width: isMinimized ? 56 : "auto",
+                    height: isMinimized ? 56 : "auto",
                     borderRadius: 9999
                 }}
                 transition={{
@@ -320,7 +336,9 @@ const FloatingHeader = () => {
                     layout: { duration: 0.8, type: "spring", stiffness: 140, damping: 25 }
                 }}
                 onDoubleClick={() => setIsEditing(!isEditing)}
-                className={`${positionClass} z-[40] flex items-center justify-center bg-black/80 backdrop-blur-xl border border-white/10 shadow-2xl overflow-hidden ${isMinimized ? 'h-14 p-0' : 'h-14 max-w-[90vw] pr-12'}`} // Fixed height h-14 for consistency
+                className={`${positionClass} z-[40] flex items-center justify-center bg-black/80 backdrop-blur-xl border border-white/10 shadow-2xl overflow-hidden 
+                ${isMinimized ? 'p-0' : (isVertical ? 'py-10 px-6 max-h-[85vh] flex-col' : 'h-20 max-w-[90vw] pr-12 flex-row')}
+                `}
                 style={{ originX: 0.5, borderRadius: 9999 }}
             >
                 <AnimatePresence initial={false}>
@@ -342,12 +360,12 @@ const FloatingHeader = () => {
                             initial={{ opacity: 0 }}
                             animate={{ opacity: 1 }}
                             exit={{ opacity: 0 }}
-                            transition={{ duration: 0.4, delay: 0.3 }} // Delay increased to 0.3s
-                            className="flex items-center h-full"
+                            transition={{ duration: 0.4, delay: 0.3 }}
+                            className={`flex ${isVertical ? 'flex-col h-full w-full' : 'items-center h-full'}`}
                         >
-                            <div className="flex items-center gap-6 px-6 overflow-x-auto scrollbar-hide h-full">
+                            <div className={`flex ${isVertical ? 'flex-col gap-4 overflow-y-auto overflow-x-hidden scrollbar-hide py-2 max-h-[70vh]' : 'items-center gap-6 px-6 overflow-x-auto scrollbar-hide h-full'}`}>
                                 {isEditing ? (
-                                    <Reorder.Group axis="x" values={widgets} onReorder={handleReorder} className="flex items-center gap-6">
+                                    <Reorder.Group axis={isVertical ? "y" : "x"} values={widgets} onReorder={handleReorder} className={`flex ${isVertical ? 'flex-col gap-4' : 'items-center gap-6'}`}>
                                         {widgets.map(id => (
                                             <Reorder.Item key={id} value={id}>
                                                 <WidgetItem id={id} />
@@ -355,7 +373,7 @@ const FloatingHeader = () => {
                                         ))}
                                     </Reorder.Group>
                                 ) : (
-                                    <div className="flex items-center gap-6 whitespace-nowrap">
+                                    <div className={`flex ${isVertical ? 'flex-col gap-4' : 'items-center gap-6 whitespace-nowrap'}`}>
                                         {widgets.map(id => <div key={id}><WidgetItem id={id} /></div>)}
                                     </div>
                                 )}
@@ -364,7 +382,9 @@ const FloatingHeader = () => {
                             {!isEditing && (
                                 <button
                                     onClick={() => setIsMinimized(true)}
-                                    className="absolute top-1/2 -translate-y-1/2 right-3 bg-white/10 hover:bg-white/20 text-gray-300 hover:text-white rounded-full p-1.5 transition-all outline-none"
+                                    className={`absolute bg-white/10 hover:bg-white/20 text-gray-300 hover:text-white rounded-full p-1.5 transition-all outline-none 
+                                    ${isVertical ? 'bottom-2 left-1/2 -translate-x-1/2' : 'top-1/2 -translate-y-1/2 right-3'}
+                                    `}
                                     title="Minimize"
                                 >
                                     <Minus size={14} />
@@ -375,10 +395,10 @@ const FloatingHeader = () => {
                             <AnimatePresence>
                                 {isEditing && (
                                     <motion.div
-                                        initial={{ scale: 0, width: 0, opacity: 0 }}
-                                        animate={{ scale: 1, width: "auto", opacity: 1 }}
-                                        exit={{ scale: 0, width: 0, opacity: 0 }}
-                                        className="flex items-center gap-2 border-l border-white/10 pl-4 mr-4 overflow-hidden"
+                                        initial={{ scale: 0, opacity: 0 }}
+                                        animate={{ scale: 1, opacity: 1 }}
+                                        exit={{ scale: 0, opacity: 0 }}
+                                        className={`flex items-center gap-2 border-white/10 overflow-hidden ${isVertical ? 'flex-col border-t pt-4 mt-2' : 'border-l pl-4 mr-4'}`}
                                     >
                                         {/* Add Widget Button */}
                                         <div className="relative shrink-0">
