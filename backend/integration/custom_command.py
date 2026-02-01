@@ -89,6 +89,16 @@ async def collect_portfolio_inputs_singularity(portfolio_code_singularity: str, 
         # Default Fractional to true (Modified per user request)
         inputs['frac_shares'] = 'true'
         inputs['risk_tolerance'] = '10'; inputs['risk_type'] = 'stock'; inputs['remove_amplification_cap'] = 'true'
+        
+        while True:
+            cr_str = input("Enter Cash Reserve Amount ($): ")
+            try: inputs['cash_reserve'] = str(float(cr_str)); break
+            except: 
+                if not cr_str: 
+                    inputs['cash_reserve'] = '0'
+                    break
+                print("Invalid input.")
+
         current_total_weight = 0.0
         for i in range(1, int(inputs['num_portfolios']) + 1):
             tickers_in = input(f"Enter tickers for Sub-Portfolio {i} (comma-separated): ").upper()
@@ -105,7 +115,7 @@ async def collect_portfolio_inputs_singularity(portfolio_code_singularity: str, 
 
 async def save_portfolio_to_csv(file_path: str, portfolio_data_to_save: Dict[str, Any], is_called_by_ai: bool = False):
     file_exists = os.path.isfile(file_path)
-    fieldnames = ['portfolio_code', 'ema_sensitivity', 'amplification', 'num_portfolios', 'frac_shares', 'risk_tolerance', 'risk_type', 'remove_amplification_cap', 'user_id']
+    fieldnames = ['portfolio_code', 'ema_sensitivity', 'amplification', 'num_portfolios', 'frac_shares', 'risk_tolerance', 'risk_type', 'remove_amplification_cap', 'user_id', 'cash_reserve']
     num_portfolios_val = int(safe_score(portfolio_data_to_save.get('num_portfolios', 0)))
     for i in range(1, num_portfolios_val + 1):
         fieldnames.extend([f'tickers_{i}', f'weight_{i}'])
@@ -439,6 +449,7 @@ async def handle_custom_command(args: List[str], ai_params: Optional[Dict] = Non
                     'amplification': str(ai_params.get('amplification', 1.0)),
                     'num_portfolios': str(len(sub_portfolios_list)),
                     'frac_shares': 'true' if ai_params.get('use_fractional_shares') else 'false',
+                    'cash_reserve': str(ai_params.get('cash_reserve', 0.0)),
                     'risk_tolerance': '10',
                     'user_id': user_id
                 }

@@ -227,6 +227,12 @@ const WizardInputs = ({ toolType, onChange, values }) => {
                     onChange={(val) => handleChange('capital', val === '' ? 0 : parseFloat(val))}
                 />
             </InputGroup>
+            <InputGroup label="Cash Reserve ($)" tooltip="Amount to withhold from investment.">
+                <TextInput
+                    placeholder="0.00"
+                    onChange={(val) => handleChange('cash_reserve', val === '' ? 0 : parseFloat(val))}
+                />
+            </InputGroup>
             <div className="mt-4">
                 <CheckboxInput
                     label="Use Fractional Shares"
@@ -319,6 +325,12 @@ const WizardInputs = ({ toolType, onChange, values }) => {
                         <TextInput
                             placeholder="Enter Value"
                             onChange={(val) => handleChange('capital', val === '' ? 0 : parseFloat(val))}
+                        />
+                    </InputGroup>
+                    <InputGroup label="Cash Reserve ($)" tooltip="Amount to withhold from investment.">
+                        <TextInput
+                            placeholder="0.00"
+                            onChange={(val) => handleChange('cash_reserve', val === '' ? 0 : parseFloat(val))}
                         />
                     </InputGroup>
                     <InputGroup label="EMA Sensitivity">

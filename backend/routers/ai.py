@@ -256,11 +256,6 @@ async def api_mlforecast_command(req: MLForecastRequest):
              raise Exception(results["error"])
         await increment_usage("mlforecast", req.email)
         return {"results": results}
-        results = await mlforecast_command.handle_mlforecast_command(ai_params={"ticker": req.ticker}, is_called_by_ai=True)
-        if isinstance(results, dict) and "error" in results:
-             raise Exception(results["error"])
-        return {"results": results}
-        await increment_usage("mlforecast", req.email)
     except Exception as e:
         logger.error(f"MLForecast Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))

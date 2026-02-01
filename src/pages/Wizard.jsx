@@ -113,6 +113,7 @@ const Wizard = () => {
                     ...body,
                     ema_sensitivity: mapSens(inputs.ema_sensitivity),
                     amplification: parseFloat(inputs.amplification) || 1.0,
+                    cash_reserve: parseFloat(inputs.cash_reserve) || 0.0,
                     sub_portfolios: (Array.isArray(inputs.sub_portfolios) ? inputs.sub_portfolios : [{ tickers: "AAPL", weight: 100 }]).map(sp => ({
                         tickers: parseTickerString(sp.tickers),
                         weight: parseFloat(sp.weight) || 0
@@ -148,6 +149,7 @@ const Wizard = () => {
                     sub_portfolios: [],
                     ema_sensitivity: 2,
                     amplification: 1.0,
+                    cash_reserve: parseFloat(inputs.cash_reserve) || 0.0,
                     trades: [],
                     rh_username: inputs.rh_user || "",
                     rh_password: inputs.rh_pass || "",

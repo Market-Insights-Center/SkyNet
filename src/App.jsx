@@ -186,7 +186,7 @@ const AppContent = () => {
                         <Route path="/market-predictions" element={<PageTransition><Layout><LazyRoutes.MarketPredictions /></Layout></PageTransition>} />
 
                         <Route path="/workflow-automation" element={<PageTransition><Layout><LazyRoutes.WorkflowAutomation /></Layout></PageTransition>} />
-                        <Route path="/singularity" element={<PageTransition><Layout><LazyRoutes.SingularityInterface /></Layout></PageTransition>} />
+                        {/* <Route path="/singularity" element={<PageTransition><Layout><LazyRoutes.SingularityInterface /></Layout></PageTransition>} /> */}
                     </Routes>
                 </AnimatePresence>
             </React.Suspense>

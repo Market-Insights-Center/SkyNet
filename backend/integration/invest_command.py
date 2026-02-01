@@ -169,6 +169,25 @@ async def process_custom_portfolio(
         ema_sensitivity = int(safe_score(cleaned_config.get('ema_sensitivity', 3)))
         amplification = float(safe_score(cleaned_config.get('amplification', 1.0)))
         num_portfolios = int(safe_score(cleaned_config.get('num_portfolios', 0)))
+        cash_reserve = float(safe_score(cleaned_config.get('cash_reserve', 0.0)))
+       
+        # Apply Cash Reserve Logic
+        if total_value_singularity is not None and cash_reserve > 0:
+             print(f"[DEBUG INVEST] Applying Cash Reserve: ${cash_reserve:.2f} (Total: ${total_value_singularity:.2f})")
+             # Reserve must not exceed total value
+             if cash_reserve >= total_value_singularity:
+                 print(f"[DEBUG INVEST] Warning: Reserve ${cash_reserve} >= Total ${total_value_singularity}. Capping reserve.")
+                 cash_reserve = max(0, total_value_singularity - 1.0) # Leave $1 for logic
+             
+             # Reduce investable capital
+             # We DO NOT modify total_value_singularity directly if we want percents to be based on Total AUM
+             # BUT here we are calculating "actual_money_allocation", which drives the purchase.
+             # So we must reduce the "working capital" used for allocation.
+             working_capital = total_value_singularity - cash_reserve
+        else:
+             working_capital = total_value_singularity
+        
+        # If we are only tailoring, we use working_capital for the math below.
 
         final_combined_portfolio_data_calc = []
         
@@ -282,7 +301,8 @@ async def process_custom_portfolio(
         final_cash = 0.0
         
         if tailor_portfolio_requested and total_value_singularity is not None:
-            total_val = float(total_value_singularity)
+            total_val = float(working_capital if working_capital is not None else total_value_singularity)
+            original_total_val = float(total_value_singularity)
             total_spent = 0.0
             print(f"[DEBUG INVEST] Starting Tailoring Loop. Items={len(final_combined_portfolio_data_calc)} Val=${total_val} Frac={frac_shares_singularity}")
             for entry in final_combined_portfolio_data_calc:
@@ -313,13 +333,14 @@ async def process_custom_portfolio(
                             'shares': final_shares,
                             'live_price_at_eval': price,
                             'actual_money_allocation': cost,
-                            'actual_percent_allocation': (cost / total_val) * 100,
+                            'actual_percent_allocation': (cost / original_total_val) * 100,
                             'raw_invest_score': entry.get('raw_invest_score', 'N/A'),
                             'sub_portfolio_id': entry.get('sub_portfolio_id', 'N/A'),
                             'path': entry.get('path', [])
                         })
                         total_spent += cost
-            final_cash = max(0, total_val - total_spent)
+            # Final Cash = (Original Total - Spent) which implicitly includes the Reserve
+            final_cash = max(0, original_total_val - total_spent)
 
         print(f"[DEBUG INVEST] Portfolio Calc Complete. Tailored Count: {len(tailored_data)}, Cash: ${final_cash:.2f}")
         # RETURN FIXED: Put tailored_data at Index 0 for Nexus/Tracking compatibility

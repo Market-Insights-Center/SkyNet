@@ -240,7 +240,10 @@ const AssetEvaluator = () => {
                                             </div>
 
                                             {Object.entries(result.scores).map(([key, value]) => {
-                                                const score = parseFloat(value);
+                                                const scoreVal = typeof value === 'object' && value !== null ? value.score : value;
+                                                const scoreLabel = typeof value === 'object' && value !== null ? value.label : (key === '1' ? 'Weekly (5Y)' : key === '2' ? 'Daily (1Y)' : 'Hourly (6M)');
+
+                                                const score = parseFloat(scoreVal);
                                                 let scoreColor = 'text-red-400';
                                                 if (score > 60) scoreColor = 'text-green-400';
                                                 else if (score >= 40) scoreColor = 'text-yellow-400';
@@ -248,10 +251,10 @@ const AssetEvaluator = () => {
                                                 return (
                                                     <div key={key} className="p-4 bg-black/30 rounded-xl border border-white/5 hover:border-gold/20 transition-colors">
                                                         <div className="text-gray-400 text-sm mb-1">
-                                                            {key === '1' ? 'Weekly (5Y)' : key === '2' ? 'Daily (1Y)' : 'Hourly (6M)'} Score
+                                                            {scoreLabel} Score
                                                         </div>
                                                         <div className={`text-2xl font-bold ${scoreColor}`}>
-                                                            {value}
+                                                            {scoreVal}
                                                         </div>
                                                     </div>
                                                 );

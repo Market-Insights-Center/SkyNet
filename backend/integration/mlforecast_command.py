@@ -12,6 +12,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
 from tabulate import tabulate
+# Set non-interactive backend for server environments
+plt.switch_backend('Agg')
 try:
     from backend.usage_counter import increment_usage
 except ImportError:

@@ -118,7 +118,7 @@ const Layout = ({ children }) => {
         // Only render Admin tab if explicitly authorized
         ...(isMod ? [
             { name: 'Admin', path: '/admin', icon: Shield },
-            { name: 'Singularity', path: '/singularity', icon: Zap }
+            // { name: 'Singularity', path: '/singularity', icon: Zap }
         ] : [])
     ], [hasUnread, isMod]);
 
@@ -175,7 +175,7 @@ const Layout = ({ children }) => {
         { label: 'Profile', href: '/profile' },
         ...(isMod ? [
             { label: 'Admin', href: '/admin' },
-            { label: 'Singularity', href: '/singularity' }
+            // { label: 'Singularity', href: '/singularity' }
         ] : []),
         ...(currentUser ? [] : [
             { label: 'Log In', href: '/login' },

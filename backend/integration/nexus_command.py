@@ -265,7 +265,18 @@ async def _resolve_nexus_component(comp_type: str, comp_value: str, allocated_va
 
             elif "cultivate" in comp_val_lower:
                 print(f"[DEBUG NEXUS] Resolving 'Cultivate' command ({comp_value})...")
-                code = "A" if "a" in comp_val_lower else "B"
+                code_raw = "A" if "a" in comp_val_lower else ("B" if "b" in comp_val_lower else "")
+                
+                # Strict enforcement: If user typed just "Cultivate" without A or B, we might error or default.
+                # Per instructions: "Enforce Cultivate Type... must specify... A or B"
+                # If neither found, default to A but warn? Or Error?
+                # User's prompts suggest strict enforcement. Frontend now sends "Cultivate A".
+                # If we get here, it's likely "Cultivate A" or "Cultivate B".
+                if not code_raw:
+                     print(f"[DEBUG NEXUS] WARNING: Cultivate type (A/B) not found in '{comp_value}'. Defaulting to A.")
+                     code_raw = "A"
+                
+                code = code_raw
                 # Cultivate logic
                 if progress_callback: await progress_callback(f"  - Running Cultivate Strategy ({code})...")
                 cult_res = await run_cultivate_analysis_singularity(
@@ -557,19 +568,29 @@ async def handle_nexus_command(args: List[str], ai_params: Optional[Dict] = None
         if execute_rh and total_value <= 0 and rh_equity > 0:
              print(f"[DEBUG NEXUS] No manual total_value provided. Using RH Equity: ${rh_equity}")
              total_value = math.floor(rh_equity * 0.98) # Safety buffer
-        elif total_value <= 0:
-             # Fail gracefully if no value could be determined
-             return {"status": "error", "message": "No portfolio value provided and unable to fetch Robinhood equity. Execution aborted."}
+        # Apply Cash Reserve (Nexus Level)
+        cash_reserve = float(ai_params.get("cash_reserve") or 0.0)
+        investable_value = total_value
+        
+        if cash_reserve > 0:
+             print(f"[DEBUG NEXUS] Applying Cash Reserve: ${cash_reserve:.2f}")
+             if cash_reserve >= total_value:
+                 cash_reserve = max(0, total_value - 1.0)
+             investable_value = total_value - cash_reserve
 
         # Process Target
-        new_holdings, new_cash_unadjusted = await process_nexus_portfolio(
+        new_holdings, new_cash_unadjusted_investable = await process_nexus_portfolio(
             nexus_config=config, 
-            total_value=total_value, 
+            total_value=investable_value, 
             nexus_code=nexus_code, 
             ai_params=ai_params, 
             progress_callback=progress_callback
         )
-        new_cash = new_cash_unadjusted # Will be updated by sweep
+        
+        # Adjust final cash to include reserve
+        # new_cash_unadjusted_investable is what remains of the INVESTABLE portion.
+        # We add the reserve back to the final reported cash.
+        new_cash = new_cash_unadjusted_investable + cash_reserve
 
 
         # --- CONSTRAINTS VERIFICATION (Robust Logic vs Old Holdings) ---

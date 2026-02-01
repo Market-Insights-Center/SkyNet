@@ -37,9 +37,9 @@ export default function PortfolioNexus() {
         send_email: false,
         email_to: '',
         execute_rh: false,
-        rh_user: '',
         rh_pass: '',
-        overwrite: false
+        overwrite: false,
+        cash_reserve: ''
     });
 
     const updateExecOpt = (field, val) => {
@@ -216,6 +216,17 @@ export default function PortfolioNexus() {
                                             value={totalValue}
                                             onChange={(e) => setTotalValue(e.target.value)}
                                             placeholder={executionOpts.execute_rh ? "Auto (Uses RH Equity)" : "Enter Amount"}
+                                            className="w-full bg-black/50 border border-gray-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 transition-all font-mono"
+                                        />
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-xs uppercase tracking-widest text-gray-500 mb-2">Cash Reserve ($)</label>
+                                        <input
+                                            type="number"
+                                            value={executionOpts.cash_reserve || ''}
+                                            onChange={(e) => updateExecOpt('cash_reserve', e.target.value)}
+                                            placeholder="0.00"
                                             className="w-full bg-black/50 border border-gray-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 transition-all font-mono"
                                         />
                                     </div>
