@@ -264,112 +264,88 @@ async def process_automation(auto):
     node_map = {n['id']: n for n in nodes}
     actions_executed = False # Track if any action action actually fired
 
-    while queue:
-        item = queue.pop(0)
-        target_id = item['target']
-        signal = item['signal']
-        target_node = node_map.get(target_id)
-        
-        if not target_node: continue
-        
-        t_type = target_node.get('type')
-        
-        # --- IF GATE LOGIC ---
-        if t_type == 'if_gate':
-            # Identify priority based on ALL inputs
-            if target_id in processed_nodes: continue # Logic gates evaluated once per run (simplification)
-            processed_nodes.add(target_id)
+    try:
+        while queue:
+            item = queue.pop(0)
+            target_id = item['target']
+            signal = item['signal']
+            target_node = node_map.get(target_id)
+            
+            if not target_node: continue
+            
+            t_type = target_node.get('type')
+            
+            # --- IF GATE LOGIC ---
+            if t_type == 'if_gate':
+                # Identify priority based on ALL inputs
+                if target_id in processed_nodes: continue # Logic gates evaluated once per run (simplification)
+                processed_nodes.add(target_id)
 
-            # Get all input edges to this gate
-            in_edges = [e for e in edges if e['target'] == target_id]
-            
-            # Sort by handle 'in-0', 'in-1', etc.
-            def get_idx(e):
-                h = e.get('targetHandle', '')
-                if h.startswith('in-'):
-                    return int(h.split('-')[1])
-                return 9999
-            
-            in_edges.sort(key=get_idx)
-            
-            fired_handle = 'out-else'
-            
-            for edge in in_edges:
-                src_id = edge['source']
-                src_status = node_results.get(src_id, False) 
+                # Get all input edges to this gate
+                in_edges = [e for e in edges if e['target'] == target_id]
                 
-                if src_status:
-                    # Found our priority match
-                    idx = get_idx(edge)
-                    fired_handle = f"out-{idx}"
-                    break
-            
-            print(f"   -> IfGate ({target_id}) firing {fired_handle}")
-            node_results[target_id] = True 
-
-            # Propagate output
-            out_edges = [e for e in edges if e['source'] == target_id and e['sourceHandle'] == fired_handle]
-            for oe in out_edges:
-                queue.append({
-                    'target': oe['target'],
-                    'targetHandle': oe['targetHandle'],
-                    'signal': True, # Gate always emits "Go" on the chosen path
-                    'source': target_id
-                })
-
-        # --- LOGIC GATE (AND/OR) ---
-        elif t_type == 'logic_gate':
-            # Check inputs
-            in_edges = [e for e in edges if e['target'] == target_id]
-            
-            # Map input sources to their results
-            input_values = []
-            for e in in_edges:
-                src = e['source']
-                # Check if we have a result for this source
-                val = node_results.get(src, False)
-                input_values.append(val)
+                # Sort by handle 'in-0', 'in-1', etc.
+                def get_idx(e):
+                    h = e.get('targetHandle', '')
+                    if h.startswith('in-'):
+                        return int(h.split('-')[1])
+                    return 9999
                 
-            op = target_node.get('data', {}).get('operation', 'AND').upper()
-            
-            gate_res = False
-            if op == 'AND':
-                gate_res = all(input_values) and len(input_values) > 0
-            elif op == 'OR':
-                gate_res = any(input_values)
+                in_edges.sort(key=get_idx)
                 
-            if gate_res:
-                print(f"   -> LogicGate ({target_id}) {op} = TRUE")
-                node_results[target_id] = True # Store result for downstream gates
+                fired_handle = 'out-else'
                 
-                if target_id not in processed_nodes:
-                    processed_nodes.add(target_id)
+                for edge in in_edges:
+                    src_id = edge['source']
+                    src_status = node_results.get(src_id, False) 
                     
-                    out_edges = [e for e in edges if e['source'] == target_id]
-                    for oe in out_edges:
-                        queue.append({
-                            'target': oe['target'],
-                            'targetHandle': oe['targetHandle'],
-                            'signal': True,
-                            'source': target_id
-                        })
-            else:
-                print(f"   -> LogicGate ({target_id}) {op} = FALSE (Inputs: {input_values})")
-                stop_reason = f"Logic Gate ({op}) Failed"
+                    if src_status:
+                        # Found our priority match
+                        idx = get_idx(edge)
+                        fired_handle = f"out-{idx}"
+                        break
+                
+                print(f"   -> IfGate ({target_id}) firing {fired_handle}")
+                node_results[target_id] = True 
 
-        # --- ACTIONS ---
-        elif t_type in ['tracking', 'nexus', 'send_email', 'webhook', 'completion_email']:
-            if signal:
-                if target_id not in processed_nodes:
-                    processed_nodes.add(target_id)
-                    try:
-                        await increment_usage('automations_run') # Increment usage when an action is triggered
-                        await execute_action(target_node, nodes, edges, auto.get('user_email'), node_results, auto.get('name'))
-                        actions_executed = True
+                # Propagate output
+                out_edges = [e for e in edges if e['source'] == target_id and e['sourceHandle'] == fired_handle]
+                for oe in out_edges:
+                    queue.append({
+                        'target': oe['target'],
+                        'targetHandle': oe['targetHandle'],
+                        'signal': True, # Gate always emits "Go" on the chosen path
+                        'source': target_id
+                    })
+
+            # --- LOGIC GATE (AND/OR) ---
+            elif t_type == 'logic_gate':
+                # Check inputs
+                in_edges = [e for e in edges if e['target'] == target_id]
+                
+                # Map input sources to their results
+                input_values = []
+                for e in in_edges:
+                    src = e['source']
+                    # Check if we have a result for this source
+                    val = node_results.get(src, False)
+                    input_values.append(val)
+                    
+                op = target_node.get('data', {}).get('operation', 'AND').upper()
+                
+                gate_res = False
+                if op == 'AND':
+                    gate_res = all(input_values) and len(input_values) > 0
+                elif op == 'OR':
+                    gate_res = any(input_values)
+                    
+                if gate_res:
+                    print(f"   -> LogicGate ({target_id}) {op} = TRUE")
+                    node_results[target_id] = True # Store result for downstream gates
+                    
+                    if target_id not in processed_nodes:
+                        processed_nodes.add(target_id)
                         
-                        # NEW: Allow propagation from Actions (if chaining is desired)
-                        # We treat successful execution as a "True" signal for downstream nodes
-                        node_results[target_id] = True
                         out_edges = [e for e in edges if e['source'] == target_id]
                         for oe in out_edges:
                             queue.append({
@@ -378,42 +354,152 @@ async def process_automation(auto):
                                 'signal': True,
                                 'source': target_id
                             })
+                else:
+                    print(f"   -> LogicGate ({target_id}) {op} = FALSE (Inputs: {input_values})")
+                    stop_reason = f"Logic Gate ({op}) Failed"
 
-                    except Exception as e:
-                        print(f"   [AUTOMATION] Action Failed: {e}")
-                        stop_reason = f"Action Failed: {str(e)}"
+            # --- ACTION: END AUTOMATION ---
+            elif t_type == 'end_automation':
+                 print(f"   [AUTOMATION] End Automation Node Reached ({target_id}). Stopping flow.")
+                 stop_reason = "Explicit Stop (End Automation Node)"
+                 
+                 # Check if there is a completion email attached to this node
+                 # If so, queue it up. If not, we are done.
+                 out_edges = [e for e in edges if e['source'] == target_id]
+                 
+                 # Filter only for completion_email targets
+                 inserted_targets = []
+                 for oe in out_edges:
+                     target_n = node_map.get(oe['target'])
+                     if target_n and target_n.get('type') == 'completion_email':
+                          queue.append({
+                            'target': oe['target'],
+                            'targetHandle': oe['targetHandle'],
+                            'signal': True,
+                            'source': target_id
+                        })
+                          inserted_targets.append(oe['target'])
+                 
+                 # Filter Queue: Only keep items that are targeting the 'completion_email' nodes we enabled
+                 new_queue = []
+                 for q_item in queue:
+                     if q_item['target'] in inserted_targets:
+                         new_queue.append(q_item)
+                 
+                 queue = new_queue
+                 processed_nodes.add(target_id)
 
-    
-    # 3. Save State (Success or Failure)
-    # We only update 'last_run' if actions actually executed.
-    # Otherwise, we log the 'last_error' or reason it stopped.
-    
-    from backend.automation_storage import save_automation
-    
-    if actions_executed:
-        auto['last_run'] = datetime.now().isoformat()
-        if 'last_error' in auto: del auto['last_error'] # Clear error on success
-        try:
-            save_automation(auto)
-            print(f"   [AUTOMATION] SUCCESS: Saved timestamp for {auto.get('name')}")
-        except Exception as e:
-            print(f"   [AUTOMATION] Failed to save timestamp: {e}")
-            
-    elif time_valid: 
-        # Time was valid, but no action executed. This counts as a "Stop" or "Fail".
-        # We record this so the UI can show it.
-        # Format: { date: iso, message: str }
+
+            # --- ACTIONS ---
+            elif t_type in ['tracking', 'nexus', 'send_email', 'webhook', 'completion_email']:
+                if signal:
+                    if target_id not in processed_nodes:
+                        processed_nodes.add(target_id)
+                        try:
+                            await increment_usage('automations_run') # Increment usage when an action is triggered
+                            await execute_action(target_node, nodes, edges, auto.get('user_email'), node_results, auto.get('name'))
+                            actions_executed = True
+                            
+                            # NEW: Allow propagation from Actions (if chaining is desired)
+                            # We treat successful execution as a "True" signal for downstream nodes
+                            node_results[target_id] = True
+                            out_edges = [e for e in edges if e['source'] == target_id]
+                            for oe in out_edges:
+                                queue.append({
+                                    'target': oe['target'],
+                                    'targetHandle': oe['targetHandle'],
+                                    'signal': True,
+                                    'source': target_id
+                                })
+
+                        except Exception as e:
+                            print(f"   [AUTOMATION] Action Failed: {e}")
+                            stop_reason = f"Action Failed: {str(e)}"
+                            raise e # Re-raise to trigger Failure Email logic
+
         
-        reason = stop_reason or "Conditions not met"
+        # 3. Save State (Success or Failure)
+        from backend.automation_storage import save_automation
+        
+        if actions_executed:
+            auto['last_run'] = datetime.now().isoformat()
+            if 'last_error' in auto: del auto['last_error'] # Clear error on success
+            try:
+                save_automation(auto)
+                print(f"   [AUTOMATION] SUCCESS: Saved timestamp for {auto.get('name')}")
+            except Exception as e:
+                print(f"   [AUTOMATION] Failed to save timestamp: {e}")
+                
+        elif time_valid: 
+            # Time was valid, but no action executed. This counts as a "Stop" or "Fail".
+            # We record this so the UI can show it.
+            # Format: { date: iso, message: str }
+            
+            reason = stop_reason or "Conditions not met"
+            auto['last_error'] = {
+                'date': datetime.now().isoformat(),
+                'message': reason
+            }
+            try:
+                save_automation(auto)
+                print(f"   [AUTOMATION] STOPPED: Saved error state for {auto.get('name')} ({reason})")
+            except Exception as e:
+                 print(f"   [AUTOMATION] Failed to save error state: {e}")
+
+    except Exception as execution_error:
+        import traceback
+        print(f"   [CRITICAL AUTOMATION FAILURE] {auto.get('name')}: {execution_error}")
+        traceback.print_exc()
+        
+        # --- FAILURE EMAIL LOGIC ---
+        # "if the automation fails at any step... sends a failure email"
+        # Find ANY completion_email node to use as config
+        completion_node = next((n for n in nodes if n.get('type') == 'completion_email'), None)
+        
+        if completion_node:
+            connected_sources = get_connected_nodes(completion_node['id'], nodes, edges, direction="target_to_source")
+            email_info = None
+            for src in connected_sources:
+               if src.get('type') == 'email_info':
+                   email_info = src.get('data', {}).get('email')
+
+            # Fallback to user email if node/info doesn't specify
+            target_email = completion_node.get('data', {}).get('email')
+            if not target_email and email_info: target_email = email_info
+            if not target_email: target_email = auto.get('user_email')
+            
+            if target_email:
+                 print(f"   [FAILURE RECOVERY] Sending Failure Report to {target_email}")
+                 timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                 
+                 subject = f"⛔ Automation Failed: {auto.get('name')}"
+                 body = f"""
+                 <h2>Automation Execution Failed</h2>
+                 <p><b>Time:</b> {timestamp}</p>
+                 <p><b>Error:</b> {str(execution_error)}</p>
+                 <hr>
+                 <p>The automation encountered a critical error and stopped unexpectedly.</p>
+                 <p><i>Sent via Medulla Automation</i></p>
+                 """
+                 
+                 try:
+                    from backend.integration import monitor_command
+                    # Use a separate try/except for sending to ensure we don't loop crash
+                    await monitor_command.send_notification(subject, body, to_emails=[target_email])
+                 except Exception as mail_err:
+                    print(f"   [FAILURE RECOVERY] Could not send failure email: {mail_err}")
+        else:
+            print("   [FAILURE RECOVERY] No Completion Email module found. Skipping failure notification.")
+        
+        # Save Error State
         auto['last_error'] = {
             'date': datetime.now().isoformat(),
-            'message': reason
+            'message': f"CRITICAL: {str(execution_error)}"
         }
         try:
-            save_automation(auto)
-            print(f"   [AUTOMATION] STOPPED: Saved error state for {auto.get('name')} ({reason})")
-        except Exception as e:
-             print(f"   [AUTOMATION] Failed to save error state: {e}")
+             from backend.automation_storage import save_automation
+             save_automation(auto)
+        except: pass
 
 
 async def evaluate_condition(node):
@@ -570,7 +656,7 @@ async def evaluate_condition(node):
                     # Assuming "Every 1 Day" is the norm.
                 except:
                     pass 
-
+            
             # Update State (Caller saves if ANY time_interval triggers)
             # We mark it as True, and we set a temp_last_run in data to be saved?
             # Yes, we update it in memory. `process_automation` saves it later.
@@ -769,4 +855,4 @@ async def execute_action(node, nodes, edges, user_email, node_results=None, auto
     except Exception as e:
         print(f"[ACTION ERROR] Execution Failed: {e}")
         traceback.print_exc()
-
+        raise e # NEW: Re-raise to let the main loop know we crashed

@@ -325,7 +325,7 @@ const FloatingHeader = () => {
                     y: 0,
                     opacity: 1,
                     width: isMinimized ? 56 : "auto",
-                    height: isMinimized ? 56 : "auto",
+                    height: isMinimized ? 56 : (isVertical ? "auto" : 60),
                     borderRadius: 9999
                 }}
                 transition={{
@@ -337,7 +337,7 @@ const FloatingHeader = () => {
                 }}
                 onDoubleClick={() => setIsEditing(!isEditing)}
                 className={`${positionClass} z-[40] flex items-center justify-center bg-black/80 backdrop-blur-xl border border-white/10 shadow-2xl overflow-hidden 
-                ${isMinimized ? 'p-0' : (isVertical ? 'py-10 px-6 max-h-[85vh] flex-col' : 'h-20 max-w-[90vw] pr-12 flex-row')}
+                ${isMinimized ? 'p-0' : (isVertical ? 'py-10 px-6 max-h-[85vh] flex-col' : 'h-[60px] max-w-[90vw] pr-12 flex-row')}
                 `}
                 style={{ originX: 0.5, borderRadius: 9999 }}
             >

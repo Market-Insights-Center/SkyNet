@@ -55,7 +55,7 @@ const CommandPalette = () => {
 
         // --- Market Intelligence ---
         { id: 'market-junction', label: 'Market Junction', icon: Globe, path: '/market-junction' },
-        { id: 'briefing', label: 'Market Briefing', icon: Activity, path: '/briefing' },
+        { id: 'briefing', label: 'Market Briefing', icon: Activity, path: '/market-junction' },
         { id: 'predictions', label: 'Orion Market Predictions', icon: Activity, path: '/market-predictions' },
         { id: 'news', label: 'News Feed', icon: Globe, path: '/news' },
 

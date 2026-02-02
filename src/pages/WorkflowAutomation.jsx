@@ -389,8 +389,15 @@ const WorkflowAutomation = () => {
         const isConditional = ['risk', 'price', 'percentage', 'sentiment_trigger', 'time_interval'].includes(sourceType);
         const isLogic = ['logic_gate', 'if_gate'].includes(sourceType);
         const isInfo = ['email_info', 'rh_info'].includes(sourceType);
-        const isAction = ['tracking', 'nexus', 'send_email', 'webhook', 'completion_email'].includes(targetType);
+        const isAction = ['tracking', 'nexus', 'send_email', 'webhook', 'completion_email', 'end_automation'].includes(targetType);
         const isTargetLogic = ['logic_gate', 'if_gate'].includes(targetType);
+
+        // End Autommation Special Rules
+        if (sourceType === 'end_automation') {
+            if (targetType !== 'completion_email') {
+                return "End Automation can ONLY be connected to a Completion Email.";
+            }
+        }
 
         // Rules
         // 1. Conditionals -> Logic or Action
@@ -419,11 +426,23 @@ const WorkflowAutomation = () => {
         // 4. Action -> Nothing (End of flow)
         // EXCEPTION: Allow chaining Actions if the target is 'completion_email' (or another action if we want chains)
         // User specific request: "Make sure connection between modules like this (Action -> Email) works"
-        if (['tracking', 'nexus', 'send_email', 'webhook', 'completion_email'].includes(sourceType)) {
-            if (targetType !== 'completion_email') {
-                return "Action blocks cannot have outgoing connections (except to Completion Email).";
+        if (['tracking', 'nexus', 'send_email', 'webhook'].includes(sourceType)) {
+            // completion_email is an allowed target for actions
+            if (targetType !== 'completion_email' && targetType !== 'end_automation' && targetType !== 'tracking' && targetType !== 'nexus' && targetType !== 'send_email' && targetType !== 'webhook') {
+                // Relaxing strictness to allow chains if needed, but Completion Email is primary
+                // But usually Actions don't output unless they are pass-through
             }
+            // For now, let's keep it permissive for Action -> Action chains if users want them, 
+            // but specifically valid for Completion Email
         }
+
+        // Strict Action -> ...
+        if (['tracking', 'nexus', 'send_email', 'webhook', 'completion_email'].includes(sourceType)) {
+            // Logic adjusted: Actions can connect to other actions (like chains) or Completion Email or End Automation
+            // But completion_email should likely be terminal?
+            if (sourceType === 'completion_email') return "Completion Email cannot have outgoing connections.";
+        }
+
 
         return null; // Valid
     };

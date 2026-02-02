@@ -43,18 +43,22 @@ const HistoryTool = () => {
 
                 // Process data for Recharts
                 // Ensure numbers are numbers and timestamps are valid
-                const processedData = result.map(item => ({
-                    ...item,
-                    timestamp: new Date(item.Timestamp).getTime(), // Use timestamp for XAxis
-                    "General Market Score": parseFloat(item["General Market Score"]) || 0,
-                    "Large Market Cap Score": parseFloat(item["Large Market Cap Score"]) || 0,
-                    "Combined Score": parseFloat(item["Combined Score"]) || 0,
-                    "EMA Score": parseFloat(item["EMA Score"]) || 0,
-                    "Live SPY Price": parseFloat(item["Live SPY Price"]) || 0,
-                    "Live VIX Price": parseFloat(item["Live VIX Price"]) || 0,
-                    "Momentum Based Recession Chance": parseFloat(item["Momentum Based Recession Chance"]?.replace('%', '')) || 0,
-                    "VIX Based Recession Chance": parseFloat(item["VIX Based Recession Chance"]?.replace('%', '')) || 0,
-                }));
+                const processedData = result
+                    .map(item => ({
+                        ...item,
+                        timestamp: new Date(item.Timestamp).getTime(), // Use timestamp for XAxis
+                        "General Market Score": parseFloat(item["General Market Score"]) || 0,
+                        "Large Market Cap Score": parseFloat(item["Large Market Cap Score"]) || 0,
+                        "Combined Score": parseFloat(item["Combined Score"]) || 0,
+                        "EMA Score": parseFloat(item["EMA Score"]) || 0,
+                        "Live SPY Price": parseFloat(item["Live SPY Price"]) || 0,
+                        "Live VIX Price": parseFloat(item["Live VIX Price"]) || 0,
+                        "Momentum Based Recession Chance": parseFloat(item["Momentum Based Recession Chance"]?.replace('%', '')) || 0,
+                        "VIX Based Recession Chance": parseFloat(item["VIX Based Recession Chance"]?.replace('%', '')) || 0,
+                    }))
+                    // Filter out rows where crucial scores are 0 (indicating failed calculation or missing data)
+                    // We check Combined Score as a proxy for a valid market analysis row
+                    .filter(item => item["Combined Score"] > 0.001);
 
                 setData(processedData);
             } catch (err) {
@@ -95,7 +99,8 @@ const HistoryTool = () => {
                                 tickFormatter={(unixTime) => new Date(unixTime).toLocaleDateString()}
                                 stroke="#9ca3af"
                             />
-                            <YAxis domain={[0, 100]} stroke="#9ca3af" />
+                            {/* Use auto-scaling to zoom in on data range, but ensure margin so lines aren't at very edge */}
+                            <YAxis domain={['auto', 'auto']} stroke="#9ca3af" />
                             <Tooltip content={<CustomTooltip />} />
                             <Legend />
                             <Line type="monotone" dataKey="General Market Score" stroke="#eab308" strokeWidth={2} dot={false} />
@@ -123,8 +128,8 @@ const HistoryTool = () => {
                                 tickFormatter={(unixTime) => new Date(unixTime).toLocaleDateString()}
                                 stroke="#9ca3af"
                             />
-                            <YAxis yAxisId="left" stroke="#22c55e" label={{ value: 'SPY Price ($)', angle: -90, position: 'insideLeft', fill: '#22c55e' }} />
-                            <YAxis yAxisId="right" orientation="right" stroke="#ef4444" label={{ value: 'VIX Price', angle: 90, position: 'insideRight', fill: '#ef4444' }} />
+                            <YAxis yAxisId="left" domain={['auto', 'auto']} stroke="#22c55e" label={{ value: 'SPY Price ($)', angle: -90, position: 'insideLeft', fill: '#22c55e' }} />
+                            <YAxis yAxisId="right" orientation="right" domain={['auto', 'auto']} stroke="#ef4444" label={{ value: 'VIX Price', angle: 90, position: 'insideRight', fill: '#ef4444' }} />
                             <Tooltip content={<CustomTooltip />} />
                             <Legend />
                             <Line yAxisId="left" type="monotone" dataKey="Live SPY Price" stroke="#22c55e" strokeWidth={2} dot={false} />
@@ -150,7 +155,7 @@ const HistoryTool = () => {
                                 tickFormatter={(unixTime) => new Date(unixTime).toLocaleDateString()}
                                 stroke="#9ca3af"
                             />
-                            <YAxis domain={[0, 100]} stroke="#9ca3af" />
+                            <YAxis domain={['auto', 'auto']} stroke="#9ca3af" />
                             <Tooltip content={<CustomTooltip />} />
                             <Legend />
                             <Line type="monotone" dataKey="Momentum Based Recession Chance" name="EMA Chance" stroke="#f97316" strokeWidth={2} dot={false} />

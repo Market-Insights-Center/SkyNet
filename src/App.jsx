@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, useSearchParams, useLocation } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, useSearchParams, useLocation, Outlet } from 'react-router-dom';
 import { AnimatePresence } from 'framer-motion';
 import PageTransition from './components/PageTransition';
 import { PayPalScriptProvider } from "@paypal/react-paypal-js";
@@ -137,59 +137,60 @@ const AppContent = () => {
             <OrionOverlay />
             <CardExpansionOverlay />
             <CommandPalette /> {/* Mount Global Command Palette */}
-            <React.Suspense fallback={
-                <div className="h-screen w-full bg-black flex items-center justify-center">
-                    <Loader2 className="animate-spin text-gold" size={48} />
-                </div>
-            }>
-                <AnimatePresence mode="popLayout">
-                    <Routes location={location} key={location.pathname}>
-                        <Route path="/" element={<PageTransition><Layout><LazyRoutes.LandingPage /></Layout></PageTransition>} />
-                        <Route path="/products" element={<PageTransition><Layout><LazyRoutes.Products /></Layout></PageTransition>} />
-                        {/* <Route path="/asset-evaluator" element={<PageTransition><Layout><LazyRoutes.AssetEvaluator /></Layout></PageTransition>} /> */}
-                        <Route path="/products/comparison-matrix" element={<PageTransition><Layout><LazyRoutes.ComparisonMatrix /></Layout></PageTransition>} />
-                        <Route path="/performance-stream" element={<PageTransition><Layout><LazyRoutes.PerformanceStream /></Layout></PageTransition>} />
-                        <Route path="/market-junction" element={<PageTransition><Layout><LazyRoutes.MarketJunction /></Layout></PageTransition>} />
-                        <Route path="/portfolio-lab" element={<PageTransition><Layout><LazyRoutes.PortfolioLab /></Layout></PageTransition>} />
-                        <Route path="/database-lab" element={<PageTransition><Layout><LazyRoutes.DatabaseNodes /></Layout></PageTransition>} />
-                        <Route path="/custom" element={<PageTransition><Layout><LazyRoutes.Wizard /></Layout></PageTransition>} />
-                        <Route path="/invest" element={<PageTransition><Layout><LazyRoutes.Wizard /></Layout></PageTransition>} />
-                        <Route path="/cultivate" element={<PageTransition><Layout><LazyRoutes.Wizard /></Layout></PageTransition>} />
-                        <Route path="/tracking" element={<PageTransition><Layout><LazyRoutes.Wizard /></Layout></PageTransition>} />
-                        <Route path="/login" element={<PageTransition><Layout><LazyRoutes.Login /></Layout></PageTransition>} />
-                        <Route path="/signup" element={<PageTransition><Layout><LazyRoutes.SignUp /></Layout></PageTransition>} />
-                        <Route path="/profile" element={<PageTransition><Layout><LazyRoutes.Profile /></Layout></PageTransition>} />
-                        <Route path="/forum" element={<PageTransition><Layout><LazyRoutes.Forum /></Layout></PageTransition>} />
-                        <Route path="/news" element={<PageTransition><Layout><LazyRoutes.NewsPage /></Layout></PageTransition>} />
-                        <Route path="/knowledge-stream" element={<PageTransition><Layout><LazyRoutes.KnowledgeStream /></Layout></PageTransition>} />
-                        <Route path="/article/:id" element={<PageTransition><Layout><LazyRoutes.ArticleView /></Layout></PageTransition>} />
-                        <Route path="/admin" element={<PageTransition><Layout><LazyRoutes.AdminDashboard /></Layout></PageTransition>} />
-                        <Route path="/chat" element={<PageTransition><Layout><LazyRoutes.Chatbox /></Layout></PageTransition>} />
-                        <Route path="/ideas" element={<PageTransition><Layout><LazyRoutes.IdeasPage /></Layout></PageTransition>} />
-                        <Route path="/terms" element={<PageTransition><Layout><LazyRoutes.TermsOfService /></Layout></PageTransition>} />
-                        <Route path="/privacy" element={<PageTransition><Layout><LazyRoutes.PrivacyPolicy /></Layout></PageTransition>} />
-                        <Route path="/social" element={<PageTransition><Layout><LazyRoutes.Forum /></Layout></PageTransition>} />
-                        <Route path="/help" element={<PageTransition><Layout><LazyRoutes.Help /></Layout></PageTransition>} />
-                        <Route path="/about" element={<PageTransition><Layout><LazyRoutes.About /></Layout></PageTransition>} />
 
-                        {/* --- ORION DETACHED CONTROLS & SIDEBAR (No Transition Wrapper needed as they pop up) --- */}
-                        {/* Note: lazy loaded components work fine here too */}
-                        <Route path="/controls" element={<LazyRoutes.ControlsPage />} />
-                        <Route path="/sidebar" element={<LazyRoutes.SidebarPage />} />
-                        <Route path="/briefing" element={<LazyRoutes.Briefing />} />
-                        <Route path="/portfolio-nexus" element={<LazyRoutes.PortfolioNexus />} />
-                        <Route path="/sentinel-ai" element={<PageTransition><Layout><LazyRoutes.SentinelAI /></Layout></PageTransition>} />
-                        <Route path="/asset-evaluator" element={<LazyRoutes.AssetEvaluator />} />
-                        <Route path="/active-chart" element={<ActiveChartPage />} />
-                        <Route path="/active-chart" element={<ActiveChartPage />} />
-                        <Route path="/strategy-ranking" element={<PageTransition><Layout><LazyRoutes.StrategyRanking /></Layout></PageTransition>} />
-                        <Route path="/market-predictions" element={<PageTransition><Layout><LazyRoutes.MarketPredictions /></Layout></PageTransition>} />
+            <AnimatePresence mode="popLayout">
+                <Routes location={location} key={location.pathname}>
+                    {/* Routes WITH Layout (Standard Pages) */}
+                    <Route element={
+                        <Layout>
+                            <React.Suspense fallback={<div className="h-full w-full flex items-center justify-center"><Loader2 className="animate-spin text-gold" /></div>}>
+                                <Outlet />
+                            </React.Suspense>
+                        </Layout>
+                    }>
+                        <Route path="/" element={<PageTransition><LazyRoutes.LandingPage /></PageTransition>} />
+                        <Route path="/products" element={<PageTransition><LazyRoutes.Products /></PageTransition>} />
+                        <Route path="/products/comparison-matrix" element={<PageTransition><LazyRoutes.ComparisonMatrix /></PageTransition>} />
+                        <Route path="/performance-stream" element={<PageTransition><LazyRoutes.PerformanceStream /></PageTransition>} />
+                        <Route path="/market-junction" element={<PageTransition><LazyRoutes.MarketJunction /></PageTransition>} />
+                        <Route path="/portfolio-lab" element={<PageTransition><LazyRoutes.PortfolioLab /></PageTransition>} />
+                        <Route path="/database-lab" element={<PageTransition><LazyRoutes.DatabaseNodes /></PageTransition>} />
+                        <Route path="/custom" element={<PageTransition><LazyRoutes.Wizard /></PageTransition>} />
+                        <Route path="/invest" element={<PageTransition><LazyRoutes.Wizard /></PageTransition>} />
+                        <Route path="/cultivate" element={<PageTransition><LazyRoutes.Wizard /></PageTransition>} />
+                        <Route path="/tracking" element={<PageTransition><LazyRoutes.Wizard /></PageTransition>} />
+                        <Route path="/login" element={<PageTransition><LazyRoutes.Login /></PageTransition>} />
+                        <Route path="/signup" element={<PageTransition><LazyRoutes.SignUp /></PageTransition>} />
+                        <Route path="/profile" element={<PageTransition><LazyRoutes.Profile /></PageTransition>} />
+                        <Route path="/forum" element={<PageTransition><LazyRoutes.Forum /></PageTransition>} />
+                        <Route path="/news" element={<PageTransition><LazyRoutes.NewsPage /></PageTransition>} />
+                        <Route path="/knowledge-stream" element={<PageTransition><LazyRoutes.KnowledgeStream /></PageTransition>} />
+                        <Route path="/article/:id" element={<PageTransition><LazyRoutes.ArticleView /></PageTransition>} />
+                        <Route path="/admin" element={<PageTransition><LazyRoutes.AdminDashboard /></PageTransition>} />
+                        <Route path="/chat" element={<PageTransition><LazyRoutes.Chatbox /></PageTransition>} />
+                        <Route path="/ideas" element={<PageTransition><LazyRoutes.IdeasPage /></PageTransition>} />
+                        <Route path="/terms" element={<PageTransition><LazyRoutes.TermsOfService /></PageTransition>} />
+                        <Route path="/privacy" element={<PageTransition><LazyRoutes.PrivacyPolicy /></PageTransition>} />
+                        <Route path="/social" element={<PageTransition><LazyRoutes.Forum /></PageTransition>} />
+                        <Route path="/help" element={<PageTransition><LazyRoutes.Help /></PageTransition>} />
+                        <Route path="/about" element={<PageTransition><LazyRoutes.About /></PageTransition>} />
 
-                        <Route path="/workflow-automation" element={<PageTransition><Layout><LazyRoutes.WorkflowAutomation /></Layout></PageTransition>} />
-                        {/* <Route path="/singularity" element={<PageTransition><Layout><LazyRoutes.SingularityInterface /></Layout></PageTransition>} /> */}
-                    </Routes>
-                </AnimatePresence>
-            </React.Suspense>
+                        {/* Pages formerly with explicit Layout inside Transition, now implicitly wrapped */}
+                        <Route path="/sentinel-ai" element={<PageTransition><LazyRoutes.SentinelAI /></PageTransition>} />
+                        <Route path="/strategy-ranking" element={<PageTransition><LazyRoutes.StrategyRanking /></PageTransition>} />
+                        <Route path="/market-predictions" element={<PageTransition><LazyRoutes.MarketPredictions /></PageTransition>} />
+                        <Route path="/workflow-automation" element={<PageTransition><LazyRoutes.WorkflowAutomation /></PageTransition>} />
+                    </Route>
+
+                    {/* Routes WITHOUT Layout (Detached / Special) */}
+                    <Route path="/controls" element={<LazyRoutes.ControlsPage />} />
+                    <Route path="/sidebar" element={<LazyRoutes.SidebarPage />} />
+                    <Route path="/briefing" element={<LazyRoutes.Briefing />} />
+                    <Route path="/portfolio-nexus" element={<LazyRoutes.PortfolioNexus />} />
+                    <Route path="/asset-evaluator" element={<LazyRoutes.AssetEvaluator />} />
+                    <Route path="/active-chart" element={<ActiveChartPage />} />
+                </Routes>
+            </AnimatePresence>
         </>
     );
 };

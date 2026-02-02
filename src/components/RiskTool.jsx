@@ -47,7 +47,7 @@ const Speedometer = ({ value, label, min = 0, max = 100, ranges }) => {
             </div>
 
             <div className="relative w-48 h-24 overflow-hidden">
-                <ResponsiveContainer width="100%" height="200%">
+                <ResponsiveContainer width="100%" height="200%" minWidth={0} minHeight={0}>
                     <PieChart>
                         {/* Background Ranges */}
                         <Pie

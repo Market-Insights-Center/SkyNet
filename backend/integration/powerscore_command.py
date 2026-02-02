@@ -597,6 +597,9 @@ async def stream_powerscore_analysis(ticker: str, sensitivity: int, is_called_by
             prime['Q'] = np.clip(prime['Q'], 0, 100)
         except: prime['Q'] = 50.0
 
+    # Filter out components that returned 0.0 (treated as failure/no-data)
+    prime = {k: v for k, v in prime.items() if v is not None and v > 0.001}
+
     # --- Final Weighting ---
     weights_map = {
         1: {'R': 0.15, 'AB': 0.15, 'AA': 0.15, 'F': 0.15, 'Q': 0.20, 'S': 0.10, 'M': 0.10},

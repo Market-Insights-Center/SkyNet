@@ -41,9 +41,12 @@ def setup_domain_logger(name, filename):
     # Prevent propagation to avoid duplicate logs in main log if desired, 
     # but keeping it True allows 'Master' log to see everything. 
     # Let's keep propagation default (True).
-    handler = logging.FileHandler(filename, mode='w', encoding='utf-8')
-    handler.setFormatter(logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s"))
-    l.addHandler(handler)
+    try:
+        handler = logging.FileHandler(filename, mode='w', encoding='utf-8')
+        handler.setFormatter(logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s"))
+        l.addHandler(handler)
+    except Exception as e:
+        print(f"⚠️ Failed to setup file logger for {name}: {e}")
     return l
 
 # Configure Domain Loggers
