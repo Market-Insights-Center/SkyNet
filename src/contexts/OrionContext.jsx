@@ -309,6 +309,15 @@ export const OrionProvider = ({ children }) => {
             setConnectionError(null);
             reconnectAttempts.current = 0; // Reset retries on success
             addLog("System Connected", "SYSTEM");
+
+            // Auto-Start Subsystems
+            setTimeout(() => {
+                if (socket.readyState === WebSocket.OPEN) {
+                    socket.send(JSON.stringify({ action: "START_VISION" }));
+                    socket.send(JSON.stringify({ action: "START_EARS" }));
+                    addLog("Initializing Sensors...", "SYSTEM");
+                }
+            }, 500);
         };
 
         socket.onerror = (error) => {

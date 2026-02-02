@@ -15,6 +15,11 @@ import webbrowser
 import sys
 import os
 
+# --- LOGGING DEBUG OVERRIDE ---
+sys.stdout = open(os.path.join(os.path.dirname(__file__), 'orion_internal.log'), 'a', encoding='utf-8')
+sys.stderr = sys.stdout
+print(f"[{time.ctime()}] ORION V2 RESTARTED (PID: {os.getpid()})")
+
 # --- DEFENSIVE IMPORTS ---
 try:
     import pyautogui
@@ -494,8 +499,8 @@ class OrionV2Controller:
         # COMMANDS
         print(f" -> Heard: '{text}'")
 
-        if "sarah connor" in text:
-            self.initiate_shutdown("Voice: Sarah Connor")
+        if "shutdown" in text:
+            self.initiate_shutdown("Voice: Shutdown")
             return
 
         if "open chart" in text:
@@ -650,6 +655,13 @@ class OrionV2Controller:
 
     async def ws_handler(self, websocket):
         self.connected_clients.add(websocket)
+        # Broadcast Status on Connect
+        try:
+            v_stat = "ACTIVE" if self.eyes_active else "INACTIVE"
+            a_stat = "ACTIVE" if self.ears_active else "INACTIVE"
+            await websocket.send(json.dumps({"action": "VISION_STATUS", "payload": {"status": v_stat}}))
+            await websocket.send(json.dumps({"action": "AUDIO_STATUS", "payload": {"status": a_stat}}))
+        except: pass
         try:
             async for message in websocket: 
                 try:

@@ -5,13 +5,14 @@ import TiltCard from '../components/TiltCard';
 import { PinContainer } from '../components/PinContainer';
 import { motion } from 'framer-motion';
 import { Bot, ChevronRight, Search, Scale, Siren, ToggleLeft, ToggleRight, ExternalLink, HelpCircle, X, Hand, Mic, Activity, Loader2, Layers, Network, Maximize2, Cpu, DollarSign, Workflow } from 'lucide-react';
+import { FaMicrophone, FaEye } from 'react-icons/fa';
 import { useAuth } from '../contexts/AuthContext';
 import { useOrion } from '../contexts/OrionContext';
 
 const Products = () => {
     const { userProfile } = useAuth();
     const navigate = useNavigate();
-    const { connect, disconnect, isConnected, connectionError } = useOrion();
+    const { connect, disconnect, isConnected, connectionError, isVisionActive, isAudioActive } = useOrion();
     const [orionActive, setOrionActive] = useState(false);
     const [isProcessing, setIsProcessing] = useState(false);
     const [showControls, setShowControls] = useState(false);
@@ -124,6 +125,17 @@ const Products = () => {
                                 <p className="text-gray-400 text-sm mt-1">
                                     Activate gesture and voice control system.
                                 </p>
+                                {/* Status Indicators */}
+                                <div className="flex gap-3 mt-3">
+                                    <div className={`flex items-center gap-2 px-3 py-1 rounded-full border text-[10px] uppercase font-bold tracking-wider transition-all ${isVisionActive ? 'bg-green-900/20 border-green-500/50 text-green-400 shadow-[0_0_10px_rgba(34,197,94,0.2)]' : 'bg-gray-900/50 border-gray-700 text-gray-600'}`}>
+                                        <FaEye className={isVisionActive ? 'animate-pulse' : ''} />
+                                        {isVisionActive ? 'Vision Online' : 'Vision Offline'}
+                                    </div>
+                                    <div className={`flex items-center gap-2 px-3 py-1 rounded-full border text-[10px] uppercase font-bold tracking-wider transition-all ${isAudioActive ? 'bg-amber-900/20 border-amber-500/50 text-amber-400 shadow-[0_0_10px_rgba(245,158,11,0.2)]' : 'bg-gray-900/50 border-gray-700 text-gray-600'}`}>
+                                        <FaMicrophone className={isAudioActive ? 'animate-pulse' : ''} />
+                                        {isAudioActive ? 'Audio Active' : 'Audio Offline'}
+                                    </div>
+                                </div>
                             </div>
 
                             <div className="flex gap-4">
@@ -249,7 +261,7 @@ const Products = () => {
                                         <li><strong className="text-green-400">"Open Chart [Ticker]"</strong><br /><span className="text-gray-500">e.g. "Open Chart NVDA"</span></li>
                                         <li><strong className="text-green-400">"Go to [Page/Product]"</strong><br /><span className="text-gray-500">e.g. "Go to Quickscore", "Go to Risk"</span></li>
                                         <li><strong className="text-green-400">"Start/Stop Diction"</strong><br /><span className="text-gray-500">Toggle typing mode</span></li>
-                                        <li><strong className="text-green-400">"Sarah Connor"</strong><br /><span className="text-gray-500">System Shutdown</span></li>
+                                        <li><strong className="text-green-400">"Shutdown"</strong><br /><span className="text-gray-500">System Shutdown</span></li>
                                     </ul>
                                 </div>
                             </div>

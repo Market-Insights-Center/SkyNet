@@ -10,8 +10,16 @@ class OrionManager:
 
     @classmethod
     def start(cls, script_path):
+        # Prevent double-start if tracking variable is set
         if cls._process and cls._process.poll() is None:
             return False, "Orion is already active."
+
+        # CLEANUP: Kill any lingering instances of orion_v2.py (Zombies)
+        try:
+            # Windows: Find and kill python processes running orion_v2.py
+            cmd = "wmic process where \"CommandLine like '%orion_v2.py%' and name='python.exe'\" call terminate"
+            subprocess.run(cmd, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        except Exception: pass
         
         try:
             cls._process = subprocess.Popen([sys.executable, script_path])

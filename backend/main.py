@@ -28,7 +28,7 @@ logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
     handlers=[
-        logging.FileHandler(log_filename, mode='w', encoding='utf-8'), # 'w' = Overwrite old logs
+        logging.FileHandler(log_filename, mode='a', encoding='utf-8'), # 'a' = Append to logs
         logging.StreamHandler(sys.stdout)
     ]
 )
