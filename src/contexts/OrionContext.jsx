@@ -19,6 +19,9 @@ export const OrionProvider = ({ children }) => {
     const [chartTicker, setChartTicker] = useState(null);
     const [chartInterval, setChartInterval] = useState('D');
 
+    const [isVisionActive, setIsVisionActive] = useState(false);
+    const [isAudioActive, setIsAudioActive] = useState(false);
+
     // Refs for loop access
     const chartTickerRef = useRef(chartTicker);
     const chartIntervalRef = useRef(chartInterval);
@@ -268,6 +271,16 @@ export const OrionProvider = ({ children }) => {
                 if (isChartOpen) setChartTicker(null);
                 break;
 
+            case 'VISION_STATUS':
+                if (cmd.payload.status === 'ACTIVE') setIsVisionActive(true);
+                else setIsVisionActive(false);
+                if (cmd.payload.message) addLog(`Vision: ${cmd.payload.message}`, cmd.payload.status === 'ERROR' ? 'ERROR' : 'SYSTEM');
+                break;
+
+            case 'AUDIO_STATUS':
+                setIsAudioActive(cmd.payload.status === 'ACTIVE');
+                break;
+
             default: break;
         }
     };
@@ -411,7 +424,8 @@ export const OrionProvider = ({ children }) => {
     return (
         <OrionContext.Provider value={{
             connect, disconnect, shutdownSystem, sendCommand, isConnected, connectionError, logs, cursorPos, cursorState,
-            chartTicker, setChartTicker, chartInterval
+            chartTicker, setChartTicker, chartInterval,
+            isVisionActive, isAudioActive
         }}>
             {children}
         </OrionContext.Provider>

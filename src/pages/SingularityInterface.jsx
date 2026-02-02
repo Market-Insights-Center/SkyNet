@@ -2,11 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import SingularityCanvas from '../components/SingularityCanvas';
 import SingularityStream from '../components/SingularityStream'; // Assuming this exists
-import { FaNetworkWired, FaPowerOff, FaShieldAlt } from 'react-icons/fa'; // Ensure react-icons is installed
+import { FaNetworkWired, FaPowerOff, FaShieldAlt, FaMicrophone, FaEye } from 'react-icons/fa'; // Ensure react-icons is installed
 import { useOrion } from '../contexts/OrionContext';
 
 const SingularityInterface = () => {
-    const { connect, disconnect, isConnected, sendCommand } = useOrion();
+    const { connect, disconnect, isConnected, sendCommand, isVisionActive, isAudioActive } = useOrion();
     const [systemStatus, setSystemStatus] = useState('IDLE');
     const [streamData, setStreamData] = useState([]);
 
@@ -53,8 +53,22 @@ const SingularityInterface = () => {
                     </div>
 
                     {/* Status Badge */}
-                    <div className="hidden md:block backdrop-blur-md bg-black/40 px-4 py-2 rounded-full border border-cyan-900/30">
-                        <span className="text-xs tracking-widest">{systemStatus}</span>
+                    <div className="flex gap-2">
+                        {/* Audio Indicator */}
+                        <div className={`hidden md:flex items-center gap-2 backdrop-blur-md bg-black/40 px-3 py-2 rounded-full border ${isAudioActive ? 'border-amber-500/50 text-amber-400' : 'border-cyan-900/30 text-gray-600'}`}>
+                            <FaMicrophone className={isAudioActive ? 'animate-pulse' : ''} size={12} />
+                            <span className="text-[10px] tracking-widest">{isAudioActive ? 'EARS' : 'OFF'}</span>
+                        </div>
+
+                        {/* Vision Indicator */}
+                        <div className={`hidden md:flex items-center gap-2 backdrop-blur-md bg-black/40 px-3 py-2 rounded-full border ${isVisionActive ? 'border-green-500/50 text-green-400' : 'border-cyan-900/30 text-gray-600'}`}>
+                            <FaEye className={isVisionActive ? 'animate-pulse' : ''} size={12} />
+                            <span className="text-[10px] tracking-widest">{isVisionActive ? 'EYES' : 'OFF'}</span>
+                        </div>
+
+                        <div className="hidden md:block backdrop-blur-md bg-black/40 px-4 py-2 rounded-full border border-cyan-900/30">
+                            <span className="text-xs tracking-widest">{systemStatus}</span>
+                        </div>
                     </div>
                 </header>
 

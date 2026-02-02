@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 import {
     Save, Play, Pause, Plus, Trash2, ArrowLeft,
     Workflow, Activity, DollarSign, Percent,
-    Target, Layers, Mail, Lock, X, Clock,
+    Target, Layers, Mail, Lock, X, Clock, StopCircle,
     GitBranch, Zap, Globe, MousePointer, Hand, ZoomIn, ZoomOut, Maximize
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -547,7 +547,9 @@ const WorkflowAutomation = () => {
         if (type === 'rh_info') initialData = { email: '', password: '' };
         if (type === 'send_email') initialData = { subject: 'Automation Alert' };
         if (type === 'webhook') initialData = { url: '', platform: 'discord', message: 'Alert Triggered' };
+        if (type === 'webhook') initialData = { url: '', platform: 'discord', message: 'Alert Triggered' };
         if (type === 'completion_email') initialData = { email: userEmail || '' };
+        if (type === 'end_automation') initialData = {};
         if (type === 'time_interval') initialData = { interval: 1, unit: 'days', target_time: '09:30', last_run: null };
 
         const newNode = {
@@ -839,6 +841,7 @@ const WorkflowAutomation = () => {
                                     )}
                                 </div>
                                 <BlockButton label="Completion Email" icon={Mail} onClick={() => addNode('completion_email')} color="text-emerald-400" />
+                                <BlockButton label="End Automation" icon={StopCircle} onClick={() => addNode('end_automation')} color="text-red-600" />
                             </div>
                         </div>
                         <div>
@@ -964,13 +967,22 @@ const WorkflowAutomation = () => {
                                     const w = el ? el.offsetWidth : 320; // Default fallback width
                                     const h = el ? el.offsetHeight : 100; // Default fallback height
 
+                                    // SAFETY CHECK: Fixes "Cannot read properties of undefined (reading 'x')"
+                                    if (!node.position) return { x: 0, y: 0 };
+
+                                    // End Automation Special Logic
+                                    if (node.type === 'end_automation') {
+                                        if (handle === 'left') return { x: node.position.x, y: node.position.y + h / 2 };
+                                        if (handle === 'right') return { x: node.position.x + w, y: node.position.y + h / 2 };
+                                    }
+
                                     // Standard Handles
                                     if (handle === 'top') return { x: node.position.x + w / 2, y: node.position.y };
                                     if (handle === 'bottom') return { x: node.position.x + w / 2, y: node.position.y + h };
                                     if (handle === 'left') return { x: node.position.x, y: node.position.y + h / 2 };
                                     if (handle === 'right') return { x: node.position.x + w, y: node.position.y + h / 2 };
 
-                                    // ... (Dynamic handles logic same as before, but relative to node.position) ...
+                                    // Dynamic Handles (Logic Blocks)
                                     const headerHeight = 45;
                                     const rowHeight = 40;
 
@@ -981,12 +993,7 @@ const WorkflowAutomation = () => {
                                     }
                                     if (handle.startsWith('out-')) {
                                         if (handle === 'out-else') {
-                                            // If we can't get exact height, guess?
-                                            // Actually, we can rely on node input
                                             const count = node.data.conditions?.length || 0;
-                                            // The else block is after all conditions
-                                            // header + (conditions * row) + else_row
-                                            // Wait, previous logic was:
                                             const yOffset = headerHeight + (count * rowHeight) + (rowHeight / 2);
                                             return { x: node.position.x + w, y: node.position.y + yOffset };
                                         }
@@ -1441,6 +1448,13 @@ const NodeComponent = ({ node, onDelete, updateData, onDotClick, connecting }) =
                     <div className="space-y-2">
                         <div className="text-xs text-gray-400">Sends summary upon completion.</div>
                         <input className="w-full bg-black/40 rounded px-2 py-1 border border-white/10" placeholder="Target Email (Optional)" value={node.data.email} onChange={e => updateData({ email: e.target.value })} />
+                    </div>
+                )}
+
+                {node.type === 'end_automation' && (
+                    <div className="space-y-2">
+                        <div className="text-xs text-gray-400">Ends the automation flow.</div>
+                        <div className="text-[10px] text-gray-500">Connect to 'Completion Email' for summary.</div>
                     </div>
                 )}
 

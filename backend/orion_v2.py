@@ -562,21 +562,42 @@ class OrionV2Controller:
         self.is_running = False
 
     def start_camera_and_processing(self):
-        """Standard Webcam Loop (Eyes)"""
+        """Standard Webcam Loop (Eyes) with robust connection"""
         if not cv2 or not self.hands:
             print("Vision dependencies missing. Loop aborted.")
+            self.broadcast_command("VISION_STATUS", {"status": "ERROR", "message": "Dependencies Missing"})
             return
 
         print("Starting Vision Loop...")
-        # Guard against CAP_DSHOW on Linux
-        try:
-             cap = cv2.VideoCapture(0, cv2.CAP_DSHOW) if sys.platform == 'win32' else cv2.VideoCapture(0)
-        except:
+        self.broadcast_command("VISION_STATUS", {"status": "STARTING"})
+        
+        cap = None
+        selected_index = -1
+        
+        # Try indices 0, 1, 2
+        for i in range(3):
+            try:
+                temp_cap = cv2.VideoCapture(i, cv2.CAP_DSHOW) if sys.platform == 'win32' else cv2.VideoCapture(i)
+                if temp_cap.isOpened():
+                    # Quick read test
+                    ret, _ = temp_cap.read()
+                    if ret:
+                        cap = temp_cap
+                        selected_index = i
+                        print(f"Camera found at index {i}")
+                        break
+                    else:
+                        temp_cap.release()
+            except: pass
+            
+        if not cap or not cap.isOpened():
+             print("Camera not found on indices 0-2.")
+             self.broadcast_command("VISION_STATUS", {"status": "ERROR", "message": "No Camera Found"})
+             self.speak("Camera failure")
              return
-             
-        if not cap.isOpened():
-             print("Camera not found.")
-             return
+
+        self.broadcast_command("VISION_STATUS", {"status": "ACTIVE", "index": selected_index})
+        self.speak(f"Vision Online Camera {selected_index}")
 
         # No NamedWindow on Headless
         
@@ -590,6 +611,7 @@ class OrionV2Controller:
                 while self.is_running and self.eyes_active and cap.isOpened():
                     success, image = cap.read()
                     if not success:
+                        self.broadcast_command("VISION_STATUS", {"status": "ERROR", "message": "Frame Drop"})
                         time.sleep(0.1)
                         continue
 
@@ -606,8 +628,10 @@ class OrionV2Controller:
 
         except Exception as e:
             print(f"Vision Loop Error: {e}")
+            self.broadcast_command("VISION_STATUS", {"status": "ERROR", "message": str(e)})
         finally:
-            cap.release()
+            if cap: cap.release()
+            self.broadcast_command("VISION_STATUS", {"status": "INACTIVE"})
 
 
     async def main_async(self):
@@ -639,16 +663,19 @@ class OrionV2Controller:
                             self.eyes_active = True
                             self.vision_thread = threading.Thread(target=self.start_camera_and_processing, daemon=True)
                             self.vision_thread.start()
-                            self.speak("Vision System Online")
+                            # Status handled in thread
                     elif action == "STOP_VISION":
                         self.eyes_active = False 
                         self.speak("Vision System Offline")
+                        self.broadcast_command("VISION_STATUS", {"status": "INACTIVE"})
                     elif action == "START_EARS":
                         self.ears_active = True
                         self.speak("Ears Active")
+                        self.broadcast_command("AUDIO_STATUS", {"status": "ACTIVE"})
                     elif action == "STOP_EARS":
                         self.ears_active = False
                         self.speak("Ears Sleeping")
+                        self.broadcast_command("AUDIO_STATUS", {"status": "INACTIVE"})
                         
                 except: pass
         except: pass
