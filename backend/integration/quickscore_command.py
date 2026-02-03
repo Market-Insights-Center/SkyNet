@@ -184,11 +184,17 @@ async def handle_quickscore_command(args: List[str], ai_params: Optional[Dict]=N
     # for /quickscore, but this function was only returning a string.
     # The executor's summarization logic will handle this dict.
     if is_called_by_ai:
-        # Check if we have valid data
-        if live_price_qs_display == "N/A":
+        # Check if we have ANY valid data
+        has_any_data = False
+        for k, v in scores_qs.items():
+            if v != "N/A":
+                has_any_data = True
+                break
+        
+        if not has_any_data and live_price_qs_display == "N/A":
              return {
                  "status": "error",
-                 "message": f"No market data found for {ticker_qs}",
+                 "message": f"Could not find any trading data for '{ticker_qs}'. Please verify the ticker symbol.",
                  "ticker": ticker_qs
              }
         
@@ -198,7 +204,7 @@ async def handle_quickscore_command(args: List[str], ai_params: Optional[Dict]=N
             structured_scores[str(k)] = { # Ensure string keys
                 "label": sensitivity_map[k].split(' ')[0], # "Weekly", "Daily"
                 "full_label": sensitivity_map[k],
-                "score": v
+                "score": v if v != "NaN%" else "N/A" # Handle potential string NaN
             }
 
         return {

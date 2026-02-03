@@ -36,7 +36,16 @@ const CustomTooltip = ({ active, payload, label }) => {
 const QuickscoreChart = ({ data, ticker }) => {
     // data is object: { "1": [...], "2": [...], "3": [...] }
     // "1": Weekly, "2": Daily, "3": Hourly
-    const [activeTab, setActiveTab] = useState('2'); // Default to Daily
+
+    // Determine the best starting tab
+    const availableKeys = Object.keys(data || {});
+    // Preference order: Daily (2), Weekly (1), Hourly (3)
+    const initialTab = availableKeys.includes('2') && data['2'].length > 0 ? '2'
+        : availableKeys.includes('1') && data['1'].length > 0 ? '1'
+            : availableKeys.includes('3') && data['3'].length > 0 ? '3'
+                : '2';
+
+    const [activeTab, setActiveTab] = useState(initialTab);
 
     const chartData = data[activeTab] || [];
 
