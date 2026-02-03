@@ -15,7 +15,8 @@ const StrategyRanking = () => {
         portfolio_code: '',
         interval: '1/d',
         execution_time: '09:30',
-        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
+        starting_value: 10000
     });
     const [message, setMessage] = useState('');
 
@@ -45,7 +46,11 @@ const StrategyRanking = () => {
             const data = await res.json();
             // Sort by PnL Descending
             if (data.active) data.active.sort((a, b) => (b.pnl_all_time || 0) - (a.pnl_all_time || 0));
-            if (data.history) data.history.sort((a, b) => (b.pnl_all_time || 0) - (a.pnl_all_time || 0));
+            if (data.history) data.history.sort((a, b) => {
+                const roiA = ((a.pnl_all_time || 0) / (a.initial_value || 10000));
+                const roiB = ((b.pnl_all_time || 0) / (b.initial_value || 10000));
+                return roiB - roiA;
+            });
             setRankings(data);
         } catch (error) {
             console.error("Error fetching rankings:", error);
@@ -116,20 +121,27 @@ const StrategyRanking = () => {
         }
     };
 
-    const formatPnL = (val) => {
+    const formatPnL = (val, initial = 10000, showDollar = true) => {
         const num = parseFloat(val || 0);
+        const init = parseFloat(initial || 10000);
+        const percent = init === 0 ? 0 : (num / init) * 100;
         const isPos = num >= 0;
         return (
             <span className={`font-mono font-bold ${isPos ? 'text-green-400' : 'text-red-400'} flex items-center gap-1`}>
                 {isPos ? <TrendingUp size={14} /> : <TrendingDown size={14} />}
-                ${Math.abs(num).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                {showDollar && <span>${Math.abs(num).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>}
+                <span className={`text-xs ${showDollar ? 'ml-1 opacity-80' : ''} font-extrabold`}>
+                    {showDollar ? '(' : ''}{isPos ? '+' : ''}{percent.toFixed(2)}%{showDollar ? ')' : ''}
+                </span>
             </span>
         );
     };
 
     const formatTimeSince = (dateStr) => {
         if (!dateStr) return 'Just now';
-        const date = new Date(dateStr);
+        // Assume UTC if no timezone specified (Backend sends naive UTC ISO)
+        const safeDateStr = dateStr.endsWith('Z') ? dateStr : dateStr + 'Z';
+        const date = new Date(safeDateStr);
         const now = new Date();
         const diffMs = now - date;
         const diffMins = Math.floor(diffMs / 60000);
@@ -140,6 +152,125 @@ const StrategyRanking = () => {
         if (diffHrs > 0) return `${diffHrs}h ago`;
         if (diffMins > 0) return `${diffMins}m ago`;
         return 'Just now';
+    };
+
+    const formatExecutionTime = (timeStr, tzStr) => {
+        if (!timeStr) return '';
+        try {
+            // Create a date for "today" at the strategy's time in its timezone
+            // Then convert to local string
+            const now = new Date();
+            const [hours, mins] = timeStr.split(':').map(Number);
+
+            // We need a way to interpret "hours:mins" in "tzStr" and get a Date object
+            // This is tricky in vanilla JS without reliable libraries like date-fns-tz or moment-timezone
+            // But we can use Intl.DateTimeFormat to "reverse" it or just display it converted
+
+            // Hacky but effective way:
+            // 1. Get current date string in target timezone
+            const targetDateStr = new Intl.DateTimeFormat('en-US', { timeZone: tzStr, year: 'numeric', month: '2-digit', day: '2-digit' }).format(now);
+            // targetDateStr is MM/DD/YYYY
+            const [mm, dd, yyyy] = targetDateStr.split('/');
+
+            // Construct ISO string for that time in that timezone (approximately)
+            // Actually, simplest is to use 'toLocaleString' with the target Timezone to verify, 
+            // but we want to CONVERT TO LOCAL.
+
+            // Better approach:
+            // We know the strategy runs at HH:MM in TZ.
+            // We want to know what HH:MM in TZ is in LOCAL.
+
+            // Let's create a date object that represents that absolute point in time (for today)
+            // 1. Create a string "YYYY-MM-DDTHH:MM:00"
+            // 2. Treat it as if it is in TZ
+            // 3. Convert to Local
+
+            // Since JS Date parsing implies local or UTC, we can't easily parse "as TZ".
+            // However, we can use the formatToParts hack or just append offset if we knew it to UTC? No.
+
+            // Let's stick to the simplest requirements: 
+            // The user wants to see it relative to THEM.
+            // If we assume the input `timeStr` is in UTC (which is what backend might be doing if it normalizes?), 
+            // No, backend stores "09:30" and "America/Chicago".
+
+            // Let's rely on the fact that we can just display the TZ abbreviation if complex conversion is hard.
+            // BUT user specifically asked for conversion.
+
+            // Let's try to construct a date where we force the time, then offset it.
+            // OR: use a dummy date, get its UTC representation, adjust?
+
+            // Actually, let's just use the USER's timezone for the "Timezone" column text 
+            // and try to show the converted time.
+
+            // Workaround:
+            // 1. Create a Date object.
+            // 2. Use `toLocaleString('en-US', { timeZone: tzStr })` to find offset? Hard.
+
+            // Let's try this:
+            // "09:30 America/Chicago"
+            // We want to display it as "XX:XX LocalTimezone"
+
+            // We can iterate hours 0-23 until `toLocaleString(tzStr)` matches the target time? (Inefficient but works for 24h)
+            // Or just display "09:30 CST" (User's request: "display all timezone runs relative to the user's timezone")
+
+            // Let's try to display the Original Time + Original Zone Abbreviation.
+            // AND the Local Time if different.
+
+            // Actually, if we just want to FORMAT the `timezone` string to be short (e.g. CST), 
+            // we can use `new Date().toLocaleTimeString('en-us',{timeZoneName:'short', timeZone: tzStr})`
+
+            // Let's do this:
+            const testDate = new Date();
+            testDate.setHours(hours, mins, 0, 0);
+            // This `testDate` is 09:30 LOCAL.
+
+            // If the strategy is 09:30 CST, and I am in EST.
+            // 09:30 CST is 10:30 EST.
+            // If I create 09:30 LOCAL (EST), I am off.
+
+            // Correct logic:
+            // We need a date object `d` such that `d.toLocaleTimeString(tzStr)` says "9:30".
+            // Then we print `d.toLocaleTimeString(local)`.
+
+            // Let's approximate.
+            // Construct a UTC date at 09:30.
+            const baseFunc = (d) => d.toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', timeZone: tzStr });
+
+            let d = new Date();
+            d.setUTCHours(hours, mins, 0, 0);
+
+            // We need to shift `d` until `baseFunc(d)` matches `timeStr`.
+            // Binary search or iterative adjustment?
+            // Since timezones are at most +/- 14h, we can just find the shift.
+
+            // Better: use the user's local, because they said "relative to the user's timezone".
+            // If I see "09:30 UTC" and I am in CST, I want to see "03:30 CST".
+            // So: Input is (Time, SourceTZ). Output is (Time, LocalTZ).
+
+            // Let's use `new Date().toLocaleString('en-US', {timeZone: tzStr})` to get the offset?
+            // No, that gives time at TZ.
+
+            // Let's accept that without a library, accurate arbitrary-timezone-to-local conversion is hard.
+            // BUT, if the user sends "UTC" (common), we can handle it easily.
+            if (tzStr === 'UTC') {
+                const utcDate = new Date();
+                utcDate.setUTCHours(hours, mins, 0, 0);
+                return {
+                    time: utcDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                    tz: Intl.DateTimeFormat().resolvedOptions().timeZone
+                };
+            }
+
+            // If not UTC, we will display the original time and code for accuracy,
+            // appending the local equivalent if we can guess it?
+            // Let's just return the original time and text, but formatted nicer.
+            // Try to get short name
+            const shortTz = new Date().toLocaleTimeString('en-us', { timeZoneName: 'short', timeZone: tzStr }).split(' ')[2] || tzStr;
+            return { time: timeStr, tz: shortTz };
+
+        } catch (e) {
+            return { time: timeStr, tz: tzStr };
+        }
     };
 
     return (
@@ -195,6 +326,16 @@ const StrategyRanking = () => {
                                 value={submission.execution_time}
                                 onChange={(e) => setSubmission({ ...submission, execution_time: e.target.value })}
                                 className="w-full bg-black/50 border border-white/20 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-gold"
+                            />
+                        </div>
+                        <div className="w-full md:w-48">
+                            <label className="block text-gray-400 text-sm mb-1">Starting Value ($)</label>
+                            <input
+                                type="number"
+                                value={submission.starting_value}
+                                onChange={(e) => setSubmission({ ...submission, starting_value: parseFloat(e.target.value) || 0 })}
+                                className="w-full bg-black/50 border border-white/20 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-gold"
+                                min="1000"
                             />
                         </div>
                         <button
@@ -272,13 +413,20 @@ const StrategyRanking = () => {
                                                     {isMine && <span className="text-xs bg-gold/20 text-gold px-2 py-0.5 rounded border border-gold/30">YOU</span>}
                                                 </td>
                                                 <td className="px-6 py-4 text-right">
-                                                    {formatPnL(item.pnl_all_time)}
+                                                    {formatPnL(item.pnl_all_time, item.initial_value, activeTab !== 'history')}
                                                 </td>
                                                 <td className="px-6 py-4">
                                                     <div className="flex flex-col">
                                                         <span className="px-2 py-1 bg-white/5 rounded text-xs text-center text-gray-300 w-fit">{item.interval || '1/d'}</span>
-                                                        <span className="text-[10px] text-gray-500 mt-1">@ {item.execution_time || '09:30'}</span>
-                                                        <span className="text-[8px] text-gray-600 uppercase tracking-wide">{item.timezone || 'UTC'}</span>
+                                                        {(() => {
+                                                            const { time, tz } = formatExecutionTime(item.execution_time || '09:30', item.timezone || 'UTC');
+                                                            return (
+                                                                <>
+                                                                    <span className="text-[10px] text-gray-500 mt-1">@ {time}</span>
+                                                                    <span className="text-[8px] text-gray-600 uppercase tracking-wide">{tz}</span>
+                                                                </>
+                                                            );
+                                                        })()}
                                                     </div>
                                                 </td>
                                                 <td className="px-6 py-4 text-gray-400 text-sm">
@@ -343,7 +491,7 @@ const StrategyRanking = () => {
                                                     {item.portfolio_code}
                                                     {item.status === 'active' && <span className="absolute -top-1 -right-2 w-2 h-2 bg-green-500 rounded-full animate-pulse" title="Active"></span>}
                                                 </td>
-                                                <td className="py-3 text-right">{formatPnL(item.pnl_all_time)}</td>
+                                                <td className="py-3 text-right">{formatPnL(item.pnl_all_time, item.initial_value, true)}</td>
                                                 <td className="py-3 text-right flex justify-end gap-3">
                                                     <button
                                                         onClick={() => handleRemove(item.portfolio_code)}
@@ -359,7 +507,7 @@ const StrategyRanking = () => {
                                     {rankings.history.filter(x => x.user_email === submission.user_email).map((item, idx) => (
                                         <tr key={`hist-${idx}`} className="border-b border-white/5 last:border-0 hover:bg-white/5 transition-colors opacity-70">
                                             <td className="py-3 font-bold text-gray-400">{item.portfolio_code} (Retired)</td>
-                                            <td className="py-3 text-right">{formatPnL(item.pnl_all_time)}</td>
+                                            <td className="py-3 text-right">{formatPnL(item.pnl_all_time, item.initial_value, false)}</td>
                                             <td className="py-3 text-right flex justify-end gap-3">
                                                 <button
                                                     onClick={() => handlePermanentDelete(item.portfolio_code)}

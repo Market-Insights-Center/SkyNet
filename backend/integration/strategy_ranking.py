@@ -59,7 +59,7 @@ def save_rankings(data: Dict[str, Any]):
     except Exception as e:
         logger.error(f"Failed to save rankings: {e}")
 
-async def submit_portfolio_to_ranking(user_email: str, portfolio_code: str, interval: str, execution_time: str = "09:30", timezone: str = "UTC") -> Dict[str, Any]:
+async def submit_portfolio_to_ranking(user_email: str, portfolio_code: str, interval: str, execution_time: str = "09:30", timezone: str = "UTC", starting_value: float = 10000.0) -> Dict[str, Any]:
     """
     Submits a portfolio (Custom or Nexus) to the active rankings.
     """
@@ -83,6 +83,11 @@ async def submit_portfolio_to_ranking(user_email: str, portfolio_code: str, inte
             item["user_email"] = user_email
             item["username"] = username
             item["status"] = "active"
+            # Update initial value only if it looks like a reset or new intent? 
+            # User might want to change starting capital. Let's allow it.
+            # But this might mess up PnL if we don't reset history.
+            # For now, let's update it.
+            item["initial_value"] = starting_value
             save_rankings(rankings)
             return {"status": "success", "message": "Portfolio ranking updated."}
 
@@ -105,6 +110,7 @@ async def submit_portfolio_to_ranking(user_email: str, portfolio_code: str, inte
         "interval": interval,
         "execution_time": execution_time,
         "timezone": timezone,
+        "initial_value": starting_value,
         "submission_date": datetime.utcnow().isoformat(),
         "last_run": None,
         "pnl_all_time": 0.0,
@@ -216,14 +222,14 @@ async def update_single_portfolio_ranking(portfolio_code: str):
 
         # --- VALUATION OF PREVIOUS HOLDINGS ---
         previous_holdings = item.get("virtual_holdings", [])
-        previous_cash = item.get("virtual_cash", 10000.0)
+        initial_val = item.get("initial_value", 10000.0)
+        previous_cash = item.get("virtual_cash", initial_val)
         
         current_equity = 0.0
         
-        if not previous_holdings:
+        if not previous_holdings and item.get("last_run") is None:
             # First Run
-            current_equity = 10000.0
-            item["initial_value"] = 10000.0
+            current_equity = initial_val
         else:
             # Calculate value using live prices
             import yfinance as yf

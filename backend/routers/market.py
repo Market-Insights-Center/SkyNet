@@ -361,7 +361,14 @@ async def get_strategy_rankings():
 
 @router.post("/api/strategy-ranking/submit")
 async def submit_strategy_ranking(req: RankingSubmitRequest):
-    return await strategy_ranking.submit_portfolio_to_ranking(req.user_email, req.portfolio_code, req.interval)
+    return await strategy_ranking.submit_portfolio_to_ranking(
+        req.user_email, 
+        req.portfolio_code, 
+        req.interval, 
+        req.execution_time, 
+        req.timezone,
+        req.starting_value
+    )
 
 @router.post("/api/strategy-ranking/remove")
 async def remove_strategy_ranking(req: RankingRemoveRequest):

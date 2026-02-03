@@ -315,6 +315,7 @@ class RankingSubmitRequest(BaseModel):
     interval: str 
     execution_time: Optional[str] = "09:30" 
     timezone: Optional[str] = "UTC" 
+    starting_value: Optional[float] = 10000.0
 
 class RankingRemoveRequest(BaseModel):
     user_email: str
