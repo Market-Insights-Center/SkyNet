@@ -76,10 +76,15 @@ async def run_nexus(req: NexusRequest):
             try:
                 # We must accept the new progress_callback arg
                 # Note: handle_nexus_command signature was updated to accept progress_callback
+                # Prevent immediate execution for GUI requests
+                # Only pass email if requested
+                final_email = ai_params['email_to'] if ai_params.get('send_email') else None
+                ai_params['email_to'] = final_email
+
                 result = await nexus_command.handle_nexus_command(
                     [], 
                     ai_params=ai_params, 
-                    is_called_by_ai=True,
+                    is_called_by_ai=False, # GUI calls are NOT AI automation
                     progress_callback=progress_callback
                 )
                 

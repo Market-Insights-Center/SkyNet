@@ -557,15 +557,20 @@ async def handle_nexus_command(args: List[str], ai_params: Optional[Dict] = None
 
         # Value
         rh_equity = 0.0
-        execute_rh = is_called_by_ai and ai_params and ai_params.get('execute_rh')
-        if execute_rh:
+        # "execute_rh" param means the user WANTS to use Robinhood (for data + execution).
+        # We split this: 
+        #   use_rh_data: Fetch Equity/Holdings (Always Allowed if checked)
+        #   can_auto_execute: Actually Trade (Only if AI/Automation)
+        use_rh_data = ai_params and ai_params.get('execute_rh')
+        
+        if use_rh_data:
             try: rh_equity = await asyncio.to_thread(get_robinhood_equity)
             except: pass
             
         total_value = float(ai_params.get("total_value") or 0)
         
         # If executing on RH and no manual value provided, use RH Equity
-        if execute_rh and total_value <= 0 and rh_equity > 0:
+        if use_rh_data and total_value <= 0 and rh_equity > 0:
              print(f"[DEBUG NEXUS] No manual total_value provided. Using RH Equity: ${rh_equity}")
              total_value = math.floor(rh_equity * 0.98) # Safety buffer
         # Apply Cash Reserve (Nexus Level)
@@ -595,7 +600,7 @@ async def handle_nexus_command(args: List[str], ai_params: Optional[Dict] = None
 
         # --- CONSTRAINTS VERIFICATION (Robust Logic vs Old Holdings) ---
         old_holdings_map = {}
-        if execute_rh:
+        if use_rh_data:
              live_h = await asyncio.to_thread(get_robinhood_holdings)
              if live_h: old_holdings_map = live_h
         
@@ -718,10 +723,42 @@ async def handle_nexus_command(args: List[str], ai_params: Optional[Dict] = None
         )
         
         # Execute if requested
-        # --- 6. EXECUTE (Conditional) ---
-        # MODIFIED: specific rebalance logic is deferred. We ALWAYS run "dry run" first to get trades.
-        # The frontend will see "requires_execution_confirmation" and prompt the user.
+        # --- 6. EXECUTE & NOTIFY ---
+        # MODIFIED: Safety Check + Email First + Execution Second
+
+        # A. SAFETY CHECK: "Sold All" Prevention
+        # If new_holdings is empty but old_holdings is NOT, we consider this a critical failure (unless intended).
+        # We block execution in this case.
+        is_safe_to_execute = True
+        warning_msg = ""
         
+        if len(new_holdings) == 0 and len(old_holdings_map) > 0 and total_value > 100:
+             print("[CRITICAL SAFETY] Target Portfolio is EMPTY but user has holdings. ABORTING EXECUTION.")
+             is_safe_to_execute = False
+             warning_msg = "[SAFETY BLOCK] Execution prevented: Target portfolio empty (possible data failure) vs Existing Holdings."
+        
+        # B. Send Email (Preview)
+        email_to = ai_params.get('email_to')
+        if email_to and (len(trades) > 0 or warning_msg):
+            if progress_callback: await progress_callback("Sending Preview Email...")
+            try:
+                # Import here to avoid circular dependency
+                from backend.integration.tracking_command import _send_tracking_email
+                
+                rows = "".join([f"<tr><td>{t['ticker']}</td><td>{t['action']}</td><td>{t['diff']:.4f}</td></tr>" for t in trades])
+                
+                safety_banner = ""
+                if not is_safe_to_execute:
+                    safety_banner = f"<div style='background-color: #ffcccc; padding: 10px; border: 1px solid red;'><h3>⛔ SAFETY TRIGGERED</h3><p>{warning_msg}</p><p>Stocks have NOT been sold.</p></div>"
+                
+                html = f"<h2>Nexus Portfolio Preview: {nexus_code}</h2>{safety_banner}<p><b>Status:</b> {warning_msg if warning_msg else 'Ready'}</p><table border='1' cellpadding='5' style='border-collapse: collapse;'><tr><th>Ticker</th><th>Action</th><th>Shares</th></tr>{rows}</table>"
+                
+                await _send_tracking_email(f"Nexus Alert: {nexus_code} {warning_msg}", html, email_to)
+                if progress_callback: await progress_callback("Email Sent.")
+            except Exception as e:
+                print(f"[DEBUG NEXUS] Email failed: {e}") 
+
+        # C. EXECUTE TRADES (Conditional)
         # We need to get Robinhood credentials to determine if execution is possible
         rh_user = os.environ.get("RH_USERNAME")
         rh_pass = os.environ.get("RH_PASSWORD")
@@ -737,14 +774,15 @@ async def handle_nexus_command(args: List[str], ai_params: Optional[Dict] = None
                 'quantity': float(t['diff'])
             })
 
-        # Call execute_portfolio_rebalance in dry-run mode
-        # If skip_execution is True, we force execute=False regardless of execute_rh
-        # force execute=False to ensure we NEVER execute during the Nexus preview/planning phase.
-        # The user must explicit click "Execute" in the frontend which calls the separate /api/execute-trades endpoint.
+        # Allow execution ONLY if called by AI (Automation) AND explicitly requested AND SAFE
+        should_execute = is_called_by_ai and use_rh_data and is_safe_to_execute
         
-        # We process 'execute_rh' only to return the "requires_execution_confirmation" flag below.
-        # Allow execution ONLY if called by AI (Automation) AND explicitly requested.
-        should_execute = is_called_by_ai and execute_rh
+        # Debug why no execution
+        if use_rh_data and is_safe_to_execute and not is_called_by_ai:
+             print("[DEBUG NEXUS] Execution skipped (Dry Run / GUI Mode).")
+
+        if use_rh_data and not is_safe_to_execute:
+             print(f"[DEBUG NEXUS] Execution Skipped due to Safety Block: {warning_msg}")
 
         rebal_res = await asyncio.to_thread(
             execute_portfolio_rebalance,
@@ -752,22 +790,6 @@ async def handle_nexus_command(args: List[str], ai_params: Optional[Dict] = None
             execute=should_execute,
             progress_callback=progress_callback
         )
-
-        # 6b. Send Email if requested (Even in dry run)
-        email_to = ai_params.get('email_to')
-        if email_to and len(trades) > 0:
-            if progress_callback: await progress_callback("Sending Preview Email...")
-            try:
-                # Import here to avoid circular dependency if needed, or assume standard import
-                from backend.integration.tracking_command import _send_tracking_email
-                
-                rows = "".join([f"<tr><td>{t['ticker']}</td><td>{t['action']}</td><td>{t['diff']:.4f}</td></tr>" for t in trades])
-                html = f"<h2>Nexus Portfolio Preview: {nexus_code}</h2><p><b>Note:</b> These trades have NOT been executed yet. Please confirm in the dashboard.</p><table border='1' cellpadding='5' style='border-collapse: collapse;'><tr><th>Ticker</th><th>Action</th><th>Shares</th></tr>{rows}</table>"
-                await _send_tracking_email(f"Nexus Preview: {nexus_code}", html, email_to)
-                if progress_callback: await progress_callback("Email Sent.")
-            except Exception as e:
-                print(f"[DEBUG NEXUS] Email failed: {e}")
-                if progress_callback: await progress_callback(f"Email Failed: {e}")
 
         # Check if we SHOULD offer execution (Triggers frontend button)
         # We allow execution if there are trades, regardless of predefined credentials,

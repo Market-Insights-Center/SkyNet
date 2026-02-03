@@ -405,8 +405,21 @@ async def check_and_update_rankings():
             last_run_local = last_run_utc.astimezone(user_tz)
             
             if interval == "1/d":
-                if last_run_local.date() < now_localized.date() and is_past_time:
-                    should_run = True
+                # STRICT LOGIC: Run if we haven't run *after* the target time today.
+                # Calculate target DT for today
+                target_dt_today = now_localized.replace(hour=target_hour, minute=target_minute, second=0, microsecond=0)
+                
+                # If we are currently PAST the target time...
+                if is_past_time:
+                    # Check if the last run was BEFORE the target time (e.g. yesterday, or today early)
+                    if last_run_local < target_dt_today:
+                        should_run = True
+                    else:
+                        # We already ran after the target time today
+                        should_run = False
+                else:
+                    # Not past time yet
+                    should_run = False
                     
             elif interval == "1/w":
                 # Check if it's been 7 days

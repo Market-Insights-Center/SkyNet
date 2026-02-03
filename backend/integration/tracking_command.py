@@ -513,27 +513,62 @@ async def handle_tracking_command(args: List[str], ai_params: Optional[Dict] = N
         # Relaxed logic: Show button if trades exist. Modal handles creds.
         can_execute = len(trade_recs) > 0
         
-        # 1. Send Email (Still do this if requested, as it's not a trade execution)
+        # A. SAFETY CHECK (Sold All Prevention)
+        is_safe_to_execute = True
+        warning_msg = ""
+        
+        # If target holdings (new_target_data) is empty but current_holdings_map is NOT, unsafe.
+        if (not new_target_data) and (current_holdings_map) and (suggested_value > 100):
+             print("[CRITICAL SAFETY TRACKING] Target is EMPTY but user has holdings. ABORTING EXECUTION.")
+             is_safe_to_execute = False
+             warning_msg = "[SAFETY BLOCK] Execution prevented: Target portfolio empty."
+
+        if execute_rh and not is_safe_to_execute:
+             print(f"[DEBUG TRACKING] Execution Skipped due to Safety Block: {warning_msg}")
+
+        # B. Send Email
         if email_to:
             try:
                 # Format simple HTML table
                 rows = "".join([f"<tr><td>{t['ticker']}</td><td>{t['action']}</td><td>{t['diff']:.4f}</td></tr>" for t in trade_recs])
-                html = f"<h2>Portfolio Rebalance: {portfolio_code}</h2><table border='1'><tr><th>Ticker</th><th>Action</th><th>Shares</th></tr>{rows}</table>"
-                await _send_tracking_email(f"Rebalance Alert: {portfolio_code}", html, email_to)
+                
+                safety_banner = ""
+                if not is_safe_to_execute:
+                     safety_banner = f"<div style='background-color: #ffcccc; padding: 10px; border: 1px solid red;'><h3>⛔ SAFETY TRIGGERED</h3><p>{warning_msg}</p><p>Stocks have NOT been sold.</p></div>"
+
+                html = f"<h2>Portfolio Rebalance: {portfolio_code}</h2>{safety_banner}<p><b>Status:</b> {warning_msg if warning_msg else ('Executing...' if execute_rh else 'Ready')}</p><table border='1'><tr><th>Ticker</th><th>Action</th><th>Shares</th></tr>{rows}</table>"
+                await _send_tracking_email(f"Rebalance Alert: {portfolio_code} {warning_msg}", html, email_to)
                 execution_result_msg += " Email sent."
             except Exception as e:
                 execution_result_msg += f" Email failed: {e}."
 
-        # 2. Force Dry Run Logic
-        # We NEVER execute here anymore. We only return trades.
-        # Frontend sees "requires_execution_confirmation" and pops the modal.
-        if execute_rh:
-             execution_result_msg += " Ready for Review."
+        # C. Execute Trades
+        # Logic: If execute_rh is True AND is_called_by_ai is True (automation), we EXECUTE.
+        # Previously we only did Dry Run. Now we execute.
+        if execute_rh and is_called_by_ai and is_safe_to_execute:
+             print(f"[DEBUG TRACKING] EXECUTING TRADES for {portfolio_code}...")
              
-        # But if we wanted to auto-email, we did it above.
-        # Ensure we don't double-send if the user clicks execute later?
-        # The execute endpoint will handle the simplified execution, it won't re-run this command.
-        pass
+             # Convert to Exec Format
+             exec_trades = []
+             for t in trade_recs:
+                 exec_trades.append({
+                     'ticker': t['ticker'],
+                     'side': t['action'].lower(),
+                     'quantity': float(t['diff'])
+                 })
+                 
+             if exec_trades:
+                 try:
+                     await asyncio.to_thread(execute_portfolio_rebalance, trades=exec_trades, execute=True)
+                     execution_result_msg += " Trades Executed."
+                 except Exception as e:
+                     execution_result_msg += f" Execution Error: {e}"
+        
+        elif execute_rh and not is_safe_to_execute:
+             execution_result_msg += " Execution BLOCKED (Safety)."
+             
+        elif execute_rh:
+             execution_result_msg += " Ready for Review."
 
     # --- Top Cards Summary Construction ---
     summary_stats = [

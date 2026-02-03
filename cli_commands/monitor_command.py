@@ -39,8 +39,14 @@ alert_lock = asyncio.Lock()
 ALERTS_FILE = 'alerts.csv'
 
 # --- Configuration for Notifications ---
+# --- Configuration for Notifications ---
 config = configparser.ConfigParser()
-config.read('config.ini')
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+# Try root config first, then backend/config.ini
+CONFIG_PATH = os.path.join(BASE_DIR, 'config.ini')
+if not os.path.exists(CONFIG_PATH):
+    CONFIG_PATH = os.path.join(BASE_DIR, 'backend', 'config.ini')
+config.read(CONFIG_PATH)
 
 # --- Helper Functions (moved or copied for self-containment) ---
 def _is_market_open() -> bool:

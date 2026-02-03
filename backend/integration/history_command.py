@@ -34,6 +34,18 @@ async def get_risk_history_data(is_called_by_ai: bool = False):
         # Ensure Timestamp is sorted
         df['Timestamp'] = pd.to_datetime(df['Timestamp'], errors='coerce')
         df = df.sort_values(by='Timestamp').dropna(subset=['Timestamp'])
+
+        # --- FIX: Filter Erroneous 0 Values ---
+        # User requested to remove "erroneous 0 values".
+        # Replacing 0 with None (null) causes frontend charts (Recharts/Chart.js) to break the line
+        # instead of dipping to 0, which is accurate for missing data.
+        cols_to_fix = ['EMA Chance', 'VIX Chance', 'Contraction Probability', 'Combined Prob']
+        for col in cols_to_fix:
+            if col in df.columns:
+                df[col] = df[col].replace({0: None, 0.0: None})
+        
+        # Also clean up general NaNs to None for JSON compliance
+        df = df.where(pd.notnull(df), None)
         
         # --- FIX: Serialization Issue ---
         # df.to_dict() often preserves NumPy types (int64, float64) which fail to serialize 
