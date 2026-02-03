@@ -1,9 +1,14 @@
 import pytest
-from fastapi.testclient import TestClient
-from backend.main import app
+import sys
+import os
+
+# Add backend to path
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 
 @pytest.fixture
-def client():
-    # Use TestClient as a context manager if using lifespan events
-    with TestClient(app) as c:
-        yield c
+def clean_env():
+    """Ensure clean environment variables for tests."""
+    old_env = os.environ.copy()
+    yield
+    os.environ.clear()
+    os.environ.update(old_env)

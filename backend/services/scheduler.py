@@ -2,82 +2,106 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 import asyncio
 import logging
+from backend.config import settings
 
-# Import commands
-try:
-    from backend.integration import (
-        risk_command, performance_stream_command, automation_command, strategy_ranking
-    )
-except ImportError:
-    try:
-        from integration import (
-            risk_command, performance_stream_command, automation_command, strategy_ranking
-        )
-    except: pass
-
+# Robust Imports
 logger = logging.getLogger("uvicorn")
+
+# Lazy import helper to avoid circular dependencies or startup crashes
+def get_command_module(module_name):
+    try:
+        if module_name == "risk":
+            from backend.integration import risk_command
+            return risk_command
+        elif module_name == "performance":
+            from backend.integration import performance_stream_command
+            return performance_stream_command
+        elif module_name == "automation":
+            from backend.integration import automation_command
+            return automation_command
+        elif module_name == "strategy":
+            from backend.integration import strategy_ranking
+            return strategy_ranking
+    except ImportError as e:
+        logger.error(f"Failed to import {module_name} module: {e}")
+        return None
+    except Exception as e:
+        logger.error(f"Unexpected error importing {module_name}: {e}")
+        return None
+
 SCHEDULER = None
+
+def run_async_job(name, coroutine_func, *args):
+    """Helper to run async jobs in the scheduler."""
+    logger.info(f"Running scheduled job: {name}")
+    try:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        if args:
+            loop.run_until_complete(coroutine_func(*args))
+        else:
+            loop.run_until_complete(coroutine_func())
+        loop.close()
+    except Exception as e:
+        logger.error(f"Scheduler Error ({name}): {e}")
 
 def start_scheduler():
     global SCHEDULER
+    if not settings.ENABLE_SCHEDULER:
+        logger.info("Scheduler disabled via config.")
+        return
+
     if SCHEDULER is None:
         SCHEDULER = BackgroundScheduler()
-        
-        # 1. Risk Job
-        def run_risk_job():
-            logger.info("Running scheduled Risk Command...")
-            try:
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-                loop.run_until_complete(risk_command.handle_risk_command([], ai_params={"assessment_type": "scheduled"}))
-                loop.close()
-            except Exception as e:
-                logger.error(f"Scheduler Error (Risk): {e}")
+        logger.info("Initializing Global Scheduler...")
 
-        SCHEDULER.add_job(run_risk_job, CronTrigger(minute='*/15'))
-        
+        # 1. Risk Job
+        risk_mod = get_command_module("risk")
+        if risk_mod:
+            SCHEDULER.add_job(
+                run_async_job,
+                CronTrigger(minute=f'*/{settings.RISK_UPDATE_INTERVAL_MINUTES}'),
+                args=["Risk Command", risk_mod.handle_risk_command, [], {"assessment_type": "scheduled"}]
+            )
+
         # 2. Performance Stream Job
-        def run_performance_stream_job():
-            logger.info("Running scheduled Performance Stream Update...")
-            try:
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-                loop.run_until_complete(performance_stream_command.update_heatmap_cache())
-                loop.close()
-            except Exception as e:
-                logger.error(f"Scheduler Error (Performance): {e}")
-                
-        SCHEDULER.add_job(run_performance_stream_job, CronTrigger(minute='*/15'))
+        perf_mod = get_command_module("performance")
+        if perf_mod:
+            SCHEDULER.add_job(
+                run_async_job,
+                CronTrigger(minute=f'*/{settings.PERFORMANCE_UPDATE_INTERVAL_MINUTES}'),
+                args=["Performance Stream", perf_mod.update_heatmap_cache]
+            )
 
         # 3. Automation Job
-        def run_automation_job():
-            logger.info("Running scheduled Automation Check...")
-            try:
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-                if automation_command:
-                    loop.run_until_complete(automation_command.run_automations())
-                loop.close()
-            except Exception as e:
-                logger.error(f"Scheduler Error (Automation): {e}")
+        auto_mod = get_command_module("automation")
+        if auto_mod:
+            # Note: Automation runs frequently, e.g. every minute
+            SCHEDULER.add_job(
+                run_async_job,
+                CronTrigger(minute='*'), # Every minute
+                args=["Automation Check", auto_mod.run_automations]
+            )
 
-        SCHEDULER.add_job(run_automation_job, CronTrigger(minute='*')) # Run every minute for responsiveness
-
-        # 4. Strategy Ranking Job
-        def run_strategy_ranking_job():
-             logger.info("Running scheduled Strategy Ranking Update...")
-             try:
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-                loop.run_until_complete(strategy_ranking.check_and_update_rankings())
-                loop.close()
-             except Exception as e:
-                logger.error(f"Scheduler Error (Strategy): {e}")
-        
-        SCHEDULER.add_job(run_strategy_ranking_job, CronTrigger(minute='*/15'))
+        # 4. Strategy Ranking Job (Execution/Rebalancing)
+        strat_mod = get_command_module("strategy")
+        if strat_mod:
+            # 4a. Execution Job
+            SCHEDULER.add_job(
+                run_async_job,
+                CronTrigger(minute=f'*/{settings.PERFORMANCE_UPDATE_INTERVAL_MINUTES}'),
+                args=["Strategy Ranking (Exec)", strat_mod.check_and_update_rankings]
+            )
+            
+            # 4b. PnL Update Job (Valuation Only)
+            SCHEDULER.add_job(
+                run_async_job,
+                CronTrigger(minute=f'*/{settings.STRATEGY_PNL_UPDATE_INTERVAL_MINUTES}'),
+                args=["Strategy PnL Update", strat_mod.update_valuations_only]
+            )
 
         SCHEDULER.start()
-        logger.info("Global Scheduler started.")
+        logger.info("Global Scheduler started successfully.")
 
 def stop_scheduler():
     global SCHEDULER

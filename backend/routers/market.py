@@ -104,26 +104,45 @@ def get_market_data(request: MarketDataRequest):
         for ticker in tickers:
             try:
                 # 1. Process Historical Data
-                if len(tickers) > 1:
-                    if ticker not in df['Close'].columns: continue
-                    hist_close = df['Close'][ticker].dropna()
-                else:
-                    hist_close = df['Close'].dropna()
+                hist_close = pd.Series(dtype=float)
+                try:
+                    if isinstance(df.columns, pd.MultiIndex):
+                        # Handle MultiIndex (Price, Ticker) or (Ticker, Price)
+                        if ticker in df['Close'].columns:
+                            hist_close = df['Close'][ticker].dropna()
+                        elif ticker in df.columns.get_level_values(0):
+                            hist_close = df[ticker]['Close'].dropna()
+                    elif ticker in df.columns:
+                        hist_close = df[ticker].dropna()
+                    elif 'Close' in df.columns:
+                        # Single ticker dataframe with 'Close' column
+                        hist_close = df['Close'].dropna()
+
                     if isinstance(hist_close, pd.DataFrame) and not hist_close.empty:
                         hist_close = hist_close.iloc[:, 0]
+                except Exception:
+                    pass
 
                 if hist_close.empty: continue
 
                 # 2. Process 5D Data (for accurate current stats)
                 hist_short = None
-                if not df_short.empty:
-                    if len(tickers) > 1:
-                        if ticker in df_short['Close'].columns:
-                            hist_short = df_short['Close'][ticker].dropna()
-                    else:
-                        hist_short = df_short['Close'].dropna()
+                try:
+                    if not df_short.empty:
+                        if isinstance(df_short.columns, pd.MultiIndex):
+                            if ticker in df_short['Close'].columns:
+                                hist_short = df_short['Close'][ticker].dropna()
+                            elif ticker in df_short.columns.get_level_values(0):
+                                hist_short = df_short[ticker]['Close'].dropna()
+                        elif ticker in df_short.columns:
+                            hist_short = df_short[ticker].dropna()
+                        elif 'Close' in df_short.columns:
+                            hist_short = df_short['Close'].dropna()
+                            
                         if isinstance(hist_short, pd.DataFrame) and not hist_short.empty:
                             hist_short = hist_short.iloc[:, 0]
+                except Exception:
+                    pass
 
                 def get_val(series, idx):
                     try: return float(series.iloc[idx].item())

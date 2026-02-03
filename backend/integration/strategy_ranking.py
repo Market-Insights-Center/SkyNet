@@ -441,3 +441,75 @@ async def check_and_update_rankings():
         if should_run:
             logger.info(f"Triggering scheduled update for {item['portfolio_code']} (Target: {execution_time_str} {tz_name})")
             await update_single_portfolio_ranking(item["portfolio_code"])
+
+async def update_valuations_only():
+    """
+    Updates the PnL/Equity of all active strategies without executing trades/reallocation.
+    This is designed to be run frequently (e.g. every 5 mins).
+    """
+    logger.info("Running frequency PnL update for strategies...")
+    rankings = load_rankings()
+    active = rankings["active"]
+    updates_made = False
+    
+    # Optimize: Collect all tickers first for batch fetch
+    all_tickers = set()
+    for item in active:
+        holdings = item.get("virtual_holdings", [])
+        for h in holdings:
+            t = h.get('ticker')
+            if t and t != 'Cash':
+                all_tickers.add(t)
+                
+    # Fetch Prices
+    price_map = {}
+    if all_tickers:
+        try:
+            import yfinance as yf
+            tik_str = " ".join(all_tickers)
+            if tik_str:
+                t_objs = yf.Tickers(tik_str)
+                for t in all_tickers:
+                    try:
+                        price = t_objs.tickers[t].fast_info.last_price
+                        if price: price_map[t] = price
+                    except: pass
+        except Exception as e:
+            logger.error(f"PnL Update Price Fetch Error: {e}")
+
+    # Calculate & Update
+    for item in active:
+        try:
+            holdings = item.get("virtual_holdings", [])
+            initial_val = item.get("initial_value", 10000.0)
+            cash = item.get("virtual_cash", initial_val)
+            
+            equity_holdings = 0.0
+            for h in holdings:
+                t = h.get('ticker')
+                shares = float(h.get('shares', 0))
+                # Use new price or fallback
+                price = price_map.get(t)
+                if price is None:
+                     price = float(h.get('live_price_at_eval', 0))
+                
+                # Update live price in holding for display (optional, but good for UI)
+                if price > 0:
+                    h['live_price_at_eval'] = price
+                    
+                equity_holdings += shares * price
+            
+            current_equity = equity_holdings + cash
+            
+            # Update Item
+            item["current_equity"] = current_equity
+            item["pnl_all_time"] = current_equity - initial_val
+            # Do NOT update 'last_run' as that controls the strategy execution schedule
+            
+            updates_made = True
+            
+        except Exception as e:
+            logger.error(f"Error calculating PnL for {item.get('portfolio_code')}: {e}")
+
+    if updates_made:
+        save_rankings(rankings)

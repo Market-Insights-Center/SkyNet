@@ -35,6 +35,7 @@ const components = {
     About: () => import('../pages/About'),
     WorkflowAutomation: () => import('../pages/WorkflowAutomation'),
     SingularityInterface: () => import('../pages/SingularityInterface'),
+    UnifiedDashboard: () => import('../pages/UnifiedDashboard'),
 };
 
 // Create React Lazy components
@@ -78,6 +79,7 @@ const routeToComponentMap = {
     '/about': 'About',
     '/workflow-automation': 'WorkflowAutomation',
     '/singularity': 'SingularityInterface',
+    '/dashboard': 'UnifiedDashboard',
 };
 
 export const prefetchRoute = (path) => {

@@ -84,8 +84,8 @@ const TradingViewWidget = ({
     ]);
 
     return (
-        <div className="tradingview-widget-container" id={widgetIdRef.current} ref={containerRef} style={{ height, width }}>
-            <div className="tradingview-widget-container__widget" style={{ height: '100%', width: '100%' }}></div>
+        <div className="tradingview-widget-container w-full h-full" id={widgetIdRef.current} ref={containerRef} style={{ height, width }}>
+            <div className="tradingview-widget-container__widget w-full h-full" style={{ height: '100%', width: '100%' }}></div>
         </div>
     );
 };

@@ -84,7 +84,7 @@ except ImportError as e:
 
 async def run_automations():
     """Main entry point for scheduled automation checks."""
-    print(f"[AUTOMATION] Starting Automation Check at {datetime.now()}")
+    print(f"[AUTOMATION] Starting Automation Check at {datetime.now(USER_TZ)}")
     automations = load_automations()
     
     for auto in automations:
@@ -422,7 +422,7 @@ async def process_automation(auto):
         from backend.automation_storage import save_automation
         
         if actions_executed:
-            auto['last_run'] = datetime.now().isoformat()
+            auto['last_run'] = datetime.now(USER_TZ).isoformat()
             if 'last_error' in auto: del auto['last_error'] # Clear error on success
             try:
                 save_automation(auto)
@@ -437,7 +437,7 @@ async def process_automation(auto):
             
             reason = stop_reason or "Conditions not met"
             auto['last_error'] = {
-                'date': datetime.now().isoformat(),
+                'date': datetime.now(USER_TZ).isoformat(),
                 'message': reason
             }
             try:
@@ -470,7 +470,7 @@ async def process_automation(auto):
             
             if target_email:
                  print(f"   [FAILURE RECOVERY] Sending Failure Report to {target_email}")
-                 timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                 timestamp = datetime.now(USER_TZ).strftime("%Y-%m-%d %H:%M:%S")
                  
                  subject = f"⛔ Automation Failed: {auto.get('name')}"
                  body = f"""
@@ -493,7 +493,7 @@ async def process_automation(auto):
         
         # Save Error State
         auto['last_error'] = {
-            'date': datetime.now().isoformat(),
+            'date': datetime.now(USER_TZ).isoformat(),
             'message': f"CRITICAL: {str(execution_error)}"
         }
         try:
@@ -786,7 +786,7 @@ async def execute_action(node, nodes, edges, user_email, node_results=None, auto
                 print(f"   [ACTION] Sending Completion Email to {target_email}...")
                 
                 # Construct Summary
-                timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                timestamp = datetime.now(USER_TZ).strftime("%Y-%m-%d %H:%M:%S")
                 # auto_name is passed in args
                 
                 steps_summary = "<ul>"

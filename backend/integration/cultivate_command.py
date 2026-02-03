@@ -253,7 +253,10 @@ def build_and_process_portfolios_singularity(common_stock_tickers: list, formula
         price = item.get('live_price', 0)
         if price <= 0: continue
         shares = item['target_value'] / price
-        final_shares = round(shares, 2) if frac_shares else math.floor(shares)
+        final_shares = round(shares, 6) if frac_shares else math.floor(shares)
+        # Fallback: if rounding made it 0 but it was >0, keep at least minimal decimal if allowed
+        if frac_shares and final_shares == 0 and shares > 0:
+             final_shares = round(shares, 8)
         spent = final_shares * price
         if spent > 0:
             item['actual_percent_allocation_total_epsilon'] = (spent / epsilon) * 100

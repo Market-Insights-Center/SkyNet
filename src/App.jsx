@@ -180,6 +180,7 @@ const AppContent = () => {
                         <Route path="/strategy-ranking" element={<PageTransition><LazyRoutes.StrategyRanking /></PageTransition>} />
                         <Route path="/market-predictions" element={<PageTransition><LazyRoutes.MarketPredictions /></PageTransition>} />
                         <Route path="/workflow-automation" element={<PageTransition><LazyRoutes.WorkflowAutomation /></PageTransition>} />
+                        <Route path="/dashboard" element={<PageTransition><LazyRoutes.UnifiedDashboard /></PageTransition>} />
                     </Route>
 
                     {/* Routes WITHOUT Layout (Detached / Special) */}

@@ -73,12 +73,12 @@ const MarketDashboard = () => {
                 <div className="flex flex-col lg:grid lg:grid-cols-3 gap-6 lg:h-[600px]">
 
                     {/* Primary Chart */}
-                    <div className="lg:col-span-2 glass-panel glass-panel-hover rounded-xl overflow-hidden relative group flex flex-col h-[500px] lg:h-auto border border-white/10">
+                    <div className="lg:col-span-2 glass-panel glass-panel-hover rounded-xl overflow-hidden relative group flex flex-col h-[400px] lg:h-auto border border-white/10">
                         {/* Decorative Corner Accents */}
-                        <div className={`absolute top-0 left-0 w-4 h-4 border-t-2 border-l-2 border-${currentSet.color}-500/50 rounded-tl-lg z-20`} />
-                        <div className={`absolute top-0 right-0 w-4 h-4 border-t-2 border-r-2 border-${currentSet.color}-500/50 rounded-tr-lg z-20`} />
+                        <div className={`absolute top-0 left-0 w-4 h-4 border-t-2 border-l-2 border-${currentSet.color}-500/50 rounded-tl-lg z-20 pointer-events-none`} />
+                        <div className={`absolute top-0 right-0 w-4 h-4 border-t-2 border-r-2 border-${currentSet.color}-500/50 rounded-tr-lg z-20 pointer-events-none`} />
 
-                        <div className="absolute top-4 left-4 z-30 bg-black/60 backdrop-blur px-3 py-1 rounded text-xs font-bold text-white border border-white/10 uppercase">
+                        <div className="absolute top-4 left-4 z-30 bg-black/60 backdrop-blur px-3 py-1 rounded text-xs font-bold text-white border border-white/10 uppercase pointer-events-none">
                             {currentSet.name} // <span className={`text-${currentSet.color}-400`}>{currentSet.main}</span>
                         </div>
 
@@ -90,8 +90,8 @@ const MarketDashboard = () => {
                     {/* Secondary Charts Container */}
                     <div className="flex flex-col gap-6 h-auto lg:h-full">
                         {/* Sub 1 */}
-                        <div className="flex-1 glass-panel glass-panel-hover rounded-xl overflow-hidden p-1 relative flex flex-col h-[400px] lg:h-auto group border border-white/10">
-                            <div className="absolute top-2 left-4 z-10 flex items-center gap-2">
+                        <div className="flex-1 glass-panel glass-panel-hover rounded-xl overflow-hidden p-1 relative flex flex-col h-[300px] lg:h-auto group border border-white/10">
+                            <div className="absolute top-2 left-4 z-10 flex items-center gap-2 pointer-events-none">
                                 <div className={`w-2 h-2 rounded-full bg-${currentSet.color}-500 animate-pulse`} />
                                 <span className={`text-xs font-bold text-${currentSet.color}-400 tracking-wider`}>{currentSet.sub1}</span>
                             </div>
@@ -112,8 +112,8 @@ const MarketDashboard = () => {
                         </div>
 
                         {/* Sub 2 */}
-                        <div className="flex-1 glass-panel glass-panel-hover rounded-xl overflow-hidden p-1 relative flex flex-col h-[400px] lg:h-auto group border border-white/10">
-                            <div className="absolute top-2 left-4 z-10 flex items-center gap-2">
+                        <div className="flex-1 glass-panel glass-panel-hover rounded-xl overflow-hidden p-1 relative flex flex-col h-[300px] lg:h-auto group border border-white/10">
+                            <div className="absolute top-2 left-4 z-10 flex items-center gap-2 pointer-events-none">
                                 <div className={`w-2 h-2 rounded-full bg-${currentSet.color}-500 animate-pulse`} />
                                 <span className={`text-xs font-bold text-${currentSet.color}-400 tracking-wider`}>{currentSet.sub2}</span>
                             </div>
