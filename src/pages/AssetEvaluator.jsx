@@ -239,7 +239,7 @@ const AssetEvaluator = () => {
                                                 <div className="text-2xl font-bold text-white">{result.live_price}</div>
                                             </div>
 
-                                            {Object.entries(result.scores).map(([key, value]) => {
+                                            {result.scores && Object.entries(result.scores).map(([key, value]) => {
                                                 const scoreVal = typeof value === 'object' && value !== null ? value.score : value;
                                                 const scoreLabel = typeof value === 'object' && value !== null ? value.label : (key === '1' ? 'Weekly (5Y)' : key === '2' ? 'Daily (1Y)' : 'Hourly (6M)');
 

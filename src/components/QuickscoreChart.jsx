@@ -65,8 +65,8 @@ const QuickscoreChart = ({ data, ticker }) => {
                             key={tab.id}
                             onClick={() => setActiveTab(tab.id)}
                             className={`px-4 py-1.5 rounded-md text-sm font-bold transition-all ${activeTab === tab.id
-                                    ? 'bg-gold text-black shadow-lg'
-                                    : 'text-gray-400 hover:text-white hover:bg-white/5'
+                                ? 'bg-gold text-black shadow-lg'
+                                : 'text-gray-400 hover:text-white hover:bg-white/5'
                                 }`}
                         >
                             {tab.label}
@@ -77,7 +77,7 @@ const QuickscoreChart = ({ data, ticker }) => {
 
             <div className="h-[400px] w-full">
                 {chartData.length > 0 ? (
-                    <ResponsiveContainer width="100%" height="100%">
+                    <ResponsiveContainer width="100%" height={400}>
                         <AreaChart data={chartData}>
                             <defs>
                                 <linearGradient id="colorPrice" x1="0" y1="0" x2="0" y2="1">
