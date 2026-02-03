@@ -58,12 +58,36 @@ const WorkflowAutomation = () => {
         return () => window.removeEventListener('resize', handleResize);
     }, []);
 
+    // Live Status State
+    const [automationStatus, setAutomationStatus] = useState({});
+
     // Fetch user info + automations
     useEffect(() => {
         if (userEmail) {
             fetchAutomations();
         }
     }, [userEmail]);
+
+    // Poll for status
+    useEffect(() => {
+        const pollStatus = async () => {
+            // Only poll if we have automations (and preferably if any are active, but global poll is simpler)
+            if (automations.length === 0) return;
+
+            try {
+                const res = await fetch('/api/automations/status');
+                if (res.ok) {
+                    const data = await res.json();
+                    setAutomationStatus(data || {});
+                }
+            } catch (e) {
+                // Silent fail
+            }
+        };
+
+        const interval = setInterval(pollStatus, 1000); // 1s polling
+        return () => clearInterval(interval);
+    }, [automations.length]); // Re-bind if list changes (or just empty dep array is fine, but automations.length check needs dependency)
 
     const fetchAutomations = async () => {
         try {
@@ -668,6 +692,31 @@ const WorkflowAutomation = () => {
                                         </div>
                                         {auto.active && <span className="text-green-400 flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" /> Active</span>}
                                     </div>
+
+                                    {/* LIVE STATUS OVERLAY */}
+                                    {automationStatus[auto.id] && (
+                                        <div className={`absolute inset-0 backdrop-blur-sm rounded-2xl flex flex-col items-center justify-center p-6 text-center z-10 animate-fade-in pointer-events-none transition-colors duration-500
+                                            ${automationStatus[auto.id].step === 'Complete' ? 'bg-green-900/80' :
+                                                automationStatus[auto.id].step === 'Stopped' ? 'bg-red-900/80' :
+                                                    'bg-black/80'}`}>
+
+                                            {automationStatus[auto.id].step === 'Complete' ? (
+                                                <div className="w-8 h-8 rounded-full bg-green-500 flex items-center justify-center mb-3 text-black font-bold">✓</div>
+                                            ) : automationStatus[auto.id].step === 'Stopped' ? (
+                                                <div className="w-8 h-8 rounded-full bg-red-500 flex items-center justify-center mb-3 text-white font-bold">!</div>
+                                            ) : (
+                                                <div className="w-8 h-8 rounded-full border-2 border-purple-500 border-t-transparent animate-spin mb-3"></div>
+                                            )}
+
+                                            <h4 className={`font-bold mb-1 ${automationStatus[auto.id].step === 'Complete' ? 'text-green-400' :
+                                                automationStatus[auto.id].step === 'Stopped' ? 'text-red-400' :
+                                                    'text-purple-400'
+                                                }`}>
+                                                {automationStatus[auto.id].step}
+                                            </h4>
+                                            <p className="text-xs text-gray-300">{automationStatus[auto.id].detail}</p>
+                                        </div>
+                                    )}
                                 </div>
                             ))}
                             {automations.length === 0 && (
@@ -825,16 +874,20 @@ const WorkflowAutomation = () => {
                                         label="Webhook"
                                         icon={Globe}
                                         onClick={() => {
-                                            const tier = currentUser?.tier;
-                                            if (tier === 'Enterprise' || tier === 'Singularity') addNode('webhook');
-                                            else {
+                                            const tier = userProfile?.tier || "";
+                                            const lowerTier = tier.toLowerCase();
+
+                                            // Case-insensitive check
+                                            if (['enterprise', 'singularity', 'founder'].includes(lowerTier)) {
+                                                addNode('webhook');
+                                            } else {
                                                 setUpgradeFeature("Webhooks");
                                                 setShowUpgradeModal(true);
                                             }
                                         }}
-                                        color={(currentUser?.tier === 'Enterprise' || currentUser?.tier === 'Singularity') ? "text-indigo-400" : "text-gray-600"}
+                                        color={(userProfile?.tier && ['enterprise', 'singularity', 'founder'].includes(userProfile.tier.toLowerCase())) ? "text-indigo-400" : "text-gray-600"}
                                     />
-                                    {(currentUser?.tier !== 'Enterprise' && currentUser?.tier !== 'Singularity') && (
+                                    {(!userProfile?.tier || !['enterprise', 'singularity', 'founder'].includes(userProfile.tier.toLowerCase())) && (
                                         <div className="absolute right-3 top-1/2 -translate-y-1/2 text-gold">
                                             <Lock size={14} />
                                         </div>

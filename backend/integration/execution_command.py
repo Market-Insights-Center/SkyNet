@@ -59,13 +59,14 @@ def get_robinhood_equity() -> float:
     
     return 0.0
 
-def get_robinhood_holdings() -> Dict[str, float]:
+def get_robinhood_holdings() -> Optional[Dict[str, float]]:
     """
     Logs in and fetches current share holdings as {ticker: quantity}.
     Useful for ensuring rebalance calculations use LIVE data.
+    Returns None if fetch fails, {} if empty.
     """
     if not login_to_robinhood():
-        return {}
+        return None
     
     try:
         print("⏳ Fetching live positions from Robinhood API...")
@@ -85,7 +86,7 @@ def get_robinhood_holdings() -> Dict[str, float]:
     
     except Exception as e:
         print(f"❌ Error fetching Robinhood holdings: {e}")
-        return {}
+        return None
 
 def _get_single_holding(ticker: str) -> float:
     """Helper to fetch the exact shares held for a single ticker."""

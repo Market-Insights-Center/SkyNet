@@ -103,8 +103,8 @@ const Products = () => {
                     </div>
                 </motion.div>
 
-                {/* Only show Orion if on Localhost AND (User is Singularity or not logged in) */}
-                {isLocalhost && (!userProfile || userProfile?.tier === 'Singularity') && (
+                {/* Only show Orion if on Localhost */}
+                {isLocalhost && (
                     <div className="hidden md:block">
                         <motion.div
                             initial={{ opacity: 0, scale: 0.95 }}
@@ -271,8 +271,8 @@ const Products = () => {
 
                 {/* Apps Grid */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-8">
-                    {/* Sentinel AI (Singularity Only) */}
-                    {(!userProfile || userProfile?.tier === 'Singularity') && (
+                    {/* Sentinel AI (All Users) */}
+                    {(true) && (
                         <div onClick={() => navigate('/sentinel-ai')} className="group cursor-pointer block h-full md:col-span-2 lg:col-span-6">
                             <TiltCard delay={0.05} className="h-full border border-purple-500/50 bg-gradient-to-br from-purple-900/20 to-black relative overflow-hidden shadow-[0_0_30px_rgba(168,85,247,0.2)] rounded-3xl">
                                 <div className="absolute inset-0 bg-gradient-to-r from-purple-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>

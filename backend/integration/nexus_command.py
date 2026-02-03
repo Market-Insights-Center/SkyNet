@@ -602,9 +602,13 @@ async def handle_nexus_command(args: List[str], ai_params: Optional[Dict] = None
         old_holdings_map = {}
         if use_rh_data:
              live_h = await asyncio.to_thread(get_robinhood_holdings)
-             if live_h: old_holdings_map = live_h
+             if live_h is not None: 
+                old_holdings_map = live_h
         
-        if not old_holdings_map:
+        # Only fallback to CSV if live data WAS NOT fetched (i.e. we aren't using RH data, or it failed)
+        # If use_rh_data is True and live_h came back as {}, it means we have 0 holdings.
+        # We should NOT load the CSV in that case, because the CSV is outdated.
+        if not use_rh_data and not old_holdings_map:
              # Fallback to saved
              run_path = _get_custom_portfolio_run_csv_filepath(f"nexus_{nexus_code}")
              if os.path.exists(run_path):

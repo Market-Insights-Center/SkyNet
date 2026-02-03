@@ -29,6 +29,15 @@ except ImportError:
         from automation_storage import load_automations, save_automation, delete_automation, toggle_automation
     except: pass
 
+try:
+    from backend.integration.automation_command import AUTOMATION_STATUS
+except ImportError:
+    try:
+        from integration.automation_command import AUTOMATION_STATUS
+    except:
+        AUTOMATION_STATUS = {} # Fallback
+
+
 import os
 import asyncio
 import traceback
@@ -318,6 +327,31 @@ def get_automations_endpoint():
             auto['next_run'] = calculate_next_run(target_time)
 
     return automations
+
+@router.get("/api/automations/status")
+def get_automations_status():
+    """Returns the live status of currently running automations."""
+    # Build a clean status object
+    # Prune old statuses?
+    # For now, just return what we have.
+    # We might want to filter out 'active': False if we want to save bandwidth, 
+    # but frontend might want to see 'Complete' message for a bit.
+    
+    # We can perform a quick cleanup of very old statuses here if needed
+    import time
+    now_ts = time.time()
+    to_remove = []
+    
+    for auto_id, status in list(AUTOMATION_STATUS.items()):
+        # If complete/stopped and older than 1 minute, remove
+        if status.get('step') in ['Complete', 'Stopped', 'Skipped'] and (now_ts - status.get('timestamp', 0) > 5):
+            to_remove.append(auto_id)
+            
+    for rid in to_remove:
+        if rid in AUTOMATION_STATUS:
+            del AUTOMATION_STATUS[rid]
+            
+    return AUTOMATION_STATUS
 
 @router.post("/api/automations/save")
 def save_automation_endpoint(req: AutomationSaveRequest):

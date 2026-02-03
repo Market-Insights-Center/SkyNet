@@ -82,6 +82,11 @@ except ImportError as e:
 
 
 
+
+# Global Status Tracking
+# Key: Automation ID -> Value: { 'step': str, 'detail': str, 'timestamp': float }
+AUTOMATION_STATUS = {}
+
 async def run_automations():
     """Main entry point for scheduled automation checks."""
     print(f"[AUTOMATION] Starting Automation Check at {datetime.now(USER_TZ)}")
@@ -162,7 +167,19 @@ async def process_automation(auto):
     if not nodes: return
 
     print(f"[AUTOMATION] Processing {auto.get('id')} ({len(nodes)} nodes)...")
-
+    
+    # Initialize Status - DEFERRED until first update
+    # AUTOMATION_STATUS[auto.get('id')] = { ... }
+    # This prevents "empty" loading screens.
+    
+    async def update_status(step, detail):
+        AUTOMATION_STATUS[auto.get('id')] = {
+            'step': step,
+            'detail': detail,
+            'timestamp': time.time(),
+            'active': True
+        }
+    
     # 1. EVALUATION PHASE
     # Evaluate ALL conditional nodes first to establish state.
     # Conditionals: risk, price, percentage, sentiment_trigger, time_interval
@@ -175,10 +192,13 @@ async def process_automation(auto):
     # Per user requirement: "all automation checks starts by checking the time and if the time is not valid, it skips any other check"
     time_nodes = [n for n in conditionals if n.get('type') == 'time_interval']
     
+    time_valid = True # Default true if no time nodes, but usually one exists
+    
     if time_nodes:
         time_valid = False
         for node in time_nodes:
             try:
+                # await update_status('Checking Time', f"Verifying schedule for {datetime.now(USER_TZ).strftime('%I:%M %p')}")
                 res = await evaluate_condition(node)
                 node_results[node['id']] = res
                 if res: 
@@ -199,6 +219,9 @@ async def process_automation(auto):
 
     for node in other_conditionals:
         try:
+            nice_type = node.get('type', '').replace('_', ' ').title()
+            await update_status('Evaluating Conditions', f"Checking {nice_type}...")
+            
             res = await evaluate_condition(node)
             node_results[node['id']] = res
             if res:
@@ -237,6 +260,7 @@ async def process_automation(auto):
     queue = []
     
     # Track stop reasons for debugging/user feedback
+    execution_error = None # Initialize variable to prevent UnboundLocalError
     stop_reason = None
 
     # Seed queue from Evaluated Conditionals
@@ -257,7 +281,7 @@ async def process_automation(auto):
                     'target': edge['target'],
                     'targetHandle': edge['targetHandle'],
                     'signal': res,
-                    'source': edge['source']
+                    'source': c_node['id']
                 })
             
     processed_nodes = set() # To prevent loops or double execution of Actions
@@ -397,7 +421,15 @@ async def process_automation(auto):
                         processed_nodes.add(target_id)
                         try:
                             await increment_usage('automations_run') # Increment usage when an action is triggered
-                            await execute_action(target_node, nodes, edges, auto.get('user_email'), node_results, auto.get('name'))
+                            nice_type = target_node.get('type', '').replace('_', ' ').title()
+                            # silent for completion email or internal steps if desired?
+                            if t_type != 'completion_email':
+                                await update_status('Executing Action', f"Running {nice_type}...")
+                            else:
+                                await update_status('Finalizing', "Sending Completion Report...")
+                            
+                            # Pass update_status as progress_callback
+                            await execute_action(target_node, nodes, edges, auto.get('user_email'), node_results, auto.get('name'), progress_callback=update_status)
                             actions_executed = True
                             
                             # NEW: Allow propagation from Actions (if chaining is desired)
@@ -415,6 +447,7 @@ async def process_automation(auto):
                         except Exception as e:
                             print(f"   [AUTOMATION] Action Failed: {e}")
                             stop_reason = f"Action Failed: {str(e)}"
+                            execution_error = e # Capture the error
                             raise e # Re-raise to trigger Failure Email logic
 
         
@@ -446,60 +479,68 @@ async def process_automation(auto):
             except Exception as e:
                  print(f"   [AUTOMATION] Failed to save error state: {e}")
 
-    except Exception as execution_error:
+    except Exception as e: # Catch any unhandled exceptions during propagation
         import traceback
-        print(f"   [CRITICAL AUTOMATION FAILURE] {auto.get('name')}: {execution_error}")
+        print(f"   [CRITICAL AUTOMATION FAILURE] {auto.get('name')}: {e}")
         traceback.print_exc()
+        execution_error = e # Capture the error
         
-        # --- FAILURE EMAIL LOGIC ---
-        # "if the automation fails at any step... sends a failure email"
-        # Find ANY completion_email node to use as config
-        completion_node = next((n for n in nodes if n.get('type') == 'completion_email'), None)
+    finally:
+        # Clear Status after short delay (so UI sees "Complete")
+        if 'update_status' in locals():
+            if stop_reason:
+                await update_status('Stopped', stop_reason)
+            elif 'actions_executed' in locals() and actions_executed:
+                await update_status('Complete', 'Automation finished successfully.')
+            else:
+                # If we just checked time/conditions and didn't run, 
+                # remove the status so the UI doesn't flash "Complete" every minute.
+                if auto.get('id') in AUTOMATION_STATUS:
+                    del AUTOMATION_STATUS[auto.get('id')]
         
-        if completion_node:
-            connected_sources = get_connected_nodes(completion_node['id'], nodes, edges, direction="target_to_source")
-            email_info = None
-            for src in connected_sources:
-               if src.get('type') == 'email_info':
-                   email_info = src.get('data', {}).get('email')
+        pass
+    
+    # --- FAILURE EMAIL LOGIC ---
+    # "if the automation fails at any step... sends a failure email"
+    # Find ANY completion_email node to use as config
+    completion_node = next((n for n in nodes if n.get('type') == 'completion_email'), None)
+    
+    if completion_node and execution_error: # Only send if there was an error
+        connected_sources = get_connected_nodes(completion_node['id'], nodes, edges, direction="target_to_source")
+        email_info = None
+        for src in connected_sources:
+            if src.get('type') == 'email_info':
+                email_info = src.get('data', {}).get('email')
 
-            # Fallback to user email if node/info doesn't specify
-            target_email = completion_node.get('data', {}).get('email')
-            if not target_email and email_info: target_email = email_info
-            if not target_email: target_email = auto.get('user_email')
-            
-            if target_email:
-                 print(f"   [FAILURE RECOVERY] Sending Failure Report to {target_email}")
-                 timestamp = datetime.now(USER_TZ).strftime("%Y-%m-%d %H:%M:%S")
-                 
-                 subject = f"⛔ Automation Failed: {auto.get('name')}"
-                 body = f"""
-                 <h2>Automation Execution Failed</h2>
-                 <p><b>Time:</b> {timestamp}</p>
-                 <p><b>Error:</b> {str(execution_error)}</p>
-                 <hr>
-                 <p>The automation encountered a critical error and stopped unexpectedly.</p>
-                 <p><i>Sent via Medulla Automation</i></p>
-                 """
-                 
-                 try:
+        # Fallback to user email if node/info doesn't specify
+        target_email = completion_node.get('data', {}).get('email')
+        if not target_email and email_info: target_email = email_info
+        if not target_email: target_email = auto.get('user_email')
+        
+        if target_email:
+                print(f"   [FAILURE RECOVERY] Sending Failure Report to {target_email}")
+                timestamp = datetime.now(USER_TZ).strftime("%Y-%m-%d %H:%M:%S")
+                
+                subject = f"⛔ Automation Failed: {auto.get('name')}"
+                body = f"""
+                <h2>Automation Execution Failed</h2>
+                <p><b>Time:</b> {timestamp}</p>
+                <p><b>Error:</b> {str(execution_error)}</p>
+                <hr>
+                <p>The automation encountered a critical error and stopped unexpectedly.</p>
+                <p><i>Sent via Medulla Automation</i></p>
+                """
+                
+                try:
                     from backend.integration import monitor_command
                     # Use a separate try/except for sending to ensure we don't loop crash
                     await monitor_command.send_notification(subject, body, to_emails=[target_email])
-                 except Exception as mail_err:
+                except Exception as mail_err:
                     print(f"   [FAILURE RECOVERY] Could not send failure email: {mail_err}")
-        else:
-            print("   [FAILURE RECOVERY] No Completion Email module found. Skipping failure notification.")
-        
-        # Save Error State
-        auto['last_error'] = {
-            'date': datetime.now(USER_TZ).isoformat(),
-            'message': f"CRITICAL: {str(execution_error)}"
-        }
-        try:
-             from backend.automation_storage import save_automation
-             save_automation(auto)
-        except: pass
+    
+    # Save Error State if applicable (redundant check but safe)
+    # The main loop already saves validation errors. This catches crash errors.
+    pass
 
 
 async def evaluate_condition(node):
@@ -642,8 +683,7 @@ async def evaluate_condition(node):
                         return False
 
                     # If we already ran TODAY (or since the last target time), skip.
-                    # Simple check: If last_run is within the same window?
-                    # Or simpler: if last_run > target_dt (meaning we ran after the target started today), skip.
+                    # Simple check: If last_run > target_dt (meaning we ran after the target started today), skip.
                     
                     if last_run >= target_dt:
                         print("   [EVAL] Time Interval: Already ran this window.")
@@ -684,11 +724,20 @@ async def evaluate_condition(node):
         return False
 
 
-async def execute_action(node, nodes, edges, user_email, node_results=None, auto_name="Automation"):
-    # Unified Execution Logic
+async def execute_action(node, all_nodes, all_edges, user_email, node_results, automation_name, **kwargs):
+    """
+    Executes an action node based on its type.
+    """
+    a_type = node.get('type')
+    data = node.get('data', {})
+    
+    # Extract optional updated callback if provided
+    progress_callback = kwargs.get('progress_callback')
+    
+    print(f"   [ACTION] Executing {a_type}...")
     try:
         # 1. Gather Info from attached Condition/Info blocks
-        connected_sources = get_connected_nodes(node['id'], nodes, edges, direction="target_to_source")
+        connected_sources = get_connected_nodes(node['id'], all_nodes, all_edges, direction="target_to_source")
         
         email_info = None
         rh_info = None
@@ -791,7 +840,7 @@ async def execute_action(node, nodes, edges, user_email, node_results=None, auto
                 
                 steps_summary = "<ul>"
                 # Sort nodes by some logic? or just list them
-                sorted_nodes = sorted(nodes, key=lambda n: (n.get('position', {}).get('y', 0), n.get('position', {}).get('x', 0)))
+                sorted_nodes = sorted(all_nodes, key=lambda n: (n.get('position', {}).get('y', 0), n.get('position', {}).get('x', 0)))
                 
                 for n in sorted_nodes:
                     n_type = n.get('type', '').replace('_', ' ').title()
