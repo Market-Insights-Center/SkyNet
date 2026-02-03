@@ -325,11 +325,35 @@ async def handle_assess_command(args: List[str], ai_params: Optional[Dict] = Non
 
             for ticker_a_item in tickers_list_a:
                 try:
-                    hist_df_a = await get_yf_data_singularity([ticker_a_item], period=selected_yf_period_a, is_called_by_ai=True)
+                    # Fetch Ticker AND SPY data for correlation
+                    hist_df_a = await get_yf_data_singularity([ticker_a_item, 'SPY'], period=selected_yf_period_a, is_called_by_ai=True)
+                    
                     if hist_df_a.empty or ticker_a_item not in hist_df_a.columns or len(hist_df_a[ticker_a_item].dropna()) <= 1:
-                        results_for_table_a.append([ticker_a_item, "N/A", "N/A", "N/A", "N/A", "N/A", "Data Error"])
+                        results_for_table_a.append([ticker_a_item, "N/A", "N/A", "N/A", "N/A", "N/A", "N/A", "Data Error"])
                         assessment_summaries_ai_list.append(f"{ticker_a_item}: Data Error.")
                         continue
+                    
+                    # Calculate Correlation AND Beta with SPY
+                    spy_corr_display = "N/A"
+                    beta_display = "N/A"
+                    if 'SPY' in hist_df_a.columns:
+                        # Align data
+                        aligned_data = hist_df_a[[ticker_a_item, 'SPY']].dropna()
+                        if len(aligned_data) > 10:
+                            # Correlation
+                            corr_val = aligned_data[ticker_a_item].corr(aligned_data['SPY'])
+                            spy_corr_display = f"{corr_val:.2f}"
+                            
+                            # Beta = Cov(Stock, Market) / Var(Market)
+                            # We need percentage returns for accurate beta, which we have implicitly via daily prices, 
+                            # but cov/var should be on returns, not prices.
+                            returns_data = aligned_data.pct_change().dropna()
+                            if len(returns_data) > 10:
+                                cov_val = returns_data[ticker_a_item].cov(returns_data['SPY'])
+                                var_val = returns_data['SPY'].var()
+                                if var_val != 0:
+                                    beta_val = cov_val / var_val
+                                    beta_display = f"{beta_val:.2f}"
                     
                     current_iv, vol_rank = await calculate_volatility_metrics(ticker_a_item, selected_yf_period_a)
                     iv_display = f"{(current_iv * 100):.1f}%" if current_iv is not None else "N/A"
@@ -349,22 +373,22 @@ async def handle_assess_command(args: List[str], ai_params: Optional[Dict] = Non
                     vol_score_min, vol_score_max = risk_tolerance_ranges_map[risk_tolerance_a_int]
                     correspondence_a = "Matches" if vol_score_min <= volatility_score_a <= vol_score_max else "No Match"
                     
-                    results_for_table_a.append([ticker_a_item, f"{period_change_pct_a:.2f}%", f"{aapc_val_a:.2f}%", volatility_score_a, iv_display, vr_display, correspondence_a])
-                    assessment_summaries_ai_list.append(f"{ticker_a_item}({timeframe_upper_a},RT{risk_tolerance_a_int}):Chg {period_change_pct_a:.1f}%,VolSc {volatility_score_a},IV {iv_display},VolRank {vr_display},Match:{correspondence_a}")
+                    results_for_table_a.append([ticker_a_item, f"{period_change_pct_a:.2f}%", f"{aapc_val_a:.2f}%", volatility_score_a, iv_display, vr_display, beta_display, spy_corr_display, correspondence_a])
+                    assessment_summaries_ai_list.append(f"{ticker_a_item}({timeframe_upper_a},RT{risk_tolerance_a_int}):Chg {period_change_pct_a:.1f}%,VolSc {volatility_score_a},IV {iv_display},Beta {beta_display},SPYCorr {spy_corr_display},Match:{correspondence_a}")
 
                 except Exception as e_item_a:
-                    results_for_table_a.append([ticker_a_item, "CalcErr", "CalcErr", "CalcErr", "CalcErr", "CalcErr", f"Error"])
+                    results_for_table_a.append([ticker_a_item, "CalcErr", "CalcErr", "CalcErr", "CalcErr", "CalcErr", "CalcErr", "CalcErr", f"Error"])
                     assessment_summaries_ai_list.append(f"{ticker_a_item}: Calculation Error ({e_item_a}).")
 
             if results_for_table_a: 
                 if not is_called_by_ai: 
                     print("\n**Stock Volatility Assessment Results (Code A)**")
                     results_for_table_a.sort(key=lambda x: x[3] if isinstance(x[3], (int,float)) else float('inf'))
-                    headers = ["Ticker", f"{timeframe_upper_a} Change", "AAPC (%)", "Vol Score (0-9)", "Current IV", "Volatility Rank", "Risk Match"]
+                    headers = ["Ticker", f"{timeframe_upper_a} Change", "AAPC (%)", "Vol Score (0-9)", "Current IV", "Volatility Rank", "Beta", "SPY Corr", "Risk Match"]
                     print(tabulate(results_for_table_a, headers=headers, tablefmt="pretty"))
                 else:
                     # Return structured table for frontend
-                    headers = ["Ticker", f"{timeframe_upper_a} Change", "AAPC (%)", "Vol Score", "IV", "Vol Rank", "Risk Match"]
+                    headers = ["Ticker", f"{timeframe_upper_a} Change", "AAPC (%)", "Vol Score", "IV", "Vol Rank", "Beta", "SPY Corr", "Risk Match"]
                     return {
                         "type": "table", 
                         "title": "Stock Volatility Assessment",
