@@ -172,10 +172,11 @@ async def process_automation(auto):
     # AUTOMATION_STATUS[auto.get('id')] = { ... }
     # This prevents "empty" loading screens.
     
-    async def update_status(step, detail):
+    async def update_status(step, detail, detail_full=None):
         AUTOMATION_STATUS[auto.get('id')] = {
             'step': step,
             'detail': detail,
+            'detail_full': detail_full,
             'timestamp': time.time(),
             'active': True
         }

@@ -2,47 +2,204 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-    Bot, Terminal, Send, Cpu, Activity, AlertTriangle, Check, X, Play, RotateCcw, Save, Trash2, ChevronDown, Layers, Clock
+    Bot, Terminal, Send, Cpu, Activity, AlertTriangle, Check, X, Play, RotateCcw, Save, Trash2,
+    ChevronDown, Layers, Clock, Mic, Volume2, VolumeX, Globe, Search, Menu, History, MessageSquare, ChevronLeft, ChevronRight, Zap, Plus, Settings
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import NeonWrapper from '../components/NeonWrapper';
 
+// --- Tool Definitions for Manual Planner ---
+const SENTINEL_TOOLS = [
+    { value: "market", label: "Market Scan", params: ["sensitivity", "market_type"] },
+    { value: "sentiment", label: "Sentiment Analysis", params: ["tickers_source", "limit"] },
+    { value: "risk", label: "Risk Assessment", params: [] },
+    { value: "fundamentals", label: "Fundamental Data", params: ["tickers_source", "limit"] },
+    { value: "powerscore", label: "PowerScore Analysis", params: ["tickers_source", "limit"] },
+    { value: "quickscore", label: "Quick Technical Score", params: ["tickers_source"] },
+    { value: "mlforecast", label: "ML Price Forecast", params: ["tickers_source", "limit"] },
+    { value: "nexus_import", label: "Import Nexus Portfolio", params: ["nexus_code"] },
+    { value: "research", label: "Web Research", params: ["query"] },
+    { value: "summary", label: "Generate Summary", params: ["data_source"] }
+];
+
+const PARAM_OPTIONS = {
+    sensitivity: [
+        { value: 1, label: "1 (Weekly)" },
+        { value: 2, label: "2 (Daily)" },
+        { value: 3, label: "3 (Hourly)" }
+    ],
+    market_type: [
+        { value: "sp500", label: "S&P 500" },
+        { value: "plus", label: "S&P 500 + Nasdaq" },
+        { value: "plusplus", label: "Full Market" }
+    ],
+    tickers_source: [
+        { value: "$step_1_output.top_10", label: "Top 10 from Step 1" },
+        { value: "$step_1_output.bottom_10", label: "Bottom 10 from Step 1" },
+        { value: "user_input", label: "Manual Input" }
+    ]
+};
+
 const SentinelAI = () => {
     const { userProfile } = useAuth();
+
+    // Core State
     const [prompt, setPrompt] = useState("");
     const [isProcessing, setIsProcessing] = useState(false);
     const [executionPlan, setExecutionPlan] = useState([]);
-    const [executionStatus, setExecutionStatus] = useState("idle"); // idle, planning, reviewing, executing, complete, error
+    const [executionStatus, setExecutionStatus] = useState("idle");
     const [logs, setLogs] = useState([]);
     const [results, setResults] = useState(null);
-    const [reviewMode, setReviewMode] = useState(false);
     const [finalSummary, setFinalSummary] = useState(null);
+    const [lastReport, setLastReport] = useState(null);
+
+    // UI State
+    const [reviewMode, setReviewMode] = useState(false); // Used for both Review and Manual Edit
+    const [isManualMode, setIsManualMode] = useState(false);
+    const [isListening, setIsListening] = useState(false);
+    const [isMuted, setIsMuted] = useState(false);
+    const [researchMode, setResearchMode] = useState(false);
+    const [showSidebar, setShowSidebar] = useState(false);
+    const [pastSessions, setPastSessions] = useState([]);
+
     const logEndRef = useRef(null);
 
-    const scrollToBottom = () => {
-        logEndRef.current?.scrollIntoView({ behavior: "smooth" });
-    };
+    // Initial Load & History Fetch
+    useEffect(() => {
+        if (userProfile?.email) fetchHistory();
+    }, [userProfile]);
 
     useEffect(() => {
-        scrollToBottom();
+        logEndRef.current?.scrollIntoView({ behavior: "smooth" });
     }, [logs]);
 
+    const fetchHistory = async () => {
+        try {
+            const res = await fetch(`/api/sentinel/history?email=${userProfile.email}`);
+            const data = await res.json();
+            if (Array.isArray(data)) setPastSessions(data);
+        } catch (e) {
+            console.error("Failed to fetch history", e);
+        }
+    };
+
+    const loadSession = (session) => {
+        setPrompt(session.prompt);
+        setExecutionPlan(session.steps || []);
+        setFinalSummary(session.final_summary);
+        setLogs([{ type: 'info', message: 'Loaded past session.', timestamp: new Date(session.timestamp * 1000) }]);
+        setShowSidebar(false);
+    };
+
+    const saveCurrentSession = async () => {
+        if (!finalSummary) return;
+        try {
+            const payload = {
+                user_prompt: prompt,
+                email: userProfile.email,
+                plan: executionPlan,
+                summary: finalSummary,
+                logs: "completed"
+            };
+            const res = await fetch('/api/sentinel/save-session', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            const data = await res.json();
+            if (data.status === 'success') {
+                setLogs(prev => [...prev, { type: 'success', message: 'Session Saved.', timestamp: new Date() }]);
+                fetchHistory();
+            }
+        } catch (e) {
+            console.error("Save failed", e);
+        }
+    };
+
+    const handleTestPrompt = () => {
+        const specificPrompt = `I have the following list of tickers:
+LITE, DXYZ, TER, PALL, SFTBY
+Please compare all of the tickers using your general research, their ML forecast numbers on each time frame, their quickscore numbers on each time frame, and their AAPC, IV, IVR, Beta, and Correlation using Assess score A.
+
+Please make sure to generate a final summary ordering the assets based on the strongest buy based on the found and calculated information to the weakest buy signal`;
+        setPrompt(specificPrompt);
+    };
+
+    // --- Manual Planner Logic ---
+
     const handleManualSetup = () => {
-        setExecutionPlan([{
-            step_id: 1,
-            tool: "market",
-            params: { sensitivity: 2, market_type: "sp500" },
-            output_key: "step_1_output",
-            description: "Initial market scan"
-        }]);
+        setIsManualMode(true);
+        // Initialize with one empty market step if plan is empty
+        if (executionPlan.length === 0) {
+            setExecutionPlan([{
+                step_id: 1,
+                tool: "market",
+                params: { sensitivity: 2, market_type: "sp500" },
+                output_key: "step_1_output",
+                description: "Initial market scan"
+            }]);
+        }
         setReviewMode(true);
     };
+
+    const addStep = () => {
+        const newStepId = executionPlan.length + 1;
+        setExecutionPlan([...executionPlan, {
+            step_id: newStepId,
+            tool: "market",
+            params: { sensitivity: 2, market_type: "sp500" },
+            output_key: `step_${newStepId}_output`,
+            description: "New Step"
+        }]);
+    };
+
+    const removeStep = (index) => {
+        const newPlan = executionPlan.filter((_, i) => i !== index).map((step, i) => ({
+            ...step,
+            step_id: i + 1,
+            output_key: `step_${i + 1}_output`
+        }));
+        setExecutionPlan(newPlan);
+    };
+
+    const updateStep = (index, field, value) => {
+        const newPlan = [...executionPlan];
+        newPlan[index] = { ...newPlan[index], [field]: value };
+        // Reset params if tool changes
+        if (field === 'tool') {
+            const defaultParams = {};
+            // Set some defaults
+            if (value === 'market') { defaultParams.sensitivity = 2; defaultParams.market_type = 'sp500'; }
+            if (value === 'sentiment') { defaultParams.limit = 10; }
+            newPlan[index].params = defaultParams;
+        }
+        setExecutionPlan(newPlan);
+    };
+
+    const updateStepParam = (index, paramKey, value) => {
+        const newPlan = [...executionPlan];
+        newPlan[index].params = { ...newPlan[index].params, [paramKey]: value };
+        setExecutionPlan(newPlan);
+    };
+
+    const addSummaryStep = () => {
+        setExecutionPlan([...executionPlan, {
+            step_id: executionPlan.length + 1,
+            tool: "summary",
+            params: { data_source: "$CONTEXT" },
+            output_key: "final_summary",
+            description: "Generate Final Report"
+        }]);
+    };
+
+    // --- AI Plan & Execute Logic ---
 
     const handlePlan = async () => {
         if (!prompt.trim() || isProcessing) return;
         setIsProcessing(true);
+        setIsManualMode(false);
         setExecutionStatus("planning");
-        setLogs(prev => [...prev, { type: "info", message: "Generating execution plan for review...", timestamp: new Date() }]);
+        setLogs(prev => [...prev, { type: "info", message: "Generating execution plan...", timestamp: new Date() }]);
 
         try {
             const response = await fetch('/api/sentinel/plan', {
@@ -53,7 +210,7 @@ const SentinelAI = () => {
             const data = await response.json();
             if (data.plan) {
                 setExecutionPlan(data.plan);
-                setExecutionStatus("reviewing"); // Switch to review mode
+                setExecutionStatus("reviewing");
                 setReviewMode(true);
             }
         } catch (error) {
@@ -65,28 +222,24 @@ const SentinelAI = () => {
     };
 
     const handleExecute = async (planToExecute = null) => {
-        // Allow execution if we have a plan (manual mode) even if prompt is empty
         if ((!prompt.trim() && !planToExecute) || isProcessing) return;
 
         setIsProcessing(true);
-        // If getting passed a plan (from Review), use it. Otherwise clear it for fresh run.
         if (!planToExecute) {
             setExecutionStatus("planning");
             setExecutionPlan([]);
             setResults(null);
             setFinalSummary(null);
+            setLogs([]);
         } else {
             setExecutionStatus("executing");
-            setReviewMode(false); // Close modal immediately
+            setReviewMode(false);
         }
 
-        if (!planToExecute) setLogs([]); // Only clear logs on fresh run
-
-        // Track Usage
-        import('../services/usageService').then(({ trackUsage }) => trackUsage('ml_forecast'));
-
         try {
-            const effectivePrompt = prompt.trim() || "Manual Plan Execution";
+            let effectivePrompt = prompt.trim() || "Manual Plan Execution";
+            if (researchMode) effectivePrompt += " [RESEARCH_MODE_ENABLED]";
+
             const bodyPayload = { user_prompt: effectivePrompt, email: userProfile?.email };
             if (planToExecute) bodyPayload.plan = planToExecute;
 
@@ -96,12 +249,7 @@ const SentinelAI = () => {
                 body: JSON.stringify(bodyPayload)
             });
 
-            if (!response.ok) {
-                if (response.status === 403) {
-                    throw new Error("Access Denied: Singularity Tier Required.");
-                }
-                throw new Error("Failed to contact Sentinel Core.");
-            }
+            if (!response.ok) throw new Error("Failed to contact Sentinel Core.");
 
             const reader = response.body.getReader();
             const decoder = new TextDecoder();
@@ -113,18 +261,15 @@ const SentinelAI = () => {
 
                 buffer += decoder.decode(value, { stream: true });
                 const lines = buffer.split("\n");
-                buffer = lines.pop() || ""; // Keep incomplete line
+                buffer = lines.pop() || "";
 
                 for (const line of lines) {
                     if (!line.trim()) continue;
                     try {
                         const event = JSON.parse(line);
                         processEvent(event);
-                    } catch (e) {
-                        console.error("JSON Parse Error:", e, line);
-                    }
+                    } catch (e) { console.error(e); }
                 }
-                // Allow UI to breathe/render
                 await new Promise(resolve => setTimeout(resolve, 0));
             }
 
@@ -136,6 +281,27 @@ const SentinelAI = () => {
             if (executionStatus !== "error") setExecutionStatus("complete");
             setReviewMode(false);
         }
+    };
+
+    const startListening = () => {
+        if (!window.webkitSpeechRecognition && !window.SpeechRecognition) return;
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        const recognition = new SpeechRecognition();
+        recognition.lang = 'en-US';
+        recognition.onstart = () => setIsListening(true);
+        recognition.onend = () => setIsListening(false);
+        recognition.onresult = (event) => setPrompt(prev => (prev + " " + event.results[0][0].transcript).trim());
+        recognition.start();
+    };
+
+    const speak = (text) => {
+        if (!text || isMuted) return; // Mute Check
+        window.speechSynthesis.cancel();
+        const utterance = new SpeechSynthesisUtterance(text);
+        const voices = window.speechSynthesis.getVoices();
+        const preferred = voices.find(v => v.name.includes('Microsoft Zira') || v.name.includes('Google US English'));
+        if (preferred) utterance.voice = preferred;
+        window.speechSynthesis.speak(utterance);
     };
 
     const processEvent = (event) => {
@@ -151,616 +317,333 @@ const SentinelAI = () => {
             setResults(event.context);
             setExecutionStatus("complete");
         } else if (event.type === "summary") {
-            setFinalSummary(event.message); // Store for dedicated UI
-            // Also log a small confirmation
-            setLogs(prev => [...prev, { type: "success", message: "Initial Mission Report Generated.", timestamp: new Date() }]);
+            setFinalSummary(event.message);
+            setLastReport(event.message);
+            setLogs(prev => [...prev, { type: "success", message: "Mission Report Generated.", timestamp: new Date() }]);
+            speak("Mission accomplished.");
         } else if (event.type === "error") {
             setLogs(prev => [...prev, { type: "error", message: event.message, timestamp: new Date() }]);
             setExecutionStatus("error");
+            speak("Error encountered.");
         }
     };
 
+    // Custom CSS for the flowing gradient
+    const gradientStyle = `
+        @keyframes flow {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+        .flowing-gradient {
+            background: linear-gradient(-45deg, #0f172a, #111827, #1e1b4b, #0f172a);
+            background-size: 400% 400%;
+            animation: flow 20s ease infinite;
+        }
+    `;
+
     return (
-        <div className="min-h-screen bg-transparent text-white pt-24 px-4 pb-20">
-            <div className="max-w-6xl mx-auto">
-                {/* Header */}
-                <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="text-center mb-12"
-                >
-                    <div className="flex justify-center mb-4">
-                        <div className="p-4 bg-cyan-900/20 rounded-full border border-cyan-500/30 shadow-[0_0_30px_rgba(6,182,212,0.3)]">
-                            <Bot className="w-12 h-12 text-cyan-400" />
+        <div className="flex h-screen bg-black text-white pt-20 overflow-hidden font-mono relative selection:bg-cyan-500/30">
+            <style>{gradientStyle}</style>
+
+            {/* Animated Flowing Gradient Background */}
+            <div className="absolute inset-0 z-0 pointer-events-none flowing-gradient opacity-80"></div>
+
+            {/* Subtle Overlay to ensure text readability */}
+            <div className="absolute inset-0 z-0 pointer-events-none bg-black/20"></div>
+
+            {/* Sidebar (History) */}
+            <motion.div
+                initial={false}
+                animate={{ width: showSidebar ? 300 : 0, opacity: showSidebar ? 1 : 0 }}
+                className="bg-gray-950/90 backdrop-blur border-r border-gray-800 flex flex-col overflow-hidden relative z-10"
+            >
+                <div className="p-4 border-b border-gray-800 flex items-center justify-between">
+                    <span className="text-cyan-400 font-bold flex items-center gap-2">
+                        <History size={16} /> HISTORY
+                    </span>
+                    <button onClick={() => setShowSidebar(false)}><X size={16} className="text-gray-500 hover:text-white" /></button>
+                </div>
+                <div className="flex-1 overflow-y-auto p-2 space-y-2">
+                    {pastSessions.map(session => (
+                        <div key={session.id} onClick={() => loadSession(session)}
+                            className="p-3 bg-black/50 hover:bg-black border border-gray-800 rounded cursor-pointer transition-colors group">
+                            <div className="text-xs text-gray-500 mb-1">{new Date(session.timestamp * 1000).toLocaleString()}</div>
+                            <div className="text-sm text-gray-300 truncate group-hover:text-cyan-400">{session.prompt}</div>
                         </div>
-                    </div>
-                    <h1 className="text-4xl md:text-5xl font-bold mb-4 tracking-wider">
-                        SENTINEL <span className="text-cyan-400">AI</span>
-                    </h1>
-                    <p className="text-gray-400 max-w-2xl mx-auto font-mono text-sm">
-                        Advanced Autonomous Agent. Describe a complex multi-step financial task, and Sentinel will plan, execute, and summarize the results.
-                    </p>
-                </motion.div>
+                    ))}
+                    {pastSessions.length === 0 && <div className="text-center text-gray-600 p-4 text-xs">No saved missions.</div>}
+                </div>
+            </motion.div>
 
-                {/* Main Interface Grid */}
-                <div className="grid lg:grid-cols-12 gap-8">
+            {/* Main Content Area */}
+            <div className="flex-1 flex flex-col relative z-20">
+                {!showSidebar && (
+                    <button
+                        onClick={() => setShowSidebar(true)}
+                        className="absolute top-4 left-4 z-20 p-2 bg-gray-900/80 rounded hover:bg-gray-800 text-gray-400 border border-gray-700"
+                    >
+                        <ChevronRight size={18} />
+                    </button>
+                )}
 
-                    {/* Left: Input & Logs */}
-                    <div className="lg:col-span-12 xl:col-span-7 space-y-6">
+                <div className="flex-1 flex flex-col max-w-5xl mx-auto w-full p-6 gap-4 h-full">
 
-                        {/* Input Area */}
-                        <div className="bg-gray-900/40 border border-cyan-500/30 rounded-xl p-6 relative overflow-hidden group">
-                            <div className="absolute top-0 right-0 p-4 opacity-10">
-                                <Cpu size={100} />
-                            </div>
-
-                            <label className="block text-cyan-400 font-bold mb-2 font-mono flex items-center gap-2">
-                                <Terminal size={16} /> ENTER COMMAND PROTOCOL
-                            </label>
-
-                            <textarea
-                                value={prompt}
-                                onChange={(e) => setPrompt(e.target.value)}
-                                disabled={isProcessing}
-                                placeholder="E.g., 'Run a market scan for S&P 500 stocks with sensitivity 2, then run sentiment analysis on the top 3 results.'"
-                                className="w-full h-32 bg-black/50 border border-gray-700 rounded-lg p-4 text-gray-200 focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 outline-none transition-all resize-none font-mono text-sm"
-                                onKeyDown={(e) => {
-                                    if (e.key === 'Enter' && !e.shiftKey) {
-                                        e.preventDefault();
-                                        handleExecute();
-                                    }
-                                }}
-                            />
-
-                            <div className="mt-4 flex justify-end gap-4">
-                                <NeonWrapper color="purple">
-                                    <button
-                                        onClick={handleManualSetup}
-                                        disabled={isProcessing}
-                                        className={`px-6 py-2 bg-black border border-gray-500/50 rounded-lg flex items-center gap-2 font-bold transition-all ${isProcessing ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-500/10 text-gray-400'}`}
-                                    >
-                                        <Layers size={18} />
-                                        MANUAL SET-UP
-                                    </button>
-
-                                    <button
-                                        onClick={handlePlan}
-                                        disabled={isProcessing || !prompt.trim()}
-                                        className={`px-6 py-2 bg-black border border-purple-500/50 rounded-lg flex items-center gap-2 font-bold transition-all ${isProcessing ? 'opacity-50 cursor-not-allowed' : 'hover:bg-purple-500/10 text-purple-400'}`}
-                                    >
-                                        <Bot size={18} />
-                                        PLAN & REVIEW
-                                    </button>
-                                </NeonWrapper>
-
-                                <NeonWrapper color="cyan">
-                                    <button
-                                        onClick={() => handleExecute(null)}
-                                        disabled={isProcessing || !prompt.trim()}
-                                        className={`px-6 py-2 bg-black border border-cyan-500/50 rounded-lg flex items-center gap-2 font-bold transition-all ${isProcessing ? 'opacity-50 cursor-not-allowed' : 'hover:bg-cyan-500/10 text-cyan-400'}`}
-                                    >
-                                        {isProcessing ? <Activity className="animate-spin" /> : <Send size={18} />}
-                                        {isProcessing ? "PROCESSING..." : "QUICK EXECUTE"}
-                                    </button>
-                                </NeonWrapper>
-                            </div>
+                    {/* LOGS */}
+                    <div className="flex-1 min-h-0 bg-black/80 backdrop-blur border border-gray-800 rounded-xl p-4 overflow-y-auto shadow-inner custom-scrollbar relative font-mono">
+                        <div className="sticky top-0 bg-transparent pb-2 border-b border-gray-800 mb-2 flex items-center justify-between z-10">
+                            <span className="text-gray-500 flex items-center gap-2 text-xs font-bold tracking-wider">
+                                <Terminal size={12} /> SENTINEL CORE LOG
+                            </span>
+                            {executionStatus === 'executing' && <span className="text-cyan-500 animate-pulse text-xs">● LIVE LINK ACTIVE</span>}
                         </div>
-
-                        {/* Live Terminal */}
-                        <div className="bg-black border border-gray-800 rounded-xl p-4 font-mono text-xs h-[400px] overflow-y-auto shadow-inner relative">
-                            <div className="sticky top-0 bg-black/90 backdrop-blur pb-2 border-b border-gray-800 mb-2 flex items-center justify-between z-10">
-                                <span className="text-gray-500 flex items-center gap-2"><Terminal size={12} /> SYSTEM LOG</span>
-                                {executionStatus === 'running' && <span className="text-cyan-500 animate-pulse">● LIVE</span>}
-                            </div>
-
-                            <div className="space-y-1">
-                                {logs.length === 0 && <span className="text-gray-700 italic">Ready for input...</span>}
-                                {logs.map((log, i) => (
-                                    <div key={i} className={`flex items-start gap-2 ${log.type === 'error' ? 'text-red-400' : log.type === 'success' ? 'text-green-400' : 'text-gray-300'}`}>
-                                        <span className="text-gray-600 shrink-0">[{log.timestamp?.toLocaleTimeString()}]</span>
-                                        <span className="w-full">
-                                            {/* Standard Message */}
-                                            {log.message}
-                                            {/* Detail Block */}
-                                            {log.result && log.type !== 'summary' && (
-                                                <div className="mt-1 ml-4 p-2 bg-gray-900 border border-gray-800 rounded text-gray-400 whitespace-pre-wrap max-h-40 overflow-y-auto font-mono text-xs">
-                                                    {typeof log.result === 'object' ? JSON.stringify(log.result, null, 2) : log.result}
-                                                </div>
-                                            )}
-                                        </span>
-                                    </div>
-                                ))}
-                                <div ref={logEndRef} />
-                            </div>
-                        </div>
-
-                        {/* FINAL MISSION REPORT (Dedicated Box) */}
-                        <AnimatePresence>
-                            {finalSummary && (
-                                <motion.div
-                                    initial={{ opacity: 0, y: 50, scale: 0.95 }}
-                                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                                    transition={{ duration: 0.5, type: "spring" }}
-                                    className="bg-black/90 backdrop-blur-xl border border-gold/50 rounded-2xl p-8 shadow-[0_0_100px_rgba(234,179,8,0.15)] relative overflow-hidden group mt-12 mb-12"
-                                >
-                                    <div className="absolute top-0 right-0 p-12 opacity-5 text-gold">
-                                        <Bot size={300} />
-                                    </div>
-                                    <div className="absolute -left-20 -bottom-20 w-64 h-64 bg-gold/5 rounded-full blur-[100px]"></div>
-
-                                    {/* Header */}
-                                    <div className="flex items-center justify-between border-b border-gold/20 pb-6 mb-8 relative z-10">
-                                        <h3 className="text-3xl font-black text-gold flex items-center gap-4 tracking-widest font-mono">
-                                            <div className="p-3 bg-gold/10 rounded-lg border border-gold/30">
-                                                <Cpu size={32} />
-                                            </div>
-                                            MISSION REPORT
-                                        </h3>
-                                        <div className="flex gap-3">
-                                            <button
-                                                onClick={() => navigator.clipboard.writeText(finalSummary)}
-                                                className="px-4 py-2 bg-black border border-gold/30 rounded-lg text-gold hover:bg-gold/10 transition-all font-mono text-xs font-bold flex items-center gap-2"
-                                            >
-                                                <Layers size={14} /> COPY REPORT
-                                            </button>
-                                        </div>
-                                    </div>
-
-                                    {/* Content */}
-                                    <div className="text-gray-200 whitespace-pre-wrap font-sans text-base leading-relaxed space-y-6 relative z-10 max-h-[800px] overflow-y-auto pr-6 custom-scrollbar-gold">
-                                        {finalSummary.split('\n').map((line, i) => {
-                                            // Enhanced Markdown Rendering
-                                            if (line.trim().startsWith('# ')) return <h1 key={i} className="text-3xl font-black text-white mt-8 mb-4 border-b border-gray-800 pb-2">{line.replace('# ', '')}</h1>;
-                                            if (line.trim().startsWith('## ')) return <h2 key={i} className="text-2xl font-bold text-gold mt-8 mb-3 flex items-center gap-2"><span className="w-1 h-6 bg-gold rounded-full"></span>{line.replace('## ', '')}</h2>;
-                                            if (line.trim().startsWith('### ')) return <h3 key={i} className="text-xl font-bold text-white mt-6 mb-2">{line.replace('### ', '')}</h3>;
-                                            if (line.trim().startsWith('- ')) return <div key={i} className="flex gap-3 ml-2"><span className="text-gold mt-2">•</span><p className="flex-1 text-gray-300">{line.replace('- ', '')}</p></div>;
-                                            if (line.trim().match(/^\d+\./)) return <div key={i} className="ml-2 font-bold text-white mt-3 p-3 bg-white/5 rounded-lg border-l-2 border-gold">{line}</div>;
-                                            if (line.trim().startsWith('**') && line.trim().endsWith('**')) return <p key={i} className="font-bold text-gold text-lg mt-4">{line.replace(/\*\*/g, '')}</p>;
-
-                                            // Dynamic Highlighting logic
-                                            const isKeyMetric = line.includes(':') && /\d/.test(line);
-
-                                            return <p key={i} className={`${isKeyMetric ? 'font-mono text-cyan-200 bg-cyan-900/20 p-2 rounded -mx-2' : 'text-gray-300'}`}>{line}</p>;
-                                        })}
-                                    </div>
-                                </motion.div>
-                            )}
-                        </AnimatePresence>
-                    </div>
-
-                    {/* Right: Plan & Status */}
-                    <div className="lg:col-span-12 xl:col-span-5 space-y-6">
-
-                        {/* Plan Visualizer */}
-                        <div className="bg-gray-900/20 border border-gray-800 rounded-xl p-6 h-full">
-                            <h3 className="text-gold font-bold mb-4 flex items-center gap-2">
-                                <Layers size={18} /> EXECUTION PLAN
-                            </h3>
-
-                            {executionPlan.length === 0 ? (
-                                <div className="text-center text-gray-600 py-10 flex flex-col items-center">
-                                    <Clock className="mb-2 opacity-50" />
-                                    <span>Waiting for AI analysis...</span>
+                        <div className="space-y-1 font-mono text-xs">
+                            {logs.length === 0 && <div className="text-gray-600 h-full flex items-center justify-center italic">System Idle. Awaiting Protocol.</div>}
+                            {logs.map((log, i) => (
+                                <div key={i} className={`flex items-start gap-2 ${log.type === 'error' ? 'text-red-400' : log.type === 'success' ? 'text-green-400' : 'text-gray-400'}`}>
+                                    <span className="text-gray-700 shrink-0">[{log.timestamp ? new Date(log.timestamp).toLocaleTimeString([], { hour12: false }) : '00:00:00'}]</span>
+                                    <span>{log.message}</span>
+                                    {log.result && <div className="ml-14 text-gray-600 truncate opacity-50">{typeof log.result === 'string' ? log.result.substring(0, 50) : 'Data Object'}...</div>}
                                 </div>
-                            ) : (
-                                <div className="space-y-4">
-                                    {executionPlan.map((step, idx) => (
-                                        <div key={idx} className="relative pl-6 border-l-2 border-gray-700">
-                                            {/* Status Dot */}
-                                            <div className={`absolute -left-[9px] top-0 w-4 h-4 rounded-full border-2 ${logs.find(l => l.message.includes(`Step ${step.step_id} Completed`))
-                                                ? 'bg-green-500 border-green-900'
-                                                : logs.find(l => l.message.includes(`Executing Step ${step.step_id}`))
-                                                    ? 'bg-cyan-500 border-cyan-900 animate-pulse'
-                                                    : 'bg-gray-800 border-gray-600'
-                                                }`}></div>
+                            ))}
+                            <div ref={logEndRef} />
+                        </div>
+                    </div>
 
-                                            <h4 className="font-bold text-gray-200">Step {step.step_id}: {step.tool.toUpperCase()}</h4>
-                                            <p className="text-sm text-gray-400">{step.description}</p>
-                                            <div className="mt-1 text-xs font-mono text-gray-500">
-                                                Input: {JSON.stringify(step.params)}
+                    {/* INPUT */}
+                    <div className="flex-none h-40 relative group">
+                        <textarea
+                            value={prompt}
+                            onChange={(e) => setPrompt(e.target.value)}
+                            disabled={isProcessing}
+                            placeholder="Initialize Sentinel Protocol... (e.g. 'Scan S&P 500 for breakouts...')"
+                            className="w-full h-full bg-gray-900/60 backdrop-blur border border-gray-700 rounded-xl p-4 text-gray-200 focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500/20 outline-none transition-all resize-none font-mono text-sm placeholder-gray-600 shadow-xl"
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter' && !e.shiftKey) {
+                                    e.preventDefault();
+                                    handleExecute();
+                                }
+                            }}
+                        />
+                        <div className="absolute bottom-4 right-4 flex items-center gap-2">
+                            <button onClick={handleTestPrompt} title="Use Test Prompt" className="p-2 rounded-full bg-gray-800/80 text-gray-500 hover:text-cyan-400 hover:bg-gray-700 transition-all font-xs border border-gray-600/30">
+                                <Zap size={14} />
+                            </button>
+                            <button onClick={() => setIsMuted(!isMuted)} title={isMuted ? "Unmute TTS" : "Mute TTS"} className={`p-2 rounded-full transition-all ${isMuted ? 'bg-red-900/50 text-red-400' : 'bg-gray-800/80 text-gray-500 hover:text-cyan-400'}`}>
+                                {isMuted ? <VolumeX size={18} /> : <Volume2 size={18} />}
+                            </button>
+                            <button onClick={startListening} title="Voice Input" className={`p-2 rounded-full transition-all ${isListening ? 'bg-red-500 animate-pulse text-white shadow-[0_0_15px_rgba(239,68,68,0.5)]' : 'bg-gray-800/80 text-gray-500 hover:text-cyan-400 hover:bg-gray-700'}`}>
+                                <Mic size={18} />
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* CONTROLS */}
+                    <div className="flex-none h-16 bg-gray-900/60 backdrop-blur border border-gray-800 rounded-xl p-2 flex items-center justify-between px-6 shadow-lg">
+                        <div className="flex items-center gap-4">
+                            <button
+                                onClick={() => setResearchMode(!researchMode)}
+                                className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold transition-all border ${researchMode ? 'bg-cyan-900/30 text-cyan-400 border-cyan-500 shadow-[0_0_10px_rgba(34,211,238,0.2)]' : 'bg-transparent text-gray-600 border-gray-700 hover:border-gray-500'}`}
+                            >
+                                <Globe size={14} /> {researchMode ? 'NET LINK: ON' : 'NET LINK: OFF'}
+                            </button>
+                            <button
+                                onClick={() => setFinalSummary(lastReport)}
+                                disabled={!lastReport}
+                                className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold transition-all border 
+                                ${lastReport
+                                        ? 'bg-cyan-900/20 border-cyan-400 text-cyan-400 shadow-[0_0_15px_rgba(34,211,238,0.5)] animate-pulse hover:bg-cyan-900/40'
+                                        : 'border-gray-700 text-gray-500 hover:text-white hover:border-gray-500 opacity-50 cursor-not-allowed'}`}
+                            >
+                                <MessageSquare size={14} /> REPORT
+                            </button>
+                            <button
+                                onClick={saveCurrentSession}
+                                disabled={!lastReport}
+                                className="flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold transition-all border border-gray-700 text-gray-500 hover:text-white hover:border-gray-500 disabled:opacity-30 disabled:cursor-not-allowed"
+                            >
+                                <Save size={14} /> SAVE MISSION
+                            </button>
+                        </div>
+
+                        <div className="flex items-center gap-3">
+                            <NeonWrapper color="purple">
+                                <button onClick={handleManualSetup} disabled={isProcessing} className="px-4 py-2 bg-transparent border border-gray-500/30 rounded flex items-center gap-2 font-bold text-gray-400 hover:bg-gray-500/10 hover:text-gray-200 text-xs transition-all disabled:opacity-50">
+                                    <Layers size={14} /> MANUAL
+                                </button>
+                            </NeonWrapper>
+
+                            <NeonWrapper color="purple">
+                                <button onClick={handlePlan} disabled={isProcessing || !prompt.trim()} className="px-6 py-2 bg-transparent border border-purple-500/30 rounded flex items-center gap-2 font-bold text-purple-400 hover:bg-purple-500/10 text-xs transition-all disabled:opacity-50">
+                                    <Bot size={14} /> PLAN
+                                </button>
+                            </NeonWrapper>
+                            <NeonWrapper color="cyan">
+                                <button onClick={() => handleExecute(null)} disabled={isProcessing || (!prompt.trim() && executionPlan.length === 0)} className="px-8 py-2 bg-cyan-900/20 border border-cyan-500/50 rounded flex items-center gap-2 font-bold text-cyan-400 hover:bg-cyan-500/20 text-xs transition-all disabled:opacity-50 shadow-[0_0_15px_rgba(6,182,212,0.1)]">
+                                    {isProcessing ? <Activity size={14} className="animate-spin" /> : <Send size={14} />}
+                                    {isProcessing ? "EXECUTING..." : "EXECUTE"}
+                                </button>
+                            </NeonWrapper>
+                        </div>
+                    </div>
+                </div>
+
+                {/* MODAL: Manual Planner / Review */}
+                <AnimatePresence>
+                    {reviewMode && (
+                        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+                            <motion.div
+                                initial={{ scale: 0.95, opacity: 0 }}
+                                animate={{ scale: 1, opacity: 1 }}
+                                className="bg-gray-900 border border-purple-500/50 rounded-xl w-full max-w-2xl max-h-[85vh] flex flex-col shadow-2xl"
+                            >
+                                <div className="p-4 border-b border-gray-800 flex justify-between items-center bg-purple-900/20">
+                                    <h3 className="text-lg font-bold text-purple-400 flex items-center gap-2">
+                                        <Layers size={18} /> {isManualMode ? 'MANUAL EXECUTION BUILDER' : 'CONFIRM EXECUTION PROTOCOL'}
+                                    </h3>
+                                    <button onClick={() => setReviewMode(false)} className="text-gray-400 hover:text-white"><X size={18} /></button>
+                                </div>
+
+                                <div className="p-6 overflow-y-auto space-y-4">
+                                    {executionPlan.map((step, idx) => (
+                                        <div key={idx} className="bg-black/40 border border-purple-500/30 rounded-lg p-4 relative group">
+                                            {/* HEADER: Step ID + Tool Selector */}
+                                            <div className="flex items-center gap-3 mb-3">
+                                                <div className="bg-purple-900/50 text-purple-300 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0">{step.step_id}</div>
+
+                                                {isManualMode ? (
+                                                    <select
+                                                        value={step.tool}
+                                                        onChange={(e) => updateStep(idx, 'tool', e.target.value)}
+                                                        className="bg-gray-900 border border-gray-700 rounded px-2 py-1 text-cyan-400 font-bold text-sm outline-none focus:border-cyan-500"
+                                                    >
+                                                        {SENTINEL_TOOLS.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+                                                    </select>
+                                                ) : (
+                                                    <span className="font-bold text-cyan-400 text-sm">{step.tool.toUpperCase()}</span>
+                                                )}
+
+                                                {isManualMode && (
+                                                    <button onClick={() => removeStep(idx)} className="ml-auto text-gray-600 hover:text-red-400"><Trash2 size={14} /></button>
+                                                )}
+                                            </div>
+
+                                            {/* BODY: Description + Params */}
+                                            <div className="space-y-3">
+                                                {/* Description Input */}
+                                                <div>
+                                                    <label className="text-[10px] text-gray-500 font-bold uppercase tracking-wider mb-1 block">Description</label>
+                                                    {isManualMode ? (
+                                                        <input
+                                                            type="text"
+                                                            value={step.description}
+                                                            onChange={(e) => updateStep(idx, 'description', e.target.value)}
+                                                            className="w-full bg-gray-900/50 border border-gray-700 rounded px-3 py-2 text-xs text-gray-300 outline-none focus:border-purple-500"
+                                                        />
+                                                    ) : (
+                                                        <div className="text-gray-400 text-xs">{step.description}</div>
+                                                    )}
+                                                </div>
+
+                                                {/* Dynamic Params */}
+                                                {isManualMode && SENTINEL_TOOLS.find(t => t.value === step.tool)?.params.length > 0 && (
+                                                    <div className="grid grid-cols-2 gap-3 pt-2 border-t border-gray-800/50">
+                                                        {SENTINEL_TOOLS.find(t => t.value === step.tool).params.map(param => (
+                                                            <div key={param}>
+                                                                <label className="text-[10px] text-gray-500 font-bold uppercase tracking-wider mb-1 block">{param.replace('_', ' ')}</label>
+                                                                {PARAM_OPTIONS[param] ? (
+                                                                    <select
+                                                                        value={step.params[param] || ""}
+                                                                        onChange={(e) => updateStepParam(idx, param, e.target.value)}
+                                                                        className="w-full bg-gray-900/50 border border-gray-700 rounded px-2 py-1.5 text-xs text-gray-300 outline-none focus:border-cyan-500"
+                                                                    >
+                                                                        {PARAM_OPTIONS[param].map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+                                                                    </select>
+                                                                ) : (
+                                                                    <input
+                                                                        type="text"
+                                                                        value={step.params[param] || ""}
+                                                                        onChange={(e) => updateStepParam(idx, param, e.target.value)}
+                                                                        className="w-full bg-gray-900/50 border border-gray-700 rounded px-2 py-1.5 text-xs text-gray-300 outline-none focus:border-cyan-500"
+                                                                    />
+                                                                )}
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                )}
+
+                                                {/* Read-Only Params for Review Mode */}
+                                                {!isManualMode && Object.keys(step.params || {}).length > 0 && (
+                                                    <div className="flex flex-wrap gap-2 mt-2">
+                                                        {Object.entries(step.params).map(([k, v]) => (
+                                                            <span key={k} className="px-2 py-1 bg-gray-800 rounded text-[10px] text-gray-400 font-mono">{k}: <span className="text-gray-200">{v}</span></span>
+                                                        ))}
+                                                    </div>
+                                                )}
                                             </div>
                                         </div>
                                     ))}
                                 </div>
-                            )}
-                        </div>
 
-                        {/* Plan Review Modal / Overlay */}
-                        <AnimatePresence>
-                            {reviewMode && (
-                                <motion.div
-                                    initial={{ opacity: 0, scale: 0.9 }}
-                                    animate={{ opacity: 1, scale: 1 }}
-                                    exit={{ opacity: 0, scale: 0.9 }}
-                                    className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
-                                >
-                                    <div className="bg-gray-900 border border-purple-500 rounded-xl w-full max-w-2xl max-h-[80vh] flex flex-col shadow-[0_0_50px_rgba(168,85,247,0.3)]">
-                                        <div className="p-4 border-b border-gray-800 flex justify-between items-center bg-purple-900/20">
-                                            <h3 className="text-xl font-bold text-purple-400 flex items-center gap-2">
-                                                <Layers /> Review Execution Plan
-                                            </h3>
-                                            <button onClick={() => setReviewMode(false)} className="text-gray-400 hover:text-white">✕</button>
-                                        </div>
-
-                                        <div className="p-6 overflow-y-auto flex-1 space-y-4">
-                                            <p className="text-sm text-gray-400 mb-4">
-                                                Review and modify the generated steps before execution. You can manually adjust parameters to correct connections (e.g., change inputs).
-                                            </p>
-
-                                            {executionPlan.map((step, idx) => (
-                                                <div key={idx} className="bg-black/50 border border-gray-700 rounded-lg p-4 relative group hover:border-purple-500/50 transition-colors">
-                                                    {/* Header */}
-                                                    <div className="flex justify-between items-center mb-4 border-b border-gray-800 pb-2">
-                                                        <div className="flex items-center gap-3">
-                                                            <div className="bg-purple-900/40 text-purple-300 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold border border-purple-500/30">
-                                                                {idx + 1}
-                                                            </div>
-                                                            <div className="flex-1 relative group/select">
-                                                                <div className="absolute inset-y-0 right-0 flex items-center pr-2 pointer-events-none text-cyan-500 group-hover/select:text-cyan-300 transition-colors">
-                                                                    <ChevronDown size={16} />
-                                                                </div>
-                                                                <select
-                                                                    className="w-full bg-black/60 border border-cyan-500/30 text-cyan-400 font-bold uppercase outline-none cursor-pointer hover:border-cyan-400 focus:border-cyan-400 focus:bg-cyan-900/10 rounded px-3 py-1.5 appearance-none pr-8 transition-all shadow-[0_0_10px_rgba(34,211,238,0.1)] hover:shadow-[0_0_15px_rgba(34,211,238,0.2)]"
-                                                                    value={step.tool}
-                                                                    onChange={(e) => {
-                                                                        const newTool = e.target.value;
-                                                                        const newPlan = [...executionPlan];
-
-                                                                        // Reset params & Set Default Description
-                                                                        let defaultParams = {};
-                                                                        let defaultDesc = "";
-
-                                                                        if (newTool === 'market') {
-                                                                            defaultParams = { sensitivity: 2, market_type: "sp500" };
-                                                                            defaultDesc = "Scan market for opportunities.";
-                                                                        } else if (newTool === 'manual_list') {
-                                                                            defaultParams = { tickers: "" };
-                                                                            defaultDesc = "Process manual ticker list.";
-                                                                        } else if (newTool === 'nexus_import') {
-                                                                            defaultParams = { nexus_code: "" };
-                                                                            defaultDesc = "Import tickers from Nexus portfolio.";
-                                                                        } else if (['sentiment', 'fundamentals', 'powerscore', 'quickscore'].includes(newTool)) {
-                                                                            defaultParams = { tickers_source: "", limit: 10 };
-                                                                            if (newTool === 'powerscore') defaultParams.sensitivity = 2;
-                                                                            const toolLabels = {
-                                                                                sentiment: "Analyze sentiment",
-                                                                                fundamentals: "Check fundamentals",
-                                                                                powerscore: "Calculate PowerScore",
-                                                                                quickscore: "Get QuickScore"
-                                                                            };
-                                                                            defaultDesc = `${toolLabels[newTool]} for top tickers...`;
-                                                                        } else if (newTool === 'summary') {
-                                                                            defaultParams = { data_source: "$CONTEXT" };
-                                                                            defaultDesc = "Generate final mission report.";
-                                                                        } else if (newTool === 'mlforecast') {
-                                                                            defaultParams = { tickers_source: "", limit: 5 };
-                                                                            defaultDesc = "Generate ML Price Forecasts...";
-                                                                        }
-
-                                                                        newPlan[idx] = {
-                                                                            ...step,
-                                                                            tool: newTool,
-                                                                            params: defaultParams,
-                                                                            description: defaultDesc
-                                                                        };
-                                                                        setExecutionPlan(newPlan);
-                                                                    }}
-                                                                >
-                                                                    {/* Dynamic Options based on Step Index & Usage */}
-                                                                    {(() => {
-                                                                        // Step 0: Input Sources Only (Market, Manual)
-                                                                        if (idx === 0) {
-                                                                            return (
-                                                                                <>
-                                                                                    <option value="market" className="bg-gray-900 text-white">MARKET SCAN</option>
-                                                                                    <option value="manual_list" className="bg-gray-900 text-white">MANUAL TICKER LIST</option>
-                                                                                    <option value="nexus_import" className="bg-gray-900 text-white">IMPORT PORTFOLIO</option>
-                                                                                </>
-                                                                            );
-                                                                        }
-
-                                                                        // Step > 0: Analysis Tools (Exclude used ones, except self)
-                                                                        const analysisTools = [
-                                                                            { id: 'sentiment', label: 'SENTIMENT ANALYSIS' },
-                                                                            { id: 'fundamentals', label: 'FUNDAMENTALS' },
-                                                                            { id: 'powerscore', label: 'POWERSCORE' },
-                                                                            { id: 'quickscore', label: 'QUICKSCORE' },
-                                                                            { id: 'mlforecast', label: 'ML FORECAST' }
-                                                                        ];
-
-                                                                        // Filter out tools used elsewhere in the plan
-                                                                        const usedTools = executionPlan.map(s => s.tool);
-
-                                                                        const options = analysisTools.map(t => (
-                                                                            <option
-                                                                                key={t.id}
-                                                                                value={t.id}
-                                                                                disabled={usedTools.includes(t.id) && step.tool !== t.id}
-                                                                                className={`${usedTools.includes(t.id) && step.tool !== t.id ? 'text-gray-600 bg-gray-900' : 'bg-gray-900 text-white'}`}
-                                                                            >
-                                                                                {t.label} {usedTools.includes(t.id) && step.tool !== t.id ? '(Used)' : ''}
-                                                                            </option>
-                                                                        ));
-
-                                                                        // Always allow Summary as last step
-                                                                        options.push(
-                                                                            <option key="summary" value="summary" className="bg-gray-900 text-gold font-bold">
-                                                                                ⭐ SUMMARY GENERATION
-                                                                            </option>
-                                                                        );
-
-                                                                        return options;
-                                                                    })()}
-                                                                </select>
-                                                            </div>
-                                                        </div>
-
-
-                                                        <div className="flex items-center gap-1">
-                                                            {/* Reordering Controls */}
-                                                            <div className="flex flex-col gap-0.5 mr-2">
-                                                                <button
-                                                                    onClick={() => {
-                                                                        if (idx === 0) return;
-                                                                        const newPlan = [...executionPlan];
-                                                                        [newPlan[idx - 1], newPlan[idx]] = [newPlan[idx], newPlan[idx - 1]];
-                                                                        // Update Step IDs
-                                                                        newPlan.forEach((s, i) => { s.step_id = i + 1; s.output_key = `step_${i + 1}_output`; });
-                                                                        setExecutionPlan(newPlan);
-                                                                    }}
-                                                                    disabled={idx === 0}
-                                                                    className={`text-gray-500 hover:text-cyan-400 disabled:opacity-30 ${idx === 0 ? '' : 'cursor-pointer'}`}
-                                                                >
-                                                                    ▲
-                                                                </button>
-                                                                <button
-                                                                    onClick={() => {
-                                                                        if (idx === executionPlan.length - 1) return;
-                                                                        const newPlan = [...executionPlan];
-                                                                        [newPlan[idx + 1], newPlan[idx]] = [newPlan[idx], newPlan[idx + 1]];
-                                                                        // Update Step IDs
-                                                                        newPlan.forEach((s, i) => { s.step_id = i + 1; s.output_key = `step_${i + 1}_output`; });
-                                                                        setExecutionPlan(newPlan);
-                                                                    }}
-                                                                    disabled={idx === executionPlan.length - 1}
-                                                                    className={`text-gray-500 hover:text-cyan-400 disabled:opacity-30 text-[10px] ${idx === executionPlan.length - 1 ? '' : 'cursor-pointer'}`}
-                                                                >
-                                                                    ▼
-                                                                </button>
-                                                            </div>
-
-                                                            <button
-                                                                onClick={() => {
-                                                                    const newPlan = executionPlan.filter((_, i) => i !== idx);
-                                                                    // Re-index steps
-                                                                    const reindexed = newPlan.map((s, i) => ({ ...s, step_id: i + 1, output_key: `step_${i + 1}_output` }));
-                                                                    setExecutionPlan(reindexed);
-                                                                }}
-                                                                className="text-gray-600 hover:text-red-400 p-1"
-                                                            >
-                                                                <Activity size={16} className="rotate-45" />
-                                                            </button>
-                                                        </div>
-                                                    </div>
-
-                                                    {/* Body */}
-                                                    <div className="space-y-4">
-                                                        {/* Description */}
-                                                        <div>
-                                                            <label className="text-[10px] text-gray-500 font-bold uppercase tracking-wider block mb-1">Description</label>
-                                                            <input
-                                                                type="text"
-                                                                className="w-full bg-gray-900/50 border border-gray-800 rounded px-2 py-1 text-xs text-gray-300 focus:border-purple-500/50 outline-none"
-                                                                value={step.description}
-                                                                onChange={(e) => {
-                                                                    const newPlan = [...executionPlan];
-                                                                    newPlan[idx].description = e.target.value;
-                                                                    setExecutionPlan(newPlan);
-                                                                }}
-                                                            />
-                                                        </div>
-
-                                                        {/* MANUAL LIST UI */}
-                                                        {step.tool === 'manual_list' && (
-                                                            <div>
-                                                                <label className="text-[10px] text-purple-400 font-bold uppercase tracking-wider block mb-1">
-                                                                    Tickers (Comma Separated)
-                                                                </label>
-                                                                <textarea
-                                                                    className="w-full h-20 bg-gray-900 border border-gray-700 rounded px-2 py-2 text-xs text-white focus:border-purple-500 outline-none font-mono"
-                                                                    placeholder="AAPL, MSFT, TSLA..."
-                                                                    value={step.params.tickers || ""}
-                                                                    onChange={(e) => {
-                                                                        const newPlan = [...executionPlan];
-                                                                        newPlan[idx].params = { ...newPlan[idx].params, tickers: e.target.value };
-                                                                        setExecutionPlan(newPlan);
-                                                                    }}
-                                                                />
-                                                            </div>
-                                                        )}
-
-                                                        {/* NEXUS IMPORT UI */}
-                                                        {step.tool === 'nexus_import' && (
-                                                            <div>
-                                                                <label className="text-[10px] text-purple-400 font-bold uppercase tracking-wider block mb-1">
-                                                                    Portfolio Code (e.g. IQUANTUM)
-                                                                </label>
-                                                                <input
-                                                                    type="text"
-                                                                    className="w-full bg-gray-900 border border-gray-700 rounded px-2 py-2 text-xs text-white focus:border-purple-500 outline-none font-mono uppercase"
-                                                                    placeholder="SKYNET"
-                                                                    value={step.params.nexus_code || ""}
-                                                                    onChange={(e) => {
-                                                                        const newPlan = [...executionPlan];
-                                                                        newPlan[idx].params = { ...newPlan[idx].params, nexus_code: e.target.value };
-                                                                        setExecutionPlan(newPlan);
-                                                                    }}
-                                                                />
-                                                            </div>
-                                                        )}
-
-                                                        {/* Inputs / Dependencies */}
-                                                        {['sentiment', 'powerscore', 'fundamentals', 'quickscore', 'mlforecast'].includes(step.tool) && (
-                                                            <div>
-                                                                <label className="text-[10px] text-purple-400 font-bold uppercase tracking-wider block mb-1 flex items-center gap-1">
-                                                                    <Layers size={10} /> Data Source
-                                                                </label>
-                                                                <select
-                                                                    className="w-full bg-gray-900 border border-gray-700 rounded px-2 py-1.5 text-xs text-white focus:border-purple-500 outline-none"
-                                                                    value={step.params.tickers_source || ""}
-                                                                    onChange={(e) => {
-                                                                        const newPlan = [...executionPlan];
-                                                                        newPlan[idx].params = { ...newPlan[idx].params, tickers_source: e.target.value };
-                                                                        setExecutionPlan(newPlan);
-                                                                    }}
-                                                                >
-                                                                    <option value="">Select Input Source...</option>
-                                                                    {idx > 0 && executionPlan.slice(0, idx).map((prevStep, prevIdx) => (
-                                                                        <React.Fragment key={prevIdx}>
-                                                                            <option value={`$step_${prevStep.step_id}_output.top_10`}>
-                                                                                Step {prevStep.step_id} ({prevStep.tool.toUpperCase()}) - Top 10
-                                                                            </option>
-                                                                            <option value={`$step_${prevStep.step_id}_output.tickers`}>
-                                                                                Step {prevStep.step_id} ({prevStep.tool.toUpperCase()}) - All Items
-                                                                            </option>
-                                                                        </React.Fragment>
-                                                                    ))}
-                                                                </select>
-                                                            </div>
-                                                        )}
-
-                                                        {/* Tool Specific Params */}
-                                                        <div className="grid grid-cols-2 gap-2">
-                                                            {(step.tool === 'market' || step.tool === 'powerscore') && (
-                                                                <div>
-                                                                    <label className="text-[10px] text-gray-500 font-bold uppercase tracking-wider block mb-1">Sensitivity</label>
-                                                                    <select
-                                                                        className="w-full bg-gray-900 border border-gray-700 rounded px-2 py-1 text-xs text-white outline-none"
-                                                                        value={step.params.sensitivity || 2}
-                                                                        onChange={(e) => {
-                                                                            const newPlan = [...executionPlan];
-                                                                            newPlan[idx].params = { ...newPlan[idx].params, sensitivity: parseInt(e.target.value) };
-                                                                            setExecutionPlan(newPlan);
-                                                                        }}
-                                                                    >
-                                                                        <option value="1">1 (Weekly)</option>
-                                                                        <option value="2">2 (Daily)</option>
-                                                                        <option value="3">3 (Hourly)</option>
-                                                                    </select>
-                                                                </div>
-                                                            )}
-
-                                                            {step.tool === 'market' && (
-                                                                <div>
-                                                                    <label className="text-[10px] text-gray-500 font-bold uppercase tracking-wider block mb-1">Market Type</label>
-                                                                    <select
-                                                                        className="w-full bg-gray-900 border border-gray-700 rounded px-2 py-1 text-xs text-white outline-none"
-                                                                        value={step.params.market_type || "sp500"}
-                                                                        onChange={(e) => {
-                                                                            const newPlan = [...executionPlan];
-                                                                            newPlan[idx].params = { ...newPlan[idx].params, market_type: e.target.value };
-                                                                            setExecutionPlan(newPlan);
-                                                                        }}
-                                                                    >
-                                                                        <option value="sp500">S&P 500</option>
-                                                                        <option value="plus">Large Cap &gt;50B</option>
-                                                                        <option value="plusplus">Mid Cap &gt;10B</option>
-                                                                    </select>
-                                                                </div>
-                                                            )}
-
-                                                            {['sentiment', 'powerscore', 'fundamentals', 'quickscore', 'mlforecast'].includes(step.tool) && (
-                                                                <div>
-                                                                    <label className="text-[10px] text-gray-500 font-bold uppercase tracking-wider block mb-1">Limit (Max Items)</label>
-                                                                    <input
-                                                                        type="number"
-                                                                        className="w-full bg-gray-900 border border-gray-700 rounded px-2 py-1 text-xs text-white outline-none"
-                                                                        value={step.params.limit || 3}
-                                                                        onChange={(e) => {
-                                                                            const newPlan = [...executionPlan];
-                                                                            newPlan[idx].params = { ...newPlan[idx].params, limit: parseInt(e.target.value) };
-                                                                            setExecutionPlan(newPlan);
-                                                                        }}
-                                                                    />
-                                                                </div>
-                                                            )}
-                                                        </div>
-                                                    </div>
-
-                                                    {/* Connector Line Visual */}
-                                                    {
-                                                        idx < executionPlan.length - 1 && (
-                                                            <div className="absolute -bottom-6 left-7 w-0.5 h-6 bg-gray-800 z-0"></div>
-                                                        )
-                                                    }
-                                                </div>
-                                            ))}
-
-                                            <div className="flex gap-2">
-                                                <button
-                                                    onClick={() => {
-                                                        const nextId = executionPlan.length + 1;
-                                                        // Determine next available tool
-                                                        const usedTools = executionPlan.map(s => s.tool);
-                                                        const allTools = ['sentiment', 'fundamentals', 'powerscore', 'quickscore', 'mlforecast'];
-                                                        const available = allTools.find(t => !usedTools.includes(t));
-
-                                                        if (available) {
-                                                            setExecutionPlan([...executionPlan, {
-                                                                step_id: nextId,
-                                                                tool: available,
-                                                                params: { tickers_source: "", limit: 10 },
-                                                                output_key: `step_${nextId}_output`,
-                                                                description: `Analyze using ${available}...`
-                                                            }]);
-                                                        }
-                                                    }}
-                                                    disabled={executionPlan.length >= 5}
-                                                    className={`flex-1 py-3 border-2 border-dashed border-gray-800 rounded-lg text-gray-500 hover:text-purple-400 hover:border-purple-500/30 hover:bg-purple-500/5 transition-all flex items-center justify-center gap-2 font-bold text-sm ${executionPlan.length >= 5 ? 'opacity-50 cursor-not-allowed' : ''}`}
-                                                >
-                                                    <div className="w-5 h-5 bg-gray-800 rounded-full flex items-center justify-center text-xs">+</div>
-                                                    ADD STEP
-                                                </button>
-
-                                                <button
-                                                    onClick={() => {
-                                                        const nextId = executionPlan.length + 1;
-                                                        setExecutionPlan([...executionPlan, {
-                                                            step_id: nextId,
-                                                            tool: "summary",
-                                                            params: { data_source: "$CONTEXT" },
-                                                            output_key: "final_summary",
-                                                            description: "Generate final summary."
-                                                        }]);
-                                                    }}
-                                                    className="px-4 py-3 border-2 border-dashed border-gray-800 rounded-lg text-gray-500 hover:text-gold hover:border-gold/30 hover:bg-gold/5 transition-all flex items-center justify-center gap-2 font-bold text-sm"
-                                                >
-                                                    <Layers size={14} />
-                                                    + SUMMARY
-                                                </button>
-                                            </div>
-                                        </div>
-
-                                        <div className="p-4 border-t border-gray-800 flex justify-end gap-3 bg-gray-900">
-                                            <button
-                                                onClick={() => setReviewMode(false)}
-                                                className="px-4 py-2 rounded text-gray-300 hover:text-white transition-colors"
-                                            >
-                                                Cancel
+                                {/* FOOTER: Add Step / Summary / Buttons */}
+                                <div className="p-4 border-t border-gray-800 bg-gray-900/50 flex flex-col gap-3">
+                                    {isManualMode && (
+                                        <div className="flex gap-2">
+                                            <button onClick={addStep} className="flex-1 py-2 border border-dashed border-gray-700 text-gray-500 hover:text-cyan-400 hover:border-cyan-500/50 rounded flex items-center justify-center gap-2 text-xs font-bold transition-all">
+                                                <Plus size={14} /> ADD STEP
                                             </button>
-                                            <button
-                                                onClick={() => handleExecute(executionPlan)}
-                                                className="px-6 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded font-bold transition-colors shadow-lg shadow-purple-900/50"
-                                            >
-                                                Confirm & Execute
+                                            <button onClick={addSummaryStep} className="flex-1 py-2 border border-dashed border-gray-700 text-gray-500 hover:text-purple-400 hover:border-purple-500/50 rounded flex items-center justify-center gap-2 text-xs font-bold transition-all">
+                                                <Layers size={14} /> + SUMMARY
                                             </button>
                                         </div>
+                                    )}
+
+                                    <div className="flex justify-end gap-3 mt-2">
+                                        <button onClick={() => setReviewMode(false)} className="px-4 py-2 rounded text-gray-400 hover:text-white text-sm font-bold">Cancel</button>
+                                        <button
+                                            onClick={() => handleExecute(executionPlan)}
+                                            className="px-6 py-2 bg-gradient-to-r from-purple-600 to-cyan-600 rounded text-white font-bold text-sm hover:opacity-90 shadow-lg"
+                                        >
+                                            Confirm & Execute
+                                        </button>
                                     </div>
-                                </motion.div>
-                            )}
-                        </AnimatePresence>
-                    </div>
-                </div>
+                                </div>
+                            </motion.div>
+                        </div>
+                    )}
+                </AnimatePresence>
+
+                {/* Overlay: Mission Report */}
+                <AnimatePresence>
+                    {finalSummary && (
+                        <motion.div
+                            initial={{ y: 100, opacity: 0 }}
+                            animate={{ y: 0, opacity: 1 }}
+                            exit={{ y: 100, opacity: 0 }}
+                            className="absolute bottom-24 left-6 right-6 mx-auto max-w-4xl bg-black/95 backdrop-blur-xl border border-gold/50 rounded-xl shadow-[0_0_50px_rgba(234,179,8,0.2)] max-h-[60vh] flex flex-col overflow-hidden z-30"
+                        >
+                            <div className="p-4 border-b border-gold/20 flex justify-between items-center bg-gold/5">
+                                <h3 className="text-gold font-bold flex items-center gap-2 font-mono tracking-widest">
+                                    <Cpu size={16} /> MISSION REPORT
+                                </h3>
+                                <div className="flex gap-2">
+                                    <button onClick={() => speak(finalSummary)} className="p-1.5 text-gold hover:bg-gold/10 rounded"><Volume2 size={16} /></button>
+                                    <button onClick={() => navigator.clipboard.writeText(finalSummary)} className="p-1.5 text-gold hover:bg-gold/10 rounded"><Layers size={16} /></button>
+                                    <button onClick={() => setFinalSummary(null)} className="p-1.5 text-gray-500 hover:text-white rounded"><X size={16} /></button>
+                                </div>
+                            </div>
+                            <div className="p-6 overflow-y-auto font-sans text-sm leading-relaxed text-gray-300 space-y-4 custom-scrollbar-gold">
+                                {finalSummary.split('\n').map((line, i) => {
+                                    if (line.trim().startsWith('# ')) return <h1 key={i} className="text-xl font-bold text-white mt-4 pb-2 border-b border-gray-800">{line.replace('# ', '')}</h1>;
+                                    if (line.trim().startsWith('## ')) return <h2 key={i} className="text-lg font-bold text-gold mt-4">{line.replace('## ', '')}</h2>;
+                                    if (line.trim().startsWith('- ')) return <li key={i} className="ml-4 list-disc marker:text-gold">{line.replace('- ', '')}</li>;
+                                    return <p key={i}>{line}</p>;
+                                })}
+                            </div>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
+
             </div>
         </div>
     );

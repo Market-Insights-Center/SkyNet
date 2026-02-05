@@ -38,21 +38,83 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("sentinel_ai")
 
 # --- Command Registry ---
-# Map "tool names" used by the Planner LLM to actual python functions.
-COMMAND_REGISTRY = {
-    "market": market_command.handle_market_command,
-    "sentiment": sentiment_command.handle_sentiment_command,
-    "risk": risk_command.handle_risk_command,
-    "briefing": briefing_command.handle_briefing_command,
-    "fundamentals": fundamentals_command.handle_fundamentals_command,
-    "assess": assess_command.handle_assess_command,
-    "mlforecast": mlforecast_command.handle_mlforecast_command,
-    "powerscore": powerscore_command.handle_powerscore_command,
-    "quickscore": quickscore_command.handle_quickscore_command,
-    "nexus_import": lambda args, ai_params, is_called_by_ai: handle_nexus_import_tool(ai_params),
-    "summary": lambda args, ai_params, is_called_by_ai: handle_summary_tool(ai_params),
-    "manual_list": lambda args, ai_params, is_called_by_ai: handle_manual_list_tool(ai_params)
-}
+# Moved to bottom to avoid circular reference NameErrors with local handlers
+
+
+async def handle_research_tool(params: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Performs a web search using DuckDuckGo. 
+    Supports 'query' (single string) or 'tickers_source' (list of tickers).
+    """
+    query = params.get("query", "")
+    limit = int(params.get("limit", 5))
+    
+    # --- Context / Ticker Support ---
+    queries = []
+    if "tickers_source" in params:
+        # If tickers provided, generate queries for them
+        tickers_source = params["tickers_source"]
+        # If it's a list (already resolved by execute_step logic usually? 
+        # No, execute_step doesn't resolve for 'research' by default unless we add it to the list of iterables.
+        # But 'research' might want to aggregate. let's handle it here if passed directly or if execute_step passed it.)
+        
+        # Actually, execute_step logic for 'tickers_source' is generic. 
+        # If the tool name is NOT in the loop list ("sentiment", etc), execute_step passes the raw param.
+        # But wait, execute_step RESOLVES 'tickers_source' into a local var 'target_tickers', but DOES NOT pass it to handler unless iterated.
+        # So we need to handle the resolution logic here OR add 'research' to the iteration list in execute_step.
+        
+        # Let's support naive list input if passed directly
+        if isinstance(tickers_source, list):
+            for t in tickers_source:
+                queries.append(f"Latest news and updates for {t} stock")
+    
+    if query:
+        queries.append(query)
+        
+    if not queries: return {"error": "No query or tickers provided for research."}
+        
+    try:
+        from duckduckgo_search import DDGS
+        
+        all_results = []
+        
+        # Parallelize research if multiple queries
+        async def run_search(q):
+            print(f"[SENTINEL] performing research: {q}")
+            try:
+                # Sync call in thread
+                res = await asyncio.to_thread(lambda: list(DDGS().text(q, max_results=limit)))
+                # Add context to result
+                for r in res: r['search_query'] = q
+                return res
+            except Exception as e:
+                logger.error(f"Search error for {q}: {e}")
+                return []
+
+        # Run concurrent searches
+        tasks = [run_search(q) for q in queries]
+        batch_results = await asyncio.gather(*tasks)
+        
+        for batch in batch_results:
+            all_results.extend(batch)
+            
+        return {
+            "query": query if query else f"{len(queries)} queries generated",
+            "results": all_results,
+            "count": len(all_results),
+            "message": f"Found {len(all_results)} results."
+        }
+    except ImportError:
+        logger.warning("duckduckgo-search not found. Using fallback simulated response.")
+        return {
+            "query": str(queries),
+            "results": [{"title": "Search Unavailable", "body": "Research module dependencies missing. Please check console."}],
+            "count": 0,
+            "message": "Research skipped (dependency missing)."
+        }
+    except Exception as e:
+        print(f"[RESEARCH ERROR] {e}")
+        return {"error": f"Search failed: {str(e)}"}
 
 async def handle_manual_list_tool(params: Dict[str, Any]) -> Dict[str, Any]:
     """
@@ -81,11 +143,6 @@ async def handle_nexus_import_tool(params: Dict[str, Any]) -> Dict[str, Any]:
     nexus_code = params.get("nexus_code", "")
     if not nexus_code: return {"error": "No Nexus code provided."}
     
-    # Import here to avoid circulars if possible (or assume it's safe at module level)
-    # We need to ensure nexus_command is available. 
-    # It is imported at top level: from backend.integration import ... nexus_command?
-    # Let's check imports. sentinel_command imports: market_command, sentiment_command...
-    # We need to add nexus_command to imports if not there.
     try:
         from backend.integration.nexus_command import fetch_nexus_tickers
         tickers = await fetch_nexus_tickers(nexus_code)
@@ -101,28 +158,24 @@ async def handle_nexus_import_tool(params: Dict[str, Any]) -> Dict[str, Any]:
 
 async def handle_summary_tool(params: Dict[str, Any]) -> str:
     """
-    Summarizes the provided context data, optimized for speed but prioritizing key insights.
+    Summarizes the provided context data.
     """
     data = params.get("context_data", {})
     user_query = params.get("user_query", "the user request")
     
-    # Smart Context Truncation (Pre-JSON)
+    # Smart Context Truncation
     optimized_data = {}
     for k, v in data.items():
-        # Specific handling for MLForecast results to ensure we don't truncate valuable predictions
         if isinstance(v, list) and len(v) > 0 and isinstance(v[0], dict) and "table" in v[0]:
-            # This looks like a list of MLForecast return objects
             summarized_forecasts = []
             for item in v:
                 if "table" in item:
-                    # Keep the table, it's small enough and critical
                     summarized_forecasts.append({"forecast_table": item["table"]})
             optimized_data[k] = summarized_forecasts
         
         elif isinstance(v, list) and len(v) > 20:
             optimized_data[k] = {"summary": f"List with {len(v)} items", "preview": v[:20]}
-        elif isinstance(v, dict) and "all_data" in v: # Handle market command specific large outputs
-             # Keep summary stats if available, drop raw 'all_data'
+        elif isinstance(v, dict) and "all_data" in v:
              safe_v = v.copy()
              safe_v["all_data"] = "Truncated for summary"
              if "chart_data" in safe_v: safe_v["chart_data"] = "Chart data excluded"
@@ -130,10 +183,7 @@ async def handle_summary_tool(params: Dict[str, Any]) -> str:
         else:
             optimized_data[k] = v
 
-    # Serialize
     context_str = json.dumps(optimized_data, default=str)
-    
-    # Final Safety Limit
     if len(context_str) > 30000:
         context_str = context_str[:30000] + "...(truncated)"
 
@@ -151,6 +201,7 @@ async def handle_summary_tool(params: Dict[str, Any]) -> str:
     2. **Highlight Discrepancies.** If Sentiment is high but ML Forecast is DOWN, mention this risk.
     3. **Actionable Conclusion.** Give a final verdict or recommendation.
     4. **ML Forecast Specifics.** If ML Forecast data is present, explicitly mention the predicted direction and confidence for the different time horizons (1-Week, 1-Month, etc.).
+    5. **Research Data.** If research data is present, synthesize it into the report to provide context.
     
     Format Rules:
     - **Mission Summary**: High-level executive summary.
@@ -161,7 +212,6 @@ async def handle_summary_tool(params: Dict[str, Any]) -> str:
     """
     
     try:
-        # Use a timeout for the AI generation if possible, but here we just await
         return await ai.generate_content(prompt)
     except Exception as e:
         return f"Summary generation failed: {e}. Raw data available in logs."
@@ -181,70 +231,89 @@ Available Tools (Commands):
 8. **quickscore**: Get quick technical score. Params: 'tickers_source' (source).
 9. **mlforecast**: Generate ML-based price forecasts. Params: 'tickers_source' (source of tickers), 'limit' (int).
 10. **nexus_import**: Import tickers from a Nexus/Portfolio code. Params: 'nexus_code' (str).
+11. **research**: Perform web research. Params: 'query' (str) OR 'tickers_source' (source).
 
 Rules:
-1. **Break it down**: If the user asks for "market and then sentiment", that is TWO steps.
-2. **Context Chaining**: 
-    - For commands like `sentiment`, `powerscore` use `tickers_source`.
-    - If the user implies using the result of a previous step, set `tickers_source` to `"$step_N_output.top_10"`.
-3. **Defaults**: Unless specified otherwise, set `limit` to 10.
-4. **Final Summary**: ALWAYS end the plan with a "summary" step using "data_source": "$CONTEXT".
-5. **Format**: Return ONLY valid JSON. The JSON must be a list of steps.
+1. **Valid JSON**: You must return a strict JSON array of objects. NO Markdown, NO strings as IDs.
+2. **Keys**: Each object MUST have:
+   - "step_id" (Integer, 1-indexed)
+   - "tool" (exact string from Available Tools)
+   - "params" (Dictionary of parameters)
+   - "description" (String explaining the step)
+   - "output_key" (String, e.g. "step_1_output")
+3. **Looping/Chaining**:
+   - If user provides tickers (e.g. "Compare AAPL, TSLA"), do NOT make separate steps for each. Use ONE step per tool with `tickers_source`: ["AAPL", "TSLA"].
+   - To chain, set `tickers_source` to "$step_N_output.top_10".
+4. **Research**: If checking news for multiple tickers, pass the list to `tickers_source` in the research tool.
+5. **Summary**: ALWAYS end with a "summary" tool.
+6. **MAXIMIZE INTELLIGENCE**: If the user asks for "Analysis", "Deep Dive", "Check", or "Scan" provided tickers, you MUST include:
+   - **quickscore** (Technical Health)
+   - **mlforecast** (Price Prediction)
+   - **sentiment** (Social/News Vibe)
+   - **fundamentals** (Financials)
+   - **research** (Latest News)
+   Do NOT skip these unless explicitly told to be "brief".
 
 {mode_instructions}
 
-Example 1: "Run market scan sens 2 then sentiment"
+Example:
 [
     {
         "step_id": 1,
-        "tool": "market",
-        "params": {"sensitivity": 2, "market_type": "sp500"},
+        "tool": "manual_list",
+        "params": {"tickers": ["AAPL", "TSLA"]},
         "output_key": "step_1_output",
-        "description": "Run S&P 500 market scan with daily sensitivity."
+        "description": "Load manual tickers."
     },
     {
         "step_id": 2,
-        "tool": "sentiment",
-        "params": {"tickers_source": "$step_1_output.top_10", "limit": 10},
+        "tool": "quickscore",
+        "params": {"tickers_source": "$step_1_output.tickers"},
         "output_key": "step_2_output",
-        "description": "Analyze sentiment for the top 10 stocks from Step 1."
+        "description": "Technical Analysis"
     },
     {
         "step_id": 3,
+        "tool": "mlforecast",
+        "params": {"tickers_source": "$step_1_output.tickers"},
+        "output_key": "step_3_output",
+        "description": "AI Price Forecasting"
+    },
+    {
+        "step_id": 4,
         "tool": "summary",
         "params": {"data_source": "$CONTEXT"},
-        "output_key": "final_summary",
-        "description": "Summarize all findings."
+        "description": "Final report."
     }
 ]
 """
 
 async def plan_execution(user_prompt: str, execution_mode: str = "auto") -> List[Dict[str, Any]]:
-    """
-    Uses the AI Service to generate a JSON execution plan from the user prompt.
-    """
     logger.info(f"Planning execution for: {user_prompt} (Mode: {execution_mode})")
     
     mode_instructions = ""
     if execution_mode == "plan_and_review":
-        mode_instructions = """
-        MODE: PLAN AND REVIEW
-        - Be COMPREHENSIVE and DETAILED.
-        - Add extra verification steps if applicable.
-        - Break down complex tasks into granular steps.
-        - Prioritize depth of analysis over speed.
-        """
+        mode_instructions = "MODE: PLAN AND REVIEW (Detailed, Step-by-Step)"
     elif execution_mode == "quick_execute":
-        mode_instructions = """
-        MODE: QUICK EXECUTE
-        - Be CONCISE and EFFICIENT.
-        - Merge steps where possible appropriately.
-        - Focus on speed and direct results.
-        - Do not add unnecessary exploratory steps unless explicitly asked.
-        """
+        mode_instructions = "MODE: QUICK EXECUTE (Concise, Merged Steps)"
     
+    # --- Regex Pre-Processing to Assist Local LLMs ---
+    import re
+    # Simple regex for tickers: 2-5 uppercase letters, ignore common words
+    potential_tickers = re.findall(r'\b[A-Z]{2,6}\b', user_prompt.upper())
+    common_words = {"THE", "AND", "FO", "HAT", "HIS", "ITH", "ROM", "BUT", "ALL", "ARE", "WAS", "WERE", "CAN", "FOR", "USE", "GET", "HEY", "SEE", "RUN", "NOT", "YES", "LOW", "BIG", "NEW", "OLD", "BUY", "SELL", "TOP", "ANY", "NOW", "ONE", "TWO", "SIX", "TEN", "OUT", "PUT", "CALL", "ASK", "BID", "PE", "EPS", "VOL", "CAP", "ROI", "ROE", "ETF", "YTD", "LTD", "INC", "CORP", "PLC", "USA", "USD", "EUR", "GBP", "JPY", "CNY", "CAD", "AUD", "NZD", "CHF", "HKD", "SGD", "SEK", "DKK", "NOK", "TRY", "RUB", "ZAR", "BRL", "INR", "MXN", "PLN", "THB", "IDR", "HUF", "CZK", "ILS", "CLP", "PHP", "AED", "COP", "SAR", "MYR", "RON"}
+    
+    # Filter based on common words and maybe context (if user said "LITE, DXYZ")
+    filtered_tickers = [t for t in potential_tickers if t not in common_words]
+    # Remove duplicates but keep order
+    final_tickers = list(dict.fromkeys(filtered_tickers))
+
     formatted_system_prompt = SYSTEM_PROMPT_PLANNER.replace("{mode_instructions}", mode_instructions)
     
+    # INJECTION: Force the model to see the tickers we found
+    if final_tickers:
+        formatted_system_prompt += f"\n\n[SYSTEM HINT]: I detected potential tickers in the user request: {json.dumps(final_tickers)}. YOU MUST use this exact list for 'tickers_source' in your tools (research, mlforecast, quickscore, etc.). Do not use '$CONTEXT' for the first step."
+
     try:
         response_text = await ai.generate_content(
             prompt=f"User Request: {user_prompt}",
@@ -261,191 +330,181 @@ async def plan_execution(user_prompt: str, execution_mode: str = "auto") -> List
             
         plan = json.loads(cleaned_json)
         
-        # Handle { "steps": [...] } format
-        if isinstance(plan, dict) and "steps" in plan: 
-            plan = plan["steps"]
-        elif isinstance(plan, dict) and "tool" in plan:
-            # AI returned a single step object instead of a list
-            plan = [plan]
+        # Normalization
+        if isinstance(plan, dict):
+            if "steps" in plan: plan = plan["steps"]
+            elif "tool" in plan: plan = [plan]
+            else: plan = [] # Unknown dict structure
             
-        # Validate structure
         if not isinstance(plan, list):
-            logger.error(f"Plan is not a list: {type(plan)} - Content: {str(plan)[:100]}")
+            logger.error(f"Invalid Plan Structure: {type(plan)}")
             return []
             
-        # Ensure all items are dicts
         valid_plan = []
         for i, item in enumerate(plan):
             if isinstance(item, dict):
-                valid_plan.append(item)
-            else:
-                logger.warning(f"Skipping invalid plan item at index {i}: {item} (type: {type(item)})")
+                # Heuristic Fixes
                 
+                # 1. Fix missing 'tool' key if 'action' or 'command' exists
+                if "tool" not in item:
+                    if "action" in item: item["tool"] = item["action"]
+                    elif "command" in item: item["tool"] = item["command"]
+                
+                # 2. Fix Step ID to integer
+                if "step_id" not in item: item["step_id"] = i + 1
+                try:
+                    item["step_id"] = int(item["step_id"])
+                except:
+                    item["step_id"] = i + 1
+                    
+                # 3. Fix missing params
+                if "params" not in item: item["params"] = {}
+                
+                # 4. Check Valid Tool
+                if item.get("tool") in COMMAND_REGISTRY:
+                    valid_plan.append(item)
+                else:
+                    logger.warning(f"Removing invalid tool step: {item.get('tool')}")
+                    
         return valid_plan
     except Exception as e:
         logger.error(f"Planning failed: {e}")
         return []
 
+# --- Command Registry ---
+# Map "tool names" used by the Planner LLM to actual python functions.
+COMMAND_REGISTRY = {
+    "market": market_command.handle_market_command,
+    "sentiment": sentiment_command.handle_sentiment_command,
+    "risk": risk_command.handle_risk_command,
+    "briefing": briefing_command.handle_briefing_command,
+    "fundamentals": fundamentals_command.handle_fundamentals_command,
+    "assess": assess_command.handle_assess_command,
+    "mlforecast": mlforecast_command.handle_mlforecast_command,
+    "powerscore": powerscore_command.handle_powerscore_command,
+    "quickscore": quickscore_command.handle_quickscore_command,
+    "nexus_import": lambda args, ai_params, is_called_by_ai: handle_nexus_import_tool(ai_params),
+    "summary": lambda args, ai_params, is_called_by_ai: handle_summary_tool(ai_params),
+    "manual_list": lambda args, ai_params, is_called_by_ai: handle_manual_list_tool(ai_params),
+    "research": lambda args, ai_params, is_called_by_ai: handle_research_tool(ai_params)
+}
+
 async def execute_step(step: Dict[str, Any], context: Dict[str, Any], progress_callback: Optional[Any] = None) -> Any:
-    """
-    Executes a single step of the plan.
-    """
+    # ... (Pre-existing validation logic)
     tool_name = step.get("tool")
     params = step.get("params", {})
     
     if tool_name not in COMMAND_REGISTRY:
+        # Final safety check, though plan_execution filters this now
         return {"error": f"Tool '{tool_name}' not found."}
     
     handler = COMMAND_REGISTRY[tool_name]
     logger.info(f"Executing Step {step.get('step_id')}: {tool_name} with params {params}")
     
-    # --- Context Resolution / Magic Binding ---
-    # Attempt to resolve "tickers_source" if present
-    # This is a simplified "Chain" logic. 
-    # Realistically, we'd need a robust expression parser, but for now we handle specific "Market -> Ticker List" patterns.
-    
     target_tickers = []
+    
+    # --- Context Resolution ---
+    # (Existing logic to extract target_tickers for 'tickers_source')
+    # We KEEP this, but we also ensure that if 'research' is used with 'tickers_source', 
+    # we might need to actually pass the RESOLVED list to the handler if the handler expects it.
     
     if "tickers_source" in params:
         source_key = params["tickers_source"]
-        # e.g. "$step_1_output.top_10" or "$step_1_output"
         
-        if source_key.startswith("$"):
-            # logic: parse "$key.subkey"
-            clean_key = source_key.lstrip("$")
-            parts = clean_key.split(".")
-            base_var = parts[0] # e.g. "step_1_output"
-            sub_prop = parts[1] if len(parts) > 1 else None # e.g. "top_10"
-            
-            if base_var in context:
-                source_data = context[base_var]
-                raw_list = []
-                
-                # If sub_prop is specified, try to access it
-                if sub_prop and isinstance(source_data, dict) and sub_prop in source_data:
-                    raw_list = source_data[sub_prop]
-                elif isinstance(source_data, list):
-                    # Maybe the step output is directly a list
-                    raw_list = source_data
-                elif isinstance(source_data, dict):
-                    # Try to guess - check for common keys if no sub_prop
-                    if "top_10" in source_data: raw_list = source_data["top_10"]
-                    elif "tickers" in source_data: raw_list = source_data["tickers"]
-                
-                # Validation: Expecting list of dicts with 'ticker' key or list of strings
-                for item in raw_list:
-                    if isinstance(item, dict) and "ticker" in item:
-                        target_tickers.append(item["ticker"])
-                    elif isinstance(item, str):
-                        target_tickers.append(item)
-                
-                # Limit handling: Capture limit for OUTPUT truncation, not input
-                output_limit = int(params.get("limit", 100))
-                # target_tickers = target_tickers[:limit] # REMOVED: Do not limit input
-                
-                logger.info(f"Resolved {len(target_tickers)} context tickers from {source_key}")
-            else:
-                 logger.warning(f"Context key '{base_var}' not found. Available keys: {list(context.keys())}")
-                 return {"error": f"Dependency {base_var} failed or missing."}
-    
-    # Special handling for Summary Step context injection
-    if params.get("data_source") == "$CONTEXT":
-        params["context_data"] = context
-        # Also pass original user prompt if available in context? 
-        # For now, handle_summary_tool defaults to generic query if not found.
-    
-    # If the tool handles single ticker but we have a list (e.g. Sentiment on Top 3)
-    if target_tickers and tool_name in ["sentiment", "powerscore", "quickscore", "fundamentals", "mlforecast"]:        # We need to run this command MULTIPLE times? Or update the command to accept a list?
-        # Most of our commands accept a single ticker in args[0].
-        # We will iterate here for this specific meta-command logic.
-        
-        # Parallel Execution Logic
-        results = []
-        total = len(target_tickers)
-        
-        # Determine concurrency limit based on tool type to avoid rate limits
-        # Quickscore/Fundamentals are local calculations or light DB queries -> Higher concurrency
-        # Sentiment/MLForecast might hit external APIs -> Lower concurrency
-        concurrency = 15 
-        if tool_name in ["mlforecast", "sentiment"]:
-            concurrency = 5
-        
-        semaphore = asyncio.Semaphore(concurrency)
-        
-        async def _process_single_ticker(idx, t):
-            async with semaphore:
-                # Progress Update (Batch-style to reduce noise, e.g. every 5 or 10%)
-                if progress_callback and (idx % 5 == 0 or idx == total - 1): 
-                     await progress_callback(f"Processing {t} ({idx+1}/{total})...")
-                
-                step_params = params.copy()
-                step_params["ticker"] = t
-                try:
-                    return await handler(args=[t], ai_params=step_params, is_called_by_ai=True)
-                except Exception as e:
-                    logger.error(f"Error processing {t}: {e}")
-                    return {"ticker": t, "error": str(e)}
+        # logic to resolve parameters... (Same as before)
+        if isinstance(source_key, list):
+            target_tickers = source_key
+        elif isinstance(source_key, str) and source_key.startswith("$"):
+             # ... resolution logic ...
+             clean_key = source_key.lstrip("$")
+             parts = clean_key.split(".")
+             base_var = parts[0]
+             sub_prop = parts[1] if len(parts) > 1 else None
+             
+             if base_var in context:
+                 source_data = context[base_var]
+                 raw_list = []
+                 if sub_prop and isinstance(source_data, dict) and sub_prop in source_data:
+                     raw_list = source_data[sub_prop]
+                 elif isinstance(source_data, list):
+                     raw_list = source_data
+                 elif isinstance(source_data, dict):
+                     if "top_10" in source_data: raw_list = source_data["top_10"]
+                     elif "tickers" in source_data: raw_list = source_data["tickers"]
+                 
+                 for item in raw_list:
+                     if isinstance(item, dict) and "ticker" in item: target_tickers.append(item["ticker"])
+                     elif isinstance(item, str): target_tickers.append(item)
+                 
+                 logger.info(f"Resolved {len(target_tickers)} context tickers")
+             else:
+                 return {"error": f"Dependency {base_var} failed."}
 
-        tasks = [_process_single_ticker(i, t) for i, t in enumerate(target_tickers)]
-        results = await asyncio.gather(*tasks)
-        
-        # --- POST-PROCESSING & SORTING ---
-        # Sort results to provide the "Best" N results requested by user
-        def get_score(item):
-            # Try common score keys
-            s = item.get('score', item.get('quick_score', item.get('total_score', 0)))
-            return safe_float(s)
+    # IMPORTANT: Inject the resolved tickers into params so handlers like 'research' can use them directly
+    if target_tickers:
+        params["tickers_source"] = target_tickers
 
-        try:
-            results.sort(key=get_score, reverse=True)
-        except: pass # Sort might fail if mixed types, ignore
-        
-        # Slice output to requested limit to prevent UI freeze
-        # But allow "All" to pass through if limit is very high (e.g. > 500)
-        # Assuming frontend limit input usually implies "Top N"
-        output_limit = int(params.get("limit", 10)) # Re-read in case not set above
-        
-        final_output = results[:output_limit]
-        logger.info(f"Processed {len(results)} items. Returning top {len(final_output)}.")
-        
-        return {
-            "top_10": final_output[:10],
-            "tickers": results, # Keep full list available for next steps? 
-                                # WARNING: This might crash frontend if "tickers" is rendered.
-                                # SentinelAI.jsx likely renders the whole return object.
-                                # FIX: We should return a structure that mimics a single result or a list.
-                                # If we return a LIST, frontend iterates.
-                                # If we return DICT, frontend shows specific keys.
-            "results": final_output,
-            "count": len(final_output),
-            "total_processed": len(results),
-            "message": f"Processed {len(results)} tickers. Showing top {len(final_output)}."
-        }
-
-    # Normal Single Execution
-    # Prepare arguments
-    # We pass ai_params = params
+    # ... (Iteration logic for mlforecast/sentiment)
+    # Ensure 'research' is NOT iterated here if we want to batch it inside the handler
+    # Actually, current handle_research_tool (new version) supports batching. 
+    # So we should NOT include 'research' in the iterator list below.
     
+    if target_tickers and tool_name in ["sentiment", "powerscore", "quickscore", "fundamentals", "mlforecast"]:
+         # ... (Existing iteration logic) ...
+         # This block is fine, just don't add 'research' to it.
+         
+         results = []
+         total = len(target_tickers)
+         concurrency = 5 if tool_name in ["mlforecast", "sentiment"] else 15
+         semaphore = asyncio.Semaphore(concurrency)
+         
+         async def _process_single_ticker(idx, t):
+             async with semaphore:
+                 if progress_callback and (idx % 5 == 0 or idx == total - 1): 
+                      await progress_callback(f"Processing {t} ({idx+1}/{total})...")
+                 step_params = params.copy()
+                 step_params["ticker"] = t
+                 # Clear tickers_source to avoid confusion in recursive calls
+                 if "tickers_source" in step_params: del step_params["tickers_source"]
+                 
+                 try:
+                     return await handler(args=[t], ai_params=step_params, is_called_by_ai=True)
+                 except Exception as e:
+                     return {"ticker": t, "error": str(e)}
+
+         tasks = [_process_single_ticker(i, t) for i, t in enumerate(target_tickers)]
+         results = await asyncio.gather(*tasks)
+         
+         # Sort and Return
+         def get_score(item):
+             s = item.get('score', item.get('quick_score', item.get('total_score', 0)))
+             return safe_float(s)
+         try: results.sort(key=get_score, reverse=True)
+         except: pass
+         
+         output_limit = int(params.get("limit", 10))
+         final_output = results[:output_limit]
+         return {
+             "top_10": final_output[:10],
+             "tickers": results, 
+             "results": final_output,
+             "count": len(final_output),
+             "message": f"Results for {len(final_output)} items."
+         }
+
+    # Normal Single Execution (including Research with list)
     try:
-        # Check if handler accepts progress_callback
         sig = inspect.signature(handler)
         kwargs = {"args": [], "ai_params": params, "is_called_by_ai": True}
         if "progress_callback" in sig.parameters:
             kwargs["progress_callback"] = progress_callback
-
-        result = await handler(**kwargs)
-        return result
+        return await handler(**kwargs)
     except Exception as e:
         logger.error(f"Step Execution Error: {e}")
         return {"error": str(e)}
 
+
 async def run_sentinel(user_prompt: str, plan_override: Optional[List[Dict[str, Any]]] = None, execution_mode: str = "auto") -> AsyncGenerator[Dict[str, Any], None]:
-    """
-    Main entry point for Sentinel AI.
-    1. Plan (or use override)
-    2. Execute Loop
-    3. Summarize
-    """
     try:
         await increment_usage('sentinel')
         yield {"type": "status", "message": f"Analyzing request... (Mode: {execution_mode})"}
@@ -459,9 +518,19 @@ async def run_sentinel(user_prompt: str, plan_override: Optional[List[Dict[str, 
             yield {"type": "plan", "plan": plan}
         
         if not plan:
-             yield {"type": "error", "message": "Failed to generate a valid execution plan. The AI service may be unresponsive or returned empty output."}
-             # Do not just return; ensure we finish cleanly
+             yield {"type": "error", "message": "Failed to generate a valid execution plan."}
              return
+
+        # --- Enforce Summary Step ---
+        has_summary = any(step.get("tool") == "summary" for step in plan)
+        if not has_summary:
+            logger.info("Plan missing summary step. Auto-appending.")
+            plan.append({
+                "step_id": len(plan) + 1,
+                "tool": "summary",
+                "params": {"data_source": "$CONTEXT"},
+                "description": "Auto-Generated Mission Report"
+            })
 
         context = {}
         
@@ -473,7 +542,6 @@ async def run_sentinel(user_prompt: str, plan_override: Optional[List[Dict[str, 
             
             yield {"type": "status", "message": f"Step {step_id}: {description}..."}
             
-            # --- Queue-Based Progress Streaming ---
             queue = asyncio.Queue()
             
             async def progress_callback(msg: str):
@@ -483,22 +551,15 @@ async def run_sentinel(user_prompt: str, plan_override: Optional[List[Dict[str, 
                 return await execute_step(step, context, progress_callback=progress_callback)
 
             exec_task = asyncio.create_task(wrapped_execution())
-            
-            # Consume updates while task runs
-            # Consume updates while task runs
             get_future = None
             
             while True:
-                # Check if task failed immediately
                 if exec_task.done():
-                     # If task is done, we must drain the queue once to ensure we didn't miss anything that happened just before finish
                      break
 
                 if get_future is None:
                     get_future = asyncio.ensure_future(queue.get())
 
-                # Wait for message or task completion with Heartbeat Timeout
-                # This prevents ERR_INCOMPLETE_CHUNKED_ENCODING on slow steps
                 done_futures, pending = await asyncio.wait(
                     [get_future, exec_task], 
                     return_when=asyncio.FIRST_COMPLETED,
@@ -506,14 +567,13 @@ async def run_sentinel(user_prompt: str, plan_override: Optional[List[Dict[str, 
                 )
                 
                 if not done_futures:
-                    # Timeout reached (Heartbeat), send ping to keep connection alive
                     yield {"type": "ping"}
                     continue
                 
                 if get_future in done_futures:
                     try:
                         msg = get_future.result()
-                        get_future = None # Reset for next message
+                        get_future = None
                         if msg is None: break
                         yield {"type": "status", "message": f"Step {step_id}: {msg}"}
                     except Exception:
@@ -522,7 +582,6 @@ async def run_sentinel(user_prompt: str, plan_override: Optional[List[Dict[str, 
                 if exec_task.done():
                     break
             
-            # Drain remaining queue items if any
             if get_future and not get_future.done():
                 get_future.cancel()
             
@@ -538,9 +597,6 @@ async def run_sentinel(user_prompt: str, plan_override: Optional[List[Dict[str, 
                 logger.error(f"Step {step_id} execution exception: {e}")
                 result = {"error": str(e)}
 
-            # --------------------------------------
-
-            # Store Result
             if isinstance(result, dict) and "error" in result:
                  yield {"type": "error", "message": f"Step {step_id} failed: {result['error']}"}
                  context[output_key] = result
@@ -550,9 +606,9 @@ async def run_sentinel(user_prompt: str, plan_override: Optional[List[Dict[str, 
                  if tool_name == "summary":
                      yield {"type": "summary", "message": result}
                  else:
-                     # Aggressive Recursive Sanitizer for Frontend Display
+                     # Aggressive Recursive Sanitizer
                      def sanitize_for_display(obj, depth=0):
-                         if depth > 3: return "..." # Prevent deep recursion
+                         if depth > 3: return "..."
                          
                          if isinstance(obj, list):
                              if len(obj) > 10:
@@ -567,48 +623,14 @@ async def run_sentinel(user_prompt: str, plan_override: Optional[List[Dict[str, 
                                  else:
                                      new_dict[k] = sanitize_for_display(v, depth+1)
                              return new_dict
-                         
-                         elif isinstance(obj, str):
-                             if len(obj) > 1000: return obj[:1000] + "...(truncated)"
-                             return obj
-                             
                          return obj
+                     
+                     sanitized = sanitize_for_display(result)
+                     yield {"type": "step_result", "step_id": step_id, "result": sanitized}
 
-                     display_result = sanitize_for_display(result)
-                     yield {"type": "step_result", "step_id": step_id, "result": display_result}
-            
+        yield {"type": "final", "context": context}
 
-            
-        # Only run finalizing step if a summary was requested
-        has_summary_step = any(s.get("tool") == "summary" for s in plan)
-        
-        if has_summary_step:
-            yield {"type": "status", "message": "Finalizing..."}
-            logger.info("Sentinel: Finalizing... Yielding context.")
-            
-            # Safe Context Yielding (Prevent huge payloads)
-            safe_context = {}
-            for k, v in context.items():
-                try:
-                     # Basic check using str representation length
-                     if len(str(v)) > 500000: # 500KB limit per item
-                         safe_context[k] = "Data too large for full display. Check specific step outputs."
-                         logger.warning(f"Truncated context key {k} due to size.")
-                     else:
-                         safe_context[k] = v
-                except:
-                     safe_context[k] = v
-
-            yield {"type": "final", "context": safe_context}
-        else:
-            logger.info("Sentinel: No summary step, skipping finalization.")
-            # Even without Final context, we should ensure frontend knows we are done.
-            # The generator exit handles that naturally.
-        
     except Exception as e:
         logger.error(f"Sentinel Global Crash: {e}")
-        traceback.print_exc()
-        yield {"type": "error", "message": f"Sentinel System Error: {str(e)}"}
-    finally:
-        # Ensure generator closes
-        pass
+        logger.error(traceback.format_exc())
+        yield {"type": "error", "message": f"Critical System Failure: {str(e)}"}

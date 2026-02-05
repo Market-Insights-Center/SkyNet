@@ -17,6 +17,7 @@ import Layout from './components/Layout';
 import StartupAnimation from './components/StartupAnimation';
 import CommandPalette from './components/CommandPalette'; // Import CommandPalette
 import { Loader2 } from 'lucide-react';
+import IdleRabbit from './components/IdleRabbit';
 
 // Lazy Load Pages
 import { LazyRoutes } from './config/routes_new';
@@ -222,6 +223,7 @@ function App() {
                         <AuthProvider>
                             <OrionProvider>
                                 <CardExpansionProvider>
+                                    <IdleRabbit />
                                     <AppContent />
                                 </CardExpansionProvider>
                             </OrionProvider>

@@ -191,19 +191,32 @@ async def _resolve_nexus_component(comp_type: str, comp_value: str, allocated_va
                 sub_holdings = []
                 # Unwrap logic for different return signatures
                 if isinstance(res, (list, tuple)):
-                    # signature: (inputs, tailored_data, final_cash, ...) or similar
-                    # Backend signature usually: (inputs, tailored_data, final_cash, tailored_data) OR
-                    # (inputs, tailored_data, final_cash, tailored_data) check invest_command
-                    # Assuming we find the list in "res"
                     found_list = False
                     for item in res:
-                        if isinstance(item, list):
-                            sub_holdings = item
-                            found_list = True
-                            print(f"[DEBUG NEXUS] Found holding list with {len(sub_holdings)} items")
-                            break # Assume first list is it
+                        # We specifically want a list of DICTIONARIES (Holdings), not just strings (tickers)
+                        if isinstance(item, list) and len(item) > 0:
+                            first_el = item[0]
+                            if isinstance(first_el, dict) and ('ticker' in first_el or 'shares' in first_el):
+                                sub_holdings = item
+                                found_list = True
+                                print(f"[DEBUG NEXUS] Found Dict-List (Holdings) with {len(sub_holdings)} items")
+                                break
+                        elif isinstance(item, list) and len(item) == 0:
+                             # Empty list could be it, but let's keep looking in case there's a better candidate
+                             # If we finish loop and only found empty list, we'll use it
+                             sub_holdings = item
+                             found_list = True # Mark found but don't break yet? 
+                             # Actually, if we find an empty list, it's ambiguous. But usually Ticker list is first.
+                             # If we receive ([], []), we might pick the first.
+                             pass
+                    
+                    # Fallback: If we didn't find a list of dicts, but found ANY list, maybe it's empty holdings?
                     if not found_list:
-                         print("[DEBUG NEXUS] WARNING: Could not find a list in process_custom_portfolio output.")
+                         for item in res:
+                             if isinstance(item, list):
+                                 sub_holdings = item
+                                 found_list = True
+                                 break
                 else:
                     print(f"[DEBUG NEXUS] process_custom_portfolio return was not a tuple/list: {res}")
                 

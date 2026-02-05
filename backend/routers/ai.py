@@ -292,6 +292,31 @@ async def execute_sentinel(req: SentinelRequest):
         event_generator(), media_type="application/x-ndjson", headers={"X-Accel-Buffering": "no"}
     )
 
+# --- SENTINEL HISTORY ---
+try:
+    from backend import sentinel_history
+except ImportError:
+    import sentinel_history 
+
+class SentinelSaveRequest(SentinelRequest):
+    plan: list = []
+    summary: str = ""
+    logs: str = ""
+
+@router.post("/api/sentinel/save-session")
+def save_sentinel_session(req: SentinelSaveRequest):
+    sid = sentinel_history.save_session(req.email, req.user_prompt, req.plan, req.summary, req.logs)
+    return {"status": "success", "id": sid}
+
+@router.get("/api/sentinel/history")
+def get_sentinel_history(email: str):
+    return sentinel_history.get_user_history(email)
+
+@router.post("/api/sentinel/history/delete")
+def delete_sentinel_session(req: dict):
+    # Expect {id: "..."}
+    sentinel_history.delete_session(req.get("id"))
+    return {"status": "success"}
 
 
 @router.post("/api/prometheus")

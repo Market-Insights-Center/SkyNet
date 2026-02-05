@@ -60,6 +60,7 @@ const WorkflowAutomation = () => {
 
     // Live Status State
     const [automationStatus, setAutomationStatus] = useState({});
+    const [selectedError, setSelectedError] = useState(null); // { title, message }
 
     // Fetch user info + automations
     useEffect(() => {
@@ -715,6 +716,21 @@ const WorkflowAutomation = () => {
                                                 {automationStatus[auto.id].step}
                                             </h4>
                                             <p className="text-xs text-gray-300">{automationStatus[auto.id].detail}</p>
+
+                                            {automationStatus[auto.id].detail_full && (
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        setSelectedError({
+                                                            title: `Error in ${auto.name}`,
+                                                            message: automationStatus[auto.id].detail_full
+                                                        });
+                                                    }}
+                                                    className="mt-2 text-[10px] bg-red-500/20 hover:bg-red-500/40 text-red-300 px-2 py-1 rounded border border-red-500/30 transition-colors"
+                                                >
+                                                    Show Details
+                                                </button>
+                                            )}
                                         </div>
                                     )}
                                 </div>
@@ -784,12 +800,38 @@ const WorkflowAutomation = () => {
                 </div>
 
 
-                {/* Upgrade Modal for Dashboard */}
                 <UpgradePopup
                     isOpen={showUpgradeModal}
                     onClose={() => setShowUpgradeModal(false)}
                     featureName={upgradeFeature}
                 />
+
+                {/* Error Detail Modal */}
+                {selectedError && (
+                    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[200] flex items-center justify-center p-4" onClick={() => setSelectedError(null)}>
+                        <div className="bg-gray-900 border border-red-500/30 rounded-2xl w-full max-w-2xl max-h-[80vh] flex flex-col shadow-2xl overflow-hidden" onClick={e => e.stopPropagation()}>
+                            <div className="flex justify-between items-center p-6 border-b border-gray-800 bg-red-500/5">
+                                <h3 className="text-xl font-bold text-red-400 flex items-center gap-2">
+                                    <Activity size={20} /> {selectedError.title}
+                                </h3>
+                                <button onClick={() => setSelectedError(null)} className="text-gray-400 hover:text-white transition-colors">
+                                    <X size={24} />
+                                </button>
+                            </div>
+                            <div className="p-6 overflow-y-auto font-mono text-sm text-gray-300 whitespace-pre-wrap">
+                                {selectedError.message}
+                            </div>
+                            <div className="p-4 border-t border-gray-800 bg-gray-950/50 flex justify-end">
+                                <button
+                                    onClick={() => setSelectedError(null)}
+                                    className="px-4 py-2 bg-gray-800 hover:bg-gray-700 rounded-lg text-sm text-white font-medium transition-colors"
+                                >
+                                    Close
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
             </div >
         );
     }

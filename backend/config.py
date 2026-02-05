@@ -33,7 +33,7 @@ class Settings(BaseSettings):
 settings = Settings()
 
 # --- Legacy Exports for Compatibility ---
-SUPER_ADMIN_EMAIL = os.getenv("SUPER_ADMIN_EMAIL", "admin@skynet.com")
+SUPER_ADMIN_EMAIL = "marketinsightscenter@gmail.com"
 
 def get_mod_list():
     """Returns a list of moderator emails from env."""
