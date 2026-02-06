@@ -4,7 +4,7 @@ import NeonWrapper from '../components/NeonWrapper';
 import TiltCard from '../components/TiltCard';
 import { PinContainer } from '../components/PinContainer';
 import { motion } from 'framer-motion';
-import { Bot, ChevronRight, Search, Scale, Siren, ToggleLeft, ToggleRight, ExternalLink, HelpCircle, X, Hand, Mic, Activity, Loader2, Layers, Network, Maximize2, Cpu, DollarSign, Workflow } from 'lucide-react';
+import { Bot, ChevronRight, Search, Scale, Siren, ToggleLeft, ToggleRight, ExternalLink, HelpCircle, X, Hand, Mic, Activity, Loader2, Layers, Network, Maximize2, Cpu, DollarSign, Workflow, Lock } from 'lucide-react';
 import { FaMicrophone, FaEye } from 'react-icons/fa';
 import { useAuth } from '../contexts/AuthContext';
 import { useOrion } from '../contexts/OrionContext';
@@ -272,41 +272,62 @@ const Products = () => {
                 {/* Apps Grid */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-8">
                     {/* Sentinel AI (All Users) */}
-                    {(true) && (
-                        <div onClick={() => navigate('/sentinel-ai')} className="group cursor-pointer block h-full md:col-span-2 lg:col-span-6">
-                            <TiltCard delay={0.05} className="h-full border border-purple-500/50 bg-gradient-to-br from-purple-900/20 to-black relative overflow-hidden shadow-[0_0_30px_rgba(168,85,247,0.2)] rounded-3xl">
-                                <div className="absolute inset-0 bg-gradient-to-r from-purple-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                                <button
-                                    onClick={(e) => { e.stopPropagation(); navigate('/help#sentinel-ai'); }}
-                                    className="absolute top-4 right-4 z-30 p-2 text-gray-500 hover:text-white transition-colors"
-                                    title="Learn details"
-                                >
-                                    <HelpCircle size={24} />
-                                </button>
-                                <div className="absolute top-0 right-0 p-8 opacity-10 group-hover:opacity-20 transition-opacity">
-                                    <Cpu size={200} />
-                                </div>
-                                <div className="relative z-10 p-10 flex flex-col md:flex-row items-center gap-8 h-full">
-                                    <div className="flex-shrink-0">
-                                        <div className="w-20 h-20 bg-purple-500/20 rounded-2xl flex items-center justify-center text-purple-400 group-hover:text-white transition-colors border border-purple-500/30">
-                                            <Cpu size={40} />
+                    {/* Sentinel AI (Tier Locked) */}
+                    {(() => {
+                        const hasAccess = userProfile && (['Singularity', 'Founder'].includes(userProfile.tier) || (userProfile.email === 'marketinsightscenter@gmail.com' && !userProfile.isTestingTier));
+
+                        return (
+                            <div onClick={() => hasAccess && navigate('/sentinel-ai')} className={`group relative block h-full md:col-span-2 lg:col-span-6 ${!hasAccess ? 'cursor-not-allowed' : 'cursor-pointer'}`}>
+                                <TiltCard delay={0.05} className="h-full border border-purple-500/50 bg-gradient-to-br from-purple-900/20 to-black relative overflow-hidden shadow-[0_0_30px_rgba(168,85,247,0.2)] rounded-3xl">
+                                    <div className="absolute inset-0 bg-gradient-to-r from-purple-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                                    <button
+                                        onClick={(e) => { e.stopPropagation(); navigate('/help#sentinel-ai'); }}
+                                        className="absolute top-4 right-4 z-30 p-2 text-gray-500 hover:text-white transition-colors"
+                                        title="Learn details"
+                                    >
+                                        <HelpCircle size={24} />
+                                    </button>
+                                    <div className="absolute top-0 right-0 p-8 opacity-10 group-hover:opacity-20 transition-opacity">
+                                        <Cpu size={200} />
+                                    </div>
+                                    <div className={`relative z-10 p-10 flex flex-col md:flex-row items-center gap-8 h-full transition-all duration-300 ${!hasAccess ? 'blur-[3px] opacity-40' : ''}`}>
+                                        <div className="flex-shrink-0">
+                                            <div className="w-20 h-20 bg-purple-500/20 rounded-2xl flex items-center justify-center text-purple-400 group-hover:text-white transition-colors border border-purple-500/30">
+                                                <Cpu size={40} />
+                                            </div>
+                                        </div>
+                                        <div className="flex-1 text-center md:text-left">
+                                            <h3 className="text-3xl md:text-4xl font-bold mb-4 text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-white">
+                                                Sentinel AI
+                                            </h3>
+                                            <p className="text-gray-400 text-lg mb-6 max-w-2xl">
+                                                Autonomous Financial Intelligence. Chain multiple commands together using natural language to perform complex multi-step analysis.
+                                            </p>
+                                            <div className="flex items-center justify-center md:justify-start text-purple-400 font-bold tracking-wider hover:text-white transition-colors">
+                                                INITIALIZE CORE <ChevronRight size={24} className="ml-2 group-hover:translate-x-2 transition-transform" />
+                                            </div>
                                         </div>
                                     </div>
-                                    <div className="flex-1 text-center md:text-left">
-                                        <h3 className="text-3xl md:text-4xl font-bold mb-4 text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-white">
-                                            Sentinel AI
-                                        </h3>
-                                        <p className="text-gray-400 text-lg mb-6 max-w-2xl">
-                                            Autonomous Financial Intelligence. Chain multiple commands together using natural language to perform complex multi-step analysis.
-                                        </p>
-                                        <div className="flex items-center justify-center md:justify-start text-purple-400 font-bold tracking-wider hover:text-white transition-colors">
-                                            INITIALIZE CORE <ChevronRight size={24} className="ml-2 group-hover:translate-x-2 transition-transform" />
+
+                                    {/* LOCK OVERLAY */}
+                                    {!hasAccess && (
+                                        <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-black/80 backdrop-blur-[2px] transition-all duration-300">
+                                            <div className="p-5 bg-gray-900/50 rounded-full mb-5 ring-1 ring-purple-500/30 shadow-[0_0_25px_rgba(168,85,247,0.2)]">
+                                                <Lock size={36} className="text-gray-300" />
+                                            </div>
+                                            <h3 className="text-2xl font-bold text-white mb-2 tracking-wide">Development Lock</h3>
+                                            <p className="text-gray-400 text-sm mb-6 max-w-md text-center leading-relaxed px-6">
+                                                Critical upgrades in progress. Access restricted to Singularity Tier.
+                                            </p>
+                                            <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-purple-900/30 border border-purple-500/20 rounded-full text-xs text-purple-300 font-bold tracking-widest uppercase shadow-sm">
+                                                <Activity size={12} className="animate-pulse" /> Status: Restricted
+                                            </div>
                                         </div>
-                                    </div>
-                                </div>
-                            </TiltCard>
-                        </div>
-                    )}
+                                    )}
+                                </TiltCard>
+                            </div>
+                        );
+                    })()}
 
                     {/* Portfolio Nexus Centerpiece */}
                     <div onClick={() => navigate('/portfolio-nexus')} className="group cursor-pointer block h-full md:col-span-1 lg:col-span-3">

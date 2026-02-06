@@ -2,7 +2,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-    Bot, Terminal, Send, Cpu, Activity, AlertTriangle, Check, X, Play, RotateCcw, Save, Trash2,
+    Bot, Terminal, Send, Cpu, Activity, AlertTriangle, Check, X, Play, RotateCcw, Save, Trash2, Copy,
     ChevronDown, Layers, Clock, Mic, Volume2, VolumeX, Globe, Search, Menu, History, MessageSquare, ChevronLeft, ChevronRight, Zap, Plus, Settings
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
@@ -328,6 +328,12 @@ Please make sure to generate a final summary ordering the assets based on the st
         }
     };
 
+    const copyReport = () => {
+        if (!finalSummary) return;
+        navigator.clipboard.writeText(finalSummary);
+        setLogs(prev => [...prev, { type: 'success', message: 'Mission Report copied to clipboard.', timestamp: new Date() }]);
+    };
+
     // Custom CSS for the flowing gradient
     const gradientStyle = `
         @keyframes flow {
@@ -456,6 +462,17 @@ Please make sure to generate a final summary ordering the assets based on the st
                                         : 'border-gray-700 text-gray-500 hover:text-white hover:border-gray-500 opacity-50 cursor-not-allowed'}`}
                             >
                                 <MessageSquare size={14} /> REPORT
+                            </button>
+                            <button
+                                onClick={copyReport}
+                                disabled={!finalSummary}
+                                className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold transition-all border 
+                                ${finalSummary
+                                        ? 'border-cyan-400 text-cyan-400 hover:bg-cyan-900/40 cursor-pointer'
+                                        : 'border-gray-700 text-gray-500 hover:border-gray-500 opacity-50 cursor-not-allowed'}`}
+                                title="Copy Report"
+                            >
+                                <Copy size={14} />
                             </button>
                             <button
                                 onClick={saveCurrentSession}

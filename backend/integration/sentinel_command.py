@@ -197,17 +197,22 @@ async def handle_summary_tool(params: Dict[str, Any]) -> str:
     Goal: write a comprehensive, professional Mission Report.
     
     Guidelines:
-    1. **Synthesize, don't just list.** Explain WHiCH stocks look best and WHY based on the combined data (Market Scan + Sentiment + ML Forecasts).
-    2. **Highlight Discrepancies.** If Sentiment is high but ML Forecast is DOWN, mention this risk.
-    3. **Actionable Conclusion.** Give a final verdict or recommendation.
-    4. **ML Forecast Specifics.** If ML Forecast data is present, explicitly mention the predicted direction and confidence for the different time horizons (1-Week, 1-Month, etc.).
-    5. **Research Data.** If research data is present, synthesize it into the report to provide context.
-    
+    1. **Synthesize & Rank.**  Start with a clear **RANKED LIST** of the assets from Strongest Buy to Weakest.
+    2. **COMPARISON TABLES.** You MUST generate Markdown tables comparing the assets on key metrics:
+       - **Quickscore**
+       - **ML Forecast (1-Week)**
+       - **Sentiment**
+       - **Fundamentals**
+       - **Assess Code A (Volatility/Correlation)**
+    3. **Specific Data Citation.** Do not just say "bullish"; cite the exact numbers (e.g., "Quickscore: 85/100", "ML +2.5%", "Vol: Low").
+    4. **Highlight Discrepancies.** If Sentiment is high but ML Forecast is DOWN, mention this risk.
+    5. **Actionable Conclusion.** Give a final verdict or recommendation for each asset.
+
     Format Rules:
     - **Mission Summary**: High-level executive summary.
-    - **Key Insights**: Bullet points with deep analysis.
+    - **Detailed Analysis**: Use subheaders and tables.
     - **Data-Driven Verdict**: Clear conclusion.
-    - NO Markdown Tables.
+    - **Markdown Tables**: REQUIRED.
     - NO code blocks.
     """
     
@@ -362,18 +367,35 @@ async def plan_execution(user_prompt: str, execution_mode: str = "auto") -> List
                 if "params" not in item: item["params"] = {}
                 
                 # --- SAFETY NET: Fix Hallucinated Nexus Import ---
+                was_swapped_import = False
                 if item.get("tool") == "nexus_import":
-                    # If AI chose nexus_import but didn't provide a code, OR used a placeholder...
+                    # If AI chose nexus_import but didn't provide a valid code...
                     code = item["params"].get("nexus_code", "")
                     if (not code or "code" in code.lower() or code.startswith("$")) and final_tickers:
-                        logger.warning("Planner hallucinated Nexus Import without code. Hot-swapping to Manual List.")
+                        logger.warning("Planner hallucinated Nexus Import without code. Hot-swapping to Manual List & Injecting Analysis.")
                         item["tool"] = "manual_list"
                         item["params"]["tickers"] = final_tickers
                         item["description"] = "Auto-Corrected: Loaded detected tickers."
+                        was_swapped_import = True
                 
                 # 4. Check Valid Tool
                 if item.get("tool") in COMMAND_REGISTRY:
                     valid_plan.append(item)
+                    
+                    # INJECTION: If we swapped import->list, we MUST add analysis steps because the AI likely forgot them
+                    if was_swapped_import:
+                        pipeline = ["quickscore", "mlforecast", "fundamentals", "sentiment", "assess"]
+                        for idx, tool in enumerate(pipeline):
+                            step_params = {"tickers_source": "$manual_list.tickers", "limit": 10}
+                            if tool == "assess":
+                                step_params["assess_type"] = "code_a"
+
+                            valid_plan.append({
+                                "step_id": 900 + idx, # Arbitrary high ID to avoid conflict
+                                "tool": tool,
+                                "params": step_params,
+                                "description": f"Auto-Injected Analysis: {tool}"
+                            })
                 else:
                     logger.warning(f"Removing invalid tool step: {item.get('tool')}")
                     

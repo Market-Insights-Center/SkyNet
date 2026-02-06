@@ -1,4 +1,5 @@
 import asyncio
+import time
 import traceback
 import yfinance as yf
 from datetime import datetime, timedelta
@@ -168,6 +169,9 @@ async def process_automation(auto):
 
     print(f"[AUTOMATION] Processing {auto.get('id')} ({len(nodes)} nodes)...")
     
+    stop_reason = None # Initialize result variable
+
+    
     # Initialize Status - DEFERRED until first update
     # AUTOMATION_STATUS[auto.get('id')] = { ... }
     # This prevents "empty" loading screens.
@@ -188,6 +192,7 @@ async def process_automation(auto):
     conditionals = [n for n in nodes if n.get('type') in conditional_types]
     
     node_results = {} # { nodeId: bool }
+    node_reasons = {} # { nodeId: str (detailed reason) }
 
     # --- PRIORITY: TIME CHECK ---
     # Per user requirement: "all automation checks starts by checking the time and if the time is not valid, it skips any other check"
@@ -200,13 +205,15 @@ async def process_automation(auto):
         for node in time_nodes:
             try:
                 # await update_status('Checking Time', f"Verifying schedule for {datetime.now(USER_TZ).strftime('%I:%M %p')}")
-                res = await evaluate_condition(node)
+                res, reason = await evaluate_condition(node)
                 node_results[node['id']] = res
+                node_reasons[node['id']] = reason
                 if res: 
                     time_valid = True
                     print(f"   -> Node {node['type']} ({node['id']}) = TRUE (Gatekeeper Open)")
                 else:
-                    print(f"   -> Node {node['type']} ({node['id']}) = FALSE (Gatekeeper Closed)")
+                    print(f"   -> Node {node['type']} ({node['id']}) = FALSE (Gatekeeper Closed: {reason})")
+                    if not stop_reason: stop_reason = reason # Capture the first time closure reason
             except Exception as e:
                 print(f"   -> Node {node['type']} ({node['id']}) Error: {e}")
                 node_results[node['id']] = False
@@ -223,15 +230,19 @@ async def process_automation(auto):
             nice_type = node.get('type', '').replace('_', ' ').title()
             await update_status('Evaluating Conditions', f"Checking {nice_type}...")
             
-            res = await evaluate_condition(node)
+            res, reason = await evaluate_condition(node)
             node_results[node['id']] = res
+            node_reasons[node['id']] = reason
             if res:
                 print(f"   -> Node {node['type']} ({node['id']}) = TRUE")
             else:
-                 print(f"   -> Node {node['type']} ({node['id']}) = FALSE")
+                 print(f"   -> Node {node['type']} ({node['id']}) = FALSE ({reason})")
+                 # If this is a required condition (start node logic?), this is the reason
+                 stop_reason = reason
         except Exception as e:
             print(f"   -> Node {node['type']} ({node['id']}) Error: {e}")
             node_results[node['id']] = False
+            stop_reason = f"Error evaluating {node.get('type')}: {str(e)}"
 
     # 1.5 Save State for Time Interval (if any triggered)
     # Simple check: if any time_interval was True, we likely updated its state in evaluate_condition?
@@ -363,6 +374,23 @@ async def process_automation(auto):
                     gate_res = all(input_values) and len(input_values) > 0
                 elif op == 'OR':
                     gate_res = any(input_values)
+
+                # Collect reasons for failed inputs
+                failed_input_reasons = []
+                for e in in_edges:
+                    src = e['source']
+                    val = node_results.get(src, False)
+                    # For AND, if any input is False, it contributes to failure
+                    if op == 'AND' and not val:
+                        r = node_reasons.get(src, "Condition failed")
+                        failed_input_reasons.append(r)
+                    # For OR, if ALL are False, we list all reasons
+                    elif op == 'OR' and not val:
+                         r = node_reasons.get(src, "Condition failed")
+                         failed_input_reasons.append(r)
+                
+                # Deduplicate reasons
+                failed_input_reasons = list(set(failed_input_reasons))
                     
                 if gate_res:
                     print(f"   -> LogicGate ({target_id}) {op} = TRUE")
@@ -380,8 +408,11 @@ async def process_automation(auto):
                                 'source': target_id
                             })
                 else:
-                    print(f"   -> LogicGate ({target_id}) {op} = FALSE (Inputs: {input_values})")
-                    stop_reason = f"Logic Gate ({op}) Failed"
+                    reason_detail = "; ".join(failed_input_reasons) if failed_input_reasons else "Inputs Invalid"
+                    print(f"   -> LogicGate ({target_id}) {op} = FALSE (Reasons: {reason_detail})")
+                    
+                    stop_reason = f"Logic Gate ({op}) Failed: {reason_detail}"
+                    node_reasons[target_id] = stop_reason # Store for downstream logic
 
             # --- ACTION: END AUTOMATION ---
             elif t_type == 'end_automation':
@@ -567,7 +598,7 @@ async def evaluate_condition(node):
                 scores = await risk_command.calculate_risk_scores_singularity(is_called_by_ai=True)
                 if not scores or scores[0] is None:
                     print("[EVAL] Risk calculation returned None")
-                    return False
+                    return False, "Risk Metrics Unavailable"
                 
                 general, large, ema, combined, spy, vix = scores
                 
@@ -591,41 +622,47 @@ async def evaluate_condition(node):
             except Exception as e:
                 print(f"   [EVAL ERROR] Risk fetch failed: {e}")
                 traceback.print_exc()
-                current_val = 0 
+                return False, f"Risk Calculation Error: {str(e)}"
 
         # --- PRICE ---
         elif c_type == 'price':
             ticker = data.get('ticker', '').upper()
-            if not ticker: return False
-            t = yf.Ticker(ticker)
-            current_val = t.fast_info.last_price
+            if not ticker: return False, "No Ticker Specified"
+            try:
+                t = yf.Ticker(ticker)
+                current_val = t.fast_info.last_price
+            except Exception as e:
+                return False, f"Price Fetch Error for {ticker}: {str(e)}"
 
         # --- PERCENTAGE ---
         elif c_type == 'percentage':
             ticker = data.get('ticker', '').upper()
             timeframe = data.get('timeframe', '1d')
-            if not ticker: return False
+            if not ticker: return False, "No Ticker Specified"
             
-            t = yf.Ticker(ticker)
-            hist = t.history(period="1y") 
-            if hist.empty: return False
-            
-            current_price = hist['Close'].iloc[-1]
-            past_price = current_price
-            
-            if timeframe == '1d' and len(hist) > 1: past_price = hist['Close'].iloc[-2]
-            elif timeframe == '1w' and len(hist) > 5: past_price = hist['Close'].iloc[-6]
-            elif timeframe == '1m' and len(hist) > 20: past_price = hist['Close'].iloc[-21]
-            elif timeframe == '3m' and len(hist) > 60: past_price = hist['Close'].iloc[-61]
-            elif timeframe == '1y' and len(hist) > 250: past_price = hist['Close'].iloc[-251]
-            
-            if past_price == 0: return False
-            current_val = ((current_price - past_price) / past_price) * 100
+            try:
+                t = yf.Ticker(ticker)
+                hist = t.history(period="1y") 
+                if hist.empty: return False, f"No history found for {ticker}"
+                
+                current_price = hist['Close'].iloc[-1]
+                past_price = current_price
+                
+                if timeframe == '1d' and len(hist) > 1: past_price = hist['Close'].iloc[-2]
+                elif timeframe == '1w' and len(hist) > 5: past_price = hist['Close'].iloc[-6]
+                elif timeframe == '1m' and len(hist) > 20: past_price = hist['Close'].iloc[-21]
+                elif timeframe == '3m' and len(hist) > 60: past_price = hist['Close'].iloc[-61]
+                elif timeframe == '1y' and len(hist) > 250: past_price = hist['Close'].iloc[-251]
+                
+                if past_price == 0: return False, "Past price was 0 (Div/0 error)"
+                current_val = ((current_price - past_price) / past_price) * 100
+            except Exception as e:
+                return False, f"Percentage Calc Error for {ticker}: {str(e)}"
 
         # --- SENTIMENT TRIGGER ---
         elif c_type == 'sentiment_trigger':
             ticker = data.get('ticker', '').upper()
-            if not ticker: return False
+            if not ticker: return False, "No Ticker for Sentiment"
             try:
                 res = await sentiment_command.handle_sentiment_command(
                     args=[ticker],
@@ -636,21 +673,19 @@ async def evaluate_condition(node):
                     raw = float(res['sentiment_score']) 
                     current_val = (raw + 1) * 50
                 else: 
-                    return False
+                    return False, f"Sentiment unavailable for {ticker}"
             except Exception as e:
                 print(f"   [EVAL] Sentiment fail: {e}")
-                return False
+                return False, f"Sentiment Error: {str(e)}"
 
         # --- TIME INTERVAL ---
         if c_type == 'time_interval':
             now_user = datetime.now(USER_TZ)
-            print(f"   [EVAL] Time Check (User TZ): {now_user} | Weekday {now_user.weekday()}")
+            # print(f"   [EVAL] Time Check (User TZ): {now_user} | Weekday {now_user.weekday()}")
             
             # 1. Trading Day (Mon=0, Fri=4)
-            # If unit is days, we strictly check trading days? Or make it optional?
-            # Existing logic was strict.
-            # 1. Trading Day (Mon=0, Fri=4)
-            if now_user.weekday() > 4: return False 
+            if now_user.weekday() > 4: 
+                return False, "Not a trading day (weekend)"
             
             # 2. Time Check with Buffer (15 minutes)
             target_str = data.get('target_time', "09:30")
@@ -667,10 +702,10 @@ async def evaluate_condition(node):
             # Check strictly if we are IN the window
             if not (target_dt <= now_user <= end_window):
                 # We are outside the window (too early or too late)
-                print(f"   [EVAL] Time Window Miss: {now_user.time()} outside {target_dt.time()} - {end_window.time()}")
-                return False
+                # print(f"   [EVAL] Time Window Miss: {now_user.time()} outside {target_dt.time()} - {end_window.time()}")
+                return False, f"Outside time window {target_str} (Now: {now_user.strftime('%H:%M')})"
 
-            print(f"   [EVAL] Time Window HIT: {now_user.time()} inside {target_dt.time()} - {end_window.time()}")
+            # print(f"   [EVAL] Time Window HIT: {now_user.time()} inside {target_dt.time()} - {end_window.time()}")
 
             # 3. Interval/Frequency Check (Duplicate Execution Prevention)
             last_run_str = data.get('last_run')
@@ -680,49 +715,38 @@ async def evaluate_condition(node):
                     
                     # STRICT DAILY LIMIT: If it ran at all today, skip.
                     if last_run.date() == now_user.date():
-                        print("   [EVAL] Time Interval: Already ran today (Strict Limit).")
-                        return False
+                        return False, f"Already ran today ({last_run.strftime('%H:%M')})"
 
                     # If we already ran TODAY (or since the last target time), skip.
-                    # Simple check: If last_run > target_dt (meaning we ran after the target started today), skip.
-                    
                     if last_run >= target_dt:
-                        print("   [EVAL] Time Interval: Already ran this window.")
-                        return False
+                        return False, "Already ran in this window"
                         
-                    # Also respect the Frequency (Days) if > 1 day?
-                    # interval = int(data.get('interval', 1))
-                    # unit = data.get('unit', 'days')
-                    # ... ignoring complex multi-day logic for now to ensure daily reliability first.
-                    # Assuming "Every 1 Day" is the norm.
                 except:
                     pass 
             
             # Update State (Caller saves if ANY time_interval triggers)
-            # We mark it as True, and we set a temp_last_run in data to be saved?
-            # Yes, we update it in memory. `process_automation` saves it later.
             node['data']['last_run'] = now_user.isoformat()
-            return True
+            return True, "Time Valid"
 
 
         # --- LOGIC GATES (Intermediate) ---
-        # Logic gates are usually evaluated in propagation phase, 
-        # but if we are here, it means we treated it as a start node?
-        # Logic Gates should NOT be start nodes usually.
         
         # COMPARISON
-        # If we didn't return True/False already (TimeInterval returns True/False), compare current_val.
-        if op == '>': return current_val > target_val
-        elif op == '<': return current_val < target_val
-        elif op == '>=': return current_val >= target_val
-        elif op == '<=': return current_val <= target_val
-        elif op == '==': return current_val == target_val
+        result = False
+        if op == '>': result = current_val > target_val
+        elif op == '<': result = current_val < target_val
+        elif op == '>=': result = current_val >= target_val
+        elif op == '<=': result = current_val <= target_val
+        elif op == '==': result = current_val == target_val
         
-        return False
+        if result:
+            return True, f"{current_val:.2f} {op} {target_val}"
+        else:
+            return False, f"{c_type.title()} condition failed: {current_val:.2f} is not {op} {target_val}"
         
     except Exception as e:
         print(f"[EVAL ERROR] {node.get('type')}: {e}")
-        return False
+        return False, f"Condition Error: {str(e)}"
 
 
 async def execute_action(node, all_nodes, all_edges, user_email, node_results, automation_name, **kwargs):

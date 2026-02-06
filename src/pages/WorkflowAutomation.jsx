@@ -686,9 +686,23 @@ const WorkflowAutomation = () => {
                                             {auto.last_run && <span className="text-[10px] text-gray-500 block">Last: {new Date(auto.last_run).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', timeZoneName: 'short' })}</span>}
                                             <span className="text-[10px] text-blue-400 block">Next: {auto.active && auto.next_run ? new Date(auto.next_run).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', timeZoneName: 'short' }) : "Indefinite"}</span>
                                             {auto.last_error && (
-                                                <span className="text-[10px] text-orange-400 block mt-1 leading-tight" title={auto.last_error.message}>
-                                                    {auto.last_error.message?.length > 30 ? auto.last_error.message.substring(0, 27) + '...' : auto.last_error.message}
-                                                </span>
+                                                <div className="flex flex-col items-end">
+                                                    <span className="text-[10px] text-orange-400 block mt-1 leading-tight" title={auto.last_error.message}>
+                                                        {auto.last_error.message?.length > 30 ? auto.last_error.message.substring(0, 27) + '...' : auto.last_error.message}
+                                                    </span>
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            setSelectedError({
+                                                                title: `Error in ${auto.name}`,
+                                                                message: auto.last_error.message
+                                                            });
+                                                        }}
+                                                        className="mt-1 text-[10px] bg-red-500/10 hover:bg-red-500/30 text-red-400 px-1.5 py-0.5 rounded border border-red-500/20 transition-colors"
+                                                    >
+                                                        Details
+                                                    </button>
+                                                </div>
                                             )}
                                         </div>
                                         {auto.active && <span className="text-green-400 flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" /> Active</span>}
