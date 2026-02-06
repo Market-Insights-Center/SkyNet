@@ -223,7 +223,7 @@ function App() {
                         <AuthProvider>
                             <OrionProvider>
                                 <CardExpansionProvider>
-                                    <IdleRabbit />
+                                    {/* <IdleRabbit /> */}
                                     <AppContent />
                                 </CardExpansionProvider>
                             </OrionProvider>

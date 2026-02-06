@@ -2,8 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 // Configuration
-const IDLE_TIMEOUT_MS = 15000; // 15 seconds for testing
-// const IDLE_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes for prod
+const IDLE_TIMEOUT_MS = 300000; // 5 minutes
 
 // Pixel Art Assets (Assumes these exist or will exist)
 const ASSETS = {

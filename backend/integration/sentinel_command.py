@@ -253,6 +253,7 @@ Rules:
    - **fundamentals** (Financials)
    - **research** (Latest News)
    Do NOT skip these unless explicitly told to be "brief".
+7. **Ticker Handling**: If the user lists tickers (e.g. "AAPL, TSLA"), use the `manual_list` tool. Do NOT use `nexus_import` unless a code (like "NEXUS-88") is explicitly provided.
 
 {mode_instructions}
 
@@ -312,7 +313,7 @@ async def plan_execution(user_prompt: str, execution_mode: str = "auto") -> List
     
     # INJECTION: Force the model to see the tickers we found
     if final_tickers:
-        formatted_system_prompt += f"\n\n[SYSTEM HINT]: I detected potential tickers in the user request: {json.dumps(final_tickers)}. YOU MUST use this exact list for 'tickers_source' in your tools (research, mlforecast, quickscore, etc.). Do not use '$CONTEXT' for the first step."
+        formatted_system_prompt += f"\n\n[SYSTEM HINT]: I detected potential tickers in the user request: {json.dumps(final_tickers)}. YOU MUST use this exact list for 'tickers_source' in your tools. Do NOT use 'nexus_import' unless a specific code like 'NEXUS-123' is provided. Use 'manual_list' for these tickers."
 
     try:
         response_text = await ai.generate_content(
@@ -359,6 +360,16 @@ async def plan_execution(user_prompt: str, execution_mode: str = "auto") -> List
                     
                 # 3. Fix missing params
                 if "params" not in item: item["params"] = {}
+                
+                # --- SAFETY NET: Fix Hallucinated Nexus Import ---
+                if item.get("tool") == "nexus_import":
+                    # If AI chose nexus_import but didn't provide a code, OR used a placeholder...
+                    code = item["params"].get("nexus_code", "")
+                    if (not code or "code" in code.lower() or code.startswith("$")) and final_tickers:
+                        logger.warning("Planner hallucinated Nexus Import without code. Hot-swapping to Manual List.")
+                        item["tool"] = "manual_list"
+                        item["params"]["tickers"] = final_tickers
+                        item["description"] = "Auto-Corrected: Loaded detected tickers."
                 
                 # 4. Check Valid Tool
                 if item.get("tool") in COMMAND_REGISTRY:
