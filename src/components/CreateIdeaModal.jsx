@@ -103,10 +103,10 @@ const CreateIdeaModal = ({ isOpen, onClose, onIdeaCreated, user }) => {
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
             {/* Added relative positioning and max-height logic to prevent cutoff */}
-            <div className="bg-[#0a0a0a] border border-white/10 rounded-2xl w-full max-w-2xl max-h-[85vh] flex flex-col shadow-2xl relative">
-                
+            <div className="glass-panel border-white/10 rounded-2xl w-full max-w-2xl max-h-[85vh] flex flex-col shadow-2xl relative">
+
                 {/* Header - Sticky */}
-                <div className="p-6 border-b border-white/10 flex justify-between items-center bg-[#0a0a0a] rounded-t-2xl shrink-0">
+                <div className="p-6 border-b border-white/10 flex justify-between items-center bg-transparent rounded-t-2xl shrink-0">
                     <h2 className="text-2xl font-light text-white">Share Trading Idea</h2>
                     <button onClick={onClose} className="text-gray-400 hover:text-white transition-colors">
                         <X size={24} />

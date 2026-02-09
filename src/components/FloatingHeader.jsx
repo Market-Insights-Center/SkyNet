@@ -336,7 +336,7 @@ const FloatingHeader = () => {
                     layout: { duration: 0.8, type: "spring", stiffness: 140, damping: 25 }
                 }}
                 onDoubleClick={() => setIsEditing(!isEditing)}
-                className={`${positionClass} z-[40] flex items-center justify-center bg-black/80 backdrop-blur-xl border border-white/10 shadow-2xl overflow-hidden 
+                className={`${positionClass} z-[40] flex items-center justify-center glass-panel
                 ${isMinimized ? 'p-0' : (isVertical ? 'py-10 px-6 max-h-[85vh] flex-col' : 'h-[60px] max-w-[90vw] pr-12 flex-row')}
                 `}
                 style={{ originX: 0.5, borderRadius: 9999 }}
@@ -455,7 +455,7 @@ const FloatingHeader = () => {
                     >
                         <motion.div
                             initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }}
-                            className="bg-gray-900 border border-white/10 rounded-2xl p-6 w-[90vw] max-w-4xl shadow-2xl relative"
+                            className="glass-panel border-white/10 rounded-2xl p-6 w-[90vw] max-w-4xl shadow-2xl relative"
                             onClick={e => e.stopPropagation()}
                         >
                             <button onClick={() => setChartConfig(null)} className="absolute top-4 right-4 text-gray-400 hover:text-white">

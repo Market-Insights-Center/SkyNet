@@ -10,7 +10,7 @@ const SingularityHelpModal = ({ isOpen, onClose }) => {
                         initial={{ opacity: 0, scale: 0.9 }}
                         animate={{ opacity: 1, scale: 1 }}
                         exit={{ opacity: 0, scale: 0.9 }}
-                        className="bg-[#050510] border border-white/20 rounded-xl p-8 max-w-2xl w-full shadow-[0_0_50px_rgba(0,0,0,0.8)] relative overflow-hidden"
+                        className="glass-panel border-white/20 rounded-xl p-8 max-w-2xl w-full shadow-[0_0_50px_rgba(0,0,0,0.8)] relative overflow-hidden"
                     >
                         {/* Header */}
                         <div className="flex justify-between items-start mb-6 border-b border-white/10 pb-4">

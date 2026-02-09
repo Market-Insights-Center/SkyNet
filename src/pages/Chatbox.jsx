@@ -372,7 +372,7 @@ If everything looks correct, please reply with "Confirm" to proceed with the cus
 
 
     return (
-        <div className="fixed inset-0 pt-24 bg-deep-black flex overflow-hidden">
+        <div className="w-full h-[calc(100vh-96px)] md:h-[calc(100vh-80px)] flex overflow-hidden relative">
             {/* Sidebar */}
             <div className={`
                 flex-col bg-[#0a0a0a] h-full border-r border-white/10
@@ -408,7 +408,7 @@ If everything looks correct, please reply with "Confirm" to proceed with the cus
                 )}
 
                 {/* SCROLL */}
-                <div className="flex-1 overflow-y-auto min-h-0 custom-scrollbar">
+                <div className="flex-1 overflow-y-auto min-h-0 custom-scrollbar relative">
                     {conversations.length === 0 ? (
                         <div className="p-4 text-gray-500 text-center text-sm">No conversations found.</div>
                     ) : (
@@ -498,7 +498,7 @@ If everything looks correct, please reply with "Confirm" to proceed with the cus
                         </div>
 
                         {/* SCROLL */}
-                        <div className="flex-1 overflow-y-auto min-h-0 p-4 md:p-6 space-y-4 custom-scrollbar">
+                        <div className="flex-1 overflow-y-auto min-h-0 p-4 md:p-6 space-y-4 custom-scrollbar relative">
                             {messages.map((msg, idx) => {
                                 const isMe = msg.sender === currentUser.email;
                                 return (

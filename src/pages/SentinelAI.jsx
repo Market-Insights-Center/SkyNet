@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -7,6 +6,8 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import NeonWrapper from '../components/NeonWrapper';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 // --- Tool Definitions for Manual Planner ---
 const SENTINEL_TOOLS = [
@@ -18,7 +19,8 @@ const SENTINEL_TOOLS = [
     { value: "quickscore", label: "Quick Technical Score", params: ["tickers_source"] },
     { value: "mlforecast", label: "ML Price Forecast", params: ["tickers_source", "limit"] },
     { value: "nexus_import", label: "Import Nexus Portfolio", params: ["nexus_code"] },
-    { value: "research", label: "Web Research", params: ["query"] },
+    { value: "research", label: "Web Research", params: ["query", "tickers_source"] },
+    { value: "assess", label: "Assess Risk (Beta/Corr)", params: ["tickers_source", "assess_type"] },
     { value: "summary", label: "Generate Summary", params: ["data_source"] }
 ];
 
@@ -37,6 +39,9 @@ const PARAM_OPTIONS = {
         { value: "$step_1_output.top_10", label: "Top 10 from Step 1" },
         { value: "$step_1_output.bottom_10", label: "Bottom 10 from Step 1" },
         { value: "user_input", label: "Manual Input" }
+    ],
+    assess_type: [
+        { value: "code_a", label: "Code A (Beta/Correlation)" }
     ]
 };
 
@@ -637,7 +642,7 @@ Please make sure to generate a final summary ordering the assets based on the st
                             initial={{ y: 100, opacity: 0 }}
                             animate={{ y: 0, opacity: 1 }}
                             exit={{ y: 100, opacity: 0 }}
-                            className="absolute bottom-24 left-6 right-6 mx-auto max-w-4xl bg-black/95 backdrop-blur-xl border border-gold/50 rounded-xl shadow-[0_0_50px_rgba(234,179,8,0.2)] max-h-[60vh] flex flex-col overflow-hidden z-30"
+                            className="absolute bottom-24 left-6 right-6 mx-auto max-w-5xl bg-black/95 backdrop-blur-xl border border-gold/50 rounded-xl shadow-[0_0_50px_rgba(234,179,8,0.2)] max-h-[70vh] flex flex-col overflow-hidden z-30"
                         >
                             <div className="p-4 border-b border-gold/20 flex justify-between items-center bg-gold/5">
                                 <h3 className="text-gold font-bold flex items-center gap-2 font-mono tracking-widest">
@@ -650,12 +655,45 @@ Please make sure to generate a final summary ordering the assets based on the st
                                 </div>
                             </div>
                             <div className="p-6 overflow-y-auto font-sans text-sm leading-relaxed text-gray-300 space-y-4 custom-scrollbar-gold">
-                                {finalSummary.split('\n').map((line, i) => {
-                                    if (line.trim().startsWith('# ')) return <h1 key={i} className="text-xl font-bold text-white mt-4 pb-2 border-b border-gray-800">{line.replace('# ', '')}</h1>;
-                                    if (line.trim().startsWith('## ')) return <h2 key={i} className="text-lg font-bold text-gold mt-4">{line.replace('## ', '')}</h2>;
-                                    if (line.trim().startsWith('- ')) return <li key={i} className="ml-4 list-disc marker:text-gold">{line.replace('- ', '')}</li>;
-                                    return <p key={i}>{line}</p>;
-                                })}
+                                <ReactMarkdown
+                                    remarkPlugins={[remarkGfm]}
+                                    components={{
+                                        // TABLE STYLING: Improved for wide data (Beta, Corr, Multi-ML)
+                                        table: ({ node, ...props }) => (
+                                            <div className="my-6 overflow-x-auto rounded-xl border border-gold/30 shadow-[0_0_15px_rgba(234,179,8,0.1)] bg-black/40 backdrop-blur-md">
+                                                <table {...props} className="w-full border-collapse text-left min-w-[900px]" />
+                                            </div>
+                                        ),
+                                        thead: ({ node, ...props }) => (
+                                            <thead {...props} className="bg-gold/10 text-gold uppercase tracking-wider text-xs font-bold" />
+                                        ),
+                                        tbody: ({ node, ...props }) => (
+                                            <tbody {...props} className="divide-y divide-gray-800/50" />
+                                        ),
+                                        tr: ({ node, ...props }) => (
+                                            <tr {...props} className="hover:bg-gold/5 transition-colors duration-200" />
+                                        ),
+                                        th: ({ node, ...props }) => (
+                                            <th {...props} className="px-6 py-4 border-b border-gold/20 whitespace-nowrap sticky left-0 bg-black/20 backdrop-blur-sm z-10" />
+                                        ),
+                                        td: ({ node, ...props }) => (
+                                            <td {...props} className="px-6 py-4 text-gray-300 border-b border-gray-800/30 whitespace-nowrap" />
+                                        ),
+                                        // Text Styles
+                                        h1: ({ node, ...props }) => <h1 {...props} className="text-2xl font-bold text-white mt-8 mb-4 border-b border-gray-800 pb-2 flex items-center gap-2"><Globe size={24} className="text-gold" /> {props.children}</h1>,
+                                        h2: ({ node, ...props }) => <h2 {...props} className="text-xl font-bold text-gold mt-6 mb-3 flex items-center gap-2"><Activity size={18} /> {props.children}</h2>,
+                                        h3: ({ node, ...props }) => <h3 {...props} className="text-lg font-bold text-cyan-400 mt-4 mb-2">{props.children}</h3>,
+                                        p: ({ node, ...props }) => <p {...props} className="mb-4 text-gray-300" />,
+                                        strong: ({ node, ...props }) => <strong {...props} className="text-cyan-300" />,
+                                        ul: ({ node, ...props }) => <ul {...props} className="space-y-2 my-4 list-none pl-4" />,
+                                        li: ({ node, ...props }) => <li {...props} className="flex gap-2 items-start"><span className="text-gold mt-1.5 text-[8px]">●</span> <span>{props.children}</span></li>,
+                                        code: ({ node, inline, ...props }) => inline
+                                            ? <code {...props} className="bg-gray-800 text-cyan-300 px-1 py-0.5 rounded text-xs font-mono" />
+                                            : <pre className="bg-gray-950 p-4 rounded-lg overflow-x-auto border border-gray-800 my-4 shadow-inner"><code {...props} className="text-gray-300 text-xs font-mono" /></pre>
+                                    }}
+                                >
+                                    {finalSummary}
+                                </ReactMarkdown>
                             </div>
                         </motion.div>
                     )}

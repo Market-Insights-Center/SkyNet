@@ -16,7 +16,7 @@ const CreateArticleModal = ({ isOpen, onClose, onArticleCreated, user }) => {
     const [imageFile, setImageFile] = useState(null);
     const [imageUrl, setImageUrl] = useState('');
     const [imagePreview, setImagePreview] = useState(null);
-    
+
     const [isUploading, setIsUploading] = useState(false);
     const [error, setError] = useState(null);
 
@@ -85,14 +85,14 @@ const CreateArticleModal = ({ isOpen, onClose, onArticleCreated, user }) => {
 
             onArticleCreated();
             onClose();
-            
+
             // Reset Form
             setFormData({ title: '', subtitle: '', content: '', hashtags: '' });
             setImageFile(null);
             setImageUrl('');
             setImagePreview(null);
             setImageMode('upload');
-            
+
         } catch (err) {
             setError(err.message);
         } finally {
@@ -103,10 +103,10 @@ const CreateArticleModal = ({ isOpen, onClose, onArticleCreated, user }) => {
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
             {/* Container */}
-            <div className="bg-[#0a0a0a] border border-gold/30 rounded-2xl w-full max-w-4xl max-h-[85vh] flex flex-col shadow-2xl relative">
-                
+            <div className="glass-panel border-gold/30 rounded-2xl w-full max-w-4xl max-h-[85vh] flex flex-col shadow-2xl relative">
+
                 {/* Header - Sticky */}
-                <div className="p-6 border-b border-white/10 flex justify-between items-center bg-[#0a0a0a] rounded-t-2xl shrink-0">
+                <div className="p-6 border-b border-white/10 flex justify-between items-center bg-transparent rounded-t-2xl shrink-0">
                     <h2 className="text-2xl font-bold text-gold flex items-center gap-2">
                         <FileText size={24} /> Write an Article
                     </h2>

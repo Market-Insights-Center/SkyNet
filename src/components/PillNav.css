@@ -11,9 +11,12 @@
     justify-content: space-between;
     align-items: center;
     padding: 1rem 2rem;
-    background: var(--pill-bg, #060010);
-    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    background: var(--glass-surface);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--glass-border);
     color: var(--pill-text, #fff);
+    box-shadow: var(--glass-shadow);
 }
 
 .pill-logo img {
