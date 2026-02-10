@@ -95,43 +95,60 @@ async def _load_all_portfolio_configs(is_called_by_ai: bool = False, user_id: st
 
 async def calculate_ema_invest(ticker: str, ema_interval: int, is_called_by_ai: bool = False) -> Tuple[Optional[float], Optional[float]]:
     async with YFINANCE_API_SEMAPHORE:
-        try:
-            stock = yf.Ticker(ticker.replace('.', '-'))
-            if ema_interval == 1:
-                period = "2y"; interval = "1wk"
-            elif ema_interval == 2:
-                period = "1y"; interval = "1d"
-            else:
-                period = "1mo"; interval = "1h"
-            
-            await asyncio.sleep(np.random.uniform(0.01, 0.05)) # Reduced sleep
-            data = await asyncio.to_thread(stock.history, period=period, interval=interval)
-            
-            # Fallback if no history
-            if data.empty or 'Close' not in data.columns: 
-                try:
-                    price = stock.fast_info.last_price
-                    return float(price), 50.0 # Return neutral score on partial data
-                except:
-                    return None, None
-            
-            data['EMA_8'] = data['Close'].ewm(span=8, adjust=False).mean()
-            data['EMA_55'] = data['Close'].ewm(span=55, adjust=False).mean()
-            
-            latest = data.iloc[-1]
-            live_price = float(latest['Close'])
-            ema_8 = float(latest['EMA_8'])
-            ema_55 = float(latest['EMA_55'])
-            
-            if pd.isna(live_price) or pd.isna(ema_8) or pd.isna(ema_55) or ema_55 == 0:
-                return (live_price if not pd.isna(live_price) else None), 50.0
+        for attempt in range(3):
+            try:
+                stock = yf.Ticker(ticker.replace('.', '-'))
+                if ema_interval == 1:
+                    period = "2y"; interval = "1wk"
+                elif ema_interval == 2:
+                    period = "1y"; interval = "1d"
+                else:
+                    period = "1mo"; interval = "1h"
                 
-            ema_invest_score = (((ema_8 - ema_55) / ema_55) * 4 + 0.5) * 100
-            return live_price, ema_invest_score
-            
-        except Exception as e:
-            if not is_called_by_ai: print(f"DEBUG: Error in calculate_ema_invest for {ticker}: {e}")
-            return None, None
+                # Dynamic sleep based on attempt
+                await asyncio.sleep(np.random.uniform(0.01, 0.05) + (attempt * 0.5)) 
+                
+                data = await asyncio.to_thread(stock.history, period=period, interval=interval)
+                
+                # Check for empty data BUT allow retries if it looks like a glitch
+                if data.empty or 'Close' not in data.columns: 
+                    if attempt < 2:
+                         if not is_called_by_ai: print(f"[DEBUG INVEST] Retry {attempt+1} for {ticker} (Empty Data)...")
+                         continue # Retry
+                    
+                    # If ensuring no data after retries, try fast_info as last resort
+                    try:
+                        price = stock.fast_info.last_price
+                        return float(price), 50.0 # Return neutral score on partial data
+                    except:
+                        return None, None
+                
+                data['EMA_8'] = data['Close'].ewm(span=8, adjust=False).mean()
+                data['EMA_55'] = data['Close'].ewm(span=55, adjust=False).mean()
+                
+                latest = data.iloc[-1]
+                live_price = float(latest['Close'])
+                ema_8 = float(latest['EMA_8'])
+                ema_55 = float(latest['EMA_55'])
+                
+                if pd.isna(live_price) or pd.isna(ema_8) or pd.isna(ema_55) or ema_55 == 0:
+                     if attempt < 2: continue
+                     return (live_price if not pd.isna(live_price) else None), 50.0
+                    
+                ema_invest_score = (((ema_8 - ema_55) / ema_55) * 4 + 0.5) * 100
+                return live_price, ema_invest_score
+                
+            except Exception as e:
+                err_str = str(e).lower()
+                # If rate limit or connection error, wait longer
+                if "rate limit" in err_str or "connection" in err_str or "429" in err_str:
+                     await asyncio.sleep(1.0 + (attempt * 2.0))
+                
+                if attempt < 2:
+                    if not is_called_by_ai: print(f"[DEBUG INVEST] Retry {attempt+1} for {ticker} due to error: {e}")
+                else:
+                    if not is_called_by_ai: print(f"DEBUG: Error in calculate_ema_invest for {ticker} after 3 attempts: {e}")
+                    return None, None
 
 # --- Main Logic Function (Restored so custom_command.py can import it) ---
 async def process_custom_portfolio(

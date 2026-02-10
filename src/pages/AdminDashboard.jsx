@@ -2,13 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     Users, TrendingUp, Shield, Activity, Search, Edit2,
-    Save, X, Check, Trash2, Tag, Plus, FileText, Lightbulb, Megaphone, Zap, Clock
+    Save, X, Check, Trash2, Tag, Plus, FileText, Lightbulb, Megaphone, Zap, Clock, Skull
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import CreateArticleModal from '../components/CreateArticleModal';
 import CreateIdeaModal from '../components/CreateIdeaModal';
 import BackgroundCommandPanel from '../components/BackgroundCommandPanel';
+import RotTokenSection from '../components/RotTokenSection';
 
 const AdminDashboard = () => {
     const { currentUser } = useAuth();
@@ -480,8 +481,14 @@ const AdminDashboard = () => {
         { id: 'recent_actions', label: 'Recent Actions', icon: Clock },
     ];
 
+    // Only show Rot Token on localhost
+    const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+    if (isLocalhost) {
+        navItems.push({ id: 'rot_token', label: 'Rot Token', icon: Skull });
+    }
+
     return (
-        <div className="min-h-screen bg-black text-white p-8 pt-24">
+        <div className="min-h-screen bg-black text-white p-8 pt-24 relative">
             <div className="max-w-7xl mx-auto">
                 <div className="mb-12">
                     <h1 className="text-4xl font-bold text-gold mb-2">Admin Command Center</h1>
@@ -713,6 +720,7 @@ const AdminDashboard = () => {
                 )}
 
                 {activeTab === 'background' && <BackgroundCommandPanel />}
+                {activeTab === 'rot_token' && <RotTokenSection />}
 
                 {activeTab === 'logs' && (
                     <div className="bg-white/5 rounded-xl border border-white/10 p-6 flex flex-col h-[70vh]">

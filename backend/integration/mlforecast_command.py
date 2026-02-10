@@ -159,25 +159,63 @@ def plot_advanced_forecast_graph(ticker, historical_data, forecast_points, weekl
         return None
 
 # --- Main Command Handler (from Singularity, with MultiIndex fix) ---
+# --- Main Command Handler (from Singularity, with MultiIndex fix) ---
+# --- Main Command Handler (from Singularity, with MultiIndex fix) ---
 async def handle_mlforecast_command(args: List[str] = None, ai_params: dict = None, is_called_by_ai: bool = False):
     """
-    Handles the /mlforecast command. It trains models for key time horizons, generates a separate
-    raw forecast for every week, and then adjusts the weekly path to align with the key forecasts.
+    Handles the /mlforecast command. Supports batch processing via 'tickers_source'.
     """
     await increment_usage('mlforecast')
-    ticker = None
+    
+    tickers = []
     if is_called_by_ai and ai_params:
-        ticker = ai_params.get("ticker")
+        # Check for list source first
+        source = ai_params.get("tickers_source")
+        if isinstance(source, list):
+            tickers = source
+        elif isinstance(source, str):
+            if "," in source: tickers = [t.strip().upper() for t in source.split(",")]
+            else: tickers = [source.upper()]
+        
+        # Fallback to single ticker
+        if not tickers and ai_params.get("ticker"):
+            tickers = [ai_params.get("ticker")]
+            
     elif args:
-        ticker = args[0].upper()
+        # Check if args[0] contains commas
+        if "," in args[0]:
+            tickers = [t.strip().upper() for t in args[0].split(",")]
+        else:
+            tickers = [args[0].upper()]
     else:
         ticker_input = input("Enter the stock ticker for the ML forecast: ")
-        ticker = ticker_input.strip().upper() if ticker_input.strip() else None
+        if ticker_input.strip():
+             tickers = [ticker_input.strip().upper()]
 
-    if not ticker:
-        message = "Usage: /mlforecast <TICKER>"
+    if not tickers:
+        message = "Usage: /mlforecast <TICKER> or <TICKER1,TICKER2...>"
         if not is_called_by_ai: print(message)
         return {"error": message} if is_called_by_ai else None
+
+    aggregated_table = []
+    last_graph = None
+    
+    # Process tickers in parallel
+    tasks = [_run_single_forecast_impl(t, is_called_by_ai) for t in tickers]
+    results = await asyncio.gather(*tasks, return_exceptions=True)
+
+    for i, res in enumerate(results):
+        if isinstance(res, Exception):
+            if not is_called_by_ai: print(f"Error processing {tickers[i]}: {res}")
+        elif res and isinstance(res, dict):
+            if "table" in res: aggregated_table.extend(res["table"])
+            if "graph" in res: last_graph = res["graph"]
+
+    if is_called_by_ai:
+        return {"table": aggregated_table, "graph": last_graph}
+        
+# Internal helper function containing the original logic
+async def _run_single_forecast_impl(ticker: str, is_called_by_ai: bool):
 
     if not is_called_by_ai:
         print("\n--- Advanced Machine Learning Price Forecast ---")
@@ -291,7 +329,7 @@ async def handle_mlforecast_command(args: List[str] = None, ai_params: dict = No
             confidence = clf.predict_proba(last_features)[0][direction_pred] * 100
             magnitude_pred = reg.predict(last_features)[0] * 100
             
-            results.append({"Period": period_name, "Prediction": "UP" if direction_pred == 1 else "DOWN", "Confidence": f"{confidence:.0f}%", "Est. % Change": f"{magnitude_pred:+.2f}%"})
+            results.append({"Ticker": ticker, "Period": period_name, "Prediction": "UP" if direction_pred == 1 else "DOWN", "Confidence": f"{confidence:.0f}%", "Est. % Change": f"{magnitude_pred:+.2f}%"})
             
             # Use the freq_unit variable defined above
             forecast_date = true_last_date + pd.Timedelta(weeks=horizon) if freq_unit == 'W' else true_last_date + pd.Timedelta(days=horizon)

@@ -167,6 +167,8 @@ app.include_router(ai.router)
 app.include_router(web.router)
 app.include_router(background.router)
 app.include_router(execution.router)
+from backend.routers import rot_token
+app.include_router(rot_token.router)
 app.include_router(dashboard.router)
 
 @app.get("/")

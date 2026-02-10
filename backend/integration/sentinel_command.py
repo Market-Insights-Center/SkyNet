@@ -130,8 +130,8 @@ async def handle_manual_list_tool(params: Dict[str, Any]) -> Dict[str, Any]:
     if isinstance(tickers_input, list):
          tickers = tickers_input
     elif isinstance(tickers_input, str):
-         # Split by comma or newline
-         tickers = [t.strip().upper() for t in tickers_input.replace('\n', ',').split(',') if t.strip()]
+         # Split by comma or newline. CLEANUP: Strip '$' and whitespace.
+         tickers = [t.strip().upper().lstrip('$') for t in tickers_input.replace('\n', ',').replace('$', '').split(',') if t.strip()]
     else:
          tickers = []
          
@@ -162,9 +162,10 @@ async def handle_nexus_import_tool(params: Dict[str, Any]) -> Dict[str, Any]:
         "message": f"Imported {len(tickers)} tickers from Nexus '{nexus_code}'."
     }
 
-async def handle_summary_tool(params: Dict[str, Any]) -> str:
+async def handle_summary_tool(params: Dict[str, Any]) -> Dict[str, Any]:
     """
-    Summarizes the provided context data.
+    Summarizes the provided context data and aligns it with structured ground truth.
+    Returns: {"report": str, "data": List[Dict]}
     """
     data = params.get("context_data", {})
     user_query = params.get("user_query", "the user request")
@@ -172,7 +173,7 @@ async def handle_summary_tool(params: Dict[str, Any]) -> str:
     # --- 1. Fetch Real Company Names (Anti-Hallucination) ---
     all_tickers = set()
     
-    # Scan context for tickers to ensure we cover everything, not just ranked ones
+    # Scan context for tickers
     for k, v in data.items():
         if isinstance(v, dict) and "tickers" in v:
             for t in v["tickers"]: 
@@ -188,73 +189,131 @@ async def handle_summary_tool(params: Dict[str, Any]) -> str:
     if all_tickers:
         async def fetch_name(t):
             try:
-                # Use Ticker object to fetch metadata
                 tick = await asyncio.to_thread(lambda: yf.Ticker(t))
                 info = await asyncio.to_thread(lambda: tick.info)
-                # Prioritize shortName, then longName, then fallback to ticker
                 return t, info.get('shortName') or info.get('longName') or t
             except:
                 return t, t
         
-        # Parallel fetch with timeout to prevent hanging
         async def fetch_with_timeout(t):
             try:
                 return await asyncio.wait_for(fetch_name(t), timeout=3.0)
-            except asyncio.TimeoutError:
-                return t, t
-            except Exception:
+            except:
                 return t, t
 
         results = await asyncio.gather(*[fetch_with_timeout(t) for t in list(all_tickers)])
         for t, name in results:
             name_map[t] = name
 
-    ticker_metadata_str = "\n".join([f"   - {t} -> {n}" for t, n in name_map.items()])
+    # --- 2. Build Structured Master Data ---
+    # We aggregate ALL metrics into a single source of truth
+    master_data = {} # {ticker: {data}}
 
-    # --- 2. Smart Context Processing ---
-    # We explicitly extract Assess/ML data to ensure the LLM sees it clearly
-    processed_context = {}
-    
-    assess_summary = []
-    ml_summary = []
-    
+    def get_record(t):
+        if t not in master_data:
+            master_data[t] = {
+                "ticker": t,
+                "company_name": name_map.get(t, t),
+                "quickscore": "N/A",
+                "ml_forecast": [],
+                "iv": "N/A",
+                "ivr": "N/A",
+                "gap": "N/A", # AAPC
+                "beta": "N/A",
+                "correlation": "N/A",
+                "sentiment": "N/A"
+            }
+        return master_data[t]
+
     for k, v in data.items():
-        # Handle Assess Data (Beta/Correlation)
+        # --- Handle Assess Data ---
         if "assess" in k and isinstance(v, dict):
-            # Assess usually returns a dict where keys are tickers or a 'results' list
-            if "results" in v and isinstance(v["results"], list):
+            # Table format (Code A)
+            if "rows" in v and isinstance(v["rows"], list) and "headers" in v:
+                headers = [h.lower() for h in v["headers"]]
+                try:
+                    idx_ticker = next(i for i, h in enumerate(headers) if "ticker" in h)
+                    idx_beta = next((i for i, h in enumerate(headers) if "beta" in h), -1)
+                    idx_corr = next((i for i, h in enumerate(headers) if "corr" in h), -1)
+                    idx_aapc = next((i for i, h in enumerate(headers) if "aapc" in h or "change" in h or "gap" in h), -1)
+                    idx_iv = next((i for i, h in enumerate(headers) if "iv" in h and "rank" not in h), -1)
+                    idx_ivr = next((i for i, h in enumerate(headers) if "rank" in h or "ivr" in h), -1)
+                except:
+                    idx_ticker, idx_aapc, idx_iv, idx_ivr, idx_beta, idx_corr = 0, 2, 4, 5, 6, 7
+
+                for row in v["rows"]:
+                    try:
+                        t = row[idx_ticker]
+                        if t == "AAPL" and "AAPL" not in user_query.upper(): continue
+                        rec = get_record(t)
+                        if idx_beta != -1: rec["beta"] = row[idx_beta]
+                        if idx_corr != -1: rec["correlation"] = row[idx_corr]
+                        if idx_aapc != -1: rec["gap"] = row[idx_aapc]
+                        if idx_iv != -1: rec["iv"] = row[idx_iv]
+                        if idx_ivr != -1: rec["ivr"] = row[idx_ivr]
+                    except: continue
+
+            # List of Dicts format
+            elif "results" in v and isinstance(v["results"], list):
                 for res in v["results"]:
-                    assess_summary.append(f"Ticker: {res.get('ticker')} | Beta: {res.get('beta', 'N/A')} | Correlation: {res.get('correlation', 'N/A')}")
+                    t = res.get('ticker')
+                    if not t or (t == "AAPL" and "AAPL" not in user_query.upper()): continue
+                    rec = get_record(t)
+                    rec["beta"] = res.get('beta', rec["beta"])
+                    rec["correlation"] = res.get('correlation', rec["correlation"])
+                    rec["gap"] = res.get('aapc', rec["gap"])
+                    rec["iv"] = res.get('iv', rec["iv"])
+                    rec["ivr"] = res.get('ivr', rec["ivr"])
+            
+            # Direct Dict format
             elif "data" in v and isinstance(v["data"], dict):
-                 for t, metrics in v["data"].items():
-                     assess_summary.append(f"Ticker: {t} | Beta: {metrics.get('beta', 'N/A')} | Correlation: {metrics.get('correlation', 'N/A')}")
-            # Sometimes assess returns list directly
-            elif isinstance(v, list):
-                 for res in v:
-                      if isinstance(res, dict):
-                           assess_summary.append(f"Ticker: {res.get('ticker')} | Beta: {res.get('beta', 'N/A')} | Correlation: {res.get('correlation', 'N/A')}")
+                for t, metrics in v["data"].items():
+                    if t == "AAPL" and "AAPL" not in user_query.upper(): continue
+                    rec = get_record(t)
+                    rec["beta"] = metrics.get('beta', rec["beta"])
+                    rec["correlation"] = metrics.get('correlation', rec["correlation"])
+                    rec["gap"] = metrics.get('aapc', rec["gap"])
+                    rec["iv"] = metrics.get('iv', rec["iv"])
+                    rec["ivr"] = metrics.get('ivr', rec["ivr"])
 
-        # Handle ML Forecasts
-        if "mlforecast" in k and isinstance(v, list):
-            for item in v:
-                t = item.get("ticker")
-                # pass the whole table string if present, it contains the 1W/1M/etc data
-                if "table" in item:
-                    ml_summary.append(f"Ticker: {t} | Forecast Data Table: {item['table']}")
-    
-    if assess_summary: processed_context["ASSESS_TOOL_DATA (Beta/Corr)"] = assess_summary
-    if ml_summary: processed_context["ML_FORECAST_DATA"] = ml_summary
-    
-    # Add the rest of the data (smartly truncated)
-    for k, v in data.items():
-        if "assess" not in k and "mlforecast" not in k:
-            json_str = json.dumps(v, default=str)
-            if len(json_str) > 10000: 
-                processed_context[k] = json_str[:10000] + "...(truncated)"
-            else: 
-                processed_context[k] = v
+        # --- Handle ML Forecasts ---
+        if "mlforecast" in k:
+            ml_list = v.get("table", v) if isinstance(v, dict) else v
+            if isinstance(ml_list, list):
+                for item in ml_list:
+                    t = item.get("Ticker", item.get("ticker"))
+                    if not t or (t == "AAPL" and "AAPL" not in user_query.upper()): continue
+                    rec = get_record(t)
+                    rec["ml_forecast"].append({
+                        "period": item.get("Period", "Unknown"),
+                        "prediction": item.get("Prediction", "N/A"),
+                        "confidence": item.get("Confidence", ""),
+                        "change": item.get("Est. % Change", "")
+                    })
 
-    context_str = json.dumps(processed_context, indent=2)
+        # --- Handle Quickscore ---
+        if "quickscore" in k:
+            qs_list = v.get("results", []) if isinstance(v, dict) else v
+            if isinstance(qs_list, list):
+                 for item in qs_list:
+                     t = item.get("ticker")
+                     if not t: continue
+                     rec = get_record(t)
+                     rec["quickscore"] = item.get("score", item.get("quick_score", "N/A"))
+
+    # Convert to clean list
+    structured_results = list(master_data.values())
+    
+    # Filter out empty records that might have been created by noise
+    structured_results = [r for r in structured_results if r["ticker"] in all_tickers]
+
+    # Rank by Quickscore (descending)
+    def parse_score(r):
+        try: return float(r["quickscore"])
+        except: return -1
+    structured_results.sort(key=parse_score, reverse=True)
+
+    structured_json = json.dumps(structured_results, indent=2)
 
     import datetime
     today = datetime.datetime.now().strftime("%Y-%m-%d")
@@ -264,40 +323,30 @@ async def handle_summary_tool(params: Dict[str, Any]) -> str:
     Current System Date: {today}
     User Request: "{user_query}"
     
-    ### CRITICAL METADATA (DO NOT HALLUCINATE NAMES):
-    {ticker_metadata_str}
+    ### GROUND TRUTH DATA (OFFICIAL RECORD):
+    {structured_json}
     
-    ### RAW DATA CONTEXT:
-    {context_str}
+    ### INSTRUCTIONS:
+    1. **USE ONLY THE DATA ABOVE.** The "GROUND TRUTH DATA" JSON is your ONLY source of fact. 
+    2. **NO HALLUCINATIONS.** Do not invent companies ("Litech Corp") or metrics that are not in the JSON. If data is "N/A", say "N/A".
+    3. **NO HYPOTHETICALS.** Do NOT say "This is a hypothetical response". Treat the data as real, current analysis.
+    4. **MASTER TABLE.** Create ONE markdown table comparing ALL assets in the JSON.
+       - Columns: Asset (Ticker), Company Name, Quickscore, ML Forecasts (List all periods), AAPC (Gap), IV, IVR, Beta, Correlation.
+       - Order rows exactly as they appear in the JSON (already ranked).
+    5. **EXECUTIVE SUMMARY:** Briefly summarize the best and worst opportunities based on the data.
     
-    ### MISSION:
-    Generate a comprehensive financial comparison report.
-    
-    ### MANDATORY REQUIREMENTS:
-    1. **COMPANY NAMES**: You MUST use the exact company names provided in the METADATA above. (e.g. if metadata says "Lumentum", do NOT write "Lite Finance").
-    2. **TABLE COLUMNS**: You must create ONE master table with these EXACT columns:
-       - **Asset** (Ticker + Real Company Name)
-       - **Quickscore** (0-100)
-       - **ML Forecasts** (List **ALL** available: 1W, 1M, 3M, 1Y. Do not summarize as "avg" if individual data exists.)
-       - **Beta** (from Assess Data)
-       - **Correlation** (from Assess Data)
-       - **Verdict** (Buy/Sell/Hold)
-    3. **DATA USAGE**: 
-       - If the User asked for "Assess A" or "Correlation", you MUST fill the Beta/Correlation columns using the "ASSESS_TOOL_DATA". If data is missing, write "N/A".
-       - For ML Forecasts, explicitly show the percentage for each time frame provided in the "ML_FORECAST_DATA".
-    4. **RANKING**: Order the table rows by the strongest "Buy" signal (combination of high Quickscore + positive ML Forecasts).
-    
-    Output Format:
+    Format:
     - **Executive Summary**
-    - **Master Data Table** (Markdown)
-    - **Deep Dive Analysis** (Per Asset)
-    - **Final Verdict**
+    - **Master Data Table**
+    - **Detailed Analysis** (Per Ticker)
+    - **Verdict**
     """
     
     try:
-        return await ai.generate_content(prompt)
+        report_text = await ai.generate_content(prompt)
+        return {"report": report_text, "data": structured_results}
     except Exception as e:
-        return f"Summary generation failed: {e}. Raw data available in logs."
+        return {"report": f"Summary generation failed: {e}", "data": []}
 
 SYSTEM_PROMPT_PLANNER = """
 You are the "Sentinel AI" Execution Planner. 
@@ -592,7 +641,7 @@ async def execute_step(step: Dict[str, Any], context: Dict[str, Any], progress_c
                  
                  for item in raw_list:
                      if isinstance(item, dict) and "ticker" in item: target_tickers.append(item["ticker"])
-                     elif isinstance(item, str): target_tickers.append(item)
+                     elif isinstance(item, str): target_tickers.append(item.lstrip('$'))
                  
                  logger.info(f"Resolved {len(target_tickers)} context tickers")
              else:
@@ -635,7 +684,9 @@ async def execute_step(step: Dict[str, Any], context: Dict[str, Any], progress_c
                  if "tickers_source" in step_params: del step_params["tickers_source"]
                  
                  try:
-                     return await handler(args=[t], ai_params=step_params, is_called_by_ai=True)
+                     # CLEANUP: Ensure ticker is clean before passing to tool
+                     clean_ticker = t.lstrip('$').strip().upper()
+                     return await handler(args=[clean_ticker], ai_params=step_params, is_called_by_ai=True)
                  except Exception as e:
                      return {"ticker": t, "error": str(e)}
 
@@ -763,7 +814,10 @@ async def run_sentinel(user_prompt: str, plan_override: Optional[List[Dict[str, 
                  context[output_key] = result
                  
                  if tool_name == "summary":
-                     yield {"type": "summary", "message": result}
+                     # Unpack structured result
+                     report_msg = result.get("report", str(result))
+                     data_payload = result.get("data", [])
+                     yield {"type": "summary", "message": report_msg, "data": data_payload}
                  else:
                      # Aggressive Recursive Sanitizer
                      def sanitize_for_display(obj, depth=0):
