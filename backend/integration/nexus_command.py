@@ -739,21 +739,38 @@ async def handle_nexus_command(args: List[str], ai_params: Optional[Dict] = None
             total_portfolio_value_for_percent_calc=total_value
         )
         
+
         # Execute if requested
         # --- 6. EXECUTE & NOTIFY ---
         # MODIFIED: Safety Check + Email First + Execution Second
 
         # A. SAFETY CHECK: "Sold All" Prevention
-        # If new_holdings is empty but old_holdings is NOT, we consider this a critical failure (unless intended).
-        # We block execution in this case.
+        # Logic: Prevent total wipeout or drastic reduction (>50% drop) without explicit confirmation
         is_safe_to_execute = True
         warning_msg = ""
         
+        # Calculate totals
+        new_total_invested = sum(h['actual_money_allocation'] for h in new_holdings)
+        old_total_invested = sum(old_holdings_map.values()) * 1.0 # Approximate if only shares known? 
+        # Actually old_holdings_map from RH is usually quantity. We need value.
+        # But we have 'rh_equity'.
+        
+        # Use rh_equity as baseline for "Old Value"
+        # If new_total_invested is drastically lower than rh_equity, it's a massive sell-off.
+        
+        # Check 1: Empty Target
         if len(new_holdings) == 0 and len(old_holdings_map) > 0 and total_value > 100:
              print("[CRITICAL SAFETY] Target Portfolio is EMPTY but user has holdings. ABORTING EXECUTION.")
              is_safe_to_execute = False
              warning_msg = "[SAFETY BLOCK] Execution prevented: Target portfolio empty (possible data failure) vs Existing Holdings."
-        
+
+        # Check 2: Drastic Drop (Panic Sell Protection)
+        # If we are selling > 50% of equity and ending up with < 50% invested
+        elif rh_equity > 500 and new_total_invested < (rh_equity * 0.5):
+             print(f"[CRITICAL SAFETY] Drastic Drop Detected: New ${new_total_invested:.2f} vs Old ${rh_equity:.2f}")
+             is_safe_to_execute = False
+             warning_msg = f"[SAFETY BLOCK] Execution prevented: Proposed value (${new_total_invested:.2f}) is < 50% of current equity (${rh_equity:.2f})."
+
         # B. Send Email (Preview)
         email_to = ai_params.get('email_to')
         if email_to and (len(trades) > 0 or warning_msg):
@@ -792,21 +809,34 @@ async def handle_nexus_command(args: List[str], ai_params: Optional[Dict] = None
             })
 
         # Allow execution ONLY if called by AI (Automation) AND explicitly requested AND SAFE
-        should_execute = is_called_by_ai and use_rh_data and is_safe_to_execute
+        # Check for Dry Run
+        dry_run = ai_params.get('dry_run', False)
+        
+        if dry_run:
+            print("[DEBUG NEXUS] Dry Run Requested. Execution Skipped.")
+            should_execute = False
+        else:
+            should_execute = is_called_by_ai and use_rh_data and is_safe_to_execute
         
         # Debug why no execution
-        if use_rh_data and is_safe_to_execute and not is_called_by_ai:
-             print("[DEBUG NEXUS] Execution skipped (Dry Run / GUI Mode).")
-
-        if use_rh_data and not is_safe_to_execute:
-             print(f"[DEBUG NEXUS] Execution Skipped due to Safety Block: {warning_msg}")
-
-        rebal_res = await asyncio.to_thread(
-            execute_portfolio_rebalance,
-            trades=rebal_trades,
-            execute=should_execute,
-            progress_callback=progress_callback
-        )
+        if use_rh_data and not should_execute:
+             if not is_safe_to_execute: print("[DEBUG NEXUS] Execution skipped (SAFETY BLOCK).")
+             elif dry_run: print("[DEBUG NEXUS] Execution skipped (DRY RUN).")
+             elif not is_called_by_ai: print("[DEBUG NEXUS] Execution skipped (GUI Mode / Not Automation).")
+             
+        if should_execute:
+            if rebal_trades:
+                if progress_callback: await progress_callback(f"Executing {len(rebal_trades)} Trades on Robinhood...")
+                print(f"[DEBUG NEXUS] EXECUTING {len(rebal_trades)} TRADES...")
+                try:
+                    await asyncio.to_thread(execute_portfolio_rebalance, rebal_trades)
+                    if progress_callback: await progress_callback("Trades Executed.")
+                except Exception as e:
+                    print(f"[DEBUG NEXUS] Execution Error: {e}")
+                    if progress_callback: await progress_callback(f"Execution Failed: {e}")
+            else:
+                 if progress_callback: await progress_callback("No Trades Needed.")
+                 print("[DEBUG NEXUS] No trades needed.")
 
         # Check if we SHOULD offer execution (Triggers frontend button)
         # We allow execution if there are trades, regardless of predefined credentials,

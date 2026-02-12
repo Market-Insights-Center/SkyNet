@@ -28,6 +28,7 @@ def create_chat(req: ChatCreateRequest):
     return new_chat
 
 @router.get("/api/chat/list")
+@router.head("/api/chat/list")
 def list_user_chats(email: str, all_chats: bool = False):
     chats = read_chats()
     if all_chats: return chats

@@ -9,6 +9,7 @@ import NeonWrapper from '../components/NeonWrapper';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import DataView from '../components/DataView'; // NEW IMPORT
+import ChartCompletion from '../components/Sentinel/ChartCompletion';
 
 // ... (Existing Tool Definitions) ...
 const SENTINEL_TOOLS = [
@@ -69,6 +70,7 @@ const SentinelAI = () => {
     const [showSidebar, setShowSidebar] = useState(false);
     const [pastSessions, setPastSessions] = useState([]);
     const [activeView, setActiveView] = useState("report"); // report, data, plan
+    const [appMode, setAppMode] = useState("mission"); // 'mission', 'chart'
 
     const logEndRef = useRef(null);
 
@@ -386,6 +388,21 @@ Please make sure to generate a final summary ordering the assets based on the st
                             </div>
                         </div>
                     </div>
+                    {/* Mode Toggle */}
+                    <div className="flex bg-gray-900 border border-gray-700 rounded-lg p-1">
+                        <button
+                            onClick={() => setAppMode("mission")}
+                            className={`px-3 py-1 text-xs font-medium rounded-md transition-all ${appMode === "mission" ? "bg-cyan-500/20 text-cyan-400 border border-cyan-500/30" : "text-gray-500 hover:text-gray-300"}`}
+                        >
+                            Mission Control
+                        </button>
+                        <button
+                            onClick={() => setAppMode("chart")}
+                            className={`px-3 py-1 text-xs font-medium rounded-md transition-all ${appMode === "chart" ? "bg-purple-500/20 text-purple-400 border border-purple-500/30" : "text-gray-500 hover:text-gray-300"}`}
+                        >
+                            Chart Completion
+                        </button>
+                    </div>
                 </header>
 
                 <main className="flex-1 overflow-hidden flex flex-col relative">
@@ -393,232 +410,238 @@ Please make sure to generate a final summary ordering the assets based on the st
                     <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-5 pointer-events-none"></div>
                     <div className="absolute inset-0 bg-[linear-gradient(rgba(18,18,18,0)_1px,transparent_1px),linear-gradient(90deg,rgba(18,18,18,0)_1px,transparent_1px)] bg-[size:40px_40px] [mask-image:radial-gradient(ellipse_60%_60%_at_50%_0%,black_70%,transparent_100%)] pointer-events-none opacity-20"></div>
 
-                    {/* Scrollable Area */}
-                    <div className="flex-1 overflow-y-auto p-4 md:p-8 space-y-6 pb-32 scroll-smooth">
-
-                        {/* Prompt Input */}
-                        <div className="max-w-4xl mx-auto w-full space-y-4">
-                            <NeonWrapper>
-                                <div className="bg-gray-900/80 backdrop-blur-xl p-1 rounded-xl border border-gray-800 shadow-2xl relative group">
-                                    <textarea
-                                        value={prompt}
-                                        onChange={(e) => setPrompt(e.target.value)}
-                                        placeholder="Initialize Protocol... (e.g., 'Analyze $NVDA risk structure', 'Compare $TSLA and $RIVN')"
-                                        className="w-full bg-transparent text-gray-200 placeholder-gray-600 p-4 min-h-[120px] outline-none text-lg resize-none font-light tracking-wide rounded-lg group-hover:bg-gray-900/90 transition-colors"
-                                        disabled={isProcessing}
-                                    />
-
-                                    {/* Action Bar */}
-                                    <div className="flex justify-between items-center px-4 py-2 border-t border-gray-800 bg-gray-900/50 rounded-b-lg">
-                                        <div className="flex gap-2">
-                                            <button onClick={startListening} className={`p-2 rounded-full hover:bg-gray-800 transition-colors ${isListening ? 'text-red-500 animate-pulse' : 'text-gray-400'}`} title="Voice Input">
-                                                <Mic size={18} />
-                                            </button>
-                                            <button onClick={() => setResearchMode(!researchMode)} className={`p-2 rounded-full hover:bg-gray-800 transition-colors ${researchMode ? 'text-cyan-400' : 'text-gray-400'}`} title="Deep Research Mode">
-                                                <Globe size={18} />
-                                            </button>
-                                            <button onClick={handleManualSetup} className={`p-2 rounded-full hover:bg-gray-800 transition-colors ${isManualMode ? 'text-purple-400' : 'text-gray-400'}`} title="Manual Protocol">
-                                                <Settings size={18} />
-                                            </button>
-                                            <button onClick={handleTestPrompt} className="p-2 rounded-full hover:bg-gray-800 transition-colors text-gray-400 hover:text-green-400" title="Use Test Prompt">
-                                                <Database size={18} />
-                                            </button>
-                                        </div>
-                                        <div className="flex gap-3">
-                                            <button
-                                                onClick={() => handlePlan()}
-                                                disabled={isProcessing || !prompt.trim()}
-                                                className="px-4 py-2 rounded-lg bg-gray-800 text-cyan-400 text-sm font-medium hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all border border-cyan-500/20 hover:border-cyan-500/50"
-                                            >
-                                                PLAN PROTOCOL
-                                            </button>
-                                            <button
-                                                onClick={() => handleExecute(isManualMode ? executionPlan : null)}
-                                                disabled={isProcessing || (isManualMode && executionPlan.length === 0)}
-                                                className="px-6 py-2 rounded-lg bg-gradient-to-r from-cyan-600 to-blue-600 text-white font-bold shadow-[0_0_20px_rgba(6,182,212,0.3)] hover:shadow-[0_0_30px_rgba(6,182,212,0.5)] active:scale-95 disabled:opacity-50 disabled:shadow-none disabled:cursor-not-allowed transition-all flex items-center gap-2"
-                                            >
-                                                {isProcessing ? <Activity className="animate-spin" size={18} /> : <Terminal size={18} />}
-                                                EXECUTE
-                                            </button>
-                                        </div>
-                                    </div>
-                                </div>
-                            </NeonWrapper>
+                    {appMode === "chart" ? (
+                        <div className="flex-1 overflow-y-auto p-4 md:p-8 relative z-10">
+                            <ChartCompletion />
                         </div>
+                    ) : (
+                        /* Mission Control Content */
+                        <div className="flex-1 overflow-y-auto p-4 md:p-8 space-y-6 pb-32 scroll-smooth">
 
-                        {/* Review Mode (Manual Planner) */}
-                        <AnimatePresence>
-                            {reviewMode && (
-                                <motion.div
-                                    initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }}
-                                    className="max-w-4xl mx-auto w-full"
-                                >
-                                    <div className="bg-gray-900 border border-purple-500/30 rounded-xl overflow-hidden shadow-2xl">
-                                        <div className="bg-purple-900/20 px-4 py-3 border-b border-purple-500/20 flex justify-between items-center">
-                                            <div className="flex items-center gap-2 text-purple-300">
-                                                <Layers size={18} />
-                                                <span className="font-bold tracking-wider text-sm">STRATEGIC SEQUENCE</span>
+                            {/* Prompt Input */}
+                            <div className="max-w-4xl mx-auto w-full space-y-4">
+                                <NeonWrapper>
+                                    <div className="bg-gray-900/80 backdrop-blur-xl p-1 rounded-xl border border-gray-800 shadow-2xl relative group">
+                                        <textarea
+                                            value={prompt}
+                                            onChange={(e) => setPrompt(e.target.value)}
+                                            placeholder="Initialize Protocol... (e.g., 'Analyze $NVDA risk structure', 'Compare $TSLA and $RIVN')"
+                                            className="w-full bg-transparent text-gray-200 placeholder-gray-600 p-4 min-h-[120px] outline-none text-lg resize-none font-light tracking-wide rounded-lg group-hover:bg-gray-900/90 transition-colors"
+                                            disabled={isProcessing}
+                                        />
+
+                                        {/* Action Bar */}
+                                        <div className="flex justify-between items-center px-4 py-2 border-t border-gray-800 bg-gray-900/50 rounded-b-lg">
+                                            <div className="flex gap-2">
+                                                <button onClick={startListening} className={`p-2 rounded-full hover:bg-gray-800 transition-colors ${isListening ? 'text-red-500 animate-pulse' : 'text-gray-400'}`} title="Voice Input">
+                                                    <Mic size={18} />
+                                                </button>
+                                                <button onClick={() => setResearchMode(!researchMode)} className={`p-2 rounded-full hover:bg-gray-800 transition-colors ${researchMode ? 'text-cyan-400' : 'text-gray-400'}`} title="Deep Research Mode">
+                                                    <Globe size={18} />
+                                                </button>
+                                                <button onClick={handleManualSetup} className={`p-2 rounded-full hover:bg-gray-800 transition-colors ${isManualMode ? 'text-purple-400' : 'text-gray-400'}`} title="Manual Protocol">
+                                                    <Settings size={18} />
+                                                </button>
+                                                <button onClick={handleTestPrompt} className="p-2 rounded-full hover:bg-gray-800 transition-colors text-gray-400 hover:text-green-400" title="Use Test Prompt">
+                                                    <Database size={18} />
+                                                </button>
                                             </div>
-                                            <div className="flex items-center gap-2">
+                                            <div className="flex gap-3">
                                                 <button
-                                                    onClick={() => {
-                                                        setExecutionPlan([]);
-                                                        setIsManualMode(false);
-                                                        setReviewMode(false);
-                                                    }}
-                                                    className="text-xs bg-red-900/20 hover:bg-red-900/40 text-red-400 px-3 py-1 rounded border border-red-500/30 transition-colors flex items-center gap-1"
-                                                    title="Clear Sequence"
+                                                    onClick={() => handlePlan()}
+                                                    disabled={isProcessing || !prompt.trim()}
+                                                    className="px-4 py-2 rounded-lg bg-gray-800 text-cyan-400 text-sm font-medium hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all border border-cyan-500/20 hover:border-cyan-500/50"
                                                 >
-                                                    <Trash2 size={12} /> Clear
+                                                    PLAN PROTOCOL
                                                 </button>
-                                                <button onClick={addStep} className="text-xs bg-purple-600/30 hover:bg-purple-600/50 text-purple-200 px-3 py-1 rounded border border-purple-500/30 transition-colors flex items-center gap-1">
-                                                    <Plus size={12} /> Add Step
-                                                </button>
-                                            </div>
-                                        </div>
-                                        <div className="p-4 space-y-3">
-                                            {executionPlan.map((step, idx) => (
-                                                <motion.div layout key={idx} className="bg-black/40 border border-gray-700/50 rounded-lg p-3 relative group">
-                                                    <div className="flex items-center gap-3 mb-2">
-                                                        <span className="text-xs font-mono text-gray-500">{(idx + 1).toString().padStart(2, '0')}</span>
-                                                        <select
-                                                            value={step.tool}
-                                                            onChange={(e) => updateStep(idx, 'tool', e.target.value)}
-                                                            className="bg-gray-800 text-cyan-400 text-xs font-mono px-2 py-1 rounded border border-gray-700 outline-none focus:border-cyan-500"
-                                                        >
-                                                            {SENTINEL_TOOLS.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
-                                                        </select>
-                                                        <input
-                                                            type="text"
-                                                            value={step.description || ""}
-                                                            onChange={(e) => updateStep(idx, 'description', e.target.value)}
-                                                            placeholder="Step Description..."
-                                                            className="bg-transparent border-b border-gray-700 focus:border-purple-500 text-sm text-gray-300 flex-1 outline-none px-2 py-1"
-                                                        />
-                                                        <button onClick={() => removeStep(idx)} className="text-gray-600 hover:text-red-400 p-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                            <X size={14} />
-                                                        </button>
-                                                    </div>
-
-                                                    {/* Dynamic Params */}
-                                                    <div className="pl-8 flex flex-wrap gap-2">
-                                                        {SENTINEL_TOOLS.find(t => t.value === step.tool)?.params.map(param => (
-                                                            <div key={param} className="flex items-center gap-1 bg-gray-800/50 px-2 py-1 rounded border border-gray-700/50">
-                                                                <span className="text-[10px] text-gray-500 uppercase">{param}:</span>
-                                                                {PARAM_OPTIONS[param] ? (
-                                                                    <select
-                                                                        value={step.params[param] || ""}
-                                                                        onChange={(e) => updateStepParam(idx, param, e.target.value)}
-                                                                        className="bg-transparent text-xs text-purple-300 outline-none w-24"
-                                                                    >
-                                                                        <option value="">Select...</option>
-                                                                        {PARAM_OPTIONS[param].map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
-                                                                    </select>
-                                                                ) : (
-                                                                    <input
-                                                                        type="text"
-                                                                        value={step.params[param] || ""}
-                                                                        onChange={(e) => updateStepParam(idx, param, e.target.value)}
-                                                                        className="bg-transparent text-xs text-purple-300 outline-none w-24 border-b border-gray-700 focus:border-purple-500"
-                                                                    />
-                                                                )}
-                                                            </div>
-                                                        ))}
-                                                    </div>
-                                                </motion.div>
-                                            ))}
-                                            {executionPlan.length === 0 && <div className="text-center text-sm text-gray-500 py-4">Protocol Empty. Add steps or use AI Planner.</div>}
-                                            <div className="flex justify-end pt-2">
-                                                <button onClick={addSummaryStep} className="text-xs text-purple-400 hover:text-purple-300 transition-colors flex items-center gap-1">
-                                                    <FileText size={12} /> Add Report Gen Step
+                                                <button
+                                                    onClick={() => handleExecute(isManualMode ? executionPlan : null)}
+                                                    disabled={isProcessing || (isManualMode && executionPlan.length === 0)}
+                                                    className="px-6 py-2 rounded-lg bg-gradient-to-r from-cyan-600 to-blue-600 text-white font-bold shadow-[0_0_20px_rgba(6,182,212,0.3)] hover:shadow-[0_0_30px_rgba(6,182,212,0.5)] active:scale-95 disabled:opacity-50 disabled:shadow-none disabled:cursor-not-allowed transition-all flex items-center gap-2"
+                                                >
+                                                    {isProcessing ? <Activity className="animate-spin" size={18} /> : <Terminal size={18} />}
+                                                    EXECUTE
                                                 </button>
                                             </div>
                                         </div>
                                     </div>
-                                </motion.div>
-                            )}
-                        </AnimatePresence>
-
-                        {/* View Switcher for Report/Data/Plan */}
-                        {(finalSummary || executionStatus === 'executing' || executionStatus === 'complete' || logs.length > 0) && (
-                            <div className="max-w-5xl mx-auto w-full flex gap-1 mb-4 border-b border-gray-800">
-                                <button
-                                    onClick={() => finalSummary && setActiveView("report")}
-                                    disabled={!finalSummary}
-                                    className={`px-4 py-2 text-sm font-medium flex items-center gap-2 border-b-2 transition-colors ${activeView === 'report' ? 'border-cyan-500 text-cyan-400' : 'border-transparent text-gray-500'} ${!finalSummary ? 'opacity-50 cursor-not-allowed' : 'hover:text-gray-300'}`}
-                                >
-                                    <FileText size={16} /> Mission Report
-                                </button>
-                                <button
-                                    onClick={() => structuredData.length > 0 && setActiveView("data")}
-                                    disabled={structuredData.length === 0}
-                                    className={`px-4 py-2 text-sm font-medium flex items-center gap-2 border-b-2 transition-colors ${activeView === 'data' ? 'border-cyan-500 text-cyan-400' : 'border-transparent text-gray-500'} ${structuredData.length > 0 ? 'animate-pulse hover:text-gray-300' : 'opacity-50 cursor-not-allowed'}`}
-                                >
-                                    <Database size={16} /> Data Matrix {structuredData.length > 0 && <span className="bg-cyan-500/20 text-cyan-300 px-1.5 rounded-full text-[10px]">{structuredData.length}</span>}
-                                </button>
-                                <button
-                                    onClick={() => setActiveView("logs")}
-                                    className={`px-4 py-2 text-sm font-medium flex items-center gap-2 border-b-2 transition-colors ${activeView === 'logs' ? 'border-cyan-500 text-cyan-400' : 'border-transparent text-gray-500 hover:text-gray-300'}`}
-                                >
-                                    <Terminal size={16} /> System Logs
-                                </button>
+                                </NeonWrapper>
                             </div>
-                        )}
 
-                        {/* Output Display */}
-                        <div className="max-w-5xl mx-auto w-full min-h-[400px]">
-                            {/* Report View */}
-                            {activeView === 'report' && finalSummary && (
-                                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="bg-gray-900 border border-gray-800 rounded-xl p-8 shadow-2xl relative">
-                                    <div className="absolute top-4 right-4 flex gap-2">
-                                        <button
-                                            onClick={saveCurrentSession}
-                                            className="text-gray-500 hover:text-green-400 transition-colors p-2 rounded hover:bg-gray-800"
-                                            title="Save to History"
-                                        >
-                                            <Save size={18} />
-                                        </button>
-                                        <button
-                                            onClick={() => navigator.clipboard.writeText(finalSummary)}
-                                            className="text-gray-500 hover:text-cyan-400 transition-colors p-2 rounded hover:bg-gray-800"
-                                            title="Copy Report"
-                                        >
-                                            <Copy size={18} />
-                                        </button>
-                                    </div>
-                                    <div className="prose prose-invert prose-cyan max-w-none">
-                                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                                            {finalSummary}
-                                        </ReactMarkdown>
-                                    </div>
-                                </motion.div>
-                            )}
-
-                            {/* Data View */}
-                            {activeView === 'data' && (
-                                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="h-[600px]">
-                                    <DataView data={structuredData} />
-                                </motion.div>
-                            )}
-
-                            {/* Logs View */}
-                            {activeView === 'logs' && (
-                                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="bg-black border border-gray-800 rounded-xl p-4 font-mono text-xs h-[500px] overflow-y-auto">
-                                    <div className="space-y-1">
-                                        {logs.map((log, i) => (
-                                            <div key={i} className={`flex gap-3 ${log.type === 'error' ? 'text-red-400' : log.type === 'success' ? 'text-green-400' : log.type === 'info' ? 'text-cyan-600' : 'text-gray-500'}`}>
-                                                <span className="opacity-50 min-w-[30px]">{i + 1}</span>
-                                                <span className="opacity-50">[{log.timestamp ? log.timestamp.toLocaleTimeString() : new Date().toLocaleTimeString()}]</span>
-                                                <span>{log.message}</span>
+                            {/* Review Mode (Manual Planner) */}
+                            <AnimatePresence>
+                                {reviewMode && (
+                                    <motion.div
+                                        initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }}
+                                        className="max-w-4xl mx-auto w-full"
+                                    >
+                                        <div className="bg-gray-900 border border-purple-500/30 rounded-xl overflow-hidden shadow-2xl">
+                                            <div className="bg-purple-900/20 px-4 py-3 border-b border-purple-500/20 flex justify-between items-center">
+                                                <div className="flex items-center gap-2 text-purple-300">
+                                                    <Layers size={18} />
+                                                    <span className="font-bold tracking-wider text-sm">STRATEGIC SEQUENCE</span>
+                                                </div>
+                                                <div className="flex items-center gap-2">
+                                                    <button
+                                                        onClick={() => {
+                                                            setExecutionPlan([]);
+                                                            setIsManualMode(false);
+                                                            setReviewMode(false);
+                                                        }}
+                                                        className="text-xs bg-red-900/20 hover:bg-red-900/40 text-red-400 px-3 py-1 rounded border border-red-500/30 transition-colors flex items-center gap-1"
+                                                        title="Clear Sequence"
+                                                    >
+                                                        <Trash2 size={12} /> Clear
+                                                    </button>
+                                                    <button onClick={addStep} className="text-xs bg-purple-600/30 hover:bg-purple-600/50 text-purple-200 px-3 py-1 rounded border border-purple-500/30 transition-colors flex items-center gap-1">
+                                                        <Plus size={12} /> Add Step
+                                                    </button>
+                                                </div>
                                             </div>
-                                        ))}
-                                        <div ref={logEndRef} />
-                                    </div>
-                                </motion.div>
-                            )}
-                        </div>
+                                            <div className="p-4 space-y-3">
+                                                {executionPlan.map((step, idx) => (
+                                                    <motion.div layout key={idx} className="bg-black/40 border border-gray-700/50 rounded-lg p-3 relative group">
+                                                        <div className="flex items-center gap-3 mb-2">
+                                                            <span className="text-xs font-mono text-gray-500">{(idx + 1).toString().padStart(2, '0')}</span>
+                                                            <select
+                                                                value={step.tool}
+                                                                onChange={(e) => updateStep(idx, 'tool', e.target.value)}
+                                                                className="bg-gray-800 text-cyan-400 text-xs font-mono px-2 py-1 rounded border border-gray-700 outline-none focus:border-cyan-500"
+                                                            >
+                                                                {SENTINEL_TOOLS.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+                                                            </select>
+                                                            <input
+                                                                type="text"
+                                                                value={step.description || ""}
+                                                                onChange={(e) => updateStep(idx, 'description', e.target.value)}
+                                                                placeholder="Step Description..."
+                                                                className="bg-transparent border-b border-gray-700 focus:border-purple-500 text-sm text-gray-300 flex-1 outline-none px-2 py-1"
+                                                            />
+                                                            <button onClick={() => removeStep(idx)} className="text-gray-600 hover:text-red-400 p-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                                <X size={14} />
+                                                            </button>
+                                                        </div>
 
-                    </div>
+                                                        {/* Dynamic Params */}
+                                                        <div className="pl-8 flex flex-wrap gap-2">
+                                                            {SENTINEL_TOOLS.find(t => t.value === step.tool)?.params.map(param => (
+                                                                <div key={param} className="flex items-center gap-1 bg-gray-800/50 px-2 py-1 rounded border border-gray-700/50">
+                                                                    <span className="text-[10px] text-gray-500 uppercase">{param}:</span>
+                                                                    {PARAM_OPTIONS[param] ? (
+                                                                        <select
+                                                                            value={step.params[param] || ""}
+                                                                            onChange={(e) => updateStepParam(idx, param, e.target.value)}
+                                                                            className="bg-transparent text-xs text-purple-300 outline-none w-24"
+                                                                        >
+                                                                            <option value="">Select...</option>
+                                                                            {PARAM_OPTIONS[param].map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+                                                                        </select>
+                                                                    ) : (
+                                                                        <input
+                                                                            type="text"
+                                                                            value={step.params[param] || ""}
+                                                                            onChange={(e) => updateStepParam(idx, param, e.target.value)}
+                                                                            className="bg-transparent text-xs text-purple-300 outline-none w-24 border-b border-gray-700 focus:border-purple-500"
+                                                                        />
+                                                                    )}
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    </motion.div>
+                                                ))}
+                                                {executionPlan.length === 0 && <div className="text-center text-sm text-gray-500 py-4">Protocol Empty. Add steps or use AI Planner.</div>}
+                                                <div className="flex justify-end pt-2">
+                                                    <button onClick={addSummaryStep} className="text-xs text-purple-400 hover:text-purple-300 transition-colors flex items-center gap-1">
+                                                        <FileText size={12} /> Add Report Gen Step
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </motion.div>
+                                )}
+                            </AnimatePresence>
+
+                            {/* View Switcher for Report/Data/Plan */}
+                            {(finalSummary || executionStatus === 'executing' || executionStatus === 'complete' || logs.length > 0) && (
+                                <div className="max-w-5xl mx-auto w-full flex gap-1 mb-4 border-b border-gray-800">
+                                    <button
+                                        onClick={() => finalSummary && setActiveView("report")}
+                                        disabled={!finalSummary}
+                                        className={`px-4 py-2 text-sm font-medium flex items-center gap-2 border-b-2 transition-colors ${activeView === 'report' ? 'border-cyan-500 text-cyan-400' : 'border-transparent text-gray-500'} ${!finalSummary ? 'opacity-50 cursor-not-allowed' : 'hover:text-gray-300'}`}
+                                    >
+                                        <FileText size={16} /> Mission Report
+                                    </button>
+                                    <button
+                                        onClick={() => structuredData.length > 0 && setActiveView("data")}
+                                        disabled={structuredData.length === 0}
+                                        className={`px-4 py-2 text-sm font-medium flex items-center gap-2 border-b-2 transition-colors ${activeView === 'data' ? 'border-cyan-500 text-cyan-400' : 'border-transparent text-gray-500'} ${structuredData.length > 0 ? 'animate-pulse hover:text-gray-300' : 'opacity-50 cursor-not-allowed'}`}
+                                    >
+                                        <Database size={16} /> Data Matrix {structuredData.length > 0 && <span className="bg-cyan-500/20 text-cyan-300 px-1.5 rounded-full text-[10px]">{structuredData.length}</span>}
+                                    </button>
+                                    <button
+                                        onClick={() => setActiveView("logs")}
+                                        className={`px-4 py-2 text-sm font-medium flex items-center gap-2 border-b-2 transition-colors ${activeView === 'logs' ? 'border-cyan-500 text-cyan-400' : 'border-transparent text-gray-500 hover:text-gray-300'}`}
+                                    >
+                                        <Terminal size={16} /> System Logs
+                                    </button>
+                                </div>
+                            )}
+
+                            {/* Output Display */}
+                            <div className="max-w-5xl mx-auto w-full min-h-[400px]">
+                                {/* Report View */}
+                                {activeView === 'report' && finalSummary && (
+                                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="bg-gray-900 border border-gray-800 rounded-xl p-8 shadow-2xl relative">
+                                        <div className="absolute top-4 right-4 flex gap-2">
+                                            <button
+                                                onClick={saveCurrentSession}
+                                                className="text-gray-500 hover:text-green-400 transition-colors p-2 rounded hover:bg-gray-800"
+                                                title="Save to History"
+                                            >
+                                                <Save size={18} />
+                                            </button>
+                                            <button
+                                                onClick={() => navigator.clipboard.writeText(finalSummary)}
+                                                className="text-gray-500 hover:text-cyan-400 transition-colors p-2 rounded hover:bg-gray-800"
+                                                title="Copy Report"
+                                            >
+                                                <Copy size={18} />
+                                            </button>
+                                        </div>
+                                        <div className="prose prose-invert prose-cyan max-w-none">
+                                            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                                {finalSummary}
+                                            </ReactMarkdown>
+                                        </div>
+                                    </motion.div>
+                                )}
+
+                                {/* Data View */}
+                                {activeView === 'data' && (
+                                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="h-[600px]">
+                                        <DataView data={structuredData} />
+                                    </motion.div>
+                                )}
+
+                                {/* Logs View */}
+                                {activeView === 'logs' && (
+                                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="bg-black border border-gray-800 rounded-xl p-4 font-mono text-xs h-[500px] overflow-y-auto">
+                                        <div className="space-y-1">
+                                            {logs.map((log, i) => (
+                                                <div key={i} className={`flex gap-3 ${log.type === 'error' ? 'text-red-400' : log.type === 'success' ? 'text-green-400' : log.type === 'info' ? 'text-cyan-600' : 'text-gray-500'}`}>
+                                                    <span className="opacity-50 min-w-[30px]">{i + 1}</span>
+                                                    <span className="opacity-50">[{log.timestamp ? log.timestamp.toLocaleTimeString() : new Date().toLocaleTimeString()}]</span>
+                                                    <span>{log.message}</span>
+                                                </div>
+                                            ))}
+                                            <div ref={logEndRef} />
+                                        </div>
+                                    </motion.div>
+                                )}
+                            </div>
+
+                        </div>
+                    )}
                 </main>
             </div>
         </div>

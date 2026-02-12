@@ -237,11 +237,10 @@ async def _run_single_forecast_impl(ticker: str, is_called_by_ai: bool):
                     # Retry logic with exponential backoff
                     await asyncio.sleep(0.5 * (attempt + 1))
                     
-                    temp_data = await asyncio.wait_for(
-                        asyncio.to_thread(
-                            yf.download, ticker, period=period_str, progress=False, auto_adjust=True
-                        ),
-                        timeout=30
+                    # Use Ticker object for better isolation than yf.download
+                    ticker_obj = yf.Ticker(ticker)
+                    temp_data = await asyncio.to_thread(
+                        ticker_obj.history, period=period_str, auto_adjust=True, progress=False
                     )
                     
                     if not temp_data.empty and len(temp_data) > 504: # Need > 2 years of data for 1-year forecast

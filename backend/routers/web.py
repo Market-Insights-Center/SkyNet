@@ -31,6 +31,7 @@ STATIC_DIR = os.path.join(CURRENT_DIR, "static")
 
 # --- HEALTH ---
 @router.get("/api/health")
+@router.head("/api/health")
 def health_check():
     return {"status": "ok", "orion_active": OrionManager.is_running()}
 

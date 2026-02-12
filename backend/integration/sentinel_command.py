@@ -244,7 +244,6 @@ async def handle_summary_tool(params: Dict[str, Any]) -> Dict[str, Any]:
                 for row in v["rows"]:
                     try:
                         t = row[idx_ticker]
-                        if t == "AAPL" and "AAPL" not in user_query.upper(): continue
                         rec = get_record(t)
                         if idx_beta != -1: rec["beta"] = row[idx_beta]
                         if idx_corr != -1: rec["correlation"] = row[idx_corr]
@@ -257,7 +256,7 @@ async def handle_summary_tool(params: Dict[str, Any]) -> Dict[str, Any]:
             elif "results" in v and isinstance(v["results"], list):
                 for res in v["results"]:
                     t = res.get('ticker')
-                    if not t or (t == "AAPL" and "AAPL" not in user_query.upper()): continue
+                    if not t: continue
                     rec = get_record(t)
                     rec["beta"] = res.get('beta', rec["beta"])
                     rec["correlation"] = res.get('correlation', rec["correlation"])
@@ -268,7 +267,6 @@ async def handle_summary_tool(params: Dict[str, Any]) -> Dict[str, Any]:
             # Direct Dict format
             elif "data" in v and isinstance(v["data"], dict):
                 for t, metrics in v["data"].items():
-                    if t == "AAPL" and "AAPL" not in user_query.upper(): continue
                     rec = get_record(t)
                     rec["beta"] = metrics.get('beta', rec["beta"])
                     rec["correlation"] = metrics.get('correlation', rec["correlation"])
@@ -282,7 +280,7 @@ async def handle_summary_tool(params: Dict[str, Any]) -> Dict[str, Any]:
             if isinstance(ml_list, list):
                 for item in ml_list:
                     t = item.get("Ticker", item.get("ticker"))
-                    if not t or (t == "AAPL" and "AAPL" not in user_query.upper()): continue
+                    if not t: continue
                     rec = get_record(t)
                     rec["ml_forecast"].append({
                         "period": item.get("Period", "Unknown"),
@@ -305,18 +303,31 @@ async def handle_summary_tool(params: Dict[str, Any]) -> Dict[str, Any]:
     structured_results = list(master_data.values())
     
     # Filter out empty records that might have been created by noise
-    structured_results = [r for r in structured_results if r["ticker"] in all_tickers]
+    # structured_results = [r for r in structured_results if r["ticker"] in all_tickers] # REMOVED STRICT FILTER
 
     # Rank by Quickscore (descending)
+    # Rank by Quickscore (descending)
     def parse_score(r):
-        try: return float(r["quickscore"])
+        try: return float(r.get("quickscore", -1))
         except: return -1
-    structured_results.sort(key=parse_score, reverse=True)
+    
+    try:
+        structured_results.sort(key=parse_score, reverse=True)
+    except Exception as e:
+        logger.warning(f"Sorting failed: {e}")
 
     structured_json = json.dumps(structured_results, indent=2)
 
     import datetime
     today = datetime.datetime.now().strftime("%Y-%m-%d")
+
+    # --- HALLUCINATION GUARD ---
+    if not structured_results:
+        logger.warning("Summary requested but NO structured data found in context.")
+        return {
+            "report": f"# Analysis Failed\n\nSentinel AI could not retrieve data for the requested assets. This may be due to:\n1. Invalid Tickers\n2. Data Feed Failure\n3. Market Closed",
+            "data": []
+        }
 
     prompt = f"""
     You are the Strategy Analyst for Sentinel AI.
@@ -326,24 +337,41 @@ async def handle_summary_tool(params: Dict[str, Any]) -> Dict[str, Any]:
     ### GROUND TRUTH DATA (OFFICIAL RECORD):
     {structured_json}
     
-    ### INSTRUCTIONS:
-    1. **USE ONLY THE DATA ABOVE.** The "GROUND TRUTH DATA" JSON is your ONLY source of fact. 
-    2. **NO HALLUCINATIONS.** Do not invent companies ("Litech Corp") or metrics that are not in the JSON. If data is "N/A", say "N/A".
-    3. **NO HYPOTHETICALS.** Do NOT say "This is a hypothetical response". Treat the data as real, current analysis.
-    4. **MASTER TABLE.** Create ONE markdown table comparing ALL assets in the JSON.
-       - Columns: Asset (Ticker), Company Name, Quickscore, ML Forecasts (List all periods), AAPC (Gap), IV, IVR, Beta, Correlation.
-       - Order rows exactly as they appear in the JSON (already ranked).
-    5. **EXECUTIVE SUMMARY:** Briefly summarize the best and worst opportunities based on the data.
+    ### CRITICAL INSTRUCTIONS:
+    1. **STRICT DATA ADHERENCE:** You must ONLY use the data provided in the "GROUND TRUTH DATA" JSON above. 
+    2. **ZERO TOLERANCE FOR HALLUCINATION:** 
+       - Do **NOT** invent tickers (e.g. XYZ123, ABC456). 
+       - Do **NOT** invent metrics.
+       - If a specific metric is "N/A" or missing for a ticker, you MUST write "N/A" in the table.
+       - If the JSON list is empty, state "No data available."
+    3. **MASTER TABLE REQURIED:** You MUST create a Markdown table named "Master Data Table".
+       - Columns: Asset (Ticker), Company Name, Quickscore, ML Forecasts, AAPC (Gap), IV, IVR, Beta, Correlation.
+       - The table must contain ALL rows from the JSON data.
+    4. **EXECUTIVE SUMMARY:** Summarize the top opportunities (High Quickscore/Forecast) vs risks based ONLY on the provided JSON.
     
     Format:
-    - **Executive Summary**
-    - **Master Data Table**
-    - **Detailed Analysis** (Per Ticker)
-    - **Verdict**
+    # Executive Summary
+    [Summary Text]
+
+    # Master Data Table
+    | Asset | Company Name | Quickscore | ML Forecasts | AAPC | IV | IVR | Beta | Correlation |
+    |-------|--------------|------------|--------------|------|----|-----|------|-------------|
+    | ...   | ...          | ...        | ...          | ...  | ...| ... | ...  | ...         |
+
+    # Detailed Analysis
+    [Per Ticker Analysis]
+
+    # Verdict
+    [Final Recommendation]
     """
     
     try:
         report_text = await ai.generate_content(prompt)
+        # Final Safety Check: If report contains "XYZ123" or similar, fail it.
+        if "XYZ123" in report_text or "TechnoLogix" in report_text:
+             logger.error("AI Hallucinated despite instructions. Returning raw data.")
+             return { "report": "AI Generation Failed (Hallucination Detected). Please review the raw data table below.", "data": structured_results }
+             
         return {"report": report_text, "data": structured_results}
     except Exception as e:
         return {"report": f"Summary generation failed: {e}", "data": []}
@@ -387,6 +415,7 @@ Rules:
    - **research** (Latest News)
    Do NOT skip these unless explicitly told to be "brief".
 7. **Ticker Handling**: If the user lists tickers (e.g. "AAPL, TSLA"), use the `manual_list` tool. Do NOT use `nexus_import` unless a code (like "NEXUS-88") is explicitly provided.
+8. **Ambiguous Requests**: If the user asks to "List tickers..." or "Find stocks..." but does NOT provide specific tickers, they want you to DISCOVER them. Use the `market` tool (e.g. `market_type='plus'` or `'sp500'`). Do NOT use `manual_list` with empty tickers.
 
 {mode_instructions}
 """
@@ -401,14 +430,43 @@ async def plan_execution(user_prompt: str, execution_mode: str = "auto") -> List
         mode_instructions = "MODE: QUICK EXECUTE (Concise, Merged Steps)"
     
     # --- Regex Pre-Processing to Assist Local LLMs ---
-    # Simple regex for tickers: 2-5 uppercase letters, ignore common words
-    potential_tickers = re.findall(r'\b[A-Z]{2,6}\b', user_prompt.upper())
-    common_words = {"THE", "AND", "FO", "HAT", "HIS", "ITH", "ROM", "BUT", "ALL", "ARE", "WAS", "WERE", "CAN", "FOR", "USE", "GET", "HEY", "SEE", "RUN", "NOT", "YES", "LOW", "BIG", "NEW", "OLD", "BUY", "SELL", "TOP", "ANY", "NOW", "ONE", "TWO", "SIX", "TEN", "OUT", "PUT", "CALL", "ASK", "BID", "PE", "EPS", "VOL", "CAP", "ROI", "ROE", "ETF", "YTD", "LTD", "INC", "CORP", "PLC", "USA", "USD", "EUR", "GBP", "JPY", "CNY", "CAD", "AUD", "NZD", "CHF", "HKD", "SGD", "SEK", "DKK", "NOK", "TRY", "RUB", "ZAR", "BRL", "INR", "MXN", "PLN", "THB", "IDR", "HUF", "CZK", "ILS", "CLP", "PHP", "AED", "COP", "SAR", "MYR", "RON", "HAVE", "YOUR", "TIME", "SIGNAL", "FROM", "THEIR", "EACH", "FRAME", "ALSO", "DATA", "THIS", "WILL", "WITH", "JUST", "MAKE", "SURE", "LIKE", "LIST", "TERM", "LONG", "SHORT", "RISK", "ANALYSIS", "REPORT", "MISSION", "SENTINEL", "PLEASE", "COMPARE", "USING", "GENERAL", "RESEARCH", "THEIR", "NUMBERS", "SCORES", "BETA", "CORRELATION", "ASSESS", "SCORE", "STRONG", "WEAK", "WHERE", "WHAT", "WHEN", "WHY", "HOW"}
+    # --- Regex Pre-Processing to Assist Local LLMs ---
+    # 1. Priority: Explicit Tickers with '$' (e.g. $AAPL, $BTC)
+    explicit_tickers = re.findall(r'\$([A-Z]{2,6})\b', user_prompt.upper())
     
-    # Filter based on common words and maybe context (if user said "LITE, DXYZ")
-    filtered_tickers = [t for t in potential_tickers if t not in common_words]
-    # Remove duplicates but keep order
-    final_tickers = list(dict.fromkeys(filtered_tickers))
+    final_tickers = []
+    
+    if explicit_tickers:
+        # If user was explicit, trust them completely and ignore noise
+        final_tickers = list(dict.fromkeys(explicit_tickers))
+        logger.info(f"Detected explicit tickers: {final_tickers}")
+    else:
+        # 2. Fallback: Loose Regex for tickers: 2-6 uppercase letters
+        potential_tickers = re.findall(r'\b[A-Z]{2,6}\b', user_prompt.upper())
+        
+        # Expanded Common Words Stoplist
+        common_words = {
+            "THE", "AND", "FO", "HAT", "HIS", "ITH", "ROM", "BUT", "ALL", "ARE", "WAS", "WERE", "CAN", "FOR", 
+            "USE", "GET", "HEY", "SEE", "RUN", "NOT", "YES", "LOW", "BIG", "NEW", "OLD", "BUY", "SELL", 
+            "TOP", "ANY", "NOW", "ONE", "TWO", "SIX", "TEN", "OUT", "PUT", "CALL", "ASK", "BID", 
+            "PE", "EPS", "VOL", "CAP", "ROI", "ROE", "ETF", "YTD", "LTD", "INC", "CORP", "PLC", 
+            "USA", "USD", "EUR", "GBP", "JPY", "CNY", "CAD", "AUD", "NZD", "CHF", "HKD", "SGD", 
+            "SEK", "DKK", "NOK", "TRY", "RUB", "ZAR", "BRL", "INR", "MXN", "PLN", "THB", "IDR", 
+            "HUF", "CZK", "ILS", "CLP", "PHP", "AED", "COP", "SAR", "MYR", "RON", 
+            "HAVE", "YOUR", "TIME", "SIGNAL", "FROM", "THEIR", "EACH", "FRAME", "ALSO", "DATA", 
+            "THIS", "WILL", "WITH", "JUST", "MAKE", "SURE", "LIKE", "LIST", "TERM", "LONG", "SHORT", 
+            "RISK", "ANALYSIS", "REPORT", "MISSION", "SENTINEL", "PLEASE", "COMPARE", "USING", "GENERAL", 
+            "RESEARCH", "THEIR", "NUMBERS", "SCORES", "BETA", "CORRELATION", "ASSESS", "SCORE", 
+            "STRONG", "WEAK", "WHERE", "WHAT", "WHEN", "WHY", "HOW", "ABOUT", "ABOVE", "BELOW",
+            "FIND", "FOUND", "SHOW", "TELL", "GIVE", "NEED", "WANT", "LOOK", "CHECK", "SCAN",
+            "BEST", "WORST", "GOOD", "BAD", "HIGH", "AVG", "MED", "MIN", "MAX", "STD", "VAR",
+            "IVR", "IV", "GAP", "AAPC", "YIELD", "PRICE", "VALUE", "COST", "FUND", "REAL", "TRUE",
+            "TEST", "PROMPT", "THINGS", "FETCH", "OF"
+        }
+        
+        # Filter based on common words
+        filtered_tickers = [t for t in potential_tickers if t not in common_words]
+        final_tickers = list(dict.fromkeys(filtered_tickers))
 
     formatted_system_prompt = SYSTEM_PROMPT_PLANNER.replace("{mode_instructions}", mode_instructions)
     
@@ -475,7 +533,24 @@ async def plan_execution(user_prompt: str, execution_mode: str = "auto") -> List
                         item["params"]["tickers"] = final_tickers
                         item["description"] = "Auto-Corrected: Loaded detected tickers."
                         was_swapped_import = True
+                        was_swapped_import = True
                 
+                # --- SAFETY NET: Fix Hallucinated Manual List ---
+                if item.get("tool") == "manual_list":
+                    # Check if tickers are populated
+                    current_tickers = item["params"].get("tickers", [])
+                    if not current_tickers:
+                        if final_tickers:
+                            logger.warning("Planner used manual_list with empty tickers. Injecting regex-found tickers.")
+                            item["params"]["tickers"] = final_tickers
+                            item["description"] = "Auto-Corrected: Loaded detected tickers."
+                        else:
+                            logger.warning("Planner used manual_list with NO tickers and NO regex matches. Swapping to Market Scan.")
+                            item["tool"] = "market"
+                            item["params"] = {"market_type": "plus", "sensitivity": 2} 
+                            item["description"] = "Auto-Corrected: Scanning Market for Candidates."
+                            # NOTE: Downstream tools referencing "$step_N.tickers" will resolve via "top_10" in context resolution logic.
+
                 # 4. Check Valid Tool
                 if item.get("tool") in COMMAND_REGISTRY:
                     valid_plan.append(item)
