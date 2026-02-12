@@ -64,16 +64,31 @@ async def run_breakout_analysis_singularity(is_called_by_ai: bool = False) -> di
     new_tickers_from_screener = []
     screener_error_msg = None
     try:
-        if not is_called_by_ai: print("  -> Running TradingView Screener...")
-        print("[DEBUG BREAKOUT] Running Strict TradingView Screener Query (Change|1W >= 20%)...")
-        query = Query().select('name').where(Column('market_cap_basic') >= 1_000_000_000, Column('volume') >= 1_000_000, Column('change|1W') >= 20, Column('close') >= 1, Column('average_volume_90d_calc') >= 1_000_000).order_by('change', ascending=False).limit(100)
-        _, new_tickers_df = await asyncio.to_thread(query.get_scanner_data, timeout=30)
-
-        # Fallback Logic
-        if new_tickers_df is None or new_tickers_df.empty:
-             print("[DEBUG BREAKOUT] Strict Query returned 0 results. Switch to Relaxed Query (Change|1W >= 5%)...")
-             query_relaxed = Query().select('name').where(Column('market_cap_basic') >= 500_000_000, Column('volume') >= 500_000, Column('change|1W') >= 5, Column('close') >= 1).order_by('change', ascending=False).limit(50)
-             _, new_tickers_df = await asyncio.to_thread(query_relaxed.get_scanner_data, timeout=30)
+        # Retry Logic for Screener
+        max_retries = 3
+        new_tickers_df = None
+        
+        for attempt in range(max_retries):
+            try:
+                if not is_called_by_ai: print(f"  -> Running TradingView Screener (Attempt {attempt+1}/{max_retries})...")
+                print("[DEBUG BREAKOUT] Running Strict TradingView Screener Query (Change|1W >= 20%)...")
+                query = Query().select('name').where(Column('market_cap_basic') >= 1_000_000_000, Column('volume') >= 1_000_000, Column('change|1W') >= 20, Column('close') >= 1, Column('average_volume_90d_calc') >= 1_000_000).order_by('change', ascending=False).limit(100)
+                _, new_tickers_df = await asyncio.to_thread(query.get_scanner_data, timeout=30)
+                
+                # Fallback Logic
+                if new_tickers_df is None or new_tickers_df.empty:
+                     print("[DEBUG BREAKOUT] Strict Query returned 0 results. Switch to Relaxed Query (Change|1W >= 5%)...")
+                     query_relaxed = Query().select('name').where(Column('market_cap_basic') >= 500_000_000, Column('volume') >= 500_000, Column('change|1W') >= 5, Column('close') >= 1).order_by('change', ascending=False).limit(50)
+                     _, new_tickers_df = await asyncio.to_thread(query_relaxed.get_scanner_data, timeout=30)
+                
+                # If success (even if empty, but no exception), break
+                break 
+            except Exception as e:
+                if attempt < max_retries - 1:
+                    print(f"[DEBUG BREAKOUT] Screener Attempt {attempt+1} failed: {e}. Retrying in {2**attempt}s...")
+                    await asyncio.sleep(2**attempt)
+                else:
+                    raise e
 
         
         # DEBUG SCREENER

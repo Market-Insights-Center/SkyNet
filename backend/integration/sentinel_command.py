@@ -364,7 +364,7 @@ Available Tools (Commands):
 9. **mlforecast**: Generate ML-based price forecasts. Params: 'tickers_source' (source of tickers), 'limit' (int).
 10. **nexus_import**: Import tickers from a Nexus/Portfolio code. Params: 'nexus_code' (str).
 11. **research**: Perform web research. Params: 'query' (str) OR 'tickers_source' (source).
-12. **assess**: Advanced risk and correlation metrics. Params: 'tickers_source' (source), 'assess_type' (e.g., 'code_a').
+12. **assess**: Advanced risk and correlation metrics. Params: 'tickers_source' (source), 'assess_code' (e.g., 'A' for volatility, 'B' for manual portfolio).
 
 Rules:
 1. **Valid JSON**: You must return a strict JSON array of objects. NO Markdown, NO strings as IDs.
@@ -487,7 +487,7 @@ async def plan_execution(user_prompt: str, execution_mode: str = "auto") -> List
                         for idx, tool in enumerate(pipeline):
                             step_params = {"tickers_source": "$manual_list.tickers", "limit": 10}
                             if tool == "assess":
-                                step_params["assess_type"] = "code_a"
+                                step_params["assess_code"] = "A"
 
                             valid_plan.append({
                                 "step_id": 900 + idx, # Arbitrary high ID to avoid conflict
@@ -554,7 +554,7 @@ async def plan_execution(user_prompt: str, execution_mode: str = "auto") -> List
             valid_plan.insert(insert_idx, {
                 "step_id": 998, # Temp ID
                 "tool": "assess",
-                "params": {"tickers_source": source_ref, "assess_type": "code_a"},
+                "params": {"tickers_source": source_ref, "assess_code": "A"},
                 "description": "Auto-Injected Risk Analysis (Beta/Correlation)"
             })
             

@@ -50,20 +50,29 @@ MARKET_FULL_SENS_DATA_FILE_PREFIX = 'market_full_sens_'
 # --- Helper Functions (copied for self-containment) ---
 
 def get_sp500_symbols_singularity(is_called_by_ai: bool = False) -> List[str]:
-    """Fetches S&P 500 symbols from Wikipedia."""
-    try:
-        sp500_url = 'https://en.wikipedia.org/wiki/List_of_S%26P_500_companies'
-        headers = {'User-Agent': 'Mozilla/5.0'}
-        response = requests.get(sp500_url, headers=headers, timeout=15)
-        response.raise_for_status()
-        dfs = pd.read_html(StringIO(response.text))
-        if not dfs: return []
-        sp500_df = dfs[0]
-        if 'Symbol' not in sp500_df.columns: return []
-        symbols = [str(s).replace('.', '-') for s in sp500_df['Symbol'].tolist() if isinstance(s, str)]
-        return sorted(list(set(s for s in symbols if s)))
-    except Exception:
-        return []
+    """Fetches S&P 500 symbols from Wikipedia with retry logic."""
+    max_retries = 3
+    for attempt in range(max_retries):
+        try:
+            sp500_url = 'https://en.wikipedia.org/wiki/List_of_S%26P_500_companies'
+            headers = {'User-Agent': 'Mozilla/5.0'}
+            response = requests.get(sp500_url, headers=headers, timeout=15)
+            response.raise_for_status()
+            dfs = pd.read_html(StringIO(response.text))
+            if not dfs: return []
+            sp500_df = dfs[0]
+            if 'Symbol' not in sp500_df.columns: return []
+            symbols = [str(s).replace('.', '-') for s in sp500_df['Symbol'].tolist() if isinstance(s, str)]
+            results = sorted(list(set(s for s in symbols if s)))
+            if results: return results
+        except Exception as e:
+            if attempt < max_retries - 1:
+                import time
+                time.sleep(2 ** attempt)  # Exponential backoff: 1s, 2s, 4s
+            else:
+                print(f"Failed to fetch S&P 500 symbols after {max_retries} attempts: {e}")
+                return []
+    return []
 
 def screen_custom_market_stocks(market_cap_min: float, avg_vol_min: float) -> List[str]:
     """
@@ -102,14 +111,30 @@ def safe_score(value: Any) -> float:
     except Exception: return 0.0
 
 async def calculate_ema_invest(ticker: str, ema_interval: int, is_called_by_ai: bool = False) -> tuple[Optional[float], Optional[float]]:
-    """Calculates the INVEST score for a ticker based on EMA sensitivity."""
+    """Calculates the INVEST score for a ticker based on EMA sensitivity with retries."""
     stock = yf.Ticker(ticker.replace('.', '-'))
     interval_map = {1: "1wk", 2: "1d", 3: "1h"}
     period_map = {1: "max", 2: "10y", 3: "2y"}
+    
+    max_retries = 3
+    for attempt in range(max_retries):
+        try:
+            data = await asyncio.to_thread(stock.history, period=period_map.get(ema_interval, "2y"), interval=interval_map.get(ema_interval, "1h"))
+            if not data.empty and 'Close' in data.columns:
+                 # Success
+                 break
+            else:
+                 if attempt < max_retries - 1:
+                     await asyncio.sleep(1 * (attempt + 1))
+                     continue
+                 return None, None
+        except Exception as e:
+            if attempt < max_retries - 1:
+                await asyncio.sleep(1 * (attempt + 1))
+            else:
+                return None, None
+                
     try:
-        data = await asyncio.to_thread(stock.history, period=period_map.get(ema_interval, "2y"), interval=interval_map.get(ema_interval, "1h"))
-        if data.empty or 'Close' not in data.columns: return None, None
-        
         # Freshness Check: If last data point is older than 10 days, discard.
         last_date = data.index[-1]
         if isinstance(last_date, pd.Timestamp):
@@ -119,7 +144,7 @@ async def calculate_ema_invest(ticker: str, ema_interval: int, is_called_by_ai: 
              now = datetime.datetime.now(last_date.tzinfo) if last_date.tzinfo else datetime.datetime.now()
              if (now - last_date).days > 10:
                   return None, None
-
+    
         data['EMA_8'] = data['Close'].ewm(span=8, adjust=False).mean()
         data['EMA_55'] = data['Close'].ewm(span=55, adjust=False).mean()
         if data.empty or data.iloc[-1][['Close', 'EMA_8', 'EMA_55']].isna().any():

@@ -9,267 +9,267 @@
             "execution_time": "09:30",
             "timezone": "America/Chicago",
             "submission_date": "2026-02-03T03:52:55.526252",
-            "last_run": "2026-02-10T15:45:39.482724",
-            "pnl_all_time": 254.13604589997885,
+            "last_run": "2026-02-11T15:45:38.967581",
+            "pnl_all_time": 499.6509893507591,
             "last_stats": {},
             "status": "active",
             "initial_value": 10000.0,
             "virtual_holdings": [
                 {
                     "ticker": "NVDA",
-                    "shares": 0.35999710832594317,
-                    "live_price_at_eval": 188.5399932861328,
-                    "actual_money_allocation": 68.21711195867219
+                    "shares": 0.36987652340673804,
+                    "live_price_at_eval": 190.0500030517578,
+                    "actual_money_allocation": 70.60387813870277
                 },
                 {
                     "ticker": "ASML",
-                    "shares": 0.09999919675720646,
-                    "live_price_at_eval": 1413.6199951171875,
-                    "actual_money_allocation": 142.40185908782868
+                    "shares": 0.09996662794776706,
+                    "live_price_at_eval": 1435.6300048828125,
+                    "actual_money_allocation": 142.94228374310362
                 },
                 {
                     "ticker": "TSM",
-                    "shares": 0.30999750994733993,
-                    "live_price_at_eval": 362.1099853515625,
-                    "actual_money_allocation": 112.11602783461393
+                    "shares": 0.31989320943285454,
+                    "live_price_at_eval": 374.0899963378906,
+                    "actual_money_allocation": 119.71043722445746
                 },
                 {
                     "ticker": "GOOG",
-                    "shares": 0.26999783124445736,
-                    "live_price_at_eval": 318.6300048828125,
-                    "actual_money_allocation": 85.98891226101955
+                    "shares": 0.2599132326641943,
+                    "live_price_at_eval": 311.3299865722656,
+                    "actual_money_allocation": 81.28006643602374
                 },
                 {
                     "ticker": "MRVL",
-                    "shares": 0.5699954215160767,
-                    "live_price_at_eval": 82.01000213623047,
-                    "actual_money_allocation": 47.144320791748314
+                    "shares": 0.5898031048918255,
+                    "live_price_at_eval": 81.33999633789062,
+                    "actual_money_allocation": 47.408371951262325
                 },
                 {
                     "ticker": "META",
-                    "shares": 0.1099991164329271,
-                    "live_price_at_eval": 670.719970703125,
-                    "actual_money_allocation": 74.25050465760025
+                    "shares": 0.10996329074254374,
+                    "live_price_at_eval": 668.6900024414062,
+                    "actual_money_allocation": 73.24214916351362
                 },
                 {
                     "ticker": "AVGO",
-                    "shares": 0.1499987951358097,
-                    "live_price_at_eval": 340.44000244140625,
-                    "actual_money_allocation": 51.7000867336035
+                    "shares": 0.1599466047164273,
+                    "live_price_at_eval": 342.760009765625,
+                    "actual_money_allocation": 54.005970106265075
                 },
                 {
                     "ticker": "SAP",
-                    "shares": 0.04999959837860324,
-                    "live_price_at_eval": 212.1999969482422,
-                    "actual_money_allocation": 10.615915093953035
+                    "shares": 0.04998331397388353,
+                    "live_price_at_eval": 202.64999389648438,
+                    "actual_money_allocation": 10.192097735458953
                 },
                 {
                     "ticker": "AAPL",
-                    "shares": 0.28999767059589865,
-                    "live_price_at_eval": 273.67999267578125,
-                    "actual_money_allocation": 79.66816042010635
+                    "shares": 0.2899032210485244,
+                    "live_price_at_eval": 275.5,
+                    "actual_money_allocation": 80.66093535319267
                 },
                 {
                     "ticker": "VRT",
-                    "shares": 1.7399860235753921,
-                    "live_price_at_eval": 199.5,
-                    "actual_money_allocation": 350.9725924974274
+                    "shares": 1.6594460239329327,
+                    "live_price_at_eval": 248.50999450683594,
+                    "actual_money_allocation": 392.4340939826251
                 },
                 {
                     "ticker": "DELL",
-                    "shares": 1.2299901201136392,
-                    "live_price_at_eval": 126.01799774169922,
-                    "actual_money_allocation": 154.73276086392778
+                    "shares": 1.2595795121418647,
+                    "live_price_at_eval": 124.16000366210938,
+                    "actual_money_allocation": 156.0933948861122
                 },
                 {
                     "ticker": "MSFT",
-                    "shares": 0.11999903610864773,
-                    "live_price_at_eval": 413.2699890136719,
-                    "actual_money_allocation": 50.63359475087589
+                    "shares": 0.09996662794776703,
+                    "live_price_at_eval": 404.3699951171875,
+                    "actual_money_allocation": 40.494480306756145
                 },
                 {
                     "ticker": "CRWV",
-                    "shares": 2.299981525415748,
-                    "live_price_at_eval": 95.11000061035156,
-                    "actual_money_allocation": 217.63022439052648
+                    "shares": 2.239252466029982,
+                    "live_price_at_eval": 95.1500015258789,
+                    "actual_money_allocation": 201.4095623737011
                 },
                 {
                     "ticker": "HPE",
-                    "shares": 9.78992136253051,
-                    "live_price_at_eval": 23.975000381469727,
-                    "actual_money_allocation": 236.3286957161927
+                    "shares": 9.576802957396083,
+                    "live_price_at_eval": 23.809999465942383,
+                    "actual_money_allocation": 226.58715651068715
                 },
                 {
                     "ticker": "GEV",
-                    "shares": 0.21999823286585418,
-                    "live_price_at_eval": 790.6500244140625,
-                    "actual_money_allocation": 175.8023415311273
+                    "shares": 0.2199265814850875,
+                    "live_price_at_eval": 823.6699829101562,
+                    "actual_money_allocation": 178.0679514725199
                 },
                 {
                     "ticker": "CCJ",
-                    "shares": 1.379988915249449,
-                    "live_price_at_eval": 118.06999969482422,
-                    "actual_money_allocation": 164.38428337476714
+                    "shares": 1.3295561517053018,
+                    "live_price_at_eval": 119.18000030517578,
+                    "actual_money_allocation": 155.2190365825705
                 },
                 {
                     "ticker": "VST",
-                    "shares": 0.22999815254157482,
-                    "live_price_at_eval": 159.56500244140625,
-                    "actual_money_allocation": 36.239659466732164
+                    "shares": 0.269909895458971,
+                    "live_price_at_eval": 160.14999389648438,
+                    "actual_money_allocation": 43.14374756911907
                 },
                 {
                     "ticker": "ETN",
-                    "shares": 0.339997268974502,
-                    "live_price_at_eval": 377.5050048828125,
-                    "actual_money_allocation": 128.77396562409263
+                    "shares": 0.339886535022408,
+                    "live_price_at_eval": 396.0899963378906,
+                    "actual_money_allocation": 134.15665282444633
                 },
                 {
                     "ticker": "CPER",
-                    "shares": 3.2399739749334895,
-                    "live_price_at_eval": 36.36000061035156,
-                    "actual_money_allocation": 117.7730490450244
+                    "shares": 3.278905396686759,
+                    "live_price_at_eval": 36.79999923706055,
+                    "actual_money_allocation": 119.71283052949973
                 },
                 {
                     "ticker": "LIT",
-                    "shares": 1.7799857022782748,
-                    "live_price_at_eval": 71.86000061035156,
-                    "actual_money_allocation": 127.88307495301676
+                    "shares": 1.8093959658545833,
+                    "live_price_at_eval": 73.75,
+                    "actual_money_allocation": 131.16310969951195
                 },
                 {
                     "ticker": "MP",
-                    "shares": 1.439988433303773,
-                    "live_price_at_eval": 62.419498443603516,
-                    "actual_money_allocation": 91.08920546043339
+                    "shares": 1.4595127680373987,
+                    "live_price_at_eval": 60.58000183105469,
+                    "actual_money_allocation": 87.9794278756626
                 },
                 {
                     "ticker": "GE",
-                    "shares": 0.3399972689745019,
-                    "live_price_at_eval": 316.2749938964844,
-                    "actual_money_allocation": 108.11063367734589
+                    "shares": 0.32988987222763133,
+                    "live_price_at_eval": 313.7300109863281,
+                    "actual_money_allocation": 104.07366051465151
                 },
                 {
                     "ticker": "BYDDY",
-                    "shares": 4.999959837860322,
-                    "live_price_at_eval": 12.279999732971191,
-                    "actual_money_allocation": 61.29950875656754
+                    "shares": 5.997997676866023,
+                    "live_price_at_eval": 12.640000343322754,
+                    "actual_money_allocation": 75.15490928949309
                 },
                 {
                     "ticker": "CRWD",
-                    "shares": 0.03999967870288258,
-                    "live_price_at_eval": 413.3900146484375,
-                    "actual_money_allocation": 16.55916752572115
+                    "shares": 0.039986651179106825,
+                    "live_price_at_eval": 415.80999755859375,
+                    "actual_money_allocation": 16.333747712948025
                 },
                 {
                     "ticker": "HWM",
-                    "shares": 0.5499955821646355,
-                    "live_price_at_eval": 224.52000427246094,
-                    "actual_money_allocation": 124.66749760218595
+                    "shares": 0.5398197909179421,
+                    "live_price_at_eval": 230.85000610351562,
+                    "actual_money_allocation": 123.62412735279925
                 },
                 {
                     "ticker": "PH",
-                    "shares": 0.14999879513580966,
-                    "live_price_at_eval": 991.1900024414062,
-                    "actual_money_allocation": 147.26881523329794
+                    "shares": 0.1399532791268739,
+                    "live_price_at_eval": 995.8300170898438,
+                    "actual_money_allocation": 139.2689055418466
                 },
                 {
                     "ticker": "CDNS",
-                    "shares": 0.13999887546008905,
-                    "live_price_at_eval": 299.0,
-                    "actual_money_allocation": 41.84006186923744
+                    "shares": 0.1499499419216506,
+                    "live_price_at_eval": 299.6499938964844,
+                    "actual_money_allocation": 44.54862769637008
                 },
                 {
                     "ticker": "SE",
-                    "shares": 0.009999919675720647,
-                    "live_price_at_eval": 113.31999969482422,
-                    "actual_money_allocation": 1.1441907909855566
+                    "shares": 0.04998331397388353,
+                    "live_price_at_eval": 114.5199966430664,
+                    "actual_money_allocation": 5.75307936212551
                 },
                 {
                     "ticker": "QTUM",
-                    "shares": 0.7899936543819311,
-                    "live_price_at_eval": 118.0999984741211,
-                    "actual_money_allocation": 93.63004526539024
+                    "shares": 0.8197263491716896,
+                    "live_price_at_eval": 119.0999984741211,
+                    "actual_money_allocation": 97.04740197811508
                 },
                 {
                     "ticker": "IBM",
-                    "shares": 0.2499979918930161,
-                    "live_price_at_eval": 291.6700134277344,
-                    "actual_money_allocation": 73.67316005195237
+                    "shares": 0.24991656986941763,
+                    "live_price_at_eval": 272.80999755859375,
+                    "actual_money_allocation": 70.72139368731324
                 },
                 {
                     "ticker": "SPY",
-                    "shares": 0.9199926101662993,
-                    "live_price_at_eval": 692.1099853515625,
-                    "actual_money_allocation": 640.2688682756145
+                    "shares": 0.9296896399142337,
+                    "live_price_at_eval": 691.9600219726562,
+                    "actual_money_allocation": 642.9547770601364
                 },
                 {
                     "ticker": "QQQ",
-                    "shares": 0.9399924495177405,
-                    "live_price_at_eval": 611.25,
-                    "actual_money_allocation": 579.1011552591048
+                    "shares": 0.9396863027090102,
+                    "live_price_at_eval": 613.1099853515625,
+                    "actual_money_allocation": 574.2141158788629
                 },
                 {
                     "ticker": "OEF",
-                    "shares": 1.7599858629268337,
-                    "live_price_at_eval": 341.80499267578125,
-                    "actual_money_allocation": 605.945332943997
+                    "shares": 1.7794059774702535,
+                    "live_price_at_eval": 340.8299865722656,
+                    "actual_money_allocation": 607.0977183605424
                 },
                 {
                     "ticker": "DIA",
-                    "shares": 1.3999887546008902,
-                    "live_price_at_eval": 501.94000244140625,
-                    "actual_money_allocation": 705.636330272516
+                    "shares": 1.419526116858292,
+                    "live_price_at_eval": 501.3299865722656,
+                    "actual_money_allocation": 709.7062652547319
                 },
                 {
                     "ticker": "GLD",
-                    "shares": 2.7199781517960155,
-                    "live_price_at_eval": 462.3399963378906,
-                    "actual_money_allocation": 1253.6961015705222
+                    "shares": 2.7490822685635936,
+                    "live_price_at_eval": 467.6300048828125,
+                    "actual_money_allocation": 1276.9762314169814
                 },
                 {
                     "ticker": "SLV",
-                    "shares": 17.419860075105362,
-                    "live_price_at_eval": 73.38999938964844,
-                    "actual_money_allocation": 1272.9562218271303
+                    "shares": 16.704423530071875,
+                    "live_price_at_eval": 76.55999755859375,
+                    "actual_money_allocation": 1260.8147694055078
                 },
                 {
                     "ticker": "USAR",
-                    "shares": 18.689849873921887,
-                    "live_price_at_eval": 21.8799991607666,
-                    "actual_money_allocation": 427.62374943018654
+                    "shares": 18.68376276343766,
+                    "live_price_at_eval": 21.770000457763672,
+                    "actual_money_allocation": 390.6774765325655
                 },
                 {
                     "ticker": "REMX",
-                    "shares": 2.7399779911474567,
-                    "live_price_at_eval": 88.7040023803711,
-                    "actual_money_allocation": 243.39224997067814
+                    "shares": 2.869042222100914,
+                    "live_price_at_eval": 91.91999816894531,
+                    "actual_money_allocation": 258.4146320690671
                 },
                 {
                     "ticker": "MU",
-                    "shares": 1.2299901201136394,
-                    "live_price_at_eval": 373.25,
-                    "actual_money_allocation": 461.66794052049676
+                    "shares": 1.1896028725784278,
+                    "live_price_at_eval": 410.3399963378906,
+                    "actual_money_allocation": 469.447033591262
                 },
                 {
                     "ticker": "GLW",
-                    "shares": 3.9299684325582134,
-                    "live_price_at_eval": 128.0399932861328,
-                    "actual_money_allocation": 511.48536751082776
+                    "shares": 4.258578350574877,
+                    "live_price_at_eval": 132.89999389648438,
+                    "actual_money_allocation": 550.5703176494526
                 },
                 {
                     "ticker": "INTC",
-                    "shares": 6.9699440139772895,
-                    "live_price_at_eval": 47.130001068115234,
-                    "actual_money_allocation": 338.4953214670456
+                    "shares": 6.897697328395926,
+                    "live_price_at_eval": 48.290000915527344,
+                    "actual_money_allocation": 328.9167065771055
                 },
                 {
                     "ticker": "AMD",
-                    "shares": 0.37999694767738457,
-                    "live_price_at_eval": 213.57000732421875,
-                    "actual_money_allocation": 81.98434146139572
+                    "shares": 0.33988653502240795,
+                    "live_price_at_eval": 213.5800018310547,
+                    "actual_money_allocation": 72.11032851505574
                 }
             ],
-            "virtual_cash": 1.8189894035458565e-12,
-            "current_equity": 10254.136045899979
+            "virtual_cash": 0.0,
+            "current_equity": 10499.65098935076
         },
         {
             "user_email": "marketinsightscenter@gmail.com",
@@ -280,7 +280,7 @@
             "execution_time": "09:30",
             "timezone": "America/Chicago",
             "submission_date": "2026-02-03T03:52:55.526760",
-            "last_run": "2026-02-10T15:46:32.871404",
+            "last_run": "2026-02-11T15:46:30.244088",
             "pnl_all_time": 0.0,
             "last_stats": {},
             "status": "active",

@@ -287,6 +287,10 @@ async def handle_assess_command(args: List[str], ai_params: Optional[Dict] = Non
         try:
             if ai_params:
                 tickers_str_a = specific_params_dict.get("tickers_str")
+                # Fallback for Sentinel integration which passes 'ticker'
+                if not tickers_str_a and specific_params_dict.get("ticker"):
+                    tickers_str_a = specific_params_dict.get("ticker")
+                
                 timeframe_str_a = specific_params_dict.get("timeframe_str", "1Y") 
                 risk_tolerance_a_int = int(specific_params_dict.get("risk_tolerance", 3)) 
                 if not tickers_str_a:

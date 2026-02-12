@@ -225,38 +225,37 @@ async def _run_single_forecast_impl(ticker: str, is_called_by_ai: bool):
         # 1. Data Fetching and Prep
         data_daily = pd.DataFrame()
         
-        # --- START OF FIX ---
-        # Changed keys from days to yfinance-compatible period strings
+        # --- START OF FIX: Robust Retry Logic ---
         fetch_periods_map = {"10-Year": "10y", "5-Year": "5y", "3-Year": "3y", "1-Year": "1y"}
-        # --- END OF FIX ---
-        
         successful_period_name = None
         
-        # --- MODIFIED LOOP ---
         for period_name, period_str in fetch_periods_map.items():
             if not is_called_by_ai: print(f"-> Attempting to fetch {period_name} of historical data...")
             
-            try:
-                # Pass the period string directly to yfinance with a 30s timeout
-                temp_data = await asyncio.wait_for(
-                    asyncio.to_thread(
-                        yf.download, ticker, period=period_str, progress=False, auto_adjust=True
-                    ),
-                    timeout=30
-                )
-            except asyncio.TimeoutError:
-                if not is_called_by_ai: print(f"   -> Timeout fetching {period_name}.")
-                continue
-            except Exception as e:
-                if not is_called_by_ai: print(f"   -> Error fetching {period_name}: {e}")
-                continue
+            for attempt in range(3):
+                try:
+                    # Retry logic with exponential backoff
+                    await asyncio.sleep(0.5 * (attempt + 1))
+                    
+                    temp_data = await asyncio.wait_for(
+                        asyncio.to_thread(
+                            yf.download, ticker, period=period_str, progress=False, auto_adjust=True
+                        ),
+                        timeout=30
+                    )
+                    
+                    if not temp_data.empty and len(temp_data) > 504: # Need > 2 years of data for 1-year forecast
+                        data_daily = temp_data
+                        successful_period_name = period_name
+                        if not is_called_by_ai: print(f"   -> Successfully fetched {successful_period_name} of data.")
+                        break # Break retry loop
+                except Exception as e:
+                    if not is_called_by_ai: print(f"   -> Retry {attempt+1}/{3} failed for {period_name}: {e}")
+                    await asyncio.sleep(1.0 * (attempt + 1))
             
-            if not temp_data.empty and len(temp_data) > 504: # Need > 2 years of data for 1-year forecast
-                data_daily = temp_data
-                successful_period_name = period_name
-                if not is_called_by_ai: print(f"   -> Successfully fetched {successful_period_name} of data.")
-                break
-        # --- END MODIFIED LOOP ---
+            if not data_daily.empty:
+                break # Break period loop if success
+        # --- END OF FIX ---
         
         if data_daily.empty:
             message = f"❌ Error: Not enough historical data found for {ticker} to perform a forecast."

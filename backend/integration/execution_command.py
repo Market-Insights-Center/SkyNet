@@ -226,6 +226,14 @@ def execute_portfolio_rebalance(trades: List[Dict[str, Any]], known_holdings: Op
                 current_price = 0.0
 
         print(f"   Processing: {side.upper()} {qty} {ticker}...", end=" ")
+        
+        if progress_callback:
+            progress_callback(
+                completed=successful_trades + failed_trades,
+                total=len(trades),
+                trade={'ticker': ticker, 'side': side, 'quantity': qty},
+                msg=f"Processing {side.upper()} {qty} {ticker}..."
+            )
 
         # --- 3. Execution Loop ---
         adjustment_attempts = 0
@@ -265,6 +273,14 @@ def execute_portfolio_rebalance(trades: List[Dict[str, Any]], known_holdings: Op
                         
                         print(f"\n   ✅ EXECUTED: {side.upper()} {qty} {ticker} @ ${exec_price:.2f}")
                         
+                        if progress_callback:
+                            progress_callback(
+                                completed=successful_trades + failed_trades + 1,
+                                total=len(trades),
+                                trade={'ticker': ticker, 'side': side, 'quantity': qty, 'price': exec_price},
+                                msg=f"Executed {side.upper()} {qty} {ticker}"
+                            )
+                        
                         successful_trades += 1
                         trades[i]['quantity'] = qty
                         trade_complete = True
@@ -279,6 +295,14 @@ def execute_portfolio_rebalance(trades: List[Dict[str, Any]], known_holdings: Op
                         qty += step
                         if not is_integer_only: qty = round(qty, 6)
                         print(f"\n      ❌ Too small (<$1). Retrying with {qty}...", end=" ")
+                        
+                        if progress_callback:
+                            progress_callback(
+                                completed=successful_trades + failed_trades,
+                                total=len(trades),
+                                trade={'ticker': ticker, 'side': side, 'quantity': qty},
+                                msg=f"Adjusting {ticker}: Value < $1. Retrying..."
+                            )
                         adjustment_attempts += 1
                         break 
 
@@ -325,6 +349,14 @@ def execute_portfolio_rebalance(trades: List[Dict[str, Any]], known_holdings: Op
                         failed_trades += 1
                         trade_complete = True
                         break
+                        
+                    if trade_complete and progress_callback and 'id' not in order:
+                         progress_callback(
+                            completed=successful_trades + failed_trades,
+                            total=len(trades),
+                            trade={'ticker': ticker, 'side': side, 'quantity': qty},
+                            msg=f"Failed {ticker}: {str(order.get('detail', 'Unknown Error'))}"
+                        )
 
                 except Exception as e:
                     if attempt == max_network_retries - 1:
@@ -360,6 +392,14 @@ def execute_portfolio_rebalance(trades: List[Dict[str, Any]], known_holdings: Op
                 if order and 'id' in order:
                     exec_price = float(order.get('price') or current_price)
                     print(f"\n   ✅ EXECUTED: BUY {qty} {ticker} @ ${exec_price:.2f}")
+                    
+                    if progress_callback:
+                        progress_callback(
+                            completed=successful_trades + failed_trades + 1,
+                            total=len(trades),
+                            trade={'ticker': ticker, 'side': side, 'quantity': qty, 'price': exec_price},
+                            msg=f"Executed Deferred BUY {qty} {ticker}"
+                        )
                     successful_trades += 1
                     trades[idx]['quantity'] = qty 
                 else:
