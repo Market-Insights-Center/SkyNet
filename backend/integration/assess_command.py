@@ -332,7 +332,9 @@ async def handle_assess_command(args: List[str], ai_params: Optional[Dict] = Non
                     # Fetch Ticker AND SPY data for correlation
                     hist_df_a = await get_yf_data_singularity([ticker_a_item, 'SPY'], period=selected_yf_period_a, is_called_by_ai=True)
                     
-                    if hist_df_a.empty or ticker_a_item not in hist_df_a.columns or len(hist_df_a[ticker_a_item].dropna()) <= 1:
+                    if hist_df_a.empty or ticker_a_item not in hist_df_a.columns or 'SPY' not in hist_df_a.columns or len(hist_df_a[ticker_a_item].dropna()) <= 1:
+                        if is_called_by_ai:
+                            return {"error": f"Data fetch failed for {ticker_a_item} or SPY (Assess A)."}
                         results_for_table_a.append([ticker_a_item, "N/A", "N/A", "N/A", "N/A", "N/A", "N/A", "Data Error"])
                         assessment_summaries_ai_list.append(f"{ticker_a_item}: Data Error.")
                         continue

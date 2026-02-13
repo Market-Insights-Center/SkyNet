@@ -54,24 +54,37 @@ async def stream_ticker_tools(ticker: str, required_tools: Set[str], column_inst
     Yields cell updates for a single ticker as tools complete.
     """
     # 1. Define Tool Handlers
+
     async def run_tool(tool_name):
         for attempt in range(3): # 3 Attempts Total
             try:
                 if attempt > 0:
                     await asyncio.sleep(1 * attempt) # Backoff
                 
+                result = None
                 if tool_name == "quickscore":
-                    return await handle_quickscore_command([], ai_params={"ticker": ticker}, is_called_by_ai=True)
+                    result = await handle_quickscore_command([], ai_params={"ticker": ticker}, is_called_by_ai=True)
                 elif tool_name == "mlforecast":
-                    return await handle_mlforecast_command([], ai_params={"ticker": ticker}, is_called_by_ai=True)
+                    result = await handle_mlforecast_command([], ai_params={"ticker": ticker, "skip_graph": True}, is_called_by_ai=True)
                 elif tool_name == "assess_a":
                     # Defaulting to 1Y/3 risk for general assessment
-                    return await handle_assess_command([], ai_params={"assess_code": "A", "ticker": ticker, "timeframe_str": "1Y", "risk_tolerance": 3}, is_called_by_ai=True)
+                    result = await handle_assess_command([], ai_params={"assess_code": "A", "ticker": ticker, "timeframe_str": "1Y", "risk_tolerance": 3}, is_called_by_ai=True)
                 elif tool_name == "sentiment":
-                    return await handle_sentiment_command([], ai_params={"ticker": ticker}, is_called_by_ai=True)
+                    result = await handle_sentiment_command([], ai_params={"ticker": ticker}, is_called_by_ai=True)
+                
+                # Check for soft errors to trigger retry
+                if result is None:
+                    raise ValueError("Result is None")
+                if isinstance(result, dict) and "error" in result:
+                    raise ValueError(f"Tool returned error: {result['error']}")
+                
+                return result
+
             except Exception as e:
                 logger.error(f"Attempt {attempt+1} failed for {tool_name}/{ticker}: {e}")
-        return None # Failed after retries
+                if attempt == 2: # Last attempt
+                    return None
+        return None # Should be unreachable given return in loop
 
     # 2. Launch Tasks
     tasks = []

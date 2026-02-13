@@ -410,8 +410,9 @@ Please make sure to generate a final summary ordering the assets based on the st
                     <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-5 pointer-events-none"></div>
                     <div className="absolute inset-0 bg-[linear-gradient(rgba(18,18,18,0)_1px,transparent_1px),linear-gradient(90deg,rgba(18,18,18,0)_1px,transparent_1px)] bg-[size:40px_40px] [mask-image:radial-gradient(ellipse_60%_60%_at_50%_0%,black_70%,transparent_100%)] pointer-events-none opacity-20"></div>
 
+
                     {appMode === "chart" ? (
-                        <div className="flex-1 overflow-y-auto p-4 md:p-8 relative z-10">
+                        <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 md:p-8 relative z-10 w-full">
                             <ChartCompletion />
                         </div>
                     ) : (

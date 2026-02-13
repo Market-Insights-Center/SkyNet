@@ -42,6 +42,19 @@ export default function PortfolioNexus() {
         cash_reserve: ''
     });
 
+    // Load persisted RH credentials on mount
+    useEffect(() => {
+        const savedUser = localStorage.getItem('mic_rh_user');
+        const savedPass = localStorage.getItem('mic_rh_pass'); // Only if user wants? User asked for it.
+        if (savedUser || savedPass) {
+            setExecutionOpts(prev => ({
+                ...prev,
+                rh_user: savedUser || '',
+                rh_pass: savedPass || ''
+            }));
+        }
+    }, []);
+
     const updateExecOpt = (field, val) => {
         setExecutionOpts(prev => {
             const newState = { ...prev, [field]: val };
@@ -50,6 +63,14 @@ export default function PortfolioNexus() {
             }
             return newState;
         });
+
+        // Persist RH credentials
+        if (field === 'rh_user') {
+            localStorage.setItem('mic_rh_user', val);
+        }
+        if (field === 'rh_pass') {
+            localStorage.setItem('mic_rh_pass', val);
+        }
     };
 
     const runNexus = async () => {

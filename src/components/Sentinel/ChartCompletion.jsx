@@ -34,7 +34,7 @@ const ChartCompletion = () => {
     const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
 
     // Progress State
-    const [progress, setProgress] = useState({ current: 0, total: 0, startTime: 0 });
+    const [progress, setProgress] = useState({ current: 0, total: 0, startTime: 0, eta: null });
     const [processingTicker, setProcessingTicker] = useState(null);
 
     const fileInputRef = useRef(null);
@@ -88,19 +88,57 @@ const ChartCompletion = () => {
 
                 const normalizeHeader = (h) => {
                     const upper = h.toUpperCase().replace(/\s+/g, ' ').trim();
-                    return NORMALIZE_MAP[upper] || h;
+                    for (const [key, value] of Object.entries(NORMALIZE_MAP)) {
+                        if (key === upper) return value;
+                    }
+                    return h;
                 };
 
-                const normalizedColumns = newColumns.map(c => ({
-                    id: Date.now() + Math.random(),
-                    value: normalizeHeader(c)
-                }));
+                const cleanColumns = newColumns.map(c => normalizeHeader(c));
+
+                // Populate Results with Existing Data
+                const rows = [];
+                const seenTickers = new Set();
+
+                for (let i = 1; i < lines.length; i++) {
+                    const parts = lines[i].split(',');
+                    const ticker = parts[0]?.trim()?.toUpperCase();
+                    if (!ticker) continue;
+
+                    if (seenTickers.has(ticker)) continue; // Skip duplicate in CSV
+                    seenTickers.add(ticker);
+
+                    newTickers.push(ticker);
+
+                    const rowData = { ticker };
+                    // Map parts to columns
+                    cleanColumns.forEach((col, idx) => {
+                        // parts[0] is ticker, so data starts at parts[1]
+                        const val = parts[idx + 1]?.trim();
+                        // Treat empty or "..." or "N/A" as missing/to-do? 
+                        // User said "use those values... just pick up where it was left off".
+                        // So keep "N/A" if it was a final result? Or retry it?
+                        // Let's assume if it has a value (not empty string), we keep it.
+                        if (val && val !== "") {
+                            rowData[col] = val;
+                        } else {
+                            rowData[col] = "..."; // Mark as pending
+                        }
+                    });
+                    rows.push(rowData);
+                }
 
                 setTickers(newTickers);
-                setColumns(normalizedColumns);
+                setColumns(cleanColumns.map(c => ({ value: c, label: c }))); // Simple map
+                setResults({
+                    headers: cleanColumns,
+                    rows: rows
+                });
+
                 setMode('manual');
                 setError(null);
             } catch (err) {
+                console.error(err);
                 setError(`Failed to parse CSV: ${err.message}`);
             }
         };
@@ -127,29 +165,57 @@ const ChartCompletion = () => {
         setIsLoading(true);
         setError(null);
 
-        const cleanTickers = tickers.filter(t => t.trim() !== "");
+        // Deduplicate and clean tickers (normalize to UpperCase)
+        const cleanTickers = [...new Set(tickers.map(t => t.trim().toUpperCase()).filter(t => t !== ""))];
         const cleanColumns = columns.map(c => c.value);
 
         if (cleanTickers.length === 0) { setError("Please add at least one ticker."); setIsLoading(false); return; }
         if (cleanColumns.length === 0) { setError("Please select at least one analysis column."); setIsLoading(false); return; }
 
-        // Initialize Skeleton
-        setResults({
-            headers: cleanColumns,
-            rows: cleanTickers.map(t => {
-                const row = { ticker: t };
-                cleanColumns.forEach(c => row[c] = "...");
-                return row;
-            })
+        // Initialize Data (Merge with existing if available)
+        const existingRows = results?.rows || [];
+
+        const mergedRows = cleanTickers.map(t => {
+            const existingRow = existingRows.find(r => r.ticker === t) || {};
+            const newRow = { ticker: t };
+
+            cleanColumns.forEach(c => {
+                // Keep existing value if valid, otherwise pending "..."
+                if (existingRow[c] && existingRow[c] !== "..." && existingRow[c] !== "") {
+                    newRow[c] = existingRow[c];
+                } else {
+                    newRow[c] = "...";
+                }
+            });
+            return newRow;
         });
 
-        setProgress({ current: 0, total: cleanTickers.length, startTime: Date.now() });
+        // Determine which tickers actually need processing (any "..." in their row)
+        // This allows "picking up where we left off" for partial rows or fully missing rows.
+        // Note: This effectively re-runs the whole row for the selected columns if even one cell is missing,
+        // which matches the backend's batching logic.
+        const tickersToRun = mergedRows.filter(row => {
+            return cleanColumns.some(c => row[c] === "...");
+        }).map(row => row.ticker);
+
+        setResults({
+            headers: cleanColumns,
+            rows: mergedRows
+        });
+
+        if (tickersToRun.length === 0) {
+            setIsLoading(false);
+            return;
+        }
+
+        // Initialize Progress
+        setProgress({ current: 0, total: 0, startTime: Date.now(), eta: null });
 
         try {
             const response = await fetch('http://localhost:8000/api/chart-completion', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ tickers: cleanTickers, columns: cleanColumns })
+                body: JSON.stringify({ tickers: tickersToRun, columns: cleanColumns })
             });
 
             if (!response.ok) throw new Error("Connection failed.");
@@ -186,36 +252,42 @@ const ChartCompletion = () => {
 
     const handleStreamEvent = (event) => {
         if (event.type === 'start') {
-            // Started
+            setProgress(prev => ({ ...prev, total: event.total_cells, startTime: Date.now() }));
         } else if (event.type === 'row_start') {
             setProcessingTicker(event.ticker);
         } else if (event.type === 'update') {
-            // Cell-level update
+            // Update Data
             setResults(prev => {
                 const newRows = prev.rows.map(row => {
                     if (row.ticker === event.ticker) {
-                        // Check if event has 'data' (old format) or 'col_id'/'value' (new format)
-                        if (event.data) {
-                            return { ...row, ...event.data };
-                        } else if (event.col_id) {
-                            return { ...row, [event.col_id]: event.value };
-                        }
+                        return { ...row, [event.col_id]: event.value };
                     }
                     return row;
                 });
                 return { ...prev, rows: newRows };
             });
-            // Only increment progress if it's a generic "update" or maybe handled by "row_done" in future
-            // For now, let's keep progress approximate or rely on "row_start" changes? 
-            // Actually, backend now yields "update" per cell. 
-            // We need a way to track "ticker done". 
-            // The backend sends `queue.put(None)` which isn't yielded as JSON. 
-            // We might just track completed tickers by counting unique tickers that have received updates?
-            // Simplified: Increment on row_start call? No.
-            // Let's rely on processingTicker change.
+
+            // Update Progress & ETA
+            setProgress(prev => {
+                const newCurrent = prev.current + 1;
+                const elapsed = (Date.now() - prev.startTime) / 1000; // seconds
+                // Simple linear extrapolation
+                let newEta = null;
+                if (newCurrent > 0 && elapsed > 1) {
+                    const rate = newCurrent / elapsed; // cells per second
+                    const remaining = prev.total - newCurrent;
+                    if (remaining > 0) {
+                        newEta = remaining / rate;
+                    } else {
+                        newEta = 0;
+                    }
+                }
+                return { ...prev, current: newCurrent, eta: newEta };
+            });
 
         } else if (event.type === 'done') {
             setProcessingTicker(null);
+            setProgress(prev => ({ ...prev, eta: 0 }));
         } else if (event.type === 'error') {
             console.error("Stream Error:", event.message);
         }
@@ -297,7 +369,7 @@ const ChartCompletion = () => {
     };
 
     return (
-        <div className="bg-gray-900/50 backdrop-blur-sm border border-gray-800 rounded-xl p-6 shadow-2xl">
+        <div className="bg-gray-900/50 backdrop-blur-sm border border-gray-800 rounded-xl p-6 shadow-2xl w-full max-w-full">
             {/* Header */}
             <div className="flex items-center justify-between mb-6">
                 <div className="flex items-center gap-3">
@@ -471,12 +543,30 @@ const ChartCompletion = () => {
                         </div>
                     </div>
 
-                    <div className="overflow-x-auto rounded-lg border border-gray-700 bg-black/60 shadow-inner max-w-full custom-scrollbar pb-2">
-                        <table className="w-full text-left text-sm border-collapse min-w-max">
+
+
+                    {/* Progress Bar */}
+                    {isLoading && progress.total > 0 && (
+                        <div className="mb-4 bg-gray-800 rounded-lg p-3 border border-gray-700">
+                            <div className="flex justify-between text-xs text-gray-400 mb-1">
+                                <span>Processing... {processingTicker && `(${processingTicker})`}</span>
+                                <span>{Math.round((progress.current / progress.total) * 100)}% {progress.eta !== null && `• ~${Math.ceil(progress.eta)}s remaining`}</span>
+                            </div>
+                            <div className="w-full bg-gray-700 rounded-full h-2 overflow-hidden">
+                                <div
+                                    className="bg-purple-500 h-2 rounded-full transition-all duration-300 ease-out"
+                                    style={{ width: `${Math.min((progress.current / progress.total) * 100, 100)}%` }}
+                                />
+                            </div>
+                        </div>
+                    )}
+
+                    <div className="block w-full max-w-[85vw] lg:max-w-[92vw] 2xl:max-w-[85vw] h-[calc(100vh-320px)] overflow-y-auto overflow-x-auto rounded-lg border border-gray-700 bg-black/60 shadow-inner pb-2 custom-scrollbar">
+                        <table className="w-full text-left text-xs border-collapse min-w-max">
                             <thead>
                                 <tr className="bg-gray-800/50 text-gray-400 border-b border-gray-700">
                                     <th
-                                        className="p-3 font-medium uppercase tracking-wider text-xs border-r border-gray-700/50 sticky left-0 bg-gray-900 z-10 w-24 cursor-pointer hover:text-white whitespace-nowrap"
+                                        className="p-2 font-medium uppercase tracking-wider text-[10px] border-r border-gray-700/50 sticky left-0 bg-gray-900 z-10 w-20 cursor-pointer hover:text-white whitespace-nowrap"
                                         onClick={() => handleSort('ticker')}
                                     >
                                         <div className="flex items-center gap-1">
@@ -487,7 +577,7 @@ const ChartCompletion = () => {
                                     {results.headers.map((h, i) => (
                                         <th
                                             key={i}
-                                            className="p-3 font-medium uppercase tracking-wider text-xs border-r border-gray-700/50 whitespace-nowrap cursor-pointer hover:text-white"
+                                            className="p-2 font-medium uppercase tracking-wider text-[10px] border-r border-gray-700/50 whitespace-nowrap cursor-pointer hover:text-white"
                                             onClick={() => handleSort(h)}
                                         >
                                             <div className="flex items-center gap-1">
@@ -501,11 +591,11 @@ const ChartCompletion = () => {
                             <tbody>
                                 {sortedRows.map((row, rIdx) => (
                                     <tr key={rIdx} className="border-b border-gray-800 hover:bg-white/5 transition-colors group">
-                                        <td className="p-3 font-mono text-blue-400 font-bold border-r border-gray-700/50 sticky left-0 bg-gray-900 group-hover:bg-gray-800 transition-colors">
+                                        <td className="p-2 font-mono text-blue-400 font-bold border-r border-gray-700/50 sticky left-0 bg-gray-900 group-hover:bg-gray-800 transition-colors">
                                             {row.ticker}
                                         </td>
                                         {results.headers.map((h, cIdx) => (
-                                            <td key={cIdx} className="p-3 text-gray-300 border-r border-gray-700/50 whitespace-nowrap">
+                                            <td key={cIdx} className="p-2 text-gray-300 border-r border-gray-700/50 whitespace-nowrap">
                                                 {row[h] === "..." ? (
                                                     <span className="text-gray-600 animate-pulse">...</span>
                                                 ) : (

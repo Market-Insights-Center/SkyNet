@@ -378,16 +378,22 @@ async def process_automation(auto):
                 # Collect reasons for failed inputs
                 failed_input_reasons = []
                 for e in in_edges:
-                    src = e['source']
-                    val = node_results.get(src, False)
+                    src_id = e['source']
+                    val = node_results.get(src_id, False)
+                    
+                    # Get source node details for better error message
+                    src_node = node_map.get(src_id, {})
+                    src_type = src_node.get('type', 'Unknown').replace('_', ' ').title()
+                    src_label = src_node.get('data', {}).get('label') or src_node.get('data', {}).get('ticker') or src_type
+                    
                     # For AND, if any input is False, it contributes to failure
                     if op == 'AND' and not val:
-                        r = node_reasons.get(src, "Condition failed")
-                        failed_input_reasons.append(r)
+                        r = node_reasons.get(src_id, "Condition failed")
+                        failed_input_reasons.append(f"{src_label}: {r}")
                     # For OR, if ALL are False, we list all reasons
                     elif op == 'OR' and not val:
-                         r = node_reasons.get(src, "Condition failed")
-                         failed_input_reasons.append(r)
+                         r = node_reasons.get(src_id, "Condition failed")
+                         failed_input_reasons.append(f"{src_label}: {r}")
                 
                 # Deduplicate reasons
                 failed_input_reasons = list(set(failed_input_reasons))

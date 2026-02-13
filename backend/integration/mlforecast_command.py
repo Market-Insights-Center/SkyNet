@@ -165,7 +165,11 @@ async def handle_mlforecast_command(args: List[str] = None, ai_params: dict = No
     """
     Handles the /mlforecast command. Supports batch processing via 'tickers_source'.
     """
+
+
     await increment_usage('mlforecast')
+    # print("[DEBUG] Skipped increment_usage")
+
     
     tickers = []
     if is_called_by_ai and ai_params:
@@ -201,25 +205,36 @@ async def handle_mlforecast_command(args: List[str] = None, ai_params: dict = No
     last_graph = None
     
     # Process tickers in parallel
-    tasks = [_run_single_forecast_impl(t, is_called_by_ai) for t in tickers]
+    tasks = [_run_single_forecast_impl(t, is_called_by_ai, ai_params) for t in tickers]
     results = await asyncio.gather(*tasks, return_exceptions=True)
+
 
     for i, res in enumerate(results):
         if isinstance(res, Exception):
-            if not is_called_by_ai: print(f"Error processing {tickers[i]}: {res}")
+            print(f"Error processing {tickers[i]}: {res}")
+            traceback.print_exc()
+
         elif res and isinstance(res, dict):
+            if "error" in res:
+                print(f"Error processing {tickers[i]}: {res['error']}")
             if "table" in res: aggregated_table.extend(res["table"])
             if "graph" in res: last_graph = res["graph"]
 
     if is_called_by_ai:
+        if not aggregated_table and not last_graph:
+             # Check if we have errors for all tickers
+             if len(results) > 0 and all(isinstance(r, Exception) or (isinstance(r, dict) and "error" in r) for r in results):
+                 return {"error": "All tickers failed to process."}
         return {"table": aggregated_table, "graph": last_graph}
         
 # Internal helper function containing the original logic
-async def _run_single_forecast_impl(ticker: str, is_called_by_ai: bool):
+async def _run_single_forecast_impl(ticker: str, is_called_by_ai: bool, ai_params: dict = None):
 
     if not is_called_by_ai:
         print("\n--- Advanced Machine Learning Price Forecast ---")
         print(f"-> Running advanced forecast for {ticker}...")
+
+
 
     try:
         # 1. Data Fetching and Prep
@@ -239,8 +254,9 @@ async def _run_single_forecast_impl(ticker: str, is_called_by_ai: bool):
                     
                     # Use Ticker object for better isolation than yf.download
                     ticker_obj = yf.Ticker(ticker)
+
                     temp_data = await asyncio.to_thread(
-                        ticker_obj.history, period=period_str, auto_adjust=True, progress=False
+                        ticker_obj.history, period=period_str, auto_adjust=True
                     )
                     
                     if not temp_data.empty and len(temp_data) > 504: # Need > 2 years of data for 1-year forecast
@@ -335,17 +351,12 @@ async def _run_single_forecast_impl(ticker: str, is_called_by_ai: bool):
             forecast_points.append({'date': forecast_date, 'price': forecast_price})
 
         if is_called_by_ai:
-            # We need to generate the weekly forecast path even for AI to get the graph
-            # Or we can just return the table results if no graph is needed, but the UI usually wants the graph.
-            # The original code skipped the "Raw" Weekly Forecast Path logic for AI.
-            # However, `plot_advanced_forecast_graph` needs `adjusted_weekly_path`.
-            # We strictly need to run steps 3 and 4 to get the graph.
             pass # Continue to step 3 instead of returning early
 
 
         # 3. Generate Detailed Weekly Forecast Path with Realistic Variation
         # Use daily interpolation with volatility-based noise for a more natural look
-        print("\n-> Generating detailed forecast path...")
+        if not is_called_by_ai: print("\n-> Generating detailed forecast path...")
         
         # Calculate historical daily volatility for realistic noise
         daily_returns = data_daily['Close'].pct_change().dropna()
@@ -416,7 +427,7 @@ async def _run_single_forecast_impl(ticker: str, is_called_by_ai: bool):
                 
         # Add final point exactly
         adjusted_weekly_path.append({'date': sorted_dates[-1], 'price': key_points[sorted_dates[-1]]})
-        print(f"   -> Generated {len(adjusted_weekly_path)} forecast points.")
+        if not is_called_by_ai: print(f"   -> Generated {len(adjusted_weekly_path)} forecast points.")
 
         # 5. Output Final Results
         print("\n" + "="*80)
@@ -424,8 +435,15 @@ async def _run_single_forecast_impl(ticker: str, is_called_by_ai: bool):
         graph_filename = None
         if results:
             if not is_called_by_ai: print(tabulate(results, headers="keys", tablefmt="pretty"))
-            if not is_called_by_ai: print("\n-> Generating forecast graph...")
-            graph_filename = plot_advanced_forecast_graph(ticker, data_daily, forecast_points, adjusted_weekly_path)
+            
+            # Check if graph generation should be skipped
+            skip_graph = False
+            if is_called_by_ai and ai_params and ai_params.get("skip_graph"):
+                 skip_graph = True
+
+            if not skip_graph:
+                if not is_called_by_ai: print("\n-> Generating forecast graph...")
+                graph_filename = plot_advanced_forecast_graph(ticker, data_daily, forecast_points, adjusted_weekly_path)
             
             if is_called_by_ai:
                 # Prepare Chart Data

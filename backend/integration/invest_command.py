@@ -160,7 +160,8 @@ async def process_custom_portfolio(
     is_called_by_ai: bool = False,
     names_map: Optional[Dict[str, str]] = None,
     all_portfolio_configs_passed: Optional[Dict[str, Dict[str, Any]]] = None,
-    parent_path: Optional[List[str]] = None
+    parent_path: Optional[List[str]] = None,
+    ignore_market_conditions: bool = False
 ) -> Tuple[List[str], List[Dict[str, Any]], float, List[Dict[str, Any]]]:
     
     try:
@@ -177,7 +178,7 @@ async def process_custom_portfolio(
             all_portfolio_configs = all_portfolio_configs_passed or {}
 
         sell_to_cash_active = False
-        if is_top_level_call:
+        if is_top_level_call and not ignore_market_conditions:
             avg_score, _, _ = get_allocation_score(is_called_by_ai=suppress_prints)
             if avg_score < 50.0:
                 sell_to_cash_active = True

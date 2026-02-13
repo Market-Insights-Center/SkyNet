@@ -180,7 +180,8 @@ async def _resolve_nexus_component(comp_type: str, comp_value: str, allocated_va
                     total_value_singularity=allocated_value,
                     frac_shares_singularity=allow_fractional,
                     is_custom_command_simplified_output=True,
-                    is_called_by_ai=True
+                    is_called_by_ai=True,
+                    ignore_market_conditions=True  # FORCE ALLOCATION
                 )
                 print(f"[DEBUG NEXUS] Raw result from process_custom_portfolio: {type(res)}")
                 if isinstance(res, tuple):
@@ -685,7 +686,7 @@ async def handle_nexus_command(args: List[str], ai_params: Optional[Dict] = None
             
             swept = True
             loop_count = 0
-            while swept and current_cash > 0 and loop_count < 50:
+            while swept and current_cash > 0 and loop_count < 500:
                 swept = False
                 loop_count += 1
                 for h in sorted_by_price:

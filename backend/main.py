@@ -24,6 +24,7 @@ from backend.routers import (
     auth, content, chat, web, market, automation,
     ai, background, execution, rot_token, dashboard, chart_router
 )
+
 # --- LOGGING ---
 # Ensure logs are overwritten on each startup for a clean state
 log_filename = "backend_log.txt"
