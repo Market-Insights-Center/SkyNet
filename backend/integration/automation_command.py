@@ -296,6 +296,43 @@ async def process_automation(auto):
                     'source': c_node['id']
                 })
             
+    # Retrieve User Credentials ONCE
+    # Avoid fetching inside the loop for every action
+    rh_username = None
+    rh_password = None
+    
+    try:
+        if 'user_email' in auto:
+            # We need to import firebase logic similar to market.py
+            # Or use a helper... market.py has get_firestore_db() local.
+            # automation_command doesn't have it yet.
+            # Let's import or create a helper safe way.
+            # Actually, backend.routers.market has `get_firestore_db`. We could reuse?
+            # Or just duplicate the safe init pattern to avoid circular imports?
+            # `market` imports `performance_stream_command` which might import other things.
+            # Safest is to just do `firebase_admin.firestore.client()` if initialized?
+            
+            import firebase_admin
+            from firebase_admin import firestore
+            
+            # Ensure app is initialized (main.py does it)
+            try:
+                db_client = firestore.client()
+                user_doc = db_client.collection('users').document(auto['user_email']).get()
+                if user_doc.exists:
+                    udata = user_doc.to_dict()
+                    rh_data = udata.get('integrations', {}).get('robinhood', {})
+                    if rh_data.get('connected'):
+                        rh_username = rh_data.get('username')
+                        rh_password = rh_data.get('encrypted_pass')
+                        print(f"   [AUTOMATION] Loaded RH Creds for {auto['user_email']}")
+            except Exception as db_err:
+                 print(f"   [AUTOMATION] DB Cred Fetch Error: {db_err}")
+                 
+    except Exception as e:
+        print(f"   [AUTOMATION] Credential Setup Error: {e}")
+
+    # Process nodes...
     processed_nodes = set() # To prevent loops or double execution of Actions
     node_map = {n['id']: n for n in nodes}
     actions_executed = False # Track if any action action actually fired
@@ -467,7 +504,17 @@ async def process_automation(auto):
                                 await update_status('Finalizing', "Sending Completion Report...")
                             
                             # Pass update_status as progress_callback
-                            await execute_action(target_node, nodes, edges, auto.get('user_email'), node_results, auto.get('name'), progress_callback=update_status)
+                            # INJECT CREDENTIALS
+                            await execute_action(
+                                target_node, 
+                                nodes, 
+                                edges, 
+                                auto.get('user_email'), 
+                                node_results, 
+                                auto.get('name'), 
+                                progress_callback=update_status,
+                                rh_credentials={'username': rh_username, 'password': rh_password}
+                            )
                             actions_executed = True
                             
                             # NEW: Allow propagation from Actions (if chaining is desired)
@@ -755,184 +802,165 @@ async def evaluate_condition(node):
         return False, f"Condition Error: {str(e)}"
 
 
-async def execute_action(node, all_nodes, all_edges, user_email, node_results, automation_name, **kwargs):
+async def execute_action(node, nodes, edges, user_email, node_results, automation_name, progress_callback=None, rh_credentials=None):
     """
-    Executes an action node based on its type.
+    Executes a specific action node (Tracking, Nexus, Email, Webhook).
     """
-    a_type = node.get('type')
+    t_type = node.get('type')
     data = node.get('data', {})
     
-    # Extract optional updated callback if provided
-    progress_callback = kwargs.get('progress_callback')
+    # Common AI Params construction
+    ai_params = {
+        'user_email': user_email,
+        'automation_name': automation_name,
+        'is_automation': True,
+        # INJECT CREDENTIALS
+        'rh_username': rh_credentials.get('username') if rh_credentials else None,
+        'rh_password': rh_credentials.get('password') if rh_credentials else None
+    }
     
-    print(f"   [ACTION] Executing {a_type}...")
-    try:
-        # 1. Gather Info from attached Condition/Info blocks
-        connected_sources = get_connected_nodes(node['id'], all_nodes, all_edges, direction="target_to_source")
+    # --- TRACKING ---
+    if t_type == 'tracking':
+        # Merge node data
+        ai_params.update(data)
+        # Ensure 'execute_actions' is passed if set in node
+        # The node might have 'execute_actions': true/false in data
         
-        email_info = None
-        rh_info = None
+        # Call Tracking Command
+        # We need to import it (lazy or top level)
+        try:
+            from backend.integration import tracking_command
+            res = await tracking_command.handle_tracking_command(
+                args=[],
+                ai_params=ai_params,
+                is_called_by_ai=True
+            )
+            # Log result?
+            if res.get('status') == 'error':
+                raise Exception(f"Tracking Logic Failed: {res.get('message')}")
+        except Exception as e:
+            raise Exception(f"Tracking Module Error: {str(e)}")
+
+    # --- NEXUS ---
+    elif t_type == 'nexus':
+        ai_params.update(data) # nexus_code, etc.
+        try:
+            from backend.integration import nexus_command
+            # Nexus takes progress_callback
+            res = await nexus_command.handle_nexus_command(
+                args=[], 
+                ai_params=ai_params, 
+                is_called_by_ai=True,
+                progress_callback=progress_callback
+            )
+            if res.get('status') == 'error':
+                 raise Exception(f"Nexus Logic Failed: {res.get('message')}")
+        except Exception as e:
+            raise Exception(f"Nexus Module Error: {str(e)}")
+
+    # --- SEND EMAIL ---
+    elif t_type == 'send_email':
+        subject = data.get('subject', 'SkyNet Automation Alert')
+        body = f"Your automation logic was triggered.\n\nTrigger Block ID: {node.get('id')}\nAction: Send Email"
+        recipient = email_info if email_info else user_email
         
-        for src in connected_sources:
-            if src.get('type') == 'email_info':
-                email_info = src.get('data', {}).get('email')
-            elif src.get('type') == 'rh_info':
-                rh_info = src.get('data', {})
+        if recipient:
+            print(f"   [ACTION] Sending Email to {recipient}")
+            try:
+                from backend.integration import monitor_command
+            except ImportError:
+                from cli_commands import monitor_command
+                
+            await monitor_command.send_notification(subject, body, to_emails=[recipient])
+        else:
+            print("   [ACTION] Email skipped: No recipient found.")
 
-        a_type = node.get('type')
-        data = node.get('data', {})
-
-        # 2. Prepare Parameters (Safe Conversion)
-        code = data.get('code')
-        val_raw = data.get('value')
-        # Safe float conversion handling empty strings
-        value = float(val_raw) if val_raw and str(val_raw).strip() else 0.0
-        
-        fractional = data.get('fractional', False)
-        # Handle 'actions' list (e.g. ['email', 'robinhood'])
-        actions = data.get('actions', []) 
-        
-        ai_params = {
-            'total_value': value,
-            'use_fractional_shares': fractional,
-            'execute_rh': 'robinhood' in actions,
-            'send_email': 'email' in actions,
-            'overwrite': 'overwrite' in actions,
-            'email_to': email_info if email_info else user_email,
-            'rh_user': rh_info.get('email') if rh_info else None,
-            'rh_pass': rh_info.get('password') if rh_info else None
-        }
-
-        print(f"   [ACTION] Executing {a_type} (Code: {code}, Val: {value})")
-
-        # 3. Dispatch Command
-        if a_type == 'nexus':
-            if code:
-                ai_params['nexus_code'] = code
-                # Call Nexus Command
-                # Ensure nexus_command is imported
-                try:
-                    from backend.integration import nexus_command
-                except ImportError:
-                    from integration import nexus_command
-                    
-                await nexus_command.handle_nexus_command(
-                    args=[], 
-                    ai_params=ai_params, 
-                    is_called_by_ai=True
-                )
-            else:
-                print("   [ACTION ERROR] Nexus execution skipped: No code provided.")
-
-        elif a_type == 'tracking':
-            if code:
-                ai_params['portfolio_code'] = code
-                try:
-                    from backend.integration import tracking_command
-                except ImportError:
-                    from integration import tracking_command
-                    
-                await tracking_command.handle_tracking_command(
-                    args=[], 
-                    ai_params=ai_params
-                )
-            else:
-                print("   [ACTION ERROR] Tracking execution skipped: No code provided.")
-
-        elif a_type == 'send_email':
-            subject = data.get('subject', 'SkyNet Automation Alert')
-            body = f"Your automation logic was triggered.\n\nTrigger Block ID: {node.get('id')}\nAction: Send Email"
-            recipient = email_info if email_info else user_email
+    # --- COMPLETION EMAIL ---
+    elif t_type == 'completion_email':
+        # Send Completion Summary
+        target_email = node.get('data', {}).get('email')
+        if not target_email and email_info: target_email = email_info
             
-            if recipient:
-                print(f"   [ACTION] Sending Email to {recipient}")
-                try:
-                    from backend.integration import monitor_command
-                except ImportError:
-                    from cli_commands import monitor_command
-                    
-                await monitor_command.send_notification(subject, body, to_emails=[recipient])
-            else:
-                print("   [ACTION] Email skipped: No recipient found.")
+        if not target_email and user_email: target_email = user_email
 
-        elif a_type == 'completion_email':
-            # Send Completion Summary
-            target_email = node.get('data', {}).get('email')
-            if not target_email and email_info: target_email = email_info
+        if target_email:
+            print(f"   [ACTION] Sending Completion Email to {target_email}...")
             
-            if not target_email and user_email: target_email = user_email
-
-            if target_email:
-                print(f"   [ACTION] Sending Completion Email to {target_email}...")
-                
-                # Construct Summary
-                timestamp = datetime.now(USER_TZ).strftime("%Y-%m-%d %H:%M:%S")
-                # auto_name is passed in args
-                
-                steps_summary = "<ul>"
-                # Sort nodes by some logic? or just list them
-                sorted_nodes = sorted(all_nodes, key=lambda n: (n.get('position', {}).get('y', 0), n.get('position', {}).get('x', 0)))
-                
-                for n in sorted_nodes:
-                    n_type = n.get('type', '').replace('_', ' ').title()
-                    n_res = node_results.get(n['id']) if node_results else None
+            # Construct Summary
+            timestamp = datetime.now(USER_TZ).strftime("%Y-%m-%d %H:%M:%S")
+            # auto_name is passed in args
+            
+            steps_summary = "<ul>"
+            # Sort nodes by some logic? or just list them
+            sorted_nodes = sorted(nodes, key=lambda n: (n.get('position', {}).get('y', 0), n.get('position', {}).get('x', 0)))
+            
+            for n in sorted_nodes:
+                n_type = n.get('type', '').replace('_', ' ').title()
+                n_res = node_results.get(n['id']) if node_results else None
                     
-                    status_icon = "⚪"
-                    status_text = "Skipped/Pending"
-                    if n_res is True: 
-                        status_icon = "✅" 
-                        status_text = "Passed"
-                    elif n_res is False: 
-                        status_icon = "❌" 
-                        status_text = "Failed"
-                        
-                    # Don't show every node detail, just high level
-                    steps_summary += f"<li>{status_icon} <b>{n_type}</b>: {status_text}</li>"
-                steps_summary += "</ul>"
+                status_icon = "⚪"
+                status_text = "Skipped/Pending"
+                if n_res is True: 
+                    status_icon = "✅" 
+                    status_text = "Passed"
+                elif n_res is False: 
+                    status_icon = "❌" 
+                    status_text = "Failed"
+                    
+                # Don't show every node detail, just high level
+                steps_summary += f"<li>{status_icon} <b>{n_type}</b>: {status_text}</li>"
+            steps_summary += "</ul>"
                 
-                subject = f"Automation Completed: {auto_name}"
-                body = f"""
-                <h2>Automation Run Successful</h2>
-                <p><b>Time:</b> {timestamp}</p>
-                <hr>
-                <h3>Execution Stack:</h3>
-                {steps_summary}
-                <p><i>Sent via Medulla Automation</i></p>
-                """
-                
-                try:
-                    from backend.integration import monitor_command
-                    await monitor_command.send_notification(
-                        subject,
-                        body, # send_notification handles HTML? usually logic handles it
-                        to_emails=[target_email]
-                    )
-                    print(f"   [ACTION] Completion Email Sent.")
-                except Exception as e:
-                    print(f"   [ACTION] Failed to send email: {e}")
-            else:
-                 print("   [ACTION] Skipped Completion Email: No email address found.")
+            subject = f"Automation Completed: {auto_name}"
+            body = f"""
+            <h2>Automation Run Successful</h2>
+            <p><b>Time:</b> {timestamp}</p>
+            <hr>
+            <h3>Execution Stack:</h3>
+            {steps_summary}
+            <p><i>Sent via Medulla Automation</i></p>
+            """
+            
+            try:
+                from backend.integration import monitor_command
+                await monitor_command.send_notification(
+                    subject,
+                    body, 
+                    to_emails=[target_email]
+                )
+                print(f"   [ACTION] Completion Email Sent.")
+            except ImportError:
+                 from cli_commands import monitor_command
+                 # Re try with cli version?
+                 # Simplifying import logic to potentially avoid nesting hell
+                 pass
+            except Exception as e:
+                print(f"   [ACTION] Failed to send email: {e}")
+            
+        else:
+            print("   [ACTION] Skipped Completion Email: No email address found.")
 
-        elif a_type == 'webhook':
-            url = data.get('url')
-            platform = data.get('platform')
-            message = data.get('message', 'SkyNet Alert')
+    # --- WEBHOOK ---
+    elif a_type == 'webhook':
+        url = data.get('url')
+        platform = data.get('platform')
+        message = data.get('message', 'SkyNet Alert')
 
-            if url:
-                payload = {}
-                if platform == 'discord':
-                    payload = {"content": message}
-                else: # slack/generic
-                    payload = {"text": message}
+        if url:
+            payload = {}
+            if platform == 'discord':
+                payload = {"content": message}
+            else: # slack/generic
+                payload = {"text": message}
 
+            try:
                 import aiohttp
                 async with aiohttp.ClientSession() as session:
                     async with session.post(url, json=payload) as resp:
                         print(f"   [WEBHOOK] Sent to {platform} ({resp.status})")
-            else:
-                 print("   [ACTION] Webhook skipped: No URL provided.")
+            except Exception as e:
+                print(f"   [WEBHOOK] Error: {e}")
+        else:
+             print("   [ACTION] Webhook skipped: No URL provided.")
 
-    except Exception as e:
-        print(f"[ACTION ERROR] Execution Failed: {e}")
-        traceback.print_exc()
-        raise e # NEW: Re-raise to let the main loop know we crashed
+

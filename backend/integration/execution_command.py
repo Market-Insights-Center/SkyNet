@@ -23,12 +23,17 @@ CONFIG_FILE = os.path.join(BASE_DIR, 'config.ini')
 config = configparser.ConfigParser()
 config.read(CONFIG_FILE)
 
-def login_to_robinhood():
-    """Logs into Robinhood using credentials and auto-generates 2FA token."""
+def login_to_robinhood(username=None, password=None, mfa_secret=None):
+    """Logs into Robinhood using provided credentials and auto-generates 2FA token."""
     try:
-        username = config.get('ROBINHOOD', 'RH_USERNAME', fallback=None)
-        password = config.get('ROBINHOOD', 'RH_PASSWORD', fallback=None)
-        mfa_secret = config.get('ROBINHOOD', 'RH_MFA_CODE', fallback=None)
+        # Fallback to config only if not provided (for backward compatibility during migration)
+        # BUT for the fix, we prefer explicit args.
+        if not username:
+            username = config.get('ROBINHOOD', 'RH_USERNAME', fallback=None)
+        if not password:
+            password = config.get('ROBINHOOD', 'RH_PASSWORD', fallback=None)
+        if not mfa_secret:
+            mfa_secret = config.get('ROBINHOOD', 'RH_MFA_CODE', fallback=None)
 
         if not username or not password:
             print("❌ Error: Robinhood credentials missing.")
@@ -45,9 +50,9 @@ def login_to_robinhood():
         print(f"❌ Login failed: {e}")
         return False
 
-def get_robinhood_equity() -> float:
+def get_robinhood_equity(rh_username=None, rh_password=None) -> float:
     """Logs in and fetches the total equity of the account."""
-    if not login_to_robinhood():
+    if not login_to_robinhood(username=rh_username, password=rh_password):
         return 0.0
     
     try:
@@ -59,13 +64,13 @@ def get_robinhood_equity() -> float:
     
     return 0.0
 
-def get_robinhood_holdings() -> Optional[Dict[str, float]]:
+def get_robinhood_holdings(rh_username=None, rh_password=None) -> Optional[Dict[str, float]]:
     """
     Logs in and fetches current share holdings as {ticker: quantity}.
     Useful for ensuring rebalance calculations use LIVE data.
     Returns None if fetch fails, {} if empty.
     """
-    if not login_to_robinhood():
+    if not login_to_robinhood(username=rh_username, password=rh_password):
         return None
     
     try:
@@ -98,7 +103,7 @@ def _get_single_holding(ticker: str) -> float:
         pass
     return 0.0
 
-def execute_portfolio_rebalance(trades: List[Dict[str, Any]], known_holdings: Optional[Dict[str, float]] = None, execute: bool = True, progress_callback=None) -> List[Dict[str, Any]]:
+def execute_portfolio_rebalance(trades: List[Dict[str, Any]], known_holdings: Optional[Dict[str, float]] = None, execute: bool = True, progress_callback=None, rh_username=None, rh_password=None) -> List[Dict[str, Any]]:
     """
     Executes trades with full retry logic, precision handling, and error management.
     ADAPTED FOR BACKEND: No interactive input() calls. Assumes execution is requested if called with execute=True.
@@ -132,8 +137,8 @@ def execute_portfolio_rebalance(trades: List[Dict[str, Any]], known_holdings: Op
     # Backend Safety: We rely on the caller to have obtained user consent.
     # No 'input()' check here.
     
-    # Force auto-login via config
-    if not login_to_robinhood():
+    # Force auto-login via config or args
+    if not login_to_robinhood(username=rh_username, password=rh_password):
         if progress_callback: 
             # We can't await here easily if this function isn't async, 
             # BUT we updated the signature to simple def... wait, did we make it async?

@@ -323,7 +323,11 @@ async def handle_tracking_command(args: List[str], ai_params: Optional[Dict] = N
     
     if execute_rh:
         try:
-            rh_equity = await asyncio.to_thread(get_robinhood_equity)
+            # We need to extract credentials earlier or get them here?
+            # ai_params is available here.
+            _rh_user = ai_params.get('rh_username') if ai_params else None
+            _rh_pass = ai_params.get('rh_password') if ai_params else None
+            rh_equity = await asyncio.to_thread(get_robinhood_equity, rh_username=_rh_user, rh_password=_rh_pass)
         except: 
             rh_equity = 0.0
 
@@ -450,7 +454,7 @@ async def handle_tracking_command(args: List[str], ai_params: Optional[Dict] = N
         if execute_rh:
              try:
                  print("[DEBUG TRACKING] Fetching LIVE Robinhood holdings for accurate diff...")
-                 current_holdings_map = await asyncio.to_thread(get_robinhood_holdings)
+                 current_holdings_map = await asyncio.to_thread(get_robinhood_holdings, rh_username=rh_user, rh_password=rh_pass)
                  print(f"[DEBUG TRACKING] Live Holdings Fetched: {len(current_holdings_map)} positions")
              except Exception as e:
                  print(f"[DEBUG TRACKING] Failed to get live holdings: {e}")
@@ -499,7 +503,7 @@ async def handle_tracking_command(args: List[str], ai_params: Optional[Dict] = N
     all_names_map = _load_all_subportfolio_names()
     all_time_results = await get_all_time_performance_data(
         portfolio_code, new_target_data, old_run_data, portfolio_config, all_names_map, 
-        live_rh_holdings={k:v for k,v in (await asyncio.to_thread(get_robinhood_holdings)).items()} if execute_rh else None
+        live_rh_holdings={k:v for k,v in (await asyncio.to_thread(get_robinhood_holdings, rh_username=rh_user, rh_password=rh_pass)).items()} if execute_rh else None
     )
 
     # Execution Handling
@@ -559,7 +563,7 @@ async def handle_tracking_command(args: List[str], ai_params: Optional[Dict] = N
                  
              if exec_trades:
                  try:
-                     await asyncio.to_thread(execute_portfolio_rebalance, trades=exec_trades, execute=True)
+                     await asyncio.to_thread(execute_portfolio_rebalance, trades=exec_trades, execute=True, rh_username=rh_user, rh_password=rh_pass)
                      execution_result_msg += " Trades Executed."
                  except Exception as e:
                      execution_result_msg += f" Execution Error: {e}"

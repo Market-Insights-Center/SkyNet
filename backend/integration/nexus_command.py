@@ -577,8 +577,12 @@ async def handle_nexus_command(args: List[str], ai_params: Optional[Dict] = None
         #   can_auto_execute: Actually Trade (Only if AI/Automation)
         use_rh_data = ai_params and ai_params.get('execute_rh')
         
+        # EXTRACT CREDENTIALS
+        rh_user = ai_params.get('rh_username') if ai_params else None
+        rh_pass = ai_params.get('rh_password') if ai_params else None
+
         if use_rh_data:
-            try: rh_equity = await asyncio.to_thread(get_robinhood_equity)
+            try: rh_equity = await asyncio.to_thread(get_robinhood_equity, rh_username=rh_user, rh_password=rh_pass)
             except: pass
             
         total_value = float(ai_params.get("total_value") or 0)

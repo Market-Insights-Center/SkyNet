@@ -41,14 +41,14 @@ async def execute_trades_stream(req: ExecutionRequest):
             yield json.dumps({"type": "progress", "message": "Initializing Execution Engine...", "completed": 0, "total": len(req.trades)}) + "\n"
             
             # Set credentials for this session if provided
-            if req.rh_username: os.environ["RH_USERNAME"] = req.rh_username
-            if req.rh_password: os.environ["RH_PASSWORD"] = req.rh_password
+            # if req.rh_username: os.environ["RH_USERNAME"] = req.rh_username
+            # if req.rh_password: os.environ["RH_PASSWORD"] = req.rh_password
             
             # 2. Import Execution Logic lazily to ensure env vars are picked up
             try:
-                from backend.integration.execution_command import execute_portfolio_rebalance
+                from backend.integration.execution_command import execute_portfolio_rebalance, login_to_robinhood
             except ImportError:
-                from integration.execution_command import execute_portfolio_rebalance
+                from integration.execution_command import execute_portfolio_rebalance, login_to_robinhood
 
             # 3. Normalize Trades
             clean_trades = []
@@ -79,8 +79,7 @@ async def execute_trades_stream(req: ExecutionRequest):
             # Login (SKIPPING FOR DUMMY TEST)
             # try:
             #     # Use shared login function with MFA support
-            #     from backend.integration.execution_command import login_to_robinhood
-            #     if not login_to_robinhood():
+            #     if not login_to_robinhood(username=req.rh_username, password=req.rh_password):
             #         yield json.dumps({"type": "error", "message": "Login Failed (MFA/Creds)"}) + "\n"
             #         return
             #     
