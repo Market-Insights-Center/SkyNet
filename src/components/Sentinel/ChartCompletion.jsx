@@ -56,11 +56,7 @@ const ChartCompletion = () => {
                 const newColumns = headers.slice(1);
                 const newTickers = [];
 
-                for (let i = 1; i < lines.length; i++) {
-                    const parts = lines[i].split(',');
-                    const ticker = parts[0]?.trim();
-                    if (ticker) newTickers.push(ticker);
-                }
+
 
                 const NORMALIZE_MAP = {
                     // QuickScore
